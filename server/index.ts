@@ -4,7 +4,7 @@ import { createProxyMiddleware, type RequestHandler } from 'http-proxy-middlewar
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn, type ChildProcess } from 'child_process';
+import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import http from 'http';
 import fs from 'fs';
 import {
@@ -258,6 +258,11 @@ app.get('/api/v1/auth/status', async (req, res) => {
 });
 
 // ========== Health ==========
+// Simple health check for Railway/monitoring (does NOT depend on CodeBuddy)
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 app.get('/api/v1/health', async (_req, res) => {
   try {
     const cb = await proxyRequest('GET', '/api/v1/health');
@@ -711,12 +716,63 @@ function getCliPath(): string {
   const linuxPath = '/usr/local/lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy';
   // Windows (local dev): %APPDATA% path
   const winPath = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@tencent-ai', 'codebuddy-code', 'bin', 'codebuddy');
+  // Local node_modules
+  const localPath = path.join(__dirname, '..', 'node_modules', '@tencent-ai', 'codebuddy-code', 'bin', 'codebuddy');
 
   try { if (fs.existsSync(linuxPath)) return linuxPath; } catch {}
   try { if (fs.existsSync(winPath)) return winPath; } catch {}
+  try { if (fs.existsSync(localPath)) return localPath; } catch {}
 
   // Fallback: rely on PATH
   return 'codebuddy';
+}
+
+function isCliInstalled(): boolean {
+  const cliPath = getCliPath();
+  if (cliPath === 'codebuddy') {
+    // Check if codebuddy is in PATH
+    try {
+      const result = spawnSync('which', ['codebuddy'], { timeout: 3000 });
+      return result.status === 0;
+    } catch {
+      return false;
+    }
+  }
+  return fs.existsSync(cliPath);
+}
+
+function installCli(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    console.log('[CodeBuddy] Installing @tencent-ai/codebuddy-code globally...');
+    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const install = spawn(npmCmd, ['install', '-g', '@tencent-ai/codebuddy-code'], {
+      stdio: 'pipe',
+      shell: true,
+    });
+
+    install.stdout.on('data', (data: Buffer) => {
+      const msg = data.toString().trim();
+      if (msg) console.log(`[CodeBuddy:install] ${msg}`);
+    });
+
+    install.stderr.on('data', (data: Buffer) => {
+      const msg = data.toString().trim();
+      if (msg) console.log(`[CodeBuddy:install] ${msg}`);
+    });
+
+    install.on('close', (code) => {
+      if (code === 0) {
+        console.log('[CodeBuddy] CLI installed successfully');
+        resolve();
+      } else {
+        reject(new Error(`npm install -g failed with code ${code}`));
+      }
+    });
+
+    install.on('error', (err) => {
+      reject(new Error(`npm install -g error: ${err.message}`));
+    });
+  });
 }
 
 function startCodeBuddy() {
@@ -753,45 +809,64 @@ function startCodeBuddy() {
   });
 }
 
+async function ensureCodeBuddy() {
+  // Only start CodeBuddy CLI if not connecting to external host
+  if (CB_HOST !== '127.0.0.1' && CB_HOST !== 'localhost') {
+    console.log(`[CodeBuddy] Connecting to external host: ${CB_BASE}`);
+    return;
+  }
+
+  // Install CLI if not found
+  if (!isCliInstalled()) {
+    try {
+      await installCli();
+    } catch (err: any) {
+      console.error(`[CodeBuddy] CLI installation failed: ${err.message}`);
+      console.error('[CodeBuddy] Will try to start anyway...');
+    }
+  }
+
+  startCodeBuddy();
+
+  // Wait briefly and verify
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  try {
+    const health = await proxyRequest('GET', '/api/v1/health', undefined, 5000);
+    if (health.status === 200) {
+      console.log('[CodeBuddy] HTTP Server is up');
+    } else {
+      console.warn(`[CodeBuddy] Health check returned ${health.status}`);
+    }
+  } catch (e: any) {
+    console.warn(`[CodeBuddy] Health check failed: ${e.message}`);
+    console.warn('[CodeBuddy] Will retry on first request...');
+  }
+}
+
 // ========== Start ==========
 async function start() {
   // Initialize database first
   await initDatabase();
 
-  // Only start CodeBuddy CLI if not connecting to external host
-  if (CB_HOST === '127.0.0.1' || CB_HOST === 'localhost') {
-    startCodeBuddy();
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Verify CodeBuddy is up
-    try {
-      const health = await proxyRequest('GET', '/api/v1/health', undefined, 5000);
-      if (health.status === 200) {
-        console.log(`[CodeBuddy] HTTP Server is up`);
-      } else {
-        console.warn(`[CodeBuddy] Health check returned ${health.status}`);
-      }
-    } catch (e: any) {
-      console.warn(`[CodeBuddy] Health check failed: ${e.message}`);
-      console.warn('[CodeBuddy] Will retry on first request...');
-    }
-  } else {
-    console.log(`[CodeBuddy] Connecting to external host: ${CB_BASE}`);
-  }
-
+  // Start Express server FIRST (so Railway health check passes)
   app.listen(APP_PORT, '0.0.0.0', () => {
     console.log('');
     console.log('  =======================================');
     console.log('');
-    console.log('   CodeBuddy Web - Cloud Deployment');
+    console.log('   YooClaw - Cloud Deployment');
     console.log('');
     console.log(`   URL:      http://localhost:${APP_PORT}`);
-    console.log(`   Admin:    admin / admin`);
     console.log(`   Backend:  ${CB_BASE}`);
     console.log(`   DB:       PostgreSQL (Supabase)`);
     console.log('');
     console.log('  =======================================');
     console.log('');
+  });
+
+  // Then install & start CodeBuddy CLI in the background
+  ensureCodeBuddy().catch(err => {
+    console.error('[CodeBuddy] Background setup failed:', err.message);
   });
 }
 
