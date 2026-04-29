@@ -75,6 +75,7 @@ export async function initDatabase(): Promise<void> {
     max: 10,
     idle_timeout: 20000,
     connect_timeout: 10,
+    prepare: false,  // Required for Supabase Transaction mode pooler
   });
 
   // Create tables if not exist

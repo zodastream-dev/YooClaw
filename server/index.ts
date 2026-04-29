@@ -34,7 +34,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // ========== Configuration ==========
-const APP_PORT = Number(process.env.APP_PORT) || 3001;
+const APP_PORT = Number(process.env.PORT) || Number(process.env.APP_PORT) || 3001;
 const CB_PORT = Number(process.env.CB_PORT) || 8081;
 const CB_HOST = process.env.CB_HOST || '127.0.0.1';
 const CB_BASE = `http://${CB_HOST}:${CB_PORT}`;
