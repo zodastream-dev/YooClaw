@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { query, type Message, AbortError } from '@tencent-ai/agent-sdk';
+// Agent SDK removed — using direct HTTP API to CodeBuddy cloud
 import {
   initDatabase,
   hashPassword,
@@ -56,9 +56,12 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// CodeBuddy SDK configuration
+// CodeBuddy API configuration (direct HTTP API mode)
 const CODEBUDDY_API_KEY = process.env.CODEBUDDY_API_KEY;
-const CODEBUDDY_INTERNET_ENVIRONMENT = process.env.CODEBUDDY_INTERNET_ENVIRONMENT || '';
+const CODEBUDDY_API_ENDPOINT = process.env.CODEBUDDY_INTERNET_ENVIRONMENT === 'internal'
+  ? 'https://copilot.tencent.com'
+  : 'https://api.codebuddy.ai';
+const CODEBUDDY_MODEL = process.env.CODEBUDDY_MODEL || 'deepseek-v3.1';
 
 if (!CODEBUDDY_API_KEY) {
   console.warn('[WARN] CODEBUDDY_API_KEY is not set. AI features will not work.');
@@ -257,8 +260,9 @@ app.get('/api/v1/health', async (_req, res) => {
   res.json({
     data: {
       status: CODEBUDDY_API_KEY ? 'ok' : 'degraded',
-      sdk: CODEBUDDY_API_KEY ? 'configured' : 'not configured',
-      environment: CODEBUDDY_INTERNET_ENVIRONMENT,
+      api: CODEBUDDY_API_KEY ? 'configured' : 'not configured',
+      endpoint: CODEBUDDY_API_ENDPOINT,
+      model: CODEBUDDY_MODEL,
     },
   });
 });
@@ -504,7 +508,7 @@ app.post('/api/v1/runs', authMiddleware, async (req, res) => {
   }
 });
 
-// ========== GET /api/v1/runs/:runId/stream — SSE Stream via SDK ==========
+// ========== GET /api/v1/runs/:runId/stream — SSE Stream via Direct HTTP API ==========
 app.get('/api/v1/runs/:runId/stream', async (req, res) => {
   const { runId } = req.params;
   const sessionId = req.query.sessionId as string | undefined;
@@ -550,7 +554,7 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
     return;
   }
 
-  console.log(`[Stream] Starting SDK query for run ${runId}: "${userMessage.slice(0, 50)}..."`);
+  console.log(`[Stream] Starting API call for run ${runId}: "${userMessage.slice(0, 50)}..."`);
 
   // Create AbortController for cancellation
   const abortController = new AbortController();
@@ -561,68 +565,93 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
   let fullMarkdown = '';
 
   try {
-    // SDK environment configuration
-    const sdkEnv: Record<string, string | undefined> = {
-      CODEBUDDY_API_KEY,
-      ...process.env,
-    };
-
-    // Configure internet environment for China if set
-    if (CODEBUDDY_INTERNET_ENVIRONMENT === 'internal') {
-      sdkEnv.CODEBUDDY_INTERNET_ENVIRONMENT = 'internal';
-    }
-
-    const q = query({
-      prompt: userMessage,
-      options: {
-        abortController,
-        env: sdkEnv,
-        permissionMode: 'bypassPermissions', // Skip all permission checks for cloud mode
+    // Call CodeBuddy cloud API directly (OpenAI-compatible streaming)
+    const apiResponse = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        model: CODEBUDDY_MODEL,
+        stream: true,
+        messages: [
+          { role: 'system', content: '你是 YooClaw AI 助手，一个友好、专业的对话助手。请用简洁清晰的中文回答用户的问题。' },
+          { role: 'user', content: userMessage },
+        ],
+      }),
+      signal: abortController.signal,
     });
 
-    for await (const message of q) {
-      // Send SSE event based on message type
-      if (message.type === 'assistant') {
-        for (const block of message.message.content) {
-          if (block.type === 'text' && block.text) {
-            fullMarkdown += block.text;
+    if (!apiResponse.ok) {
+      const errText = await apiResponse.text();
+      console.error(`[Stream] API error: ${apiResponse.status} ${errText}`);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: `API error: ${apiResponse.status}` })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // Parse SSE stream from CodeBuddy API
+    const reader = apiResponse.body!;
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    // Helper to flush SSE lines
+    function processSSELines(text: string) {
+      const lines = text.split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+        try {
+          const chunk = JSON.parse(jsonStr);
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) {
+            fullMarkdown += content;
             res.write(`data: ${JSON.stringify({
               type: 'agent_message_chunk',
-              content: { text: block.text },
-            })}\n\n`);
-          } else if (block.type === 'tool_use') {
-            res.write(`data: ${JSON.stringify({
-              type: 'agent_message_chunk',
-              content: { text: '' },
-              toolCalls: [{
-                id: block.id || crypto.randomUUID(),
-                name: block.name,
-                status: 'running',
-                args: block.input,
-              }],
-            })}\n\n`);
-          } else if (block.type === 'tool_result') {
-            res.write(`data: ${JSON.stringify({
-              type: 'agent_message_chunk',
-              content: { text: '' },
-              toolCalls: [{
-                id: block.tool_use_id,
-                status: 'completed',
-                result: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
-              }],
+              content: { text: content },
             })}\n\n`);
           }
+        } catch {
+          // Ignore parse errors
         }
-      } else if (message.type === 'result') {
-        if (message.subtype === 'success') {
-          console.log(`[Stream] Run ${runId} completed. Duration: ${message.duration_ms}ms, Cost: $${message.total_cost_usd}`);
-        } else {
-          console.log(`[Stream] Run ${runId} failed: ${message.subtype}`);
-          res.write(`data: ${JSON.stringify({ type: 'error', message: message.subtype })}\n\n`);
+      }
+    }
+
+    // Read the stream using getReader for Node.js compatibility
+    if (reader && typeof reader.getReader === 'function') {
+      const streamReader = (reader as any).getReader();
+      try {
+        while (true) {
+          const { done, value } = await streamReader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          // Process complete lines
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(jsonStr);
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) {
+                fullMarkdown += content;
+                res.write(`data: ${JSON.stringify({
+                  type: 'agent_message_chunk',
+                  content: { text: content },
+                })}\n\n`);
+              }
+            } catch {
+              // Ignore parse errors
+            }
+          }
         }
-      } else if (message.type === 'status') {
-        res.write(`data: ${JSON.stringify({ type: 'status', message: message.message })}\n\n`);
+      } finally {
+        streamReader.releaseLock();
       }
     }
 
@@ -637,9 +666,9 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
 
     res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'completed' })}\n\n`);
     res.end();
-    console.log(`[Stream] Run ${runId} stream ended`);
+    console.log(`[Stream] Run ${runId} completed. Response length: ${fullMarkdown.length}`);
   } catch (error: any) {
-    if (error instanceof AbortError) {
+    if (error.name === 'AbortError') {
       console.log(`[Stream] Run ${runId} cancelled by user`);
       res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'cancelled' })}\n\n`);
     } else {
@@ -682,12 +711,12 @@ async function start() {
     console.log('');
     console.log('  =======================================');
     console.log('');
-    console.log('   YooClaw - Cloud Deployment (SDK Mode)');
+    console.log('   YooClaw - Cloud Deployment (HTTP API)');
     console.log('');
     console.log(`   URL:      http://localhost:${APP_PORT}`);
-    console.log(`   SDK:      @tencent-ai/agent-sdk`);
+    console.log(`   API:      ${CODEBUDDY_API_ENDPOINT}`);
+    console.log(`   Model:    ${CODEBUDDY_MODEL}`);
     console.log(`   API Key:  ${CODEBUDDY_API_KEY ? 'configured' : 'NOT SET'}`);
-    console.log(`   Env:      ${CODEBUDDY_INTERNET_ENVIRONMENT || 'public'}`);
     console.log(`   DB:       PostgreSQL (Supabase)`);
     console.log('');
     console.log('  =======================================');
