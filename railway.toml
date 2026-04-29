@@ -2,7 +2,9 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "npx tsx server/index.ts"
+# Install CodeBuddy CLI before starting the server
+# SDK requires CLI binary to work
+startCommand = "npm install -g @tencent-ai/codebuddy-code && npx tsx server/index.ts"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

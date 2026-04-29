@@ -1,12 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import { createProxyMiddleware, type RequestHandler } from 'http-proxy-middleware';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn, spawnSync, type ChildProcess } from 'child_process';
-import http from 'http';
 import fs from 'fs';
+import { query, type Message, AbortError } from '@tencent-ai/agent-sdk';
 import {
   initDatabase,
   hashPassword,
@@ -35,13 +33,18 @@ const app = express();
 
 // ========== Configuration ==========
 const APP_PORT = Number(process.env.PORT) || Number(process.env.APP_PORT) || 3001;
-const CB_PORT = Number(process.env.CB_PORT) || 8081;
-const CB_HOST = process.env.CB_HOST || '127.0.0.1';
-const CB_BASE = `http://${CB_HOST}:${CB_PORT}`;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error('[FATAL] JWT_SECRET environment variable is required');
   process.exit(1);
+}
+
+// CodeBuddy SDK configuration
+const CODEBUDDY_API_KEY = process.env.CODEBUDDY_API_KEY;
+const CODEBUDDY_INTERNET_ENVIRONMENT = process.env.CODEBUDDY_INTERNET_ENVIRONMENT || '';
+
+if (!CODEBUDDY_API_KEY) {
+  console.warn('[WARN] CODEBUDDY_API_KEY is not set. AI features will not work.');
 }
 
 // ========== CORS ==========
@@ -54,12 +57,10 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    // Also allow any vercel.app subdomain
     if (origin.endsWith('.vercel.app')) return callback(null, true);
-    callback(null, true); // Allow all in development
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -98,7 +99,6 @@ async function authMiddleware(req: express.Request, res: express.Response, next:
   if (!payload) {
     return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
   }
-  // Check if user is still active
   const user = await getUserById(payload.userId);
   if (!user || user.status === 'disabled') {
     return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Account is disabled' } });
@@ -115,28 +115,6 @@ function adminMiddleware(req: express.Request, res: express.Response, next: expr
   next();
 }
 
-// ========== HTTP Helper ==========
-function proxyRequest(method: string, cbPath: string, body?: any, timeout = 120000): Promise<{ status: number; body: string }> {
-  return new Promise((resolve, reject) => {
-    const url = new URL(cbPath, CB_BASE);
-    const payload = body ? JSON.stringify(body) : null;
-    const headers: http.OutgoingHttpHeaders = { 'X-CodeBuddy-Request': '1' };
-    if (payload) {
-      headers['Content-Type'] = 'application/json';
-      headers['Content-Length'] = String(Buffer.byteLength(payload));
-    }
-    const req = http.request({ hostname: url.hostname, port: url.port, path: url.pathname + url.search, method, headers }, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => resolve({ status: res.statusCode!, body: data }));
-    });
-    req.on('error', reject);
-    req.setTimeout(timeout, () => { req.destroy(); reject(new Error('timeout')); });
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
-
 // ========== Middleware ==========
 app.use(express.json());
 app.use((req, res, next) => {
@@ -148,7 +126,6 @@ app.use((req, res, next) => {
 
 // ========== Auth Routes ==========
 
-// Register
 app.post('/api/v1/auth/register', async (req, res) => {
   try {
     const { username, password } = req.body || {};
@@ -183,7 +160,6 @@ app.post('/api/v1/auth/register', async (req, res) => {
   }
 });
 
-// Login
 app.post('/api/v1/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body || {};
@@ -217,7 +193,6 @@ app.post('/api/v1/auth/login', async (req, res) => {
   }
 });
 
-// Get current user
 app.get('/api/v1/auth/me', authMiddleware, async (req, res) => {
   try {
     const payload = (req as any).user as JwtPayload;
@@ -236,7 +211,6 @@ app.get('/api/v1/auth/me', authMiddleware, async (req, res) => {
   }
 });
 
-// Auth status
 app.get('/api/v1/auth/status', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -258,19 +232,18 @@ app.get('/api/v1/auth/status', async (req, res) => {
 });
 
 // ========== Health ==========
-// Simple health check for Railway/monitoring (does NOT depend on CodeBuddy)
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 app.get('/api/v1/health', async (_req, res) => {
-  try {
-    const cb = await proxyRequest('GET', '/api/v1/health');
-    const cbData = JSON.parse(cb.body);
-    res.json({ data: { status: 'ok', codebuddy: cbData.data, proxyMode: true } });
-  } catch {
-    res.json({ data: { status: 'degraded', codebuddy: null, proxyMode: true } });
-  }
+  res.json({
+    data: {
+      status: CODEBUDDY_API_KEY ? 'ok' : 'degraded',
+      sdk: CODEBUDDY_API_KEY ? 'configured' : 'not configured',
+      environment: CODEBUDDY_INTERNET_ENVIRONMENT,
+    },
+  });
 });
 
 // ========== User Sessions ==========
@@ -429,7 +402,6 @@ app.patch('/api/v1/admin/users/:userId', authMiddleware, adminMiddleware, async 
     if (status && !['active', 'disabled'].includes(status)) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid status' } });
     }
-    // Don't allow disabling self
     const adminUser = (req as any).user as JwtPayload;
     if (userId === adminUser.userId) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Cannot modify your own account' } });
@@ -470,13 +442,17 @@ app.get('/api/v1/admin/stats', authMiddleware, adminMiddleware, async (_req, res
   }
 });
 
-// ========== POST /api/v1/runs — Transform & Forward ==========
+// ========== POST /api/v1/runs — Create AI Run ==========
 app.post('/api/v1/runs', authMiddleware, async (req, res) => {
   try {
     const { text, sender, sessionId } = req.body || {};
     const userPayload = (req as any).user as JwtPayload;
     if (!text) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Text is required' } });
+    }
+
+    if (!CODEBUDDY_API_KEY) {
+      return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'AI service not configured (missing CODEBUDDY_API_KEY)' } });
     }
 
     // Check storage quota
@@ -486,53 +462,43 @@ app.post('/api/v1/runs', authMiddleware, async (req, res) => {
 
     // Save user message to DB
     const activeSessionId = sessionId || crypto.randomUUID();
-    // Ensure session exists in our DB
     const existingSessions = await getUserSessions(userPayload.userId);
     if (!existingSessions.find(s => s.session_id === activeSessionId)) {
       await createUserSession(userPayload.userId, activeSessionId, text.slice(0, 30) + (text.length > 30 ? '...' : ''));
     }
     await createMessage(userPayload.userId, activeSessionId, 'user', text);
 
-    // Transform: add id, type, timestamp for CodeBuddy's generic message format
-    const cbBody = {
-      id: crypto.randomUUID(),
-      type: 'message',
-      text,
-      sender: sender || { id: userPayload.userId, name: userPayload.username },
-      timestamp: new Date().toISOString(),
-    };
+    // Generate runId
+    const runId = crypto.randomUUID();
 
-    console.log(`  [Runs] User:${userPayload.username} Forwarding: "${text.slice(0, 50)}..."`);
-    const result = await proxyRequest('POST', '/api/v1/runs', cbBody);
-    const resultJson = JSON.parse(result.body);
+    console.log(`[Runs] User:${userPayload.username} Creating run ${runId}: "${text.slice(0, 50)}..."`);
 
-    if (result.status === 202 && resultJson.data?.runId) {
-      res.json({
-        data: {
-          runId: resultJson.data.runId,
-          status: 'accepted',
-          sessionId: activeSessionId,
-        },
-      });
-    } else {
-      res.status(result.status).json(resultJson);
-    }
+    res.json({
+      data: {
+        runId,
+        status: 'accepted',
+        sessionId: activeSessionId,
+      },
+    });
   } catch (err: any) {
     console.error('[Runs Error]', err.message);
-    res.status(502).json({ error: { code: 'PROXY_ERROR', message: `CodeBuddy error: ${err.message}` } });
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });
 
-// ========== GET /api/v1/runs/:runId/stream — Transform SSE ==========
-app.get('/api/v1/runs/:runId/stream', (req, res) => {
+// ========== GET /api/v1/runs/:runId/stream — SSE Stream via SDK ==========
+app.get('/api/v1/runs/:runId/stream', async (req, res) => {
   const { runId } = req.params;
+  const sessionId = req.query.sessionId as string | undefined;
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? verifyToken(authHeader.slice(7)) : null;
 
-  // Set SSE headers with CORS
+  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
-  // CORS headers for SSE
+
   const origin = req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -542,154 +508,136 @@ app.get('/api/v1/runs/:runId/stream', (req, res) => {
   }
   res.flushHeaders();
 
-  console.log(`  [Stream] Connecting to CodeBuddy stream for run ${runId}`);
+  if (!CODEBUDDY_API_KEY) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI service not configured' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
+    res.end();
+    return;
+  }
 
-  // Connect to CodeBuddy SSE
-  const cbReq = http.request({
-    hostname: CB_HOST,
-    port: CB_PORT,
-    path: `/api/v1/runs/${runId}/stream`,
-    method: 'GET',
-    headers: { 'X-CodeBuddy-Request': '1' },
-  }, (cbRes) => {
-    let buffer = '';
-    let fullMarkdown = '';
+  // Get user message from DB if we have sessionId and token
+  let userMessage = '';
+  if (token && sessionId) {
+    try {
+      const messages = await getSessionMessages(token.userId, sessionId);
+      const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+      if (lastUserMsg) userMessage = lastUserMsg.content;
+    } catch {}
+  }
 
-    cbRes.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+  if (!userMessage) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'No message found' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
+    res.end();
+    return;
+  }
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const jsonStr = line.slice(6).trim();
-        if (!jsonStr || jsonStr === '{}') continue;
+  console.log(`[Stream] Starting SDK query for run ${runId}: "${userMessage.slice(0, 50)}..."`);
 
-        try {
-          const parsed = JSON.parse(jsonStr);
+  // Create AbortController for cancellation
+  const abortController = new AbortController();
+  req.on('close', () => {
+    abortController.abort();
+  });
 
-          if (parsed.content?.markdown) {
-            const markdown = parsed.content.markdown;
-            fullMarkdown += markdown;
+  let fullMarkdown = '';
 
+  try {
+    // SDK environment configuration
+    const sdkEnv: Record<string, string | undefined> = {
+      CODEBUDDY_API_KEY,
+      ...process.env,
+    };
+
+    // Configure internet environment for China if set
+    if (CODEBUDDY_INTERNET_ENVIRONMENT === 'internal') {
+      sdkEnv.CODEBUDDY_INTERNET_ENVIRONMENT = 'internal';
+    }
+
+    const q = query({
+      prompt: userMessage,
+      options: {
+        abortController,
+        env: sdkEnv,
+        permissionMode: 'bypassPermissions', // Skip all permission checks for cloud mode
+      },
+    });
+
+    for await (const message of q) {
+      // Send SSE event based on message type
+      if (message.type === 'assistant') {
+        for (const block of message.message.content) {
+          if (block.type === 'text' && block.text) {
+            fullMarkdown += block.text;
             res.write(`data: ${JSON.stringify({
               type: 'agent_message_chunk',
-              content: { text: markdown },
+              content: { text: block.text },
+            })}\n\n`);
+          } else if (block.type === 'tool_use') {
+            res.write(`data: ${JSON.stringify({
+              type: 'agent_message_chunk',
+              content: { text: '' },
+              toolCalls: [{
+                id: block.id || crypto.randomUUID(),
+                name: block.name,
+                status: 'running',
+                args: block.input,
+              }],
+            })}\n\n`);
+          } else if (block.type === 'tool_result') {
+            res.write(`data: ${JSON.stringify({
+              type: 'agent_message_chunk',
+              content: { text: '' },
+              toolCalls: [{
+                id: block.tool_use_id,
+                status: 'completed',
+                result: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
+              }],
             })}\n\n`);
           }
-
-          if (parsed.agent?.toolCalls?.length > 0) {
-            for (const tc of parsed.agent.toolCalls) {
-              res.write(`data: ${JSON.stringify({
-                type: 'agent_message_chunk',
-                content: { text: '' },
-                toolCalls: [{
-                  id: tc.id || crypto.randomUUID(),
-                  name: tc.name,
-                  status: tc.status || 'completed',
-                  args: tc.args,
-                  result: tc.result,
-                }],
-              })}\n\n`);
-            }
-          }
-        } catch {
-          // Ignore parse errors
         }
-      }
-    });
-
-    cbRes.on('end', () => {
-      // Try to save assistant message to DB
-      if (fullMarkdown) {
-        try {
-          // Get sessionId from query parameter
-          const url = new URL(req.url, `http://${req.headers.host}`);
-          const sessionId = url.searchParams.get('sessionId');
-          const authHeader = req.headers.authorization;
-          const token = authHeader?.startsWith('Bearer ') ? verifyToken(authHeader.slice(7)) : null;
-          if (token && sessionId) {
-            createMessage(token.userId, sessionId, 'assistant', fullMarkdown).catch(e => {
-              console.error('[Stream] Failed to save assistant message:', e.message);
-            });
-          }
-        } catch (e: any) {
-          console.error('[Stream] Failed to save assistant message:', e.message);
+      } else if (message.type === 'result') {
+        if (message.subtype === 'success') {
+          console.log(`[Stream] Run ${runId} completed. Duration: ${message.duration_ms}ms, Cost: $${message.total_cost_usd}`);
+        } else {
+          console.log(`[Stream] Run ${runId} failed: ${message.subtype}`);
+          res.write(`data: ${JSON.stringify({ type: 'error', message: message.subtype })}\n\n`);
         }
+      } else if (message.type === 'status') {
+        res.write(`data: ${JSON.stringify({ type: 'status', message: message.message })}\n\n`);
       }
+    }
 
-      res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'completed' })}\n\n`);
-      res.end();
-      console.log(`  [Stream] Run ${runId} completed`);
-    });
+    // Save assistant message to DB
+    if (fullMarkdown && token && sessionId) {
+      try {
+        await createMessage(token.userId, sessionId, 'assistant', fullMarkdown);
+      } catch (e: any) {
+        console.error('[Stream] Failed to save assistant message:', e.message);
+      }
+    }
 
-    cbRes.on('error', (err) => {
-      console.error(`  [Stream] CodeBuddy error:`, err.message);
+    res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'completed' })}\n\n`);
+    res.end();
+    console.log(`[Stream] Run ${runId} stream ended`);
+  } catch (error: any) {
+    if (error instanceof AbortError) {
+      console.log(`[Stream] Run ${runId} cancelled by user`);
+      res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'cancelled' })}\n\n`);
+    } else {
+      console.error(`[Stream] Run ${runId} error:`, error.message);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
       res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
-      res.end();
-    });
-  });
-
-  cbReq.setTimeout(120000, () => {
-    console.log(`  [Stream] Timeout for run ${runId}`);
-    res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
+    }
     res.end();
-    cbReq.destroy();
-  });
-
-  cbReq.on('error', (err) => {
-    console.error(`  [Stream] Connection error:`, err.message);
-    res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
-    res.end();
-  });
-
-  cbReq.end();
-
-  // Handle client disconnect
-  req.on('close', () => {
-    cbReq.destroy();
-  });
-});
-
-// ========== POST /api/v1/runs/:runId/cancel — Proxy ==========
-app.post('/api/v1/runs/:runId/cancel', authMiddleware, async (req, res) => {
-  try {
-    const result = await proxyRequest('POST', `/api/v1/runs/${req.params.runId}/cancel`);
-    res.status(result.status).send(result.body);
-  } catch (err: any) {
-    res.status(502).json({ error: { code: 'PROXY_ERROR', message: err.message } });
   }
 });
 
-// ========== Generic Proxy for other /api/v1/* routes ==========
-const genericProxy: RequestHandler = createProxyMiddleware({
-  target: CB_BASE,
-  changeOrigin: true,
-  on: {
-    proxyReq: (proxyReq, _req) => {
-      if (!proxyReq.getHeader('X-CodeBuddy-Request')) {
-        proxyReq.setHeader('X-CodeBuddy-Request', '1');
-      }
-    },
-    error: (err, _req, res) => {
-      if (res && 'writeHead' in res) {
-        (res as express.Response).status(502).json({
-          error: { code: 'PROXY_ERROR', message: `CodeBuddy unavailable: ${err.message}` }
-        });
-      }
-    },
-  },
-});
-
-app.use('/api/v1', (req, res, next) => {
-  // Skip routes handled above
-  const skipPaths = ['/auth/login', '/auth/register', '/auth/status', '/auth/me', '/health'];
-  if (req.method === 'GET' && skipPaths.includes(req.path)) return next();
-  if (req.method === 'POST' && skipPaths.includes(req.path)) return next();
-  if (req.path.startsWith('/runs')) return next();
-  if (req.path.startsWith('/user/')) return next();
-  if (req.path.startsWith('/admin/')) return next();
-  return (genericProxy as any)(req, res, next);
+// ========== POST /api/v1/runs/:runId/cancel ==========
+app.post('/api/v1/runs/:runId/cancel', authMiddleware, async (req, res) => {
+  // In the new SDK mode, cancellation is handled via AbortController
+  // We just return success - the client should close the SSE connection
+  res.json({ data: { cancelled: true } });
 });
 
 // ========== Serve Frontend (only in local dev mode) ==========
@@ -708,180 +656,28 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   }
 }
 
-// ========== Auto-start CodeBuddy HTTP Server ==========
-let cbProcess: ChildProcess | null = null;
-
-function getCliPath(): string {
-  // Linux (Railway/Docker): global install path
-  const linuxPath = '/usr/local/lib/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy';
-  // Windows (local dev): %APPDATA% path
-  const winPath = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@tencent-ai', 'codebuddy-code', 'bin', 'codebuddy');
-  // Local node_modules
-  const localPath = path.join(__dirname, '..', 'node_modules', '@tencent-ai', 'codebuddy-code', 'bin', 'codebuddy');
-
-  try { if (fs.existsSync(linuxPath)) return linuxPath; } catch {}
-  try { if (fs.existsSync(winPath)) return winPath; } catch {}
-  try { if (fs.existsSync(localPath)) return localPath; } catch {}
-
-  // Fallback: rely on PATH
-  return 'codebuddy';
-}
-
-function isCliInstalled(): boolean {
-  const cliPath = getCliPath();
-  if (cliPath === 'codebuddy') {
-    // Check if codebuddy is in PATH
-    try {
-      const result = spawnSync('which', ['codebuddy'], { timeout: 3000 });
-      return result.status === 0;
-    } catch {
-      return false;
-    }
-  }
-  return fs.existsSync(cliPath);
-}
-
-function installCli(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    console.log('[CodeBuddy] Installing @tencent-ai/codebuddy-code globally...');
-    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const install = spawn(npmCmd, ['install', '-g', '@tencent-ai/codebuddy-code'], {
-      stdio: 'pipe',
-      shell: true,
-    });
-
-    install.stdout.on('data', (data: Buffer) => {
-      const msg = data.toString().trim();
-      if (msg) console.log(`[CodeBuddy:install] ${msg}`);
-    });
-
-    install.stderr.on('data', (data: Buffer) => {
-      const msg = data.toString().trim();
-      if (msg) console.log(`[CodeBuddy:install] ${msg}`);
-    });
-
-    install.on('close', (code) => {
-      if (code === 0) {
-        console.log('[CodeBuddy] CLI installed successfully');
-        resolve();
-      } else {
-        reject(new Error(`npm install -g failed with code ${code}`));
-      }
-    });
-
-    install.on('error', (err) => {
-      reject(new Error(`npm install -g error: ${err.message}`));
-    });
-  });
-}
-
-function startCodeBuddy() {
-  const cliPath = getCliPath();
-
-  console.log(`[CodeBuddy] Starting HTTP server on port ${CB_PORT}...`);
-  console.log(`[CodeBuddy] CLI path: ${cliPath}`);
-
-  cbProcess = spawn(process.execPath, [cliPath, '--serve', '--port', String(CB_PORT)], {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      CODEBUDDY_DISABLE_REQUEST_VALIDATION: '1',
-    },
-  });
-
-  cbProcess.stdout.on('data', (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg) console.log(`[CodeBuddy] ${msg}`);
-  });
-
-  cbProcess.stderr.on('data', (data: Buffer) => {
-    const msg = data.toString().trim();
-    if (msg) console.error(`[CodeBuddy:err] ${msg}`);
-  });
-
-  cbProcess.on('close', (code) => {
-    console.log(`[CodeBuddy] Process exited with code ${code}`);
-    cbProcess = null;
-  });
-
-  cbProcess.on('error', (err) => {
-    console.error(`[CodeBuddy] Failed to start:`, err.message);
-  });
-}
-
-async function ensureCodeBuddy() {
-  // Only start CodeBuddy CLI if not connecting to external host
-  if (CB_HOST !== '127.0.0.1' && CB_HOST !== 'localhost') {
-    console.log(`[CodeBuddy] Connecting to external host: ${CB_BASE}`);
-    return;
-  }
-
-  // Install CLI if not found
-  if (!isCliInstalled()) {
-    try {
-      await installCli();
-    } catch (err: any) {
-      console.error(`[CodeBuddy] CLI installation failed: ${err.message}`);
-      console.error('[CodeBuddy] Will try to start anyway...');
-    }
-  }
-
-  startCodeBuddy();
-
-  // Wait briefly and verify
-  await new Promise(resolve => setTimeout(resolve, 3000));
-
-  try {
-    const health = await proxyRequest('GET', '/api/v1/health', undefined, 5000);
-    if (health.status === 200) {
-      console.log('[CodeBuddy] HTTP Server is up');
-    } else {
-      console.warn(`[CodeBuddy] Health check returned ${health.status}`);
-    }
-  } catch (e: any) {
-    console.warn(`[CodeBuddy] Health check failed: ${e.message}`);
-    console.warn('[CodeBuddy] Will retry on first request...');
-  }
-}
-
 // ========== Start ==========
 async function start() {
-  // Initialize database first
   await initDatabase();
 
-  // Start Express server FIRST (so Railway health check passes)
   app.listen(APP_PORT, '0.0.0.0', () => {
     console.log('');
     console.log('  =======================================');
     console.log('');
-    console.log('   YooClaw - Cloud Deployment');
+    console.log('   YooClaw - Cloud Deployment (SDK Mode)');
     console.log('');
     console.log(`   URL:      http://localhost:${APP_PORT}`);
-    console.log(`   Backend:  ${CB_BASE}`);
+    console.log(`   SDK:      @tencent-ai/agent-sdk`);
+    console.log(`   API Key:  ${CODEBUDDY_API_KEY ? 'configured' : 'NOT SET'}`);
+    console.log(`   Env:      ${CODEBUDDY_INTERNET_ENVIRONMENT || 'public'}`);
     console.log(`   DB:       PostgreSQL (Supabase)`);
     console.log('');
     console.log('  =======================================');
     console.log('');
-  });
-
-  // Then install & start CodeBuddy CLI in the background
-  ensureCodeBuddy().catch(err => {
-    console.error('[CodeBuddy] Background setup failed:', err.message);
   });
 }
 
 start().catch((err) => {
   console.error('Failed to start:', err);
   process.exit(1);
-});
-
-process.on('SIGINT', () => {
-  console.log('\n[Shutdown] Stopping...');
-  if (cbProcess) cbProcess.kill('SIGTERM');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  if (cbProcess) cbProcess.kill('SIGTERM');
-  process.exit(0);
 });
