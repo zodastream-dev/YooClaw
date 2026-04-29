@@ -31,6 +31,23 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// ========== Helper: Convert BIGINT strings to numbers ==========
+// PostgreSQL BIGINT returns strings, but we need numbers for JSON response
+function toNumber(val: unknown): number {
+  return typeof val === 'string' ? Number(val) : (val as number) || 0;
+}
+
+function formatUser(user: any) {
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    storageUsed: toNumber(user.storage_used),
+    storageLimit: toNumber(user.storage_limit),
+    status: user.status,
+  };
+}
+
 // ========== Configuration ==========
 const APP_PORT = Number(process.env.PORT) || Number(process.env.APP_PORT) || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -151,7 +168,7 @@ app.post('/api/v1/auth/register', async (req, res) => {
     res.status(201).json({
       data: {
         token,
-        user: { id: user.id, username: user.username, role: user.role, storageUsed: user.storage_used, storageLimit: user.storage_limit },
+        user: formatUser(user),
       },
     });
   } catch (err: any) {
@@ -184,7 +201,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     res.json({
       data: {
         token,
-        user: { id: user.id, username: user.username, role: user.role, storageUsed: user.storage_used, storageLimit: user.storage_limit },
+        user: formatUser(user),
       },
     });
   } catch (err: any) {
@@ -202,7 +219,7 @@ app.get('/api/v1/auth/me', authMiddleware, async (req, res) => {
     }
     res.json({
       data: {
-        user: { id: user.id, username: user.username, role: user.role, storageUsed: user.storage_used, storageLimit: user.storage_limit, status: user.status },
+        user: { ...formatUser(user), status: user.status },
       },
     });
   } catch (err: any) {
@@ -220,7 +237,7 @@ app.get('/api/v1/auth/status', async (req, res) => {
       res.json({
         data: {
           authenticated: true,
-          user: user ? { id: user.id, username: user.username, role: user.role, storageUsed: user.storage_used, storageLimit: user.storage_limit } : null,
+          user: user ? formatUser(user) : null,
         },
       });
     } else {
@@ -359,12 +376,13 @@ app.get('/api/v1/user/storage', authMiddleware, async (req, res) => {
     const user = await getUserById(userId);
     if (!user) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } });
     const used = await recalcUserStorage(userId);
+    const limit = toNumber(user.storage_limit);
     res.json({
       data: {
         used,
-        limit: user.storage_limit,
-        percentage: Math.round((used / user.storage_limit) * 100),
-        canCreate: used < user.storage_limit,
+        limit,
+        percentage: limit > 0 ? Math.round((used / limit) * 100) : 0,
+        canCreate: used < limit,
       },
     });
   } catch (err: any) {
@@ -383,8 +401,8 @@ app.get('/api/v1/admin/users', authMiddleware, adminMiddleware, async (_req, res
         id: u.id,
         username: u.username,
         role: u.role,
-        storageUsed: u.storage_used,
-        storageLimit: u.storage_limit,
+        storageUsed: toNumber(u.storage_used),
+        storageLimit: toNumber(u.storage_limit),
         status: u.status,
         createdAt: u.created_at,
       })),

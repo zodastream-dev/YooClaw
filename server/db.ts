@@ -285,7 +285,10 @@ export async function recalcUserStorage(userId: string): Promise<number> {
 export async function canCreateSession(userId: string): Promise<boolean> {
   const user = await getUserById(userId);
   if (!user) return false;
-  return user.storage_used < user.storage_limit;
+  // Convert to numbers (postgres BIGINT returns strings)
+  const used = Number(user.storage_used);
+  const limit = Number(user.storage_limit);
+  return used < limit;
 }
 
 export async function getAdminStats(): Promise<{ totalUsers: number; totalStorage: number; activeUsers: number }> {
