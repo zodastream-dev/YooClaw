@@ -123,7 +123,7 @@ async function generateReportHtml(companyName: string): Promise<string> {
     },
     body: JSON.stringify({
       model: CODEBUDDY_MODEL,
-      stream: false,
+      stream: true,
       messages: [
         { role: 'system', content: '你是 YooClaw AI 助手，专门生成专业美观的行业分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
         { role: 'user', content: prompt },
@@ -137,11 +137,40 @@ async function generateReportHtml(companyName: string): Promise<string> {
     throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
   }
 
-  const data = await response.json();
-  const html = data.choices?.[0]?.message?.content || '';
+  // Use streaming to accumulate the full HTML content
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let fullHtml = '';
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+        try {
+          const chunk = JSON.parse(jsonStr);
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) {
+            fullHtml += content;
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 
   // Strip markdown code fences if the model wraps the output
-  const cleaned = html
+  const cleaned = fullHtml
     .replace(/^```html\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
