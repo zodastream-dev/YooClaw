@@ -163,6 +163,10 @@ export async function renameUserSession(id: string, name: string) {
   return apiRequest('POST', `/api/v1/user/sessions/${id}/rename`, { name })
 }
 
+export async function getSessionMessages(sessionId: string) {
+  return apiRequest<{ id: string; role: string; content: string; timestamp: number }[]>('GET', `/api/v1/user/sessions/${sessionId}/messages`)
+}
+
 // ========== User Storage ==========
 export async function getStorage() {
   return apiRequest<StorageInfo>('GET', '/api/v1/user/storage')

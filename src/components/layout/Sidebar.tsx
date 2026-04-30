@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSessionStore, useSidebarStore, useChatStore, useThemeStore, useAuthStore } from '@/lib/store'
-import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession } from '@/lib/api'
+import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession, getSessionMessages } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
 import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive } from 'lucide-react'
 import { DEFAULT_SESSION_NAME, formatBytes } from '@/lib/constants'
@@ -59,10 +59,27 @@ export function Sidebar() {
     closeMobile()
   }
 
-  const handleSelect = (id: string) => {
+  const handleSelect = async (id: string) => {
     setCurrentSession(id)
     setCurrentSessionId(id)
     closeMobile()
+    
+    // Load messages from API
+    try {
+      const res = await getSessionMessages(id)
+      if (res.data) {
+        const msgs = res.data.map((m) => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: m.timestamp,
+        }))
+        // Set messages in chat store
+        useChatStore.setState({ messages: msgs })
+      }
+    } catch (e) {
+      console.error('Failed to load messages:', e)
+    }
   }
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
