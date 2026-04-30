@@ -76,6 +76,9 @@ export async function initDatabase(): Promise<void> {
     idle_timeout: 20000,
     connect_timeout: 10,
     prepare: false,  // Required for Supabase Transaction mode pooler
+    connection: {
+      client_encoding: 'UTF8',  // Ensure UTF-8 encoding for Chinese characters
+    },
   });
 
   // Create tables if not exist

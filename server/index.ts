@@ -486,7 +486,10 @@ app.post('/api/v1/runs', authMiddleware, async (req, res) => {
     const activeSessionId = sessionId || crypto.randomUUID();
     const existingSessions = await getUserSessions(userPayload.userId);
     if (!existingSessions.find(s => s.session_id === activeSessionId)) {
-      await createUserSession(userPayload.userId, activeSessionId, text.slice(0, 30) + (text.length > 30 ? '...' : ''));
+      // Use Array.from to safely slice Unicode/CJK characters (avoids encoding corruption)
+      const chars = Array.from(text);
+      const sessionName = chars.length > 20 ? chars.slice(0, 20).join('') + '...' : text;
+      await createUserSession(userPayload.userId, activeSessionId, sessionName);
     }
     await createMessage(userPayload.userId, activeSessionId, 'user', text);
 

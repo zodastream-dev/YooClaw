@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSessionStore, useSidebarStore, useChatStore, useThemeStore, useAuthStore } from '@/lib/store'
 import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession, getSessionMessages } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive } from 'lucide-react'
+import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2 } from 'lucide-react'
 import { DEFAULT_SESSION_NAME, formatBytes } from '@/lib/constants'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '@/lib/types'
@@ -20,12 +20,14 @@ export function Sidebar() {
   } = useSessionStore()
   const { isOpen, isMobileOpen, closeMobile } = useSidebarStore()
   const { clearMessages, currentSessionId: chatSessionId, setCurrentSessionId } = useChatStore()
+  const setLoadingHistory = useChatStore((s) => s.setLoadingHistory)
   const { theme, resolvedTheme, setTheme } = useThemeStore()
   const { clearToken, user, storageInfo, fetchStorage } = useAuthStore()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null)
 
   useEffect(() => {
     loadSessions()
@@ -60,9 +62,16 @@ export function Sidebar() {
   }
 
   const handleSelect = async (id: string) => {
+    if (loadingSessionId === id) return  // Prevent double-click
+    
+    // Immediately update session selection and show loading state
     setCurrentSession(id)
     setCurrentSessionId(id)
     closeMobile()
+    setLoadingSessionId(id)
+    
+    // Show loading spinner in chat area immediately
+    useChatStore.setState({ messages: [], isLoadingHistory: true })
     
     // Load messages from API
     try {
@@ -74,11 +83,15 @@ export function Sidebar() {
           content: m.content,
           timestamp: m.timestamp,
         }))
-        // Set messages in chat store
-        useChatStore.setState({ messages: msgs })
+        useChatStore.setState({ messages: msgs, isLoadingHistory: false })
+      } else {
+        useChatStore.setState({ isLoadingHistory: false })
       }
     } catch (e) {
       console.error('Failed to load messages:', e)
+      useChatStore.setState({ isLoadingHistory: false })
+    } finally {
+      setLoadingSessionId(null)
     }
   }
 
@@ -221,7 +234,10 @@ export function Sidebar() {
                     ) : (
                       <>
                         <span className="flex-1 truncate">{session.name}</span>
-                        <div className="hidden group-hover:flex items-center gap-0.5">
+                        {loadingSessionId === session.id ? (
+                          <Loader2 size={12} className="animate-spin text-primary flex-shrink-0" />
+                        ) : (
+                          <div className="hidden group-hover:flex items-center gap-0.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -239,6 +255,7 @@ export function Sidebar() {
                             <Trash2 size={12} />
                           </button>
                         </div>
+                        )}
                       </>
                     )}
                   </div>

@@ -118,6 +118,7 @@ interface ChatState {
   messages: Message[]
   currentMode: ChatMode
   isStreaming: boolean
+  isLoadingHistory: boolean
   currentRunId: string | null
   currentSessionId: string | null
   sendMessage: ((text: string) => void) | null
@@ -127,6 +128,7 @@ interface ChatState {
   updateMessage: (id: string, updates: Partial<Message>) => void
   appendToMessage: (id: string, text: string) => void
   setStreaming: (v: boolean) => void
+  setLoadingHistory: (v: boolean) => void
   setRunId: (id: string | null) => void
   setCurrentSessionId: (id: string | null) => void
   clearMessages: () => void
@@ -136,6 +138,7 @@ export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   currentMode: 'craft',
   isStreaming: false,
+  isLoadingHistory: false,
   currentRunId: null,
   currentSessionId: null,
   sendMessage: null,
@@ -151,6 +154,7 @@ export const useChatStore = create<ChatState>((set) => ({
       messages: s.messages.map((m) => (m.id === id ? { ...m, content: m.content + text } : m)),
     })),
   setStreaming: (v) => set({ isStreaming: v }),
+  setLoadingHistory: (v) => set({ isLoadingHistory: v }),
   setRunId: (id) => set({ currentRunId: id }),
   setCurrentSessionId: (id) => set({ currentSessionId: id }),
   clearMessages: () => set({ messages: [] }),
