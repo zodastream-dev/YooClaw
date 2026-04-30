@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUserReportSites, deleteReportSite } from '@/lib/api'
-import { Globe, Plus, Trash2, ExternalLink, Copy, Clock, Eye } from 'lucide-react'
+import { Globe, Plus, Trash2, ExternalLink, Copy, Clock, Eye, LayoutDashboard } from 'lucide-react'
 import type { ReportSite } from '@/lib/types'
 
 export function SitesPage() {
@@ -63,6 +63,18 @@ export function SitesPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
+        {/* Top navigation bar */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-sm font-medium">报告网站</h2>
+          <button
+            onClick={() => navigate('/chat')}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LayoutDashboard size={14} />
+            回到首页
+          </button>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>

@@ -195,22 +195,42 @@ export function Sidebar() {
 
         {/* Report Sites - Prominent CTA */}
         <div className="px-3 pb-3 flex-shrink-0">
+          {/* Section label */}
+          <div className="flex items-center gap-2 px-1 mb-1.5">
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+          </div>
+
           <button
             onClick={() => {
               closeMobile()
               navigate('/sites')
             }}
-            className="group relative w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-              bg-gradient-to-r from-primary/90 to-primary/70 text-primary-foreground
-              hover:from-primary hover:to-primary/80 hover:shadow-lg hover:shadow-primary/20
-              active:scale-[0.98]"
+            className="group relative w-full overflow-hidden flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300
+              bg-gradient-to-br from-indigo-500 via-primary to-purple-600
+              text-white shadow-md shadow-primary/20
+              hover:shadow-xl hover:shadow-indigo-500/25 hover:scale-[1.02]
+              active:scale-[0.97]"
           >
-            {/* Subtle glow accent */}
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            <Globe size={17} className="relative z-10" />
-            <span className="relative z-10">创建报告网站</span>
-            {/* Pill badge */}
-            <span className="relative z-10 ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 text-white/90">
+            {/* Animated shimmer overlay */}
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+            
+            {/* Left glow accent */}
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-white/40 blur-[1px]" />
+
+            {/* Icon */}
+            <div className="relative z-10 w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-[1px]">
+              <Globe size={15} className="text-white" />
+            </div>
+
+            {/* Text */}
+            <div className="relative z-10 flex-1 text-left">
+              <div className="text-[13px] font-semibold leading-tight">创建报告网站</div>
+              <div className="text-[10px] font-normal text-white/70 leading-tight mt-0.5">AI 一键生成行业分析报告</div>
+            </div>
+
+            {/* Animated NEW badge */}
+            <span className="relative z-10 text-[9px] font-bold px-1.5 py-1 rounded-md bg-white/20 text-white
+              animate-pulse shadow-inner shadow-white/10">
               NEW
             </span>
           </button>
