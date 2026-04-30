@@ -31,6 +31,19 @@ export interface DbUserMessage {
   created_at: string;
 }
 
+export interface DbReportSite {
+  id: string;
+  user_id: string;
+  slug: string;
+  title: string;
+  company_name: string;
+  html_content: string;
+  is_published: boolean;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ========== Postgres Connection ==========
 let sql: postgres.Sql<{}>;
 
@@ -117,10 +130,27 @@ export async function initDatabase(): Promise<void> {
     )
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS report_sites (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      company_name TEXT NOT NULL,
+      html_content TEXT NOT NULL,
+      is_published BOOLEAN DEFAULT true,
+      view_count INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
   // Create indexes
   await sql`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_user_messages_user_id ON user_messages(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_user_messages_session_id ON user_messages(session_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_report_sites_user_id ON report_sites(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_report_sites_slug ON report_sites(slug)`;
 
   // Create default admin user if not exists
   const existingAdmin = await sql`
@@ -304,4 +334,49 @@ export async function getAdminStats(): Promise<{ totalUsers: number; totalStorag
     totalStorage: Number(storageTotal.total),
     activeUsers: activeCount.count,
   };
+}
+
+// ========== Report Site Operations ==========
+
+export async function createReportSite(
+  userId: string,
+  slug: string,
+  title: string,
+  companyName: string,
+  htmlContent: string
+): Promise<DbReportSite> {
+  const rows = await sql`
+    INSERT INTO report_sites (user_id, slug, title, company_name, html_content)
+    VALUES (${userId}, ${slug}, ${title}, ${companyName}, ${htmlContent})
+    RETURNING *
+  `;
+  return rows[0] as unknown as DbReportSite;
+}
+
+export async function getReportSiteBySlug(slug: string): Promise<DbReportSite | undefined> {
+  const rows = await sql`
+    SELECT * FROM report_sites WHERE slug = ${slug} AND is_published = true
+  `;
+  if (rows.length === 0) return undefined;
+  return rows[0] as unknown as DbReportSite;
+}
+
+export async function getUserReportSites(userId: string): Promise<DbReportSite[]> {
+  const rows = await sql`
+    SELECT * FROM report_sites WHERE user_id = ${userId} ORDER BY created_at DESC
+  `;
+  return rows as unknown as DbReportSite[];
+}
+
+export async function deleteReportSite(userId: string, slug: string): Promise<boolean> {
+  await sql`
+    DELETE FROM report_sites WHERE slug = ${slug} AND user_id = ${userId}
+  `;
+  return true;
+}
+
+export async function incrementSiteViewCount(slug: string): Promise<void> {
+  await sql`
+    UPDATE report_sites SET view_count = view_count + 1 WHERE slug = ${slug}
+  `;
 }

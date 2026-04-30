@@ -24,6 +24,11 @@ import {
   getSessionMessages,
   recalcUserStorage,
   getAdminStats,
+  createReportSite,
+  getReportSiteBySlug,
+  getUserReportSites,
+  deleteReportSite,
+  incrementSiteViewCount,
 } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,6 +70,87 @@ const CODEBUDDY_MODEL = process.env.CODEBUDDY_MODEL || 'deepseek-v3.1';
 
 if (!CODEBUDDY_API_KEY) {
   console.warn('[WARN] CODEBUDDY_API_KEY is not set. AI features will not work.');
+}
+
+// ========== Slug Helper ==========
+function generateSlug(text: string): string {
+  // Simple Chinese-to-pinyin-like slug: keep alphanumeric + hyphens
+  let slug = text
+    .toLowerCase()
+    .replace(/[^\w\s\u4e00-\u9fa5-]/g, '')  // Keep Chinese chars, alphanumeric, hyphens
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 50);
+  // Add a short random suffix to ensure uniqueness
+  const suffix = crypto.randomBytes(3).toString('hex');
+  return slug ? `${slug}-${suffix}` : `site-${suffix}`;
+}
+
+// ========== Report HTML Generator ==========
+async function generateReportHtml(companyName: string): Promise<string> {
+  const prompt = `你是一个专业的行业分析报告生成器。
+
+用户输入的公司名是: "${companyName}"
+
+请生成一份完整的、可直接打开的 HTML 页面，作为该公司的行业分析报告。
+
+## 要求
+1. 输出格式: 仅输出 HTML 代码，不要用 markdown 包裹，不要有任何额外说明
+2. 所有样式内嵌在 <style> 标签中，不依赖外部 CSS 或 JS
+3. 中文字体使用系统字体栈 (font-family: -apple-system, "Microsoft YaHei", sans-serif)
+4. 页面结构:
+   - 顶部: 蓝色 header 区域，显示报告标题、公司名、生成日期
+   - 公司概览 (Company Overview) — 公司简介、主营业务、行业地位
+   - 市场规模与趋势 (Market Size & Trends) — 行业规模、增长率、发展趋势
+   - 财务分析 (Financial Analysis) — 营收、利润、关键财务指标（可用合理估算数据）
+   - 竞争格局 (Competitive Landscape) — 主要竞争对手、市场份额
+   - SWOT 分析 — 用表格形式呈现
+   - 行业展望与建议 (Outlook & Recommendations) — 未来发展预测
+   - 底部: "由 YooClaw AI 生成" 版权信息，以及 YooClaw 品牌标识
+5. 设计风格: 专业、清晰、现代，使用蓝色(#2563eb)/灰色为主色调
+6. 尽量包含具体的行业数据和分析，不要泛泛而谈
+7. 页面要适合打印 (A4 布局)
+
+请直接输出完整的 HTML 代码。`;
+
+  const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: CODEBUDDY_MODEL,
+      stream: false,
+      messages: [
+        { role: 'system', content: '你是 YooClaw AI 助手，专门生成专业美观的行业分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+        { role: 'user', content: prompt },
+      ],
+      max_tokens: 16384,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
+  }
+
+  const data = await response.json();
+  const html = data.choices?.[0]?.message?.content || '';
+
+  // Strip markdown code fences if the model wraps the output
+  const cleaned = html
+    .replace(/^```html\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  // Ensure it's valid HTML
+  if (!cleaned.startsWith('<!') && !cleaned.startsWith('<html')) {
+    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${companyName} - 行业分析报告</title></head><body>${cleaned}</body></html>`;
+  }
+  return cleaned;
 }
 
 // ========== CORS ==========
@@ -461,6 +547,104 @@ app.get('/api/v1/admin/stats', authMiddleware, adminMiddleware, async (_req, res
   } catch (err: any) {
     console.error('[Admin Stats Error]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch stats' } });
+  }
+});
+
+// ========== Report Site Routes ==========
+
+// Generate a new report site
+app.post('/api/v1/sites/generate', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { companyName } = req.body || {};
+
+    if (!companyName || typeof companyName !== 'string' || !companyName.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Company name is required' } });
+    }
+
+    if (!CODEBUDDY_API_KEY) {
+      return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'AI service not configured' } });
+    }
+
+    const name = companyName.trim();
+    const slug = generateSlug(name);
+    const title = `${name} 行业分析报告`;
+
+    console.log(`[Sites] User:${userId} Generating report for "${name}" (slug: ${slug})`);
+
+    // Generate HTML via CodeBuddy API
+    const htmlContent = await generateReportHtml(name);
+
+    // Save to database
+    const site = await createReportSite(userId, slug, title, name, htmlContent);
+
+    res.status(201).json({
+      data: {
+        id: site.id,
+        slug: site.slug,
+        title: site.title,
+        companyName: site.company_name,
+        url: `/web/${site.slug}`,
+        createdAt: new Date(site.created_at).getTime(),
+      },
+    });
+  } catch (err: any) {
+    console.error('[Sites Generate Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// List user's report sites
+app.get('/api/v1/user/sites', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const sites = await getUserReportSites(userId);
+    res.json({
+      data: sites.map(s => ({
+        id: s.id,
+        slug: s.slug,
+        title: s.title,
+        companyName: s.company_name,
+        viewCount: s.view_count,
+        url: `/web/${s.slug}`,
+        createdAt: new Date(s.created_at).getTime(),
+        updatedAt: new Date(s.updated_at).getTime(),
+      })),
+    });
+  } catch (err: any) {
+    console.error('[Sites List Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch sites' } });
+  }
+});
+
+// Delete a report site
+app.delete('/api/v1/sites/:slug', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { slug } = req.params;
+    await deleteReportSite(userId, slug);
+    res.json({ data: { deleted: true } });
+  } catch (err: any) {
+    console.error('[Sites Delete Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete site' } });
+  }
+});
+
+// ========== Public: Serve Generated Report HTML ==========
+app.get('/web/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const site = await getReportSiteBySlug(slug);
+    if (!site) {
+      return res.status(404).send('<html><body><h1>404 - 报告未找到</h1><p>该报告不存在或已被删除。</p></body></html>');
+    }
+    // Increment view count (fire and forget)
+    incrementSiteViewCount(slug).catch(() => {});
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(site.html_content);
+  } catch (err: any) {
+    console.error('[Web Serve Error]', err.message);
+    res.status(500).send('<html><body><h1>500 - 服务器错误</h1></body></html>');
   }
 });
 

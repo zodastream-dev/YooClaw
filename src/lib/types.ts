@@ -86,3 +86,14 @@ export interface AdminStats {
   totalStorage: number
   activeUsers: number
 }
+
+export interface ReportSite {
+  id: string
+  slug: string
+  title: string
+  companyName: string
+  viewCount: number
+  url: string
+  createdAt: number
+  updatedAt: number
+}

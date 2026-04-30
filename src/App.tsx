@@ -2,6 +2,8 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { HomePage } from '@/pages/HomePage'
 import { ChatPage } from '@/pages/ChatPage'
 import { AdminPage } from '@/pages/AdminPage'
+import { SitesPage } from '@/pages/SitesPage'
+import { SiteCreatePage } from '@/pages/SiteCreatePage'
 import { useAuthStore } from '@/lib/store'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +52,22 @@ export default function App() {
             <AdminRoute>
               <AdminPage />
             </AdminRoute>
+          }
+        />
+        <Route
+          path="/sites"
+          element={
+            <ProtectedRoute>
+              <SitesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sites/create"
+          element={
+            <ProtectedRoute>
+              <SiteCreatePage />
+            </ProtectedRoute>
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />

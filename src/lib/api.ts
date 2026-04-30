@@ -1,4 +1,4 @@
-import type { APIResponse, RunData, SessionData, User, StorageInfo, AdminUser, AdminStats } from './types'
+import type { APIResponse, RunData, SessionData, User, StorageInfo, AdminUser, AdminStats, ReportSite } from './types'
 import { API_BASE, TOKEN_KEY } from './constants'
 
 function getToken(): string | null {
@@ -187,6 +187,22 @@ export async function deleteAdminUser(userId: string) {
 
 export async function getAdminStats() {
   return apiRequest<AdminStats>('GET', '/api/v1/admin/stats')
+}
+
+// ========== Report Sites ==========
+
+export async function createReportSite(companyName: string) {
+  return apiRequest<{ id: string; slug: string; title: string; companyName: string; url: string; createdAt: number }>(
+    'POST', '/api/v1/sites/generate', { companyName }
+  )
+}
+
+export async function getUserReportSites() {
+  return apiRequest<ReportSite[]>('GET', '/api/v1/user/sites')
+}
+
+export async function deleteReportSite(slug: string) {
+  return apiRequest('DELETE', `/api/v1/sites/${slug}`)
 }
 
 // ========== Legacy compatibility ==========

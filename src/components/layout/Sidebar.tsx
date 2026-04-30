@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSessionStore, useSidebarStore, useChatStore, useThemeStore, useAuthStore } from '@/lib/store'
 import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession, getSessionMessages } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2 } from 'lucide-react'
+import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2, Globe } from 'lucide-react'
 import { DEFAULT_SESSION_NAME, formatBytes } from '@/lib/constants'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '@/lib/types'
@@ -304,6 +304,18 @@ export function Sidebar() {
               </div>
             </div>
           )}
+
+          {/* Report Sites link */}
+          <button
+            onClick={() => {
+              closeMobile()
+              navigate('/sites')
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <Globe size={16} />
+            报告网站
+          </button>
 
           {/* Admin link */}
           {user?.role === 'admin' && (
