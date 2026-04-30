@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createReportSite } from '@/lib/api'
-import { ArrowLeft, Globe, Sparkles, ExternalLink, Copy, Loader2 } from 'lucide-react'
+import { ArrowLeft, Globe, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard } from 'lucide-react'
 
 interface GeneratedSite {
   slug: string
@@ -65,14 +65,23 @@ export function SiteCreatePage() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-4 md:px-6 py-6">
-        {/* Back button */}
-        <button
-          onClick={() => navigate('/sites')}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
-        >
-          <ArrowLeft size={16} />
-          返回列表
-        </button>
+        {/* Top navigation bar */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={() => navigate('/sites')}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft size={16} />
+            返回列表
+          </button>
+          <button
+            onClick={() => navigate('/chat')}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LayoutDashboard size={14} />
+            回到首页
+          </button>
+        </div>
 
         {/* Heading */}
         <div className="mb-8">
@@ -166,9 +175,15 @@ export function SiteCreatePage() {
             <div className="bg-muted rounded-lg p-4 mb-4">
               <p className="text-xs text-muted-foreground mb-2">访问链接</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate">
-                  {window.location.origin}{result.url}
-                </code>
+                <a
+                  href={result.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary hover:bg-primary/5 hover:border-primary/40 transition-all flex items-center gap-1.5"
+                >
+                  <ExternalLink size={13} className="flex-shrink-0" />
+                  <span className="truncate">{window.location.origin}{result.url}</span>
+                </a>
                 <button
                   onClick={handleCopy}
                   className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"

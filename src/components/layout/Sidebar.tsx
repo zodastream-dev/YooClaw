@@ -183,13 +183,36 @@ export function Sidebar() {
         </div>
 
         {/* New Chat */}
-        <div className="px-3 pb-2 flex-shrink-0">
+        <div className="px-3 pb-1 flex-shrink-0">
           <button
             onClick={handleNew}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-dashed border-border hover:border-primary/40 hover:bg-primary/5 transition-all text-muted-foreground hover:text-foreground"
           >
             <Plus size={16} />
             新建对话
+          </button>
+        </div>
+
+        {/* Report Sites - Prominent CTA */}
+        <div className="px-3 pb-3 flex-shrink-0">
+          <button
+            onClick={() => {
+              closeMobile()
+              navigate('/sites')
+            }}
+            className="group relative w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+              bg-gradient-to-r from-primary/90 to-primary/70 text-primary-foreground
+              hover:from-primary hover:to-primary/80 hover:shadow-lg hover:shadow-primary/20
+              active:scale-[0.98]"
+          >
+            {/* Subtle glow accent */}
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+            <Globe size={17} className="relative z-10" />
+            <span className="relative z-10">创建报告网站</span>
+            {/* Pill badge */}
+            <span className="relative z-10 ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/20 text-white/90">
+              NEW
+            </span>
           </button>
         </div>
 
@@ -304,18 +327,6 @@ export function Sidebar() {
               </div>
             </div>
           )}
-
-          {/* Report Sites link */}
-          <button
-            onClick={() => {
-              closeMobile()
-              navigate('/sites')
-            }}
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-          >
-            <Globe size={16} />
-            报告网站
-          </button>
 
           {/* Admin link */}
           {user?.role === 'admin' && (
