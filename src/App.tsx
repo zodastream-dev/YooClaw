@@ -4,6 +4,7 @@ import { ChatPage } from '@/pages/ChatPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { SitesPage } from '@/pages/SitesPage'
 import { SiteCreatePage } from '@/pages/SiteCreatePage'
+import { ProfilePage } from '@/pages/ProfilePage'
 import { useAuthStore } from '@/lib/store'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -67,6 +68,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <SiteCreatePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
             </ProtectedRoute>
           }
         />

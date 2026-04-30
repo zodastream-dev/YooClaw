@@ -205,6 +205,12 @@ export async function deleteReportSite(slug: string) {
   return apiRequest('DELETE', `/api/v1/sites/${slug}`)
 }
 
+// ========== User Profile ==========
+
+export async function changePassword(oldPassword: string, newPassword: string) {
+  return apiRequest<{ success: boolean }>('POST', '/api/v1/user/change-password', { oldPassword, newPassword })
+}
+
 // ========== Legacy compatibility ==========
 // These map to the new user-scoped APIs
 export const getSessions = getUserSessions

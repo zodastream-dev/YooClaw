@@ -220,6 +220,13 @@ export async function updateUserStatus(id: string, status: 'active' | 'disabled'
   return true;
 }
 
+export async function updateUserPassword(id: string, newPasswordHash: string): Promise<boolean> {
+  await sql`
+    UPDATE users SET password_hash = ${newPasswordHash}, updated_at = now() WHERE id = ${id}
+  `;
+  return true;
+}
+
 export async function deleteUser(id: string): Promise<boolean> {
   // CASCADE will handle messages and sessions
   await sql`DELETE FROM users WHERE id = ${id}`;

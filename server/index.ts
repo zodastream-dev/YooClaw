@@ -14,6 +14,7 @@ import {
   getUserById,
   getAllUsers,
   updateUserStatus,
+  updateUserPassword,
   deleteUser,
   canCreateSession,
   createUserSession,
@@ -507,6 +508,40 @@ app.get('/api/v1/user/storage', authMiddleware, async (req, res) => {
   } catch (err: any) {
     console.error('[Get Storage Error]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch storage' } });
+  }
+});
+
+// ========== User Profile ==========
+
+app.post('/api/v1/user/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { oldPassword, newPassword } = req.body || {};
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '旧密码和新密码都是必填的' } });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '新密码至少需要 6 个字符' } });
+    }
+
+    // Verify old password
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: '用户不存在' } });
+    }
+    if (!verifyPassword(oldPassword, user.password_hash)) {
+      return res.status(403).json({ error: { code: 'INVALID_PASSWORD', message: '旧密码不正确' } });
+    }
+
+    // Update to new password
+    const newHash = hashPassword(newPassword);
+    await updateUserPassword(userId, newHash);
+
+    res.json({ data: { success: true, message: '密码修改成功' } });
+  } catch (err: any) {
+    console.error('[Change Password Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '密码修改失败' } });
   }
 });
 

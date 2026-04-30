@@ -318,7 +318,13 @@ export function Sidebar() {
         <div className="border-t border-border px-3 py-2 flex-shrink-0 space-y-1">
           {/* User info */}
           {user && (
-            <div className="px-3 py-1.5 text-sm text-foreground flex items-center gap-2">
+            <button
+              onClick={() => {
+                closeMobile()
+                navigate('/profile')
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground rounded-lg hover:bg-muted transition-colors"
+            >
               <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">
                 {user.username[0].toUpperCase()}
               </div>
@@ -326,7 +332,7 @@ export function Sidebar() {
               {user.role === 'admin' && (
                 <Shield size={12} className="text-yellow-500 flex-shrink-0" />
               )}
-            </div>
+            </button>
           )}
 
           {/* Storage bar */}
