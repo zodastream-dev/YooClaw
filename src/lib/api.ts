@@ -197,12 +197,21 @@ export async function createReportSite(companyName: string) {
   )
 }
 
-export async function getUserReportSites() {
-  return apiRequest<ReportSite[]>('GET', '/api/v1/user/sites')
+export async function getUserReportSites(type?: string) {
+  const query = type ? `?type=${encodeURIComponent(type)}` : ''
+  return apiRequest<ReportSite[]>('GET', `/api/v1/user/sites${query}`)
 }
 
 export async function deleteReportSite(slug: string) {
   return apiRequest('DELETE', `/api/v1/sites/${slug}`)
+}
+
+// ========== Games ==========
+
+export async function createGame(gameName: string) {
+  return apiRequest<{ id: string; slug: string; title: string; gameName: string; url: string; createdAt: number }>(
+    'POST', '/api/v1/games/generate', { gameName }
+  )
 }
 
 // ========== User Profile ==========

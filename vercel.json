@@ -2,6 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/game/:slug", "destination": "https://yooclaw-production.up.railway.app/game/:slug" },
     { "source": "/web/:slug", "destination": "https://yooclaw-production.up.railway.app/web/:slug" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],

@@ -68,6 +68,13 @@ export function ChatView() {
               if (data.toolCalls) {
                 updateMessage(assistantMsg.id, { toolCalls: data.toolCalls })
               }
+            } else if (data.type === 'game_deployed') {
+              // Game generated and deployed — update the assistant message
+              updateMessage(assistantMsg.id, {
+                isStreaming: false,
+                gameUrl: data.url || '',
+                gameTitle: data.title || '小游戏',
+              })
             } else if (data.type === 'run_status') {
               if (data.status === 'completed' || data.status === 'failed') {
                 updateMessage(assistantMsg.id, { isStreaming: false })

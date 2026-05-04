@@ -1,7 +1,7 @@
 import type { Message } from '@/lib/types'
 import { cn, formatTime } from '@/lib/utils'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
-import { Bot, User, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import { Bot, User, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronRight, Gamepad2, ExternalLink, Copy } from 'lucide-react'
 import { useState } from 'react'
 
 interface MessageBubbleProps {
@@ -52,6 +52,45 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               </div>
             ) : (
               <MarkdownRenderer content={message.content} />
+            )}
+
+            {/* Game card */}
+            {message.gameUrl && (
+              <div className="mt-3 border border-border rounded-xl overflow-hidden bg-gradient-to-br from-pink-50 via-white to-orange-50 dark:from-pink-950/20 dark:via-card dark:to-orange-950/20">
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center">
+                      <Gamepad2 size={16} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold">{message.gameTitle || 'AI 小游戏'}</div>
+                      <div className="text-xs text-muted-foreground">已部署上线，点击即可开始游玩</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <a
+                      href={message.gameUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-br from-pink-500 to-orange-500 text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
+                    >
+                      <ExternalLink size={14} />
+                      开始游戏
+                    </a>
+                    <button
+                      onClick={() => {
+                        const url = window.location.origin + message.gameUrl
+                        navigator.clipboard.writeText(url).catch(() => {})
+                      }}
+                      className="flex items-center gap-1 px-3 py-2 border border-border rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title="复制链接"
+                    >
+                      <Copy size={14} />
+                      复制链接
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

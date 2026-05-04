@@ -30,10 +30,14 @@ import {
   getUserReportSites,
   deleteReportSite,
   incrementSiteViewCount,
+  getSiteCountByType,
 } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// In-memory store for game requests (runId → gameName)
+const gameRequestMap = new Map<string, string>();
 
 const app = express();
 
@@ -181,6 +185,125 @@ async function generateReportHtml(companyName: string): Promise<string> {
     return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${companyName} - 行业分析报告</title></head><body>${cleaned}</body></html>`;
   }
   return cleaned;
+}
+
+// ========== Game HTML Generator ==========
+async function generateGameHtml(gameName: string): Promise<string> {
+  const prompt = `你是一个专业的 HTML 小游戏生成器。
+
+用户想玩的游戏是: "${gameName}"
+
+请生成一个完整的、可直接运行的 HTML 页面，实现这个游戏。
+
+## 要求
+1. 输出格式: 仅输出 HTML 代码，不要用 markdown 包裹，不要有任何额外说明
+2. 所有样式（CSS）和逻辑（JavaScript）内嵌在同一个 HTML 文件中
+3. 不依赖任何外部资源（CDN、图片、字体等）
+4. 游戏需要包含:
+   - 完整的游戏逻辑和交互
+   - 键盘/触控操作支持
+   - 得分/计时显示
+   - 游戏结束判定和重新开始按钮
+   - 清晰的界面和操作说明
+5. 设计风格: 精致、现代、色彩丰富
+6. 使用 HTML5 Canvas 或 DOM 元素实现
+7. 确保在移动端和桌面端都能正常游玩
+
+请直接输出完整的 HTML 代码。`;
+
+  const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: CODEBUDDY_MODEL,
+      stream: true,
+      messages: [
+        { role: 'system', content: '你是 YooClaw AI 助手，专门生成可直接运行的 HTML 小游戏。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+        { role: 'user', content: prompt },
+      ],
+      max_tokens: 16384,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
+  }
+
+  // Streaming accumulation (same pattern as generateReportHtml)
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let fullHtml = '';
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+        try {
+          const chunk = JSON.parse(jsonStr);
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) {
+            fullHtml += content;
+          }
+        } catch { /* ignore parse errors */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const cleaned = fullHtml
+    .replace(/^```html\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  if (!cleaned.startsWith('<!') && !cleaned.startsWith('<html')) {
+    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${gameName}</title></head><body>${cleaned}</body></html>`;
+  }
+  return cleaned;
+}
+
+// ========== Extract Game Name from Chat ==========
+function extractGameName(text: string): string {
+  // "开发贪吃蛇小游戏" → "贪吃蛇"
+  // "帮我做个2048" → "2048"
+  const patterns = [
+    /(?:开发|生成|做一个|帮我做|做|写|创建)(?:一个)?(.{1,20})(?:小游戏|游戏)/,
+    /(.{1,20})(?:小游戏|游戏)/,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      let name = m[1].trim();
+      // Remove common filler words
+      name = name.replace(/^[的]/, '').trim();
+      if (name) return name;
+    }
+  }
+  // Fallback: use first meaningful segment
+  return text.replace(/^(?:开发|生成|做一个|帮我做|做|写|创建)\s*/, '').slice(0, 20) || '未知游戏';
+}
+
+// ========== Game Request Detection ==========
+function isGameRequest(text: string): boolean {
+  const gameKeywords = [
+    '小游戏', '游戏', '贪吃蛇', '飞机大战', '俄罗斯方块',
+    '2048', '弹球', '打砖块', '消消乐', '扫雷', '五子棋',
+    '井字棋', '拼图', '射击', '赛车', '跑酷', '跳跃',
+  ];
+  const textLower = text.toLowerCase();
+  return gameKeywords.some(kw => textLower.includes(kw));
 }
 
 // ========== CORS ==========
@@ -662,15 +785,17 @@ app.post('/api/v1/sites/generate', authMiddleware, async (req, res) => {
 app.get('/api/v1/user/sites', authMiddleware, async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
-    const sites = await getUserReportSites(userId);
+    const type = req.query.type as string | undefined;
+    const sites = await getUserReportSites(userId, type);
     res.json({
       data: sites.map(s => ({
         id: s.id,
         slug: s.slug,
         title: s.title,
         companyName: s.company_name,
+        type: s.type,
         viewCount: s.view_count,
-        url: `/web/${s.slug}`,
+        url: s.type === 'game' ? `/game/${s.slug}` : `/web/${s.slug}`,
         createdAt: new Date(s.created_at).getTime(),
         updatedAt: new Date(s.updated_at).getTime(),
       })),
@@ -694,21 +819,108 @@ app.delete('/api/v1/sites/:slug', authMiddleware, async (req, res) => {
   }
 });
 
-// ========== Public: Serve Generated Report HTML ==========
+// ========== Game Routes ==========
+
+// Generate a game
+app.post('/api/v1/games/generate', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { gameName } = req.body || {};
+
+    if (!gameName || typeof gameName !== 'string' || !gameName.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '游戏名称不能为空' } });
+    }
+
+    if (!CODEBUDDY_API_KEY) {
+      return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'AI service not configured' } });
+    }
+
+    const name = gameName.trim();
+    const slug = generateSlug(name);
+    const title = `${name} 小游戏`;
+
+    console.log(`[Games] User:${userId} Generating game "${name}" (slug: ${slug})`);
+
+    const htmlContent = await generateGameHtml(name);
+    const site = await createReportSite(userId, slug, title, name, htmlContent, 'game');
+
+    res.status(201).json({
+      data: {
+        id: site.id,
+        slug: site.slug,
+        title: site.title,
+        gameName: site.company_name,
+        url: `/game/${site.slug}`,
+        createdAt: new Date(site.created_at).getTime(),
+      },
+    });
+  } catch (err: any) {
+    console.error('[Games Generate Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Deploy pre-generated HTML content (for AI chat integration)
+app.post('/api/v1/content/deploy', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { title, html, type } = req.body || {};
+
+    if (!title || !html) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Title and html are required' } });
+    }
+
+    const contentType = type === 'game' ? 'game' : 'report';
+    const slug = generateSlug(title);
+    const site = await createReportSite(userId, slug, title, title, html, contentType);
+
+    res.status(201).json({
+      data: {
+        id: site.id,
+        slug: site.slug,
+        title: site.title,
+        type: contentType,
+        url: contentType === 'game' ? `/game/${slug}` : `/web/${slug}`,
+        createdAt: new Date(site.created_at).getTime(),
+      },
+    });
+  } catch (err: any) {
+    console.error('[Content Deploy Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// ========== Public: Serve Content ==========
+
 app.get('/web/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const site = await getReportSiteBySlug(slug);
     if (!site) {
-      return res.status(404).send('<html><body><h1>404 - 报告未找到</h1><p>该报告不存在或已被删除。</p></body></html>');
+      return res.status(404).send('<html><body><h1>404 - 内容未找到</h1><p>该内容不存在或已被删除。</p></body></html>');
     }
-    // Increment view count (fire and forget)
     incrementSiteViewCount(slug).catch(() => {});
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(site.html_content);
   } catch (err: any) {
     console.error('[Web Serve Error]', err.message);
     res.status(500).send('<html><body><h1>500 - 服务器错误</h1></body></html>');
+  }
+});
+
+app.get('/game/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const site = await getReportSiteBySlug(slug, 'game');
+    if (!site) {
+      return res.status(404).send('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>游戏未找到</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;color:#666;}</style></head><body><h1>🎮 游戏未找到</h1><p>该游戏不存在或已被删除。</p></body></html>');
+    }
+    incrementSiteViewCount(slug).catch(() => {});
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(site.html_content);
+  } catch (err: any) {
+    console.error('[Game Serve Error]', err.message);
+    res.status(500).send('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>错误</title></head><body><h1>500 - 服务器错误</h1></body></html>');
   }
 });
 
@@ -743,6 +955,15 @@ app.post('/api/v1/runs', authMiddleware, async (req, res) => {
 
     // Generate runId
     const runId = crypto.randomUUID();
+
+    // Detect game request
+    if (isGameRequest(text)) {
+      const gameName = extractGameName(text);
+      if (gameName) {
+        gameRequestMap.set(runId, gameName);
+        console.log(`[Runs] Detected game request: "${gameName}" for run ${runId}`);
+      }
+    }
 
     console.log(`[Runs] User:${userPayload.username} Creating run ${runId}: "${text.slice(0, 50)}..."`);
 
@@ -786,6 +1007,40 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
     res.end();
     return;
+  }
+
+  // Check if this is a game request
+  const gameName = gameRequestMap.get(runId);
+  if (gameName && token) {
+    console.log(`[Stream] Run ${runId} is a game request: "${gameName}"`);
+    try {
+      const htmlContent = await generateGameHtml(gameName);
+      const slug = generateSlug(gameName);
+      const title = `${gameName} 小游戏`;
+      await createReportSite(token.userId, slug, title, gameName, htmlContent, 'game');
+      gameRequestMap.delete(runId);
+
+      res.write(`data: ${JSON.stringify({
+        type: 'agent_message_chunk',
+        content: { text: `🎮 已为您生成游戏 **${gameName}**！点击下方链接开始游玩。` },
+      })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: 'game_deployed',
+        slug: slug,
+        url: `/game/${slug}`,
+        title: title,
+      })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'completed' })}\n\n`);
+      res.end();
+      return;
+    } catch (err: any) {
+      console.error(`[Stream] Game generation failed for run ${runId}:`, err.message);
+      gameRequestMap.delete(runId);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: `游戏生成失败: ${err.message}` })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
+      res.end();
+      return;
+    }
   }
 
   // Get user message from DB if we have sessionId and token

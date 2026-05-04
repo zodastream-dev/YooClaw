@@ -4,6 +4,7 @@ import { ChatPage } from '@/pages/ChatPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { SitesPage } from '@/pages/SitesPage'
 import { SiteCreatePage } from '@/pages/SiteCreatePage'
+import { GameCreatePage } from '@/pages/GameCreatePage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { useAuthStore } from '@/lib/store'
 
@@ -68,6 +69,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <SiteCreatePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/games/create"
+          element={
+            <ProtectedRoute>
+              <GameCreatePage />
             </ProtectedRoute>
           }
         />

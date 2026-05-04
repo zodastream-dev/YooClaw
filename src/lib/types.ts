@@ -5,6 +5,8 @@ export interface Message {
   timestamp: number
   isStreaming?: boolean
   toolCalls?: ToolCall[]
+  gameUrl?: string
+  gameTitle?: string
 }
 
 export interface ToolCall {
@@ -92,6 +94,7 @@ export interface ReportSite {
   slug: string
   title: string
   companyName: string
+  type: string
   viewCount: number
   url: string
   createdAt: number

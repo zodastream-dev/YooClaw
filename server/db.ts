@@ -38,6 +38,7 @@ export interface DbReportSite {
   title: string;
   company_name: string;
   html_content: string;
+  type: string;
   is_published: boolean;
   view_count: number;
   created_at: string;
@@ -143,6 +144,18 @@ export async function initDatabase(): Promise<void> {
       created_at TIMESTAMPTZ DEFAULT now(),
       updated_at TIMESTAMPTZ DEFAULT now()
     )
+  `;
+
+  // Add type column if not exists (migration for existing tables)
+  await sql`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='report_sites' AND column_name='type'
+      ) THEN
+        ALTER TABLE report_sites ADD COLUMN type TEXT DEFAULT 'report' CHECK (type IN ('report', 'game'));
+      END IF;
+    END $$;
   `;
 
   // Create indexes
@@ -350,17 +363,25 @@ export async function createReportSite(
   slug: string,
   title: string,
   companyName: string,
-  htmlContent: string
+  htmlContent: string,
+  type: string = 'report'
 ): Promise<DbReportSite> {
   const rows = await sql`
-    INSERT INTO report_sites (user_id, slug, title, company_name, html_content)
-    VALUES (${userId}, ${slug}, ${title}, ${companyName}, ${htmlContent})
+    INSERT INTO report_sites (user_id, slug, title, company_name, html_content, type)
+    VALUES (${userId}, ${slug}, ${title}, ${companyName}, ${htmlContent}, ${type})
     RETURNING *
   `;
   return rows[0] as unknown as DbReportSite;
 }
 
-export async function getReportSiteBySlug(slug: string): Promise<DbReportSite | undefined> {
+export async function getReportSiteBySlug(slug: string, type?: string): Promise<DbReportSite | undefined> {
+  if (type) {
+    const rows = await sql`
+      SELECT * FROM report_sites WHERE slug = ${slug} AND is_published = true AND type = ${type}
+    `;
+    if (rows.length === 0) return undefined;
+    return rows[0] as unknown as DbReportSite;
+  }
   const rows = await sql`
     SELECT * FROM report_sites WHERE slug = ${slug} AND is_published = true
   `;
@@ -368,11 +389,24 @@ export async function getReportSiteBySlug(slug: string): Promise<DbReportSite | 
   return rows[0] as unknown as DbReportSite;
 }
 
-export async function getUserReportSites(userId: string): Promise<DbReportSite[]> {
+export async function getUserReportSites(userId: string, type?: string): Promise<DbReportSite[]> {
+  if (type) {
+    const rows = await sql`
+      SELECT * FROM report_sites WHERE user_id = ${userId} AND type = ${type} ORDER BY created_at DESC
+    `;
+    return rows as unknown as DbReportSite[];
+  }
   const rows = await sql`
     SELECT * FROM report_sites WHERE user_id = ${userId} ORDER BY created_at DESC
   `;
   return rows as unknown as DbReportSite[];
+}
+
+export async function getSiteCountByType(userId: string, type: string): Promise<number> {
+  const [result] = await sql`
+    SELECT COUNT(*)::int as count FROM report_sites WHERE user_id = ${userId} AND type = ${type}
+  `;
+  return result.count;
 }
 
 export async function deleteReportSite(userId: string, slug: string): Promise<boolean> {
