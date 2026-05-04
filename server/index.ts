@@ -1039,8 +1039,31 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       const gameStartTime = Date.now();
       res.write(`data: ${JSON.stringify({
         type: 'agent_message_chunk',
-        content: { text: `🎮 正在生成 **${gameName}** 游戏...\n` },
+        content: { text: `🎮 正在生成 **${gameName}** 游戏...` },
       })}\n\n`);
+
+      // Time-based stage schedule (contextual phases)
+      const stageSchedule = [
+        { at: 5, text: '\n正在设计游戏界面...' },
+        { at: 15, text: '\n正在编写游戏逻辑...' },
+        { at: 25, text: '\n正在添加交互控制...' },
+        { at: 35, text: '\n正在优化视觉效果...' },
+        { at: 45, text: '\n正在完成收尾...' },
+      ];
+      let nextStageIdx = 0;
+      let stagesFired = 0;
+
+      const stageTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
+        while (nextStageIdx < stageSchedule.length && elapsed >= stageSchedule[nextStageIdx].at) {
+          res.write(`data: ${JSON.stringify({
+            type: 'agent_message_chunk',
+            content: { text: stageSchedule[nextStageIdx].text },
+          })}\n\n`);
+          nextStageIdx++;
+          stagesFired++;
+        }
+      }, 2000);
 
       const apiResponse = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
         method: 'POST',
@@ -1060,6 +1083,7 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       });
 
       if (!apiResponse.ok) {
+        clearInterval(stageTimer);
         const errText = await apiResponse.text();
         throw new Error(`CodeBuddy API error: ${apiResponse.status} ${errText}`);
       }
@@ -1095,7 +1119,7 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
                   const kb = (currentSize / 1024).toFixed(1);
                   res.write(`data: ${JSON.stringify({
                     type: 'agent_message_chunk',
-                    content: { text: `已生成 ${kb}KB 代码...\n` },
+                    content: { text: `（已生成 ${kb}KB 代码）` },
                   })}\n\n`);
                 }
               }
@@ -1103,6 +1127,7 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
           }
         }
       } finally {
+        clearInterval(stageTimer);
         gameReader.releaseLock();
       }
 
