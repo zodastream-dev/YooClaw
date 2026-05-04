@@ -2,7 +2,7 @@ import type { Message } from '@/lib/types'
 import { cn, formatTime } from '@/lib/utils'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { Bot, User, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronRight, Gamepad2, ExternalLink, Copy } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 interface MessageBubbleProps {
   message: Message
@@ -10,6 +10,17 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll content to bottom when streaming
+  useEffect(() => {
+    if (message.isStreaming && contentRef.current) {
+      const el = contentRef.current.closest('.max-h-72')
+      if (el) {
+        el.scrollTop = el.scrollHeight
+      }
+    }
+  }, [message.content, message.isStreaming])
 
   const toggleTool = (id: string) => {
     setExpandedTools((prev) => {
@@ -51,7 +62,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 <span className="w-2 h-2 bg-primary rounded-full typing-dot" />
               </div>
             ) : (
-              <div className="max-h-72 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
+              <div className="max-h-72 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent" ref={contentRef}>
                 <MarkdownRenderer content={message.content} />
               </div>
             )}

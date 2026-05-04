@@ -1038,7 +1038,7 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       // Send initial acknowledgment so user sees something immediately
       res.write(`data: ${JSON.stringify({
         type: 'agent_message_chunk',
-        content: { text: `🎮 正在生成 **${gameName}** 游戏...\n\n` },
+        content: { text: `🎮 正在生成 **${gameName}** 游戏...` },
       })}\n\n`);
 
       const apiResponse = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
@@ -1063,11 +1063,25 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
         throw new Error(`CodeBuddy API error: ${apiResponse.status} ${errText}`);
       }
 
-      // Stream chunks to frontend while accumulating for storage
+      // Send progress messages periodically so user sees activity
+      const progressMessages = [
+        '正在设计游戏界面...',
+        '正在编写游戏逻辑...',
+        '正在添加交互控制...',
+        '正在优化视觉效果...',
+        '正在完成收尾...',
+      ];
+      let progressIndex = 0;
+      let chunkCount = 0;
+
+      // Stream chunks to accumulate for storage (NOT sent to frontend to avoid HTML pollution)
       const gameReader = apiResponse.body!.getReader();
       const gameDecoder = new TextDecoder();
       let fullHtml = '';
       let gameBuffer = '';
+
+      // Send progress updates every ~50 chunks
+      const PROGRESS_INTERVAL = 50;
 
       try {
         while (true) {
@@ -1085,11 +1099,15 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
               const content = chunk.choices?.[0]?.delta?.content;
               if (content) {
                 fullHtml += content;
-                // Stream each chunk to frontend immediately
-                res.write(`data: ${JSON.stringify({
-                  type: 'agent_message_chunk',
-                  content: { text: content },
-                })}\n\n`);
+                chunkCount++;
+                // Send progress update periodically (not raw HTML)
+                if (chunkCount % PROGRESS_INTERVAL === 0 && progressIndex < progressMessages.length) {
+                  res.write(`data: ${JSON.stringify({
+                    type: 'agent_message_chunk',
+                    content: { text: `\n${progressMessages[progressIndex]}` },
+                  })}\n\n`);
+                  progressIndex++;
+                }
               }
             } catch { /* ignore */ }
           }
