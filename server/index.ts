@@ -36,9 +36,6 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// In-memory store for game requests (runId → gameName)
-const gameRequestMap = new Map<string, string>();
-
 const app = express();
 
 // ========== Helper: Convert BIGINT strings to numbers ==========
@@ -956,15 +953,6 @@ app.post('/api/v1/runs', authMiddleware, async (req, res) => {
     // Generate runId
     const runId = crypto.randomUUID();
 
-    // Detect game request
-    if (isGameRequest(text)) {
-      const gameName = extractGameName(text);
-      if (gameName) {
-        gameRequestMap.set(runId, gameName);
-        console.log(`[Runs] Detected game request: "${gameName}" for run ${runId}`);
-      }
-    }
-
     console.log(`[Runs] User:${userPayload.username} Creating run ${runId}: "${text.slice(0, 50)}..."`);
 
     res.json({
@@ -1009,16 +997,25 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
     return;
   }
 
-  // Check if this is a game request
-  const gameName = gameRequestMap.get(runId);
-  if (gameName && token) {
+  // Get user message from DB if we have sessionId and token
+  let userMessage = '';
+  if (token && sessionId) {
+    try {
+      const messages = await getSessionMessages(token.userId, sessionId);
+      const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+      if (lastUserMsg) userMessage = lastUserMsg.content;
+    } catch {}
+  }
+
+  // Check if this is a game request (detect from user message text)
+  if (userMessage && isGameRequest(userMessage)) {
+    const gameName = extractGameName(userMessage);
     console.log(`[Stream] Run ${runId} is a game request: "${gameName}"`);
     try {
       const htmlContent = await generateGameHtml(gameName);
       const slug = generateSlug(gameName);
       const title = `${gameName} 小游戏`;
-      await createReportSite(token.userId, slug, title, gameName, htmlContent, 'game');
-      gameRequestMap.delete(runId);
+      await createReportSite(token!.userId, slug, title, gameName, htmlContent, 'game');
 
       res.write(`data: ${JSON.stringify({
         type: 'agent_message_chunk',
@@ -1035,22 +1032,11 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       return;
     } catch (err: any) {
       console.error(`[Stream] Game generation failed for run ${runId}:`, err.message);
-      gameRequestMap.delete(runId);
       res.write(`data: ${JSON.stringify({ type: 'error', message: `游戏生成失败: ${err.message}` })}\n\n`);
       res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
       res.end();
       return;
     }
-  }
-
-  // Get user message from DB if we have sessionId and token
-  let userMessage = '';
-  if (token && sessionId) {
-    try {
-      const messages = await getSessionMessages(token.userId, sessionId);
-      const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-      if (lastUserMsg) userMessage = lastUserMsg.content;
-    } catch {}
   }
 
   if (!userMessage) {
