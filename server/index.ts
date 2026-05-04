@@ -1012,14 +1012,112 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
     const gameName = extractGameName(userMessage);
     console.log(`[Stream] Run ${runId} is a game request: "${gameName}"`);
     try {
-      const htmlContent = await generateGameHtml(gameName);
-      const slug = generateSlug(gameName);
-      const title = `${gameName} 小游戏`;
-      await createReportSite(token!.userId, slug, title, gameName, htmlContent, 'game');
+      // Stream game generation in real-time so user sees progress
+      const gamePrompt = `你是一个专业的 HTML 小游戏生成器。
 
+用户想玩的游戏是: "${gameName}"
+
+请生成一个完整的、可直接运行的 HTML 页面，实现这个游戏。
+
+## 要求
+1. 输出格式: 仅输出 HTML 代码，不要用 markdown 包裹，不要有任何额外说明
+2. 所有样式（CSS）和逻辑（JavaScript）内嵌在同一个 HTML 文件中
+3. 不依赖任何外部资源（CDN、图片、字体等）
+4. 游戏需要包含:
+   - 完整的游戏逻辑和交互
+   - 键盘/触控操作支持
+   - 得分/计时显示
+   - 游戏结束判定和重新开始按钮
+   - 清晰的界面和操作说明
+5. 设计风格: 精致、现代、色彩丰富
+6. 使用 HTML5 Canvas 或 DOM 元素实现
+7. 确保在移动端和桌面端都能正常游玩
+
+请直接输出完整的 HTML 代码。`;
+
+      // Send initial acknowledgment so user sees something immediately
       res.write(`data: ${JSON.stringify({
         type: 'agent_message_chunk',
-        content: { text: `🎮 已为您生成游戏 **${gameName}**！点击下方链接开始游玩。` },
+        content: { text: `🎮 正在生成 **${gameName}** 游戏...\n\n` },
+      })}\n\n`);
+
+      const apiResponse = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: CODEBUDDY_MODEL,
+          stream: true,
+          messages: [
+            { role: 'system', content: '你是 YooClaw AI 助手，专门生成可直接运行的 HTML 小游戏。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+            { role: 'user', content: gamePrompt },
+          ],
+          max_tokens: 16384,
+        }),
+      });
+
+      if (!apiResponse.ok) {
+        const errText = await apiResponse.text();
+        throw new Error(`CodeBuddy API error: ${apiResponse.status} ${errText}`);
+      }
+
+      // Stream chunks to frontend while accumulating for storage
+      const gameReader = apiResponse.body!.getReader();
+      const gameDecoder = new TextDecoder();
+      let fullHtml = '';
+      let gameBuffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await gameReader.read();
+          if (done) break;
+          gameBuffer += gameDecoder.decode(value, { stream: true });
+          const lines = gameBuffer.split('\n');
+          gameBuffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(jsonStr);
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) {
+                fullHtml += content;
+                // Stream each chunk to frontend immediately
+                res.write(`data: ${JSON.stringify({
+                  type: 'agent_message_chunk',
+                  content: { text: content },
+                })}\n\n`);
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      } finally {
+        gameReader.releaseLock();
+      }
+
+      // Clean up the HTML
+      const cleaned = fullHtml
+        .replace(/^```html\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+      const finalHtml = cleaned.startsWith('<!') || cleaned.startsWith('<html')
+        ? cleaned
+        : `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${gameName}</title></head><body>${cleaned}</body></html>`;
+
+      // Save to database
+      const slug = generateSlug(gameName);
+      const title = `${gameName} 小游戏`;
+      await createReportSite(token!.userId, slug, title, gameName, finalHtml, 'game');
+
+      console.log(`[Stream] Game "${gameName}" deployed at /game/${slug} (${finalHtml.length} bytes)`);
+
+      // Send completion message + game card
+      res.write(`data: ${JSON.stringify({
+        type: 'agent_message_chunk',
+        content: { text: `\n\n✅ **${gameName}** 已完成！游戏已部署上线，点击下方按钮开始游玩。` },
       })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'game_deployed',
