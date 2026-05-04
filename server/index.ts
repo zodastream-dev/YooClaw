@@ -1042,13 +1042,13 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
         content: { text: `🎮 正在生成 **${gameName}** 游戏...` },
       })}\n\n`);
 
-      // Time-based stage schedule (contextual phases)
+      // Time-based stage schedule (contextual phases with percentage)
       const stageSchedule = [
-        { at: 5, text: '\n正在设计游戏界面...' },
-        { at: 15, text: '\n正在编写游戏逻辑...' },
-        { at: 25, text: '\n正在添加交互控制...' },
-        { at: 35, text: '\n正在优化视觉效果...' },
-        { at: 45, text: '\n正在完成收尾...' },
+        { at: 5, text: '正在设计游戏界面...', percent: 10 },
+        { at: 15, text: '正在编写游戏逻辑...', percent: 30 },
+        { at: 25, text: '正在添加交互控制...', percent: 55 },
+        { at: 35, text: '正在优化视觉效果...', percent: 75 },
+        { at: 45, text: '正在完成收尾...', percent: 90 },
       ];
       let nextStageIdx = 0;
       let stagesFired = 0;
@@ -1056,9 +1056,16 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       const stageTimer = setInterval(() => {
         const elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
         while (nextStageIdx < stageSchedule.length && elapsed >= stageSchedule[nextStageIdx].at) {
+          const stage = stageSchedule[nextStageIdx];
+          // Send progress percentage update
+          res.write(`data: ${JSON.stringify({
+            type: 'progress_update',
+            percent: stage.percent,
+          })}\n\n`);
+          // Send stage text message with proper line break (\n\n for new paragraph)
           res.write(`data: ${JSON.stringify({
             type: 'agent_message_chunk',
-            content: { text: stageSchedule[nextStageIdx].text },
+            content: { text: `\n\n${stage.text}` },
           })}\n\n`);
           nextStageIdx++;
           stagesFired++;
@@ -1093,8 +1100,6 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       const gameDecoder = new TextDecoder();
       let fullHtml = '';
       let gameBuffer = '';
-      let lastProgressSize = 0;
-      const PROGRESS_INTERVAL_BYTES = 1024; // Report progress every ~1KB of received code
 
       try {
         while (true) {
@@ -1112,16 +1117,6 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
               const content = chunk.choices?.[0]?.delta?.content;
               if (content) {
                 fullHtml += content;
-                // Send real progress based on actual code generated
-                const currentSize = Buffer.byteLength(fullHtml, 'utf8');
-                if (currentSize - lastProgressSize >= PROGRESS_INTERVAL_BYTES) {
-                  lastProgressSize = currentSize;
-                  const kb = (currentSize / 1024).toFixed(1);
-                  res.write(`data: ${JSON.stringify({
-                    type: 'agent_message_chunk',
-                    content: { text: `（已生成 ${kb}KB 代码）` },
-                  })}\n\n`);
-                }
               }
             } catch { /* ignore */ }
           }
@@ -1148,6 +1143,10 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       console.log(`[Stream] Game "${gameName}" deployed at /game/${slug} (${finalHtml.length} bytes)`);
 
       // Send completion message + game card
+      res.write(`data: ${JSON.stringify({
+        type: 'progress_update',
+        percent: 100,
+      })}\n\n`);
       res.write(`data: ${JSON.stringify({
         type: 'agent_message_chunk',
         content: { text: `\n\n✅ **${gameName}** 已完成！游戏已部署上线，点击下方按钮开始游玩。` },

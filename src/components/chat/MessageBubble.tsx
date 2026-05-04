@@ -67,6 +67,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               </div>
             )}
 
+            {/* Progress bar */}
+            {message.progress !== undefined && !message.gameUrl && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>生成进度</span>
+                  <span>{message.progress}%</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-pink-500 to-orange-500 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${message.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Game card */}
             {message.gameUrl && (
               <div className="mt-3 border border-border rounded-xl overflow-hidden bg-gradient-to-br from-pink-50 via-white to-orange-50 dark:from-pink-950/20 dark:via-card dark:to-orange-950/20">

@@ -60,7 +60,10 @@ export function ChatView() {
             // Check if aborted
             if (abortController.signal.aborted) break
 
-            if (data.type === 'agent_message_chunk') {
+            if (data.type === 'progress_update') {
+              // Update progress bar percentage
+              updateMessage(assistantMsg.id, { progress: data.percent })
+            } else if (data.type === 'agent_message_chunk') {
               const textContent = data.content?.text || data.text || ''
               if (textContent) {
                 appendToMessage(assistantMsg.id, textContent)

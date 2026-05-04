@@ -7,6 +7,7 @@ export interface Message {
   toolCalls?: ToolCall[]
   gameUrl?: string
   gameTitle?: string
+  progress?: number
 }
 
 export interface ToolCall {
