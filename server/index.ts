@@ -1036,10 +1036,32 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
 请直接输出完整的 HTML 代码。`;
 
       // Send initial acknowledgment so user sees something immediately
+      const gameStartTime = Date.now();
       res.write(`data: ${JSON.stringify({
         type: 'agent_message_chunk',
-        content: { text: `🎮 正在生成 **${gameName}** 游戏...` },
+        content: { text: `🎮 正在生成 **${gameName}** 游戏...\n` },
       })}\n\n`);
+
+      // Time-based progress: send status updates at real elapsed intervals
+      const progressSchedule = [
+        { at: 5, text: '正在设计游戏界面...' },
+        { at: 15, text: '正在编写游戏逻辑...' },
+        { at: 25, text: '正在添加交互控制...' },
+        { at: 35, text: '正在优化视觉效果...' },
+        { at: 45, text: '正在完成收尾...' },
+      ];
+      let nextProgressIdx = 0;
+
+      const progressTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
+        while (nextProgressIdx < progressSchedule.length && elapsed >= progressSchedule[nextProgressIdx].at) {
+          res.write(`data: ${JSON.stringify({
+            type: 'agent_message_chunk',
+            content: { text: `${progressSchedule[nextProgressIdx].text}\n` },
+          })}\n\n`);
+          nextProgressIdx++;
+        }
+      }, 2000);
 
       const apiResponse = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
         method: 'POST',
@@ -1059,29 +1081,16 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       });
 
       if (!apiResponse.ok) {
+        clearInterval(progressTimer);
         const errText = await apiResponse.text();
         throw new Error(`CodeBuddy API error: ${apiResponse.status} ${errText}`);
       }
-
-      // Send progress messages periodically so user sees activity
-      const progressMessages = [
-        '正在设计游戏界面...',
-        '正在编写游戏逻辑...',
-        '正在添加交互控制...',
-        '正在优化视觉效果...',
-        '正在完成收尾...',
-      ];
-      let progressIndex = 0;
-      let chunkCount = 0;
 
       // Stream chunks to accumulate for storage (NOT sent to frontend to avoid HTML pollution)
       const gameReader = apiResponse.body!.getReader();
       const gameDecoder = new TextDecoder();
       let fullHtml = '';
       let gameBuffer = '';
-
-      // Send progress updates every ~50 chunks
-      const PROGRESS_INTERVAL = 50;
 
       try {
         while (true) {
@@ -1099,20 +1108,12 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
               const content = chunk.choices?.[0]?.delta?.content;
               if (content) {
                 fullHtml += content;
-                chunkCount++;
-                // Send progress update periodically (not raw HTML)
-                if (chunkCount % PROGRESS_INTERVAL === 0 && progressIndex < progressMessages.length) {
-                  res.write(`data: ${JSON.stringify({
-                    type: 'agent_message_chunk',
-                    content: { text: `\n${progressMessages[progressIndex]}` },
-                  })}\n\n`);
-                  progressIndex++;
-                }
               }
             } catch { /* ignore */ }
           }
         }
       } finally {
+        clearInterval(progressTimer);
         gameReader.releaseLock();
       }
 
