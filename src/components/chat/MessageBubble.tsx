@@ -51,7 +51,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 <span className="w-2 h-2 bg-primary rounded-full typing-dot" />
               </div>
             ) : (
-              <MarkdownRenderer content={message.content} />
+              <div className="max-h-72 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent">
+                <MarkdownRenderer content={message.content} />
+              </div>
             )}
 
             {/* Game card */}
