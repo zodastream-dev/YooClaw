@@ -1042,27 +1042,6 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
         content: { text: `🎮 正在生成 **${gameName}** 游戏...\n` },
       })}\n\n`);
 
-      // Time-based progress: send status updates at real elapsed intervals
-      const progressSchedule = [
-        { at: 5, text: '正在设计游戏界面...' },
-        { at: 15, text: '正在编写游戏逻辑...' },
-        { at: 25, text: '正在添加交互控制...' },
-        { at: 35, text: '正在优化视觉效果...' },
-        { at: 45, text: '正在完成收尾...' },
-      ];
-      let nextProgressIdx = 0;
-
-      const progressTimer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
-        while (nextProgressIdx < progressSchedule.length && elapsed >= progressSchedule[nextProgressIdx].at) {
-          res.write(`data: ${JSON.stringify({
-            type: 'agent_message_chunk',
-            content: { text: `${progressSchedule[nextProgressIdx].text}\n` },
-          })}\n\n`);
-          nextProgressIdx++;
-        }
-      }, 2000);
-
       const apiResponse = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
         method: 'POST',
         headers: {
@@ -1081,7 +1060,6 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       });
 
       if (!apiResponse.ok) {
-        clearInterval(progressTimer);
         const errText = await apiResponse.text();
         throw new Error(`CodeBuddy API error: ${apiResponse.status} ${errText}`);
       }
@@ -1091,6 +1069,8 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       const gameDecoder = new TextDecoder();
       let fullHtml = '';
       let gameBuffer = '';
+      let lastProgressSize = 0;
+      const PROGRESS_INTERVAL_BYTES = 1024; // Report progress every ~1KB of received code
 
       try {
         while (true) {
@@ -1108,12 +1088,21 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
               const content = chunk.choices?.[0]?.delta?.content;
               if (content) {
                 fullHtml += content;
+                // Send real progress based on actual code generated
+                const currentSize = Buffer.byteLength(fullHtml, 'utf8');
+                if (currentSize - lastProgressSize >= PROGRESS_INTERVAL_BYTES) {
+                  lastProgressSize = currentSize;
+                  const kb = (currentSize / 1024).toFixed(1);
+                  res.write(`data: ${JSON.stringify({
+                    type: 'agent_message_chunk',
+                    content: { text: `已生成 ${kb}KB 代码...\n` },
+                  })}\n\n`);
+                }
               }
             } catch { /* ignore */ }
           }
         }
       } finally {
-        clearInterval(progressTimer);
         gameReader.releaseLock();
       }
 
