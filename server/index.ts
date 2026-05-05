@@ -940,13 +940,19 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
         ];
 
         const allResults: string[] = [];
+        let successCount = 0;
+        let networkErrorCount = 0;
+        let httpErrorCount = 0;
 
         for (let i = 0; i < searchQueries.length; i++) {
           const stageLabels = ['行业与市场数据', '财务与财报信息', '竞争格局', '最新动态'];
           res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在搜索 ${name} 的${stageLabels[i]}...` })}\n\n`);
 
           try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000);
             const searchResp = await fetch(apiEndpoint, {
+              signal: controller.signal,
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${searchApiKey}`,
@@ -959,13 +965,13 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
                 page: 1,
               }),
             });
+            clearTimeout(timeout);
 
             if (searchResp.ok) {
               const text = await searchResp.text();
               console.log(`[Metaso] Response length=${text.length}`);
               try {
                 const json = JSON.parse(text);
-                // Metaso search API returns webpages[] with title/link/snippet
                 const webpages = json.webpages || json.results || json.data || [];
                 if (Array.isArray(webpages)) {
                   console.log(`[Metaso] Found ${webpages.length} webpages`);
@@ -977,11 +983,14 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
                       allResults.push(`[${title}](${url})\n${snippet}\n`);
                     }
                   }
+                  successCount++;
                 } else {
-                  console.log(`[Metaso] No webpages array in response keys: ${Object.keys(json).join(',')}`);
+                  console.log(`[Metaso] No webpages array: ${Object.keys(json).join(',')}`);
+                  httpErrorCount++;
                 }
               } catch (e: any) {
                 console.log(`[Metaso] JSON parse error: ${e.message}`);
+                httpErrorCount++;
                 if (text.trim().length > 50) {
                   allResults.push(`${text.trim().slice(0, 1000)}`);
                 }
@@ -989,9 +998,15 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
             } else {
               const errText = await searchResp.text();
               console.log(`[Metaso] HTTP ${searchResp.status}: ${errText.slice(0, 200)}`);
+              httpErrorCount++;
               res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索请求失败 (HTTP ${searchResp.status})` })}\n\n`);
             }
-          } catch { /* continue */ }
+          } catch (e: any) {
+            // Network error (DNS, timeout, connection refused, etc.)
+            console.log(`[Metaso] Network error: ${e.message}`);
+            networkErrorCount++;
+            res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索网络错误: ${e.message}` })}\n\n`);
+          }
 
           const queryProgress = Math.floor(((i + 1) / searchQueries.length) * 90);
           res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: queryProgress })}\n\n`);
@@ -1001,7 +1016,11 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
           fullResearch = `## 关于 "${name}" 的实时搜索结果\n\n共检索到 ${allResults.length} 条结果：\n\n${allResults.join('\n---\n\n')}`;
           res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索完成，找到 ${allResults.length} 条实时结果` })}\n\n`);
         } else {
-          res.write(`data: ${JSON.stringify({ type: 'stage', text: '搜索未返回结果，切换至 AI 知识库...' })}\n\n`);
+          const reason = networkErrorCount > 0
+            ? `秘塔 API 网络连接失败 (${networkErrorCount}/${searchQueries.length}次请求网络错误)`
+            : `秘塔 API 返回结果为空`;
+          console.log(`[Metaso] All queries failed: ${reason}`);
+          res.write(`data: ${JSON.stringify({ type: 'stage', text: `${reason}，切换至 AI 知识库...` })}\n\n`);
           fullResearch = await fetchResearchViaCodeBuddy(name, businessDesc, researchPrompt);
         }
       } else if (searchPlatform === 'custom') {
