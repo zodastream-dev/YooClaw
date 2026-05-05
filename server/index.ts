@@ -933,10 +933,10 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
         res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在通过秘塔搜索引擎搜索 ${name} 的实时信息...` })}\n\n`);
 
         const searchQueries = [
-          `结合最新行业数据，分析 ${name} ${businessDesc} 所处的行业地位、市场规模及发展趋势 2025 2026`,
-          `结合最新的财报信息，获取 ${name} 近期的营收、利润等财务数据`,
-          `分析 ${name} 的主要竞争对手、市场份额分布及竞争优势`,
-          `${name} ${new Date().getFullYear()}年最新的重大新闻、技术突破及行业政策变化`,
+          `结合最新的行业数据，分析 ${name} ${businessDesc} 所处的行业地位、市场规模及发展趋势`,
+          `获取 ${name} 最新的财务报告、营收及利润数据`,
+          `分析 ${name} 当前的竞争对手、市场份额及竞争优势`,
+          `${name} 最新的重大新闻、技术突破及行业政策变化`,
         ];
 
         const allResults: string[] = [];
