@@ -778,6 +778,62 @@ app.post('/api/v1/sites/generate', authMiddleware, async (req, res) => {
   }
 });
 
+// Helper: Fetch research via CodeBuddy API (used as default and as fallback)
+async function fetchResearchViaCodeBuddy(companyName: string, businessDesc: string, prompt: string): Promise<string> {
+  const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: CODEBUDDY_MODEL,
+      stream: true,
+      messages: [
+        { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。' },
+        { role: 'user', content: prompt },
+      ],
+      max_tokens: 16384,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+        try {
+          const chunk = JSON.parse(jsonStr);
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) {
+            fullText += content;
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return fullText.trim();
+}
+
 // ========== Wizard: Research & Report (SSE) ==========
 
 // Step 2 — Research: Search the internet for company/industry info
@@ -869,10 +925,74 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
 
       let fullResearch = '';
 
-      if (searchPlatform) {
-        // Use external search API — must prompt it to actually search the internet
+      if (searchPlatform === 'metaso') {
+        // === METASO SEARCH MODE ===
+        // Use search mode (not Q&A) to get real-time web search results
         const apiEndpoint = searchEndpoint || 'https://api.metaso.cn/api/v1/search';
-        const modelName = searchModel || (searchPlatform === 'metaso' ? '极速' : 'default');
+
+        res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在通过秘塔搜索引擎搜索 ${name} 的实时信息...` })}\n\n`);
+
+        const searchQueries = [
+          `${name} ${businessDesc} 行业分析 市场规模 2025 2026`,
+          `${name} 最新财报 营收 利润`,
+          `${name} 竞争对手 市场份额 最新`,
+          `${name} 最新新闻 动态 ${new Date().getFullYear()}`,
+        ];
+
+        const allResults: string[] = [];
+
+        for (let i = 0; i < searchQueries.length; i++) {
+          res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在搜索「${searchQueries[i]}」...` })}\n\n`);
+
+          try {
+            const searchResp = await fetch(apiEndpoint, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${searchApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                q: searchQueries[i],
+                scope: '网页',
+                size: 8,
+                page: 1,
+              }),
+            });
+
+            if (searchResp.ok) {
+              const json = await searchResp.json();
+              const results = json.results || json.data || json.items || json.list || [];
+              if (Array.isArray(results)) {
+                for (const r of results) {
+                  const title = r.title || r.name || '';
+                  const url = r.url || r.link || r.source_url || '';
+                  const snippet = r.snippet || r.summary || r.description || r.content || '';
+                  const date = r.date || r.pub_date || r.publish_time || '';
+                  if (title || snippet) {
+                    allResults.push(`[${title}](${url})\n${date ? `日期: ${date}` : ''}\n${snippet}\n`);
+                  }
+                }
+              }
+            }
+          } catch { /* continue */ }
+
+          const queryProgress = Math.floor(((i + 1) / searchQueries.length) * 90);
+          res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: queryProgress })}\n\n`);
+        }
+
+        if (allResults.length > 0) {
+          fullResearch = `## 关于 "${name}" 的实时搜索结果\n\n共检索到 ${allResults.length} 条结果：\n\n${allResults.join('\n---\n\n')}`;
+          res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索完成，找到 ${allResults.length} 条实时结果` })}\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ type: 'stage', text: '搜索未返回结果，切换至 AI 知识库...' })}\n\n`);
+          fullResearch = await fetchResearchViaCodeBuddy(name, businessDesc, researchPrompt);
+        }
+      } else if (searchPlatform === 'custom') {
+        // === CUSTOM API (OpenAI-compatible) ===
+        const apiEndpoint = searchEndpoint || '';
+        const modelName = searchModel || 'default';
+
+        res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在调用自定义搜索 API 获取信息...` })}\n\n`);
 
         const externalSearchPrompt = `你是一个行业研究分析师。用户正在研究 "${name}"${businessDesc ? `（${businessDesc}）` : ''}。
 
@@ -901,36 +1021,7 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
 
 ## 机遇与挑战
 - 发展机遇
-- 面临的风险和挑战
-
-请用中文，分段清晰，包含具体数据，每个章节用标题开头。这是一份将要交给分析模型进一步处理的原始研究资料，请确保内容详实、数据尽可能新。`;
-
-        res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在调用 ${searchPlatform === 'metaso' ? '秘塔搜索' : '自定义搜索'} API 获取实时信息...` })}\n\n`);
-
-        let requestBody: string;
-
-        if (searchPlatform === 'metaso') {
-          // Metaso search API uses a different request format:
-          // POST /api/v1/search with q field, format=chat_completions for SSE streaming
-          requestBody = JSON.stringify({
-            q: externalSearchPrompt,
-            scope: '网页',
-            model: modelName || '极速',
-            format: 'chat_completions',
-            stream: true,
-          });
-        } else {
-          // Custom: OpenAI-compatible chat completions format
-          requestBody = JSON.stringify({
-            model: modelName || 'default',
-            stream: true,
-            messages: [
-              { role: 'system', content: '你是一个专业的行业研究分析师。请务必使用【联网搜索】能力查找最新的行业数据和新闻，基于实时搜索结果回答。用中文输出结构化的研究资料。' },
-              { role: 'user', content: externalSearchPrompt },
-            ],
-            max_tokens: 16384,
-          });
-        }
+- 面临的风险和挑战`;
 
         const externalResponse = await fetch(apiEndpoint, {
           method: 'POST',
@@ -938,15 +1029,22 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
             'Authorization': `Bearer ${searchApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: requestBody,
+          body: JSON.stringify({
+            model: modelName,
+            stream: true,
+            messages: [
+              { role: 'system', content: '你是一个专业的行业研究分析师。请务必使用【联网搜索】能力查找最新的行业数据和新闻，基于实时搜索结果回答。用中文输出结构化的研究资料。' },
+              { role: 'user', content: externalSearchPrompt },
+            ],
+            max_tokens: 16384,
+          }),
         });
 
         if (!externalResponse.ok) {
           const errText = await externalResponse.text();
-          throw new Error(`External API error: ${externalResponse.status} ${errText}`);
+          throw new Error(`Custom API error: ${externalResponse.status} ${errText}`);
         }
 
-        // Parse OpenAI-compatible SSE stream
         const extReader = externalResponse.body!.getReader();
         const extDecoder = new TextDecoder();
         let extBuffer = '';
@@ -974,59 +1072,9 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
         } finally {
           extReader.releaseLock();
         }
-
-        res.write(`data: ${JSON.stringify({ type: 'stage', text: `${searchPlatform === 'metaso' ? '秘塔搜索' : '搜索'}完成，正在整理结果...` })}\n\n`);
       } else {
-        // Default: Use CodeBuddy API
-        const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: CODEBUDDY_MODEL,
-            stream: true,
-            messages: [
-              { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。' },
-              { role: 'user', content: researchPrompt },
-            ],
-            max_tokens: 16384,
-          }),
-        });
-
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
-        }
-
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-              const jsonStr = line.slice(6).trim();
-              if (!jsonStr || jsonStr === '[DONE]') continue;
-              try {
-                const chunk = JSON.parse(jsonStr);
-                const content = chunk.choices?.[0]?.delta?.content;
-                if (content) {
-                  fullResearch += content;
-                }
-              } catch { /* ignore */ }
-            }
-          }
-        } finally {
-          reader.releaseLock();
-        }
+        // === DEFAULT: CodeBuddy API ===
+        fullResearch = await fetchResearchViaCodeBuddy(name, businessDesc, researchPrompt);
       }
 
       clearInterval(researchTimer);
