@@ -250,6 +250,10 @@ function copyUrl(){navigator.clipboard.writeText($('rlink').textContent);event.t
 }
 
 // ========== Report HTML Generator ==========
+function escapeHtml(s: string): string {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 async function generateReportHtml(companyName: string): Promise<string> {
   const prompt = `你是一个专业的行业分析报告生成器。
 
