@@ -102,6 +102,8 @@ export function SiteCreatePage() {
           setSearchProgress(event.percent)
         } else if (event.type === 'stage') {
           setSearchStage(event.text)
+        } else if (event.type === 'error') {
+          throw new Error(event.message || '搜索失败')
         } else if (event.type === 'research_complete') {
           researchText = event.data || ''
           setResearchData(researchText)

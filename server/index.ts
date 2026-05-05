@@ -1011,13 +1011,11 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
           fullResearch = `## 关于 "${name}" 的实时搜索结果\n\n共检索到 ${allResults.length} 条结果：\n\n${allResults.join('\n---\n\n')}`;
           res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索完成，找到 ${allResults.length} 条实时结果` })}\n\n`);
         } else {
-          // Show all diagnostics in one clear message
+          // Show all diagnostics and throw an error (wizard page will catch it)
           const errMsg = `秘塔搜索失败（所有查询均未返回结果）\n\n诊断详情:\n${diagnosticDetails.join('\n')}\n\n请检查:\n1. API Key 是否正确\n2. 秘塔 API 服务是否正常\n3. 如为自定义 API，检查端点地址是否正确`;
           console.log(`[Metaso] All queries failed:\n${diagnosticDetails.join('\n')}`);
-          res.write(`data: ${JSON.stringify({ type: 'agent_message_chunk', content: { text: `\n\n${errMsg}` } })}\n\n`);
-          res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
-          res.end();
-          return;
+          clearInterval(researchTimer);
+          throw new Error(errMsg);
           }
       } else if (searchPlatform === 'custom') {
         // === CUSTOM API (OpenAI-compatible) ===
