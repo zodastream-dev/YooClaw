@@ -985,7 +985,10 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
                   }
                   successCount++;
                 } else {
-                  console.log(`[Metaso] No webpages array: ${Object.keys(json).join(',')}`);
+                  const keys = Object.keys(json).join(',');
+                  const preview = JSON.stringify(json).slice(0, 200);
+                  console.log(`[Metaso] No webpages array. keys: ${keys}`);
+                  res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔响应字段: ${keys.slice(0,100)}` })}\n\n`);
                   httpErrorCount++;
                 }
               } catch (e: any) {
