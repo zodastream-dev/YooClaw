@@ -220,11 +220,12 @@ async function*_s(url,body){
 }
 async function startAnalysis(){
   var n=$('companyInput').value.trim();if(!n)return;
+  var slug=window.location.pathname.split('/').pop();
   h('step1');h('result');s('step2');h('step3')
   t('s2sub',n);t('sp','0%');$('sbar').style.width='0%';t('smsg','');$('stxt').style.display='none';
   try{
     var rt='';
-    for await(var ev of _s(API+'/api/v1/sites/research',{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'})){
+    for await(var ev of _s(API+'/api/p/research/'+slug,{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'})){
       if(ev.type==='progress_update'){t('sp',ev.percent+'%');$('sbar').style.width=ev.percent+'%'}
       else if(ev.type==='stage'){$('stxt').style.display='flex';t('smsg',ev.text)}
       else if(ev.type==='research_complete'){rt=ev.data||''}
@@ -232,7 +233,7 @@ async function startAnalysis(){
     }
     h('step2');s('step3');t('s3sub',n);t('rp','0%');$('rbar').style.width='0%';t('rmsg','');$('rtxt').style.display='none';
     var url='';
-    for await(var ev of _s(API+'/api/v1/sites/report',{formData:{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'},researchData:rt})){
+    for await(var ev of _s(API+'/api/p/report/'+slug,{formData:{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'},researchData:rt})){
       if(ev.type==='progress_update'){t('rp',ev.percent+'%');$('rbar').style.width=ev.percent+'%'}
       else if(ev.type==='stage'){$('rtxt').style.display='flex';t('rmsg',ev.text)}
       else if(ev.type==='report_complete'){url=ev.url||''}
@@ -2069,6 +2070,146 @@ app.get('/p/:slug', async (req, res) => {
   } catch (err: any) {
     console.error('[Portal Serve Error]', err.message);
     res.status(500).send('<html><body><h1>500 - 服务器错误</h1></body></html>');
+  }
+});
+
+// ========== Public Portal API (no auth required) ==========
+
+// Public research endpoint for portal visitors
+app.post('/api/p/research/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { companyName, businessDesc } = req.body || {};
+
+    const site = await getReportSiteBySlug(slug, 'portal');
+    if (!site) return res.status(404).json({ error: { message: 'Portal not found' } });
+    if (!companyName || typeof companyName !== 'string' || !companyName.trim()) {
+      return res.status(400).json({ error: { message: 'Company name is required' } });
+    }
+
+    const name = companyName.trim();
+    console.log(`[PubResearch] Portal:${slug} researching "${name}"`);
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const prompt = `你是一个行业研究分析师。用户正在研究 "${name}"${businessDesc ? `（${businessDesc}）` : ''}。
+
+请使用你的知识储备，按以下结构化格式返回该公司的行业研究报告：
+
+## 公司概况\n## 市场规模与趋势\n## 财务与经营分析\n## 竞争格局\n## 近期动态\n## 机遇与挑战
+
+请用中文，分段清晰，包含具体数据。`;
+
+    const apiResp = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${CODEBUDDY_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CODEBUDDY_MODEL, stream: true,
+        messages: [{ role: 'system', content: '你是一个行业研究分析师，输出结构化研究资料，用中文。' }, { role: 'user', content: prompt }],
+        max_tokens: 16384,
+      }),
+    });
+
+    if (!apiResp.ok) throw new Error(`API error: ${apiResp.status} ${await apiResp.text()}`);
+
+    const reader = apiResp.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '', buf = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        for (const line of buf.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === '[DONE]') continue;
+          try { const c = JSON.parse(jsonStr).choices?.[0]?.delta?.content; if (c) fullText += c; } catch {}
+        }
+        buf = '';
+      }
+    } finally { reader.releaseLock(); }
+
+    res.write(`data: ${JSON.stringify({ type: 'research_complete', data: fullText })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    console.error('[PubResearch Error]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: { message: err.message } });
+    else { res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`); res.end(); }
+  }
+});
+
+// Public report endpoint for portal visitors
+app.post('/api/p/report/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { formData, researchData } = req.body || {};
+
+    const site = await getReportSiteBySlug(slug, 'portal');
+    if (!site) return res.status(404).json({ error: { message: 'Portal not found' } });
+    const name = formData?.companyName?.trim();
+    if (!name) return res.status(400).json({ error: { message: 'Company name is required' } });
+
+    console.log(`[PubReport] Portal:${slug} generating report for "${name}"`);
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const prompt = `你是一个专业的行业分析报告生成器。分析对象: "${name}"
+
+研究资料:
+${researchData || '（暂无）'}
+
+请生成完整HTML页面作为行业分析报告。要求: 只输出HTML代码，样式内嵌，蓝色/灰色主色调，包含公司概览、市场规模、财务分析、竞争格局、行业展望。底部标注"由 YooClaw AI 生成"。`;
+
+    const apiResp = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${CODEBUDDY_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CODEBUDDY_MODEL, stream: true,
+        messages: [{ role: 'system', content: '你只输出纯HTML代码，不要markdown标记。' }, { role: 'user', content: prompt }],
+        max_tokens: 16384,
+      }),
+    });
+
+    if (!apiResp.ok) throw new Error(`API error: ${apiResp.status} ${await apiResp.text()}`);
+
+    const reader = apiResp.body.getReader();
+    const decoder = new TextDecoder();
+    let fullHtml = '', buf = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        for (const line of buf.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === '[DONE]') continue;
+          try { const c = JSON.parse(jsonStr).choices?.[0]?.delta?.content; if (c) fullHtml += c; } catch {}
+        }
+        buf = '';
+      }
+    } finally { reader.releaseLock(); }
+
+    const cleaned = fullHtml.replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim();
+    const reportSlug = generateSlug(name);
+    const title = `${name} 行业分析报告`;
+    await createReportSite(site.user_id, reportSlug, title, name, cleaned);
+
+    res.write(`data: ${JSON.stringify({ type: 'report_complete', slug: reportSlug, title, url: '/web/' + reportSlug })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    console.error('[PubReport Error]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: { message: err.message } });
+    else { res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`); res.end(); }
   }
 });
 
