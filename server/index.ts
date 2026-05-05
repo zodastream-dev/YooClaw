@@ -784,7 +784,7 @@ app.post('/api/v1/sites/generate', authMiddleware, async (req, res) => {
 app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
-    const { companyName, businessDesc, analysisMethods, perspective } = req.body || {};
+    const { companyName, businessDesc, analysisMethods, perspective, searchPlatform, searchApiKey, searchEndpoint, searchModel } = req.body || {};
 
     if (!companyName || typeof companyName !== 'string' || !companyName.trim()) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Company name is required' } });
@@ -794,8 +794,14 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
       return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'AI service not configured' } });
     }
 
+    // If using custom search platform, validate API key
+    if (searchPlatform && !searchApiKey) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Search API key is required when using a custom search platform' } });
+    }
+
     const name = companyName.trim();
-    console.log(`[Research] User:${userId} Researching "${name}"`);
+    const platformName = searchPlatform === 'metaso' ? '秘塔搜索' : (searchPlatform === 'custom' ? searchEndpoint : 'CodeBuddy');
+    console.log(`[Research] User:${userId} Researching "${name}" via "${platformName}"`);
 
     // SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -806,7 +812,7 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
     // Initial acknowledgment
     res.write(`data: ${JSON.stringify({
       type: 'stage',
-      text: `开始搜索 ${name} 的行业信息...`,
+      text: `正在通过 ${platformName} 搜索 ${name} 的行业信息...`,
     })}\n\n`);
 
     const researchStartTime = Date.now();
@@ -861,55 +867,118 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
 
 请用中文，分段清晰，包含具体数据，每个章节用标题开头。这是一份将要交给分析模型进一步处理的原始研究资料，请确保内容详实。`;
 
-      const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: CODEBUDDY_MODEL,
-          stream: true,
-          messages: [
-            { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。' },
-            { role: 'user', content: researchPrompt },
-          ],
-          max_tokens: 16384,
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
-      }
-
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
       let fullResearch = '';
-      let buffer = '';
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const jsonStr = line.slice(6).trim();
-            if (!jsonStr || jsonStr === '[DONE]') continue;
-            try {
-              const chunk = JSON.parse(jsonStr);
-              const content = chunk.choices?.[0]?.delta?.content;
-              if (content) {
-                fullResearch += content;
-              }
-            } catch { /* ignore */ }
-          }
+      if (searchPlatform) {
+        // Use external search API
+        const apiEndpoint = searchEndpoint || 'https://api.metaso.cn/v1/chat/completions';
+        const modelName = searchModel || (searchPlatform === 'metaso' ? 'metaso-search' : 'default');
+
+        res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在调用 ${searchPlatform === 'metaso' ? '秘塔搜索' : '自定义搜索'} API 获取信息...` })}\n\n`);
+
+        const externalResponse = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${searchApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: modelName,
+            stream: true,
+            messages: [
+              { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。请基于搜索结果回答。' },
+              { role: 'user', content: researchPrompt },
+            ],
+            max_tokens: 16384,
+          }),
+        });
+
+        if (!externalResponse.ok) {
+          const errText = await externalResponse.text();
+          throw new Error(`External API error: ${externalResponse.status} ${errText}`);
         }
-      } finally {
-        reader.releaseLock();
+
+        // Parse OpenAI-compatible SSE stream
+        const extReader = externalResponse.body!.getReader();
+        const extDecoder = new TextDecoder();
+        let extBuffer = '';
+
+        try {
+          while (true) {
+            const { done, value } = await extReader.read();
+            if (done) break;
+            extBuffer += extDecoder.decode(value, { stream: true });
+            const lines = extBuffer.split('\n');
+            extBuffer = lines.pop() || '';
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr || jsonStr === '[DONE]') continue;
+              try {
+                const chunk = JSON.parse(jsonStr);
+                const content = chunk.choices?.[0]?.delta?.content;
+                if (content) {
+                  fullResearch += content;
+                }
+              } catch { /* ignore */ }
+            }
+          }
+        } finally {
+          extReader.releaseLock();
+        }
+
+        res.write(`data: ${JSON.stringify({ type: 'stage', text: `${searchPlatform === 'metaso' ? '秘塔搜索' : '搜索'}完成，正在整理结果...` })}\n\n`);
+      } else {
+        // Default: Use CodeBuddy API
+        const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: CODEBUDDY_MODEL,
+            stream: true,
+            messages: [
+              { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。' },
+              { role: 'user', content: researchPrompt },
+            ],
+            max_tokens: 16384,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
+        }
+
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr || jsonStr === '[DONE]') continue;
+              try {
+                const chunk = JSON.parse(jsonStr);
+                const content = chunk.choices?.[0]?.delta?.content;
+                if (content) {
+                  fullResearch += content;
+                }
+              } catch { /* ignore */ }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
       }
 
       clearInterval(researchTimer);

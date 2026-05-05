@@ -38,6 +38,13 @@ export function SiteCreatePage() {
   const [businessDesc, setBusinessDesc] = useState('')
   const [selectedMethods, setSelectedMethods] = useState<string[]>(['SWOT', 'PEST'])
   const [perspective, setPerspective] = useState('investor')
+
+  // Step 1 - Optional search platform
+  const [useCustomSearch, setUseCustomSearch] = useState(false)
+  const [searchPlatform, setSearchPlatform] = useState('metaso')
+  const [searchApiKey, setSearchApiKey] = useState('')
+  const [searchEndpoint, setSearchEndpoint] = useState('https://api.metaso.cn/v1/chat/completions')
+  const [searchModel, setSearchModel] = useState('metaso-search')
   const [formError, setFormError] = useState<string | null>(null)
 
   // Step 2 - Research
@@ -86,6 +93,10 @@ export function SiteCreatePage() {
         businessDesc: businessDesc.trim(),
         analysisMethods: selectedMethods,
         perspective,
+        searchPlatform: useCustomSearch ? searchPlatform : undefined,
+        searchApiKey: useCustomSearch ? searchApiKey : undefined,
+        searchEndpoint: useCustomSearch ? searchEndpoint : undefined,
+        searchModel: useCustomSearch ? searchModel : undefined,
       })) {
         if (event.type === 'progress_update') {
           setSearchProgress(event.percent)
@@ -318,6 +329,92 @@ export function SiteCreatePage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Optional: Search Platform */}
+            <div className="border-t border-border pt-4">
+              <label className="flex items-center gap-2 text-sm font-medium mb-3">
+                <input
+                  type="checkbox"
+                  checked={useCustomSearch}
+                  onChange={(e) => setUseCustomSearch(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary/30"
+                />
+                使用第三方搜索平台
+                <span className="text-muted-foreground text-xs font-normal">（选填）</span>
+              </label>
+
+              {useCustomSearch && (
+                <div className="space-y-3 pl-6 border-l-2 border-primary/20 ml-1">
+                  {/* Platform selector */}
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5">搜索平台</label>
+                    <select
+                      value={searchPlatform}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setSearchPlatform(val)
+                        if (val === 'metaso') {
+                          setSearchEndpoint('https://api.metaso.cn/v1/chat/completions')
+                          setSearchModel('metaso-search')
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                    >
+                      <option value="metaso">秘塔 (Metaso)</option>
+                      <option value="custom">自定义 API</option>
+                    </select>
+                  </div>
+
+                  {/* API Endpoint URL (shown for custom) */}
+                  {searchPlatform === 'custom' && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5">API 端点 URL</label>
+                      <input
+                        type="text"
+                        value={searchEndpoint}
+                        onChange={(e) => setSearchEndpoint(e.target.value)}
+                        placeholder="https://api.example.com/v1/chat/completions"
+                        className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                      />
+                    </div>
+                  )}
+
+                  {/* API Key */}
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5">
+                      API Key <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={searchApiKey}
+                      onChange={(e) => setSearchApiKey(e.target.value)}
+                      placeholder={searchPlatform === 'metaso' ? '输入秘塔 API Key...' : '输入 API Key...'}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                    />
+                  </div>
+
+                  {/* Model name (shown for custom) */}
+                  {searchPlatform === 'custom' && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5">模型名称 <span className="text-muted-foreground">（选填）</span></label>
+                      <input
+                        type="text"
+                        value={searchModel}
+                        onChange={(e) => setSearchModel(e.target.value)}
+                        placeholder="model-name"
+                        className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                      />
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">
+                    {searchPlatform === 'metaso'
+                      ? '使用秘塔搜索 API 进行行业信息收集。API 仅本次使用时有效，不会被存储。'
+                      : '自定义 OpenAI 兼容的搜索/对话 API。模型需支持联网搜索能力。'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Form error */}
