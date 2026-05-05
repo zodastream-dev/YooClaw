@@ -943,6 +943,7 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
         let successCount = 0;
         let networkErrorCount = 0;
         let httpErrorCount = 0;
+        const diagnosticDetails: string[] = [];
 
         for (let i = 0; i < searchQueries.length; i++) {
           const stageLabels = ['行业与市场数据', '财务与财报信息', '竞争格局', '最新动态'];
@@ -969,12 +970,10 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
 
             if (searchResp.ok) {
               const text = await searchResp.text();
-              console.log(`[Metaso] Response length=${text.length}`);
               try {
                 const json = JSON.parse(text);
                 const webpages = json.webpages || json.results || json.data || [];
                 if (Array.isArray(webpages)) {
-                  console.log(`[Metaso] Found ${webpages.length} webpages`);
                   for (const r of webpages) {
                     const title = r.title || '';
                     const url = r.link || r.url || '';
@@ -984,31 +983,24 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
                     }
                   }
                   successCount++;
+                  diagnosticDetails.push(`${stageLabels[i]}: 成功(${webpages.length}条)`);
                 } else {
                   const keys = Object.keys(json).join(',');
-                  const preview = JSON.stringify(json).slice(0, 200);
-                  console.log(`[Metaso] No webpages array. keys: ${keys}`);
-                  res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔响应字段: ${keys.slice(0,100)}` })}\n\n`);
+                  diagnosticDetails.push(`${stageLabels[i]}: 字段=${keys}, 前200字符=${JSON.stringify(json).slice(0,200).replace(/"/g,"'")}`);
                   httpErrorCount++;
                 }
               } catch (e: any) {
-                console.log(`[Metaso] JSON parse error: ${e.message}`);
+                diagnosticDetails.push(`${stageLabels[i]}: JSON解析失败=${e.message}, 原文=${text.slice(0,200).replace(/"/g,"'")}`);
                 httpErrorCount++;
-                if (text.trim().length > 50) {
-                  allResults.push(`${text.trim().slice(0, 1000)}`);
-                }
               }
             } else {
               const errText = await searchResp.text();
-              console.log(`[Metaso] HTTP ${searchResp.status}: ${errText.slice(0, 200)}`);
+              diagnosticDetails.push(`${stageLabels[i]}: HTTP ${searchResp.status} ${errText.slice(0,100)}`);
               httpErrorCount++;
-              res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索请求失败 (HTTP ${searchResp.status})` })}\n\n`);
             }
           } catch (e: any) {
-            // Network error (DNS, timeout, connection refused, etc.)
-            console.log(`[Metaso] Network error: ${e.message}`);
+            diagnosticDetails.push(`${stageLabels[i]}: 网络错误=${e.message}`);
             networkErrorCount++;
-            res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索网络错误: ${e.message}` })}\n\n`);
           }
 
           const queryProgress = Math.floor(((i + 1) / searchQueries.length) * 90);
@@ -1019,13 +1011,14 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
           fullResearch = `## 关于 "${name}" 的实时搜索结果\n\n共检索到 ${allResults.length} 条结果：\n\n${allResults.join('\n---\n\n')}`;
           res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索完成，找到 ${allResults.length} 条实时结果` })}\n\n`);
         } else {
-          const reason = networkErrorCount > 0
-            ? `秘塔 API 网络连接失败 (${networkErrorCount}/${searchQueries.length}次请求网络错误)`
-            : `秘塔 API 返回结果为空`;
-          console.log(`[Metaso] All queries failed: ${reason}`);
-          res.write(`data: ${JSON.stringify({ type: 'stage', text: `${reason}，切换至 AI 知识库...` })}\n\n`);
-          fullResearch = await fetchResearchViaCodeBuddy(name, businessDesc, researchPrompt);
-        }
+          // Show all diagnostics in one clear message
+          const errMsg = `秘塔搜索失败（所有查询均未返回结果）\n\n诊断详情:\n${diagnosticDetails.join('\n')}\n\n请检查:\n1. API Key 是否正确\n2. 秘塔 API 服务是否正常\n3. 如为自定义 API，检查端点地址是否正确`;
+          console.log(`[Metaso] All queries failed:\n${diagnosticDetails.join('\n')}`);
+          res.write(`data: ${JSON.stringify({ type: 'agent_message_chunk', content: { text: `\n\n${errMsg}` } })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'run_status', status: 'failed' })}\n\n`);
+          res.end();
+          return;
+          }
       } else if (searchPlatform === 'custom') {
         // === CUSTOM API (OpenAI-compatible) ===
         const apiEndpoint = searchEndpoint || '';
