@@ -986,9 +986,6 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
                   allResults.push(`${text.trim().slice(0, 1000)}`);
                 }
               }
-                  allResults.push(`${text.trim().slice(0, 1000)}`);
-                }
-              }
             } else {
               const errText = await searchResp.text();
               console.log(`[Metaso] HTTP ${searchResp.status}: ${errText.slice(0, 200)}`);
