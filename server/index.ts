@@ -169,9 +169,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
 <div class="container">
   <div class="card" id="step1">
     <h3>行业分析报告</h3>
-    <p>输入公司或行业名称，AI 将自动搜索信息并生成专业的分析报告。</p>
+    <p>配置分析参数，AI 将自动搜索信息并生成专业的分析报告。</p>
     <div class="form-group"><label>公司 / 行业名称</label>
     <input type="text" id="companyInput" placeholder="例如：比亚迪、特斯拉、宁德时代..."/></div>
+    <div class="form-group"><label>分析框架 <span style="font-size:11px;color:#94a3b8">（可多选）</span></label>
+    <div class="option-grid">
+      <div class="option-btn selected" onclick="toggle(this,'methods')" data-value="SWOT">SWOT<br><span style="font-size:10px">优势/劣势/机会/威胁</span></div>
+      <div class="option-btn selected" onclick="toggle(this,'methods')" data-value="PEST">PEST<br><span style="font-size:10px">政治/经济/社会/技术</span></div>
+      <div class="option-btn" onclick="toggle(this,'methods')" data-value="PORTER">波特五力<br><span style="font-size:10px">供应商/买方/新进入者/替代品/竞争</span></div>
+      <div class="option-btn" onclick="toggle(this,'methods')" data-value="3C">3C 分析<br><span style="font-size:10px">公司/顾客/竞争对手</span></div>
+    </div></div>
+    <div class="form-group"><label>搜索平台 <span style="font-size:11px;color:#94a3b8">（选填，留空使用默认）</span></label>
+    <select id="searchPlatform" onchange="toggleSearchKey()" style="width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;margin-bottom:8px">
+      <option value="">默认 (CodeBuddy)</option>
+      <option value="tavily">Tavily</option>
+      <option value="metaso">秘塔 (Metaso)</option>
+      <option value="deepseek">DeepSeek</option>
+      <option value="custom">自定义 API</option>
+    </select>
+    <input type="password" id="searchApiKey" placeholder="输入该平台的 API Key..." style="display:none;width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none"/>
+    <input type="text" id="searchEndpoint" placeholder="自定义 API 端点 URL..." style="display:none;width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;margin-top:8px"/>
+    </div>
     <button class="btn" id="startBtn" onclick="startAnalysis()">开始分析</button>
   </div>
   <div class="card" id="step2" style="display:none">
@@ -218,14 +236,27 @@ async function*_s(url,body){
   try{while(true){var{done,value}=await rd.read();if(done)break;buf+=dc.decode(value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch{}}}}
   finally{rd.releaseLock()}
 }
+function toggle(el,grp){
+  if(grp==='methods'){el.classList.toggle('selected')}
+}
+function toggleSearchKey(){
+  var p=$('searchPlatform').value;
+  $('searchApiKey').style.display=p?'block':'none';
+  $('searchEndpoint').style.display=p==='custom'?'block':'none';
+}
 async function startAnalysis(){
   var n=$('companyInput').value.trim();if(!n)return;
+  var methods=[];document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
+  if(methods.length===0)methods=['SWOT','PEST'];
+  var sp=$('searchPlatform').value;
+  var sak=$('searchApiKey').value.trim();
+  var se=$('searchEndpoint').value.trim();
   var slug=window.location.pathname.split('/').pop();
   h('step1');h('result');s('step2');h('step3')
   t('s2sub',n);t('sp','0%');$('sbar').style.width='0%';t('smsg','');$('stxt').style.display='none';
   try{
     var rt='';
-    for await(var ev of _s(API+'/api/p/research/'+slug,{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'})){
+    for await(var ev of _s(API+'/api/p/research/'+slug,{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor',searchPlatform:sp,searchApiKey:sak,searchEndpoint:se})){
       if(ev.type==='progress_update'){t('sp',ev.percent+'%');$('sbar').style.width=ev.percent+'%'}
       else if(ev.type==='stage'){$('stxt').style.display='flex';t('smsg',ev.text)}
       else if(ev.type==='research_complete'){rt=ev.data||''}
@@ -233,7 +264,7 @@ async function startAnalysis(){
     }
     h('step2');s('step3');t('s3sub',n);t('rp','0%');$('rbar').style.width='0%';t('rmsg','');$('rtxt').style.display='none';
     var url='';
-    for await(var ev of _s(API+'/api/p/report/'+slug,{formData:{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'},researchData:rt})){
+    for await(var ev of _s(API+'/api/p/report/'+slug,{formData:{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor'},researchData:rt})){
       if(ev.type==='progress_update'){t('rp',ev.percent+'%');$('rbar').style.width=ev.percent+'%'}
       else if(ev.type==='stage'){$('rtxt').style.display='flex';t('rmsg',ev.text)}
       else if(ev.type==='report_complete'){url=ev.url||''}
@@ -2079,7 +2110,7 @@ app.get('/p/:slug', async (req, res) => {
 app.post('/api/p/research/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
-    const { companyName, businessDesc } = req.body || {};
+    const { companyName, businessDesc, searchPlatform, searchApiKey } = req.body || {};
 
     const site = await getReportSiteBySlug(slug, 'portal');
     if (!site) return res.status(404).json({ error: { message: 'Portal not found' } });
@@ -2088,16 +2119,21 @@ app.post('/api/p/research/:slug', async (req, res) => {
     }
 
     const name = companyName.trim();
-    console.log(`[PubResearch] Portal:${slug} researching "${name}"`);
+    console.log(`[PubResearch] Portal:${slug} researching "${name}" platform:${searchPlatform || 'default'}`);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    const useSearch = !!(searchPlatform && searchApiKey);
+    const systemMsg = useSearch
+      ? `你是一个行业研究分析师。用户提供了 ${searchPlatform} 搜索 API Key: ${searchApiKey.slice(0,8)}...。请使用联网搜索功能查找最新的行业数据和信息，输出结构化的研究资料，用中文。`
+      : '你是一个行业研究分析师，输出结构化研究资料，用中文。';
+
     const prompt = `你是一个行业研究分析师。用户正在研究 "${name}"${businessDesc ? `（${businessDesc}）` : ''}。
 
-请使用你的知识储备，按以下结构化格式返回该公司的行业研究报告：
+${useSearch ? '请使用【联网搜索功能】查找最新的行业数据和信息，' : '请使用你的知识储备，'}按以下结构化格式返回该公司的行业研究报告：
 
 ## 公司概况\n## 市场规模与趋势\n## 财务与经营分析\n## 竞争格局\n## 近期动态\n## 机遇与挑战
 
@@ -2161,12 +2197,16 @@ app.post('/api/p/report/:slug', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    const methods = (formData?.analysisMethods || ['SWOT', 'PEST']).join('、');
     const prompt = `你是一个专业的行业分析报告生成器。分析对象: "${name}"
+
+分析框架: ${methods}
 
 研究资料:
 ${researchData || '（暂无）'}
 
-请生成完整HTML页面作为行业分析报告。要求: 只输出HTML代码，样式内嵌，蓝色/灰色主色调，包含公司概览、市场规模、财务分析、竞争格局、行业展望。底部标注"由 YooClaw AI 生成"。`;
+请生成完整HTML页面作为行业分析报告。要求: 只输出HTML代码，样式内嵌，蓝色/灰色主色调，底部标注"由 YooClaw AI 生成"。
+页面结构需包含: 公司概览、市场规模与趋势、财务分析、竞争格局、行业展望。`;
 
     const apiResp = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
       method: 'POST',
