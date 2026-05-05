@@ -90,6 +90,165 @@ function generateSlug(text: string): string {
   return slug ? `${slug}-${suffix}` : `site-${suffix}`;
 }
 
+// ========== Portal HTML Generator ==========
+function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string): string {
+  const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
+    'business-blue': { primary: '#2563eb', secondary: '#1e40af', bg: '#ffffff', text: '#1f2937', accent: '#3b82f6' },
+    'tech-black': { primary: '#0f172a', secondary: '#38bdf8', bg: '#0f172a', text: '#e2e8f0', accent: '#38bdf8' },
+    'simple-white': { primary: '#1a1a2e', secondary: '#f59e0b', bg: '#ffffff', text: '#1a1a2e', accent: '#f59e0b' },
+  };
+  const theme = templates[template] || templates['business-blue'];
+  const isDark = template === 'tech-black';
+  const headerBg = template === 'tech-black'
+    ? 'background:linear-gradient(135deg,#0f172a,#1e293b);border-bottom:2px solid ' + theme.secondary
+    : template === 'simple-white'
+      ? 'background:' + theme.bg + ';border-bottom:2px solid #e5e7eb'
+      : 'background:linear-gradient(135deg,' + theme.primary + ',' + theme.secondary + ')';
+  const pageBg = isDark ? '#020617' : '#f8fafc';
+  const cardBg = isDark ? '#0f172a' : '#ffffff';
+  const borderClr = isDark ? '#1e293b' : '#e5e7eb';
+  const inputBg = isDark ? '#1e293b' : '#ffffff';
+  const inputBorder = isDark ? '#334155' : '#d1d5db';
+  const textClr = isDark ? '#e2e8f0' : '#1f2937';
+  const mutedClr = '#94a3b8';
+  const successBg = isDark ? '#0f172a' : '#f0fdf4';
+  const successBorder = isDark ? '#166534' : '#bbf7d0';
+  const successText = isDark ? '#4ade80' : '#16a34a';
+  const errBg = isDark ? '#450a0a' : '#fef2f2';
+  const errBorder = isDark ? '#991b1b' : '#fecaca';
+  const errText = isDark ? '#fca5a5' : '#dc2626';
+
+  const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const sd = siteDesc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${sn}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:${pageBg};color:${textClr};min-height:100vh}
+.header{${headerBg};padding:40px 20px;text-align:center}
+.header h1{font-size:28px;font-weight:700;color:${isDark?'#f1f5f9':'#ffffff'};margin-bottom:8px}
+.header p{font-size:15px;color:${isDark?'#94a3b8':'rgba(255,255,255,0.85)'};max-width:600px;margin:0 auto;line-height:1.5}
+.container{max-width:720px;margin:0 auto;padding:24px 16px 60px}
+.footer{text-align:center;padding:20px;font-size:12px;color:#94a3b8;border-top:1px solid ${borderClr}}
+.card{background:${cardBg};border:1px solid ${borderClr};border-radius:12px;padding:24px;margin-bottom:16px}
+.card h3{font-size:16px;font-weight:600;margin-bottom:6px}
+.card p{font-size:13px;color:${mutedClr};margin-bottom:16px;line-height:1.5}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
+.form-group input{width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none}
+.form-group input:focus{border-color:${theme.primary};box-shadow:0 0 0 3px ${theme.primary}22}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 20px;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:opacity .2s;color:#fff;background:${theme.primary}}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:hover:not(:disabled){opacity:.9}
+.progress-section{margin-top:16px}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;color:${mutedClr};margin-bottom:6px}
+.progress-bar{height:6px;background:${isDark?'#1e293b':'#e5e7eb'};border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,${theme.primary},${theme.accent});border-radius:3px;transition:width .5s ease-out}
+.stage-text{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:${isDark?'#1e293b':'#f8fafc'};border-radius:8px;margin-top:12px;font-size:13px;color:${mutedClr};line-height:1.5}
+.spinner{width:14px;height:14px;border:2px solid ${theme.primary}33;border-top-color:${theme.primary};border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;margin-top:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-section{margin-top:16px}
+.result-card{background:${successBg};border:1px solid ${successBorder};border-radius:12px;padding:24px;text-align:center}
+.result-card h3{font-size:18px;color:${successText};margin-bottom:8px}
+.result-card .url-box{display:flex;align-items:center;gap:8px;background:${cardBg};border:1px solid ${inputBorder};border-radius:8px;padding:10px 14px;margin-top:12px}
+.result-card .url-box a{flex:1;font-size:13px;color:${theme.primary};text-decoration:none;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.result-card .url-box a:hover{text-decoration:underline}
+.error-box{background:${errBg};border:1px solid ${errBorder};border-radius:8px;padding:14px;margin-top:12px;font-size:13px;color:${errText};line-height:1.5;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>${sn}</h1>
+  ${sd ? '<p>'+sd+'</p>' : ''}
+</div>
+<div class="container">
+  <div class="card" id="step1">
+    <h3>行业分析报告</h3>
+    <p>输入公司或行业名称，AI 将自动搜索信息并生成专业的分析报告。</p>
+    <div class="form-group"><label>公司 / 行业名称</label>
+    <input type="text" id="companyInput" placeholder="例如：比亚迪、特斯拉、宁德时代..."/></div>
+    <button class="btn" id="startBtn" onclick="startAnalysis()">开始分析</button>
+  </div>
+  <div class="card" id="step2" style="display:none">
+    <h3>正在搜索行业信息</h3>
+    <p id="s2sub" style="font-size:13px;color:${mutedClr}"></p>
+    <div class="progress-section">
+      <div class="progress-label"><span>搜索进度</span><span id="sp">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="sbar" style="width:0%"></div></div>
+      <div class="stage-text" id="stxt" style="display:none"><div class="spinner"></div><span id="smsg"></span></div>
+    </div>
+  </div>
+  <div class="card" id="step3" style="display:none">
+    <h3>正在生成深度分析报告</h3>
+    <p id="s3sub" style="font-size:13px;color:${mutedClr}"></p>
+    <div class="progress-section">
+      <div class="progress-label"><span>报告进度</span><span id="rp">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="rbar" style="width:0%"></div></div>
+      <div class="stage-text" id="rtxt" style="display:none"><div class="spinner"></div><span id="rmsg"></span></div>
+    </div>
+  </div>
+  <div class="card" id="result" style="display:none">
+    <div class="result-card" id="rsucc" style="display:none">
+      <h3>报告生成成功!</h3>
+      <p id="rtitle" style="font-size:13px;color:#6b7280;margin-bottom:4px"></p>
+      <div class="url-box">
+        <a id="rlink" href="#" target="_blank" rel="noopener"></a>
+        <button onclick="copyUrl()" style="flex-shrink:0;padding:4px 10px;font-size:12px;background:${theme.primary};color:#fff;border:none;border-radius:6px;cursor:pointer">复制</button>
+      </div>
+    </div>
+    <div class="error-box" id="rerr" style="display:none"></div>
+  </div>
+</div>
+<div class="footer">Powered by <strong>YooClaw AI</strong></div>
+<script>
+var API='${apiBase}';
+function $(id){return document.getElementById(id)}
+function h(id){$(id).style.display='none'}
+function s(id){$(id).style.display='block'}
+function t(id,v){$(id).textContent=v}
+async function*_s(url,body){
+  var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  var rd=r.body.getReader(),dc=new TextDecoder(),buf='';
+  try{while(true){var{done,value}=await rd.read();if(done)break;buf+=dc.decode(value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch{}}}}
+  finally{rd.releaseLock()}
+}
+async function startAnalysis(){
+  var n=$('companyInput').value.trim();if(!n)return;
+  h('step1');h('result');s('step2');h('step3')
+  t('s2sub',n);t('sp','0%');$('sbar').style.width='0%';t('smsg','');$('stxt').style.display='none';
+  try{
+    var rt='';
+    for await(var ev of _s(API+'/api/v1/sites/research',{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'})){
+      if(ev.type==='progress_update'){t('sp',ev.percent+'%');$('sbar').style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){$('stxt').style.display='flex';t('smsg',ev.text)}
+      else if(ev.type==='research_complete'){rt=ev.data||''}
+      else if(ev.type==='error'){throw new Error(ev.message||'搜索失败')}
+    }
+    h('step2');s('step3');t('s3sub',n);t('rp','0%');$('rbar').style.width='0%';t('rmsg','');$('rtxt').style.display='none';
+    var url='';
+    for await(var ev of _s(API+'/api/v1/sites/report',{formData:{companyName:n,businessDesc:'',analysisMethods:['SWOT','PEST'],perspective:'investor'},researchData:rt})){
+      if(ev.type==='progress_update'){t('rp',ev.percent+'%');$('rbar').style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){$('rtxt').style.display='flex';t('rmsg',ev.text)}
+      else if(ev.type==='report_complete'){url=ev.url||''}
+      else if(ev.type==='error'){throw new Error(ev.message||'生成失败')}
+    }
+    h('step3');s('result');
+    if(url){$('rsucc').style.display='block';t('rtitle',n+' 行业分析报告');var lu=window.location.origin+url;$('rlink').href=lu;$('rlink').textContent=lu}
+    else throw new Error('未获取到链接');
+  }catch(e){h('step2');h('step3');s('result');$('rsucc').style.display='none';$('rerr').style.display='block';$('rerr').textContent='错误: '+e.message}
+}
+function copyUrl(){navigator.clipboard.writeText($('rlink').textContent);event.target.textContent='已复制';setTimeout(function(){event.target.textContent='复制'},2000)}
+</script>
+</body>
+</html>`;
+}
+
 // ========== Report HTML Generator ==========
 async function generateReportHtml(companyName: string): Promise<string> {
   const prompt = `你是一个专业的行业分析报告生成器。
@@ -1851,6 +2010,62 @@ app.post('/api/v1/runs/:runId/cancel', authMiddleware, async (req, res) => {
   // In the new SDK mode, cancellation is handled via AbortController
   // We just return success - the client should close the SSE connection
   res.json({ data: { cancelled: true } });
+});
+
+// ========== Portal: Deploy & Serve ==========
+
+// Deploy a new portal website
+app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { siteName, siteDesc, template, slug: customSlug } = req.body || {};
+
+    if (!siteName || typeof siteName !== 'string' || !siteName.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Site name is required' } });
+    }
+
+    const name = siteName.trim();
+    const slug = customSlug || generateSlug(name);
+
+    console.log(`[Portal] User:${userId} Deploying "${name}" (slug: ${slug}, template: ${template})`);
+
+    const apiBase = process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : (process.env.FRONTEND_URL || `http://localhost:${APP_PORT}`);
+
+    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'business-blue', apiBase);
+    const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal');
+
+    res.status(201).json({
+      data: {
+        id: site.id,
+        slug: site.slug,
+        title: site.title,
+        url: `/p/${site.slug}`,
+        createdAt: new Date(site.created_at).getTime(),
+      },
+    });
+  } catch (err: any) {
+    console.error('[Portal Deploy Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Serve a deployed portal
+app.get('/p/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const site = await getReportSiteBySlug(slug, 'portal');
+    if (!site) {
+      return res.status(404).send('<html><body><h1>404 - 门户未找到</h1><p>该分析门户不存在或已被删除。</p></body></html>');
+    }
+    incrementSiteViewCount(slug).catch(() => {});
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(site.html_content);
+  } catch (err: any) {
+    console.error('[Portal Serve Error]', err.message);
+    res.status(500).send('<html><body><h1>500 - 服务器错误</h1></body></html>');
+  }
 });
 
 // ========== Serve Frontend (only in local dev mode) ==========

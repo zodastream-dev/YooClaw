@@ -330,6 +330,14 @@ export async function changePassword(oldPassword: string, newPassword: string) {
   return apiRequest<{ success: boolean }>('POST', '/api/v1/user/change-password', { oldPassword, newPassword })
 }
 
+// ========== Portal ==========
+
+export async function deployPortal(siteName: string, siteDesc: string, template: string, slug?: string) {
+  return apiRequest<{ id: string; slug: string; title: string; url: string; createdAt: number }>(
+    'POST', '/api/v1/sites/portal/deploy', { siteName, siteDesc, template, slug }
+  )
+}
+
 // ========== Legacy compatibility ==========
 // These map to the new user-scoped APIs
 export const getSessions = getUserSessions

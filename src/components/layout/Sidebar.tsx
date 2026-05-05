@@ -203,7 +203,7 @@ export function Sidebar() {
           <button
             onClick={() => {
               closeMobile()
-              navigate('/sites')
+              navigate('/sites/portal')
             }}
             className="group relative w-full overflow-hidden flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300
               bg-gradient-to-br from-indigo-500 via-primary to-purple-600
@@ -224,8 +224,8 @@ export function Sidebar() {
 
             {/* Text */}
             <div className="relative z-10 flex-1 text-left">
-              <div className="text-[13px] font-semibold leading-tight">创建报告网站</div>
-              <div className="text-[10px] font-normal text-white/70 leading-tight mt-0.5">AI 一键生成行业分析报告</div>
+              <div className="text-[13px] font-semibold leading-tight">部署分析门户</div>
+              <div className="text-[10px] font-normal text-white/70 leading-tight mt-0.5">一键部署行业分析网站</div>
             </div>
 
             {/* Animated NEW badge */}
