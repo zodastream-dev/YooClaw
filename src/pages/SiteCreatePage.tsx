@@ -43,7 +43,7 @@ export function SiteCreatePage() {
   const [useCustomSearch, setUseCustomSearch] = useState(false)
   const [searchPlatform, setSearchPlatform] = useState('metaso')
   const [searchApiKey, setSearchApiKey] = useState('')
-  const [searchEndpoint, setSearchEndpoint] = useState('https://api.metaso.cn/api/v1/search')
+  const [searchEndpoint, setSearchEndpoint] = useState('https://metaso.cn/api/v1/search')
   const [searchModel, setSearchModel] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -355,7 +355,7 @@ export function SiteCreatePage() {
                         const val = e.target.value
                         setSearchPlatform(val)
                         if (val === 'metaso') {
-                          setSearchEndpoint('https://api.metaso.cn/api/v1/search')
+                          setSearchEndpoint('https://metaso.cn/api/v1/search')
                           setSearchModel('')
                         }
                       }}

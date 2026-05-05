@@ -928,7 +928,7 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
       if (searchPlatform === 'metaso') {
         // === METASO SEARCH MODE ===
         // Use search mode (not Q&A) to get real-time web search results
-        const apiEndpoint = searchEndpoint || 'https://api.metaso.cn/api/v1/search';
+        const apiEndpoint = searchEndpoint || 'https://metaso.cn/api/v1/search';
 
         res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在通过秘塔搜索引擎搜索 ${name} 的实时信息...` })}\n\n`);
 
@@ -953,7 +953,7 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
               },
               body: JSON.stringify({
                 q: searchQueries[i],
-                scope: '网页',
+                scope: 'web',
                 size: 8,
                 page: 1,
               }),
@@ -961,42 +961,30 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
 
             if (searchResp.ok) {
               const text = await searchResp.text();
-              console.log(`[Metaso] Raw response query="${searchQueries[i].slice(0,30)}..." length=${text.length}`);
-              console.log(`[Metaso] Preview: ${text.slice(0, 500)}`);
+              console.log(`[Metaso] Response length=${text.length}`);
               try {
                 const json = JSON.parse(text);
-                // Search for any array in the response that contains result-like objects
-                let rawResults: any[] = [];
-                const findArrays = (obj: any, depth = 0): any[] => {
-                  if (depth > 3 || !obj || typeof obj !== 'object') return [];
-                  if (Array.isArray(obj)) return obj;
-                  const found: any[] = [];
-                  for (const key of Object.keys(obj)) {
-                    const val = obj[key];
-                    if (Array.isArray(val)) {
-                      if (val.length > 0 && typeof val[0] === 'object' && !Array.isArray(val[0])) {
-                        found.push(...val);
-                      }
-                    } else if (typeof val === 'object' && val !== null) {
-                      found.push(...findArrays(val, depth + 1));
+                // Metaso search API returns webpages[] with title/link/snippet
+                const webpages = json.webpages || json.results || json.data || [];
+                if (Array.isArray(webpages)) {
+                  console.log(`[Metaso] Found ${webpages.length} webpages`);
+                  for (const r of webpages) {
+                    const title = r.title || '';
+                    const url = r.link || r.url || '';
+                    const snippet = r.snippet || '';
+                    if (title || snippet) {
+                      allResults.push(`[${title}](${url})\n${snippet}\n`);
                     }
                   }
-                  return found;
-                };
-                rawResults = findArrays(json);
-                console.log(`[Metaso] Found ${rawResults.length} result items`);
-                for (const r of rawResults) {
-                  const title = r.title || r.name || r.headline || '';
-                  const url = r.url || r.link || r.source_url || r.href || '';
-                  const snippet = r.snippet || r.summary || r.description || r.content || r.text || '';
-                  const date = r.date || r.pub_date || r.publish_time || r.time || '';
-                  if (title || snippet) {
-                    allResults.push(`[${title}](${url})\n${date ? `日期: ${date}` : ''}\n${snippet}\n`);
-                  }
+                } else {
+                  console.log(`[Metaso] No webpages array in response keys: ${Object.keys(json).join(',')}`);
                 }
               } catch (e: any) {
                 console.log(`[Metaso] JSON parse error: ${e.message}`);
                 if (text.trim().length > 50) {
+                  allResults.push(`${text.trim().slice(0, 1000)}`);
+                }
+              }
                   allResults.push(`${text.trim().slice(0, 1000)}`);
                 }
               }
