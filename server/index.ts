@@ -933,16 +933,17 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
         res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在通过秘塔搜索引擎搜索 ${name} 的实时信息...` })}\n\n`);
 
         const searchQueries = [
-          `${name} ${businessDesc} 行业分析 2025年 2026年 最新数据`,
-          `${name} 2025年 2026年 最新财报 营收 利润`,
-          `${name} 2025年 2026年 竞争对手 市场份额 最新`,
-          `${name} ${new Date().getFullYear()}年 最新动态 新闻 技术`,
+          `结合最新行业数据，分析 ${name} ${businessDesc} 所处的行业地位、市场规模及发展趋势 2025 2026`,
+          `结合最新的财报信息，获取 ${name} 近期的营收、利润等财务数据`,
+          `分析 ${name} 的主要竞争对手、市场份额分布及竞争优势`,
+          `${name} ${new Date().getFullYear()}年最新的重大新闻、技术突破及行业政策变化`,
         ];
 
         const allResults: string[] = [];
 
         for (let i = 0; i < searchQueries.length; i++) {
-          res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在搜索「${searchQueries[i]}」...` })}\n\n`);
+          const stageLabels = ['行业与市场数据', '财务与财报信息', '竞争格局', '最新动态'];
+          res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在搜索 ${name} 的${stageLabels[i]}...` })}\n\n`);
 
           try {
             const searchResp = await fetch(apiEndpoint, {
