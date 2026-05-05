@@ -43,8 +43,8 @@ export function SiteCreatePage() {
   const [useCustomSearch, setUseCustomSearch] = useState(false)
   const [searchPlatform, setSearchPlatform] = useState('metaso')
   const [searchApiKey, setSearchApiKey] = useState('')
-  const [searchEndpoint, setSearchEndpoint] = useState('https://api.metaso.cn/v1/chat/completions')
-  const [searchModel, setSearchModel] = useState('metaso-search')
+  const [searchEndpoint, setSearchEndpoint] = useState('https://api.metaso.cn/api/v1/search')
+  const [searchModel, setSearchModel] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
 
   // Step 2 - Research
@@ -355,8 +355,8 @@ export function SiteCreatePage() {
                         const val = e.target.value
                         setSearchPlatform(val)
                         if (val === 'metaso') {
-                          setSearchEndpoint('https://api.metaso.cn/v1/chat/completions')
-                          setSearchModel('metaso-search')
+                          setSearchEndpoint('https://api.metaso.cn/api/v1/search')
+                          setSearchModel('')
                         }
                       }}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"

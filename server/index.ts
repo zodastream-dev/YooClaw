@@ -871,8 +871,8 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
 
       if (searchPlatform) {
         // Use external search API — must prompt it to actually search the internet
-        const apiEndpoint = searchEndpoint || 'https://api.metaso.cn/v1/chat/completions';
-        const modelName = searchModel || (searchPlatform === 'metaso' ? 'metaso-search' : 'default');
+        const apiEndpoint = searchEndpoint || 'https://api.metaso.cn/api/v1/search';
+        const modelName = searchModel || (searchPlatform === 'metaso' ? '极速' : 'default');
 
         const externalSearchPrompt = `你是一个行业研究分析师。用户正在研究 "${name}"${businessDesc ? `（${businessDesc}）` : ''}。
 
@@ -907,21 +907,38 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
 
         res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在调用 ${searchPlatform === 'metaso' ? '秘塔搜索' : '自定义搜索'} API 获取实时信息...` })}\n\n`);
 
-        const externalResponse = await fetch(apiEndpoint, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${searchApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: modelName,
+        let requestBody: string;
+
+        if (searchPlatform === 'metaso') {
+          // Metaso search API uses a different request format:
+          // POST /api/v1/search with q field, format=chat_completions for SSE streaming
+          requestBody = JSON.stringify({
+            q: externalSearchPrompt,
+            scope: '网页',
+            model: modelName || '极速',
+            format: 'chat_completions',
+            stream: true,
+          });
+        } else {
+          // Custom: OpenAI-compatible chat completions format
+          requestBody = JSON.stringify({
+            model: modelName || 'default',
             stream: true,
             messages: [
               { role: 'system', content: '你是一个专业的行业研究分析师。请务必使用【联网搜索】能力查找最新的行业数据和新闻，基于实时搜索结果回答。用中文输出结构化的研究资料。' },
               { role: 'user', content: externalSearchPrompt },
             ],
             max_tokens: 16384,
-          }),
+          });
+        }
+
+        const externalResponse = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${searchApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: requestBody,
         });
 
         if (!externalResponse.ok) {
