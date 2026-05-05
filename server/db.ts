@@ -159,9 +159,14 @@ export async function initDatabase(): Promise<void> {
   `;
 
   // Add 'portal' to type check constraint (migration)
+  // Use DO block with exception handling for Supabase Pooler compatibility
   await sql`
-    ALTER TABLE report_sites DROP CONSTRAINT IF EXISTS report_sites_type_check;
-    ALTER TABLE report_sites ADD CONSTRAINT report_sites_type_check CHECK (type IN ('report', 'game', 'portal'));
+    DO $$ BEGIN
+      ALTER TABLE report_sites DROP CONSTRAINT IF EXISTS report_sites_type_check;
+      ALTER TABLE report_sites ADD CONSTRAINT report_sites_type_check CHECK (type IN ('report', 'game', 'portal'));
+    EXCEPTION WHEN OTHERS THEN
+      -- Ignore errors (e.g. Pooler doesn't support DDL)
+    END $$;
   `;
 
   // Create indexes
