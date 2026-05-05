@@ -221,7 +221,16 @@ export async function createGame(gameName: string) {
  * Yields parsed SSE events: progress_update, stage, research_complete.
  */
 export async function* streamResearch(
-  formData: { companyName: string; businessDesc: string; analysisMethods: string[]; perspective: string }
+  formData: {
+    companyName: string
+    businessDesc: string
+    analysisMethods: string[]
+    perspective: string
+    searchPlatform?: string
+    searchApiKey?: string
+    searchEndpoint?: string
+    searchModel?: string
+  }
 ): AsyncGenerator<any> {
   const token = getToken()
   const response = await fetch(`${API_BASE}/api/v1/sites/research`, {
