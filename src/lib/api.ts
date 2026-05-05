@@ -214,6 +214,107 @@ export async function createGame(gameName: string) {
   )
 }
 
+// ========== Wizard: Report Generation ==========
+
+/**
+ * SSE stream for Step 2 — Research phase.
+ * Yields parsed SSE events: progress_update, stage, research_complete.
+ */
+export async function* streamResearch(
+  formData: { companyName: string; businessDesc: string; analysisMethods: string[]; perspective: string }
+): AsyncGenerator<any> {
+  const token = getToken()
+  const response = await fetch(`${API_BASE}/api/v1/sites/research`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-CodeBuddy-Request': '1',
+    },
+    body: JSON.stringify(formData),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Research request failed: HTTP ${response.status}`)
+  }
+
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const jsonStr = line.slice(6).trim()
+        if (!jsonStr || jsonStr === '{}') continue
+        try {
+          yield JSON.parse(jsonStr)
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+/**
+ * SSE stream for Step 3 — Report generation + deployment phase.
+ * Yields parsed SSE events: progress_update, stage, report_complete.
+ */
+export async function* streamWizardReport(
+  formData: { companyName: string; businessDesc: string; analysisMethods: string[]; perspective: string },
+  researchData: string
+): AsyncGenerator<any> {
+  const token = getToken()
+  const response = await fetch(`${API_BASE}/api/v1/sites/report`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-CodeBuddy-Request': '1',
+    },
+    body: JSON.stringify({ formData, researchData }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Report generation failed: HTTP ${response.status}`)
+  }
+
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const jsonStr = line.slice(6).trim()
+        if (!jsonStr || jsonStr === '{}') continue
+        try {
+          yield JSON.parse(jsonStr)
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 // ========== User Profile ==========
 
 export async function changePassword(oldPassword: string, newPassword: string) {

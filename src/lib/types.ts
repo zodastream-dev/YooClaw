@@ -101,3 +101,20 @@ export interface ReportSite {
   createdAt: number
   updatedAt: number
 }
+
+// ========== Wizard Types ==========
+
+export interface WizardFormData {
+  companyName: string
+  businessDesc: string
+  analysisMethods: string[]
+  perspective: string
+}
+
+export interface ResearchData {
+  overview: string
+  marketData: string
+  competitors: string
+  news: string
+  opportunities: string
+}

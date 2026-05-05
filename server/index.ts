@@ -778,6 +778,355 @@ app.post('/api/v1/sites/generate', authMiddleware, async (req, res) => {
   }
 });
 
+// ========== Wizard: Research & Report (SSE) ==========
+
+// Step 2 — Research: Search the internet for company/industry info
+app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { companyName, businessDesc, analysisMethods, perspective } = req.body || {};
+
+    if (!companyName || typeof companyName !== 'string' || !companyName.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Company name is required' } });
+    }
+
+    if (!CODEBUDDY_API_KEY) {
+      return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'AI service not configured' } });
+    }
+
+    const name = companyName.trim();
+    console.log(`[Research] User:${userId} Researching "${name}"`);
+
+    // SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    // Initial acknowledgment
+    res.write(`data: ${JSON.stringify({
+      type: 'stage',
+      text: `开始搜索 ${name} 的行业信息...`,
+    })}\n\n`);
+
+    const researchStartTime = Date.now();
+    const researchStageSchedule = [
+      { at: 5, text: '正在搜索行业概况...', percent: 10 },
+      { at: 15, text: '正在收集市场数据...', percent: 30 },
+      { at: 25, text: '正在分析竞争对手...', percent: 55 },
+      { at: 35, text: '正在汇总财务信息...', percent: 75 },
+      { at: 45, text: '正在整理搜索报告...', percent: 90 },
+    ];
+    let researchNextStage = 0;
+
+    const researchTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - researchStartTime) / 1000);
+      while (researchNextStage < researchStageSchedule.length && elapsed >= researchStageSchedule[researchNextStage].at) {
+        const stage = researchStageSchedule[researchNextStage];
+        res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: stage.percent })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'stage', text: stage.text })}\n\n`);
+        researchNextStage++;
+      }
+    }, 2000);
+
+    try {
+      const researchPrompt = `你是一个行业研究分析师。用户正在研究 "${name}"${businessDesc ? `（${businessDesc}）` : ''}。
+
+请使用你的知识储备（不需要联网），按以下结构化格式返回该公司的行业研究报告。要求包含具体的数据和事实，不要泛泛而谈：
+
+## 公司概况
+- 行业定位、主营业务、核心竞争优势
+- 在行业中的地位
+
+## 市场规模与趋势
+- 行业整体规模（用具体数字）
+- 增长率和增长趋势
+- 关键驱动因素
+
+## 财务与经营分析
+- 营收、利润等关键财务指标（可用合理估算）
+- 经营效率分析
+
+## 竞争格局
+- 主要竞争对手
+- 市场份额分布
+- 差异化优势
+
+## 近期动态
+- 重大新闻、技术突破、政策变化
+
+## 机遇与挑战
+- 发展机遇
+- 面临的风险和挑战
+
+请用中文，分段清晰，包含具体数据，每个章节用标题开头。这是一份将要交给分析模型进一步处理的原始研究资料，请确保内容详实。`;
+
+      const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: CODEBUDDY_MODEL,
+          stream: true,
+          messages: [
+            { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。' },
+            { role: 'user', content: researchPrompt },
+          ],
+          max_tokens: 16384,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let fullResearch = '';
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(jsonStr);
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) {
+                fullResearch += content;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      clearInterval(researchTimer);
+
+      // Send 100% progress
+      res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'stage', text: '搜索完成' })}\n\n`);
+
+      // Send research complete with data
+      res.write(`data: ${JSON.stringify({
+        type: 'research_complete',
+        data: fullResearch,
+      })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      clearInterval(researchTimer);
+      console.error(`[Research Error] User:${userId}:`, err.message);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: `搜索失败: ${err.message}` })}\n\n`);
+      res.end();
+    }
+  } catch (err: any) {
+    console.error('[Research Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Step 3 — Report: Deep analysis based on research data + deploy
+app.post('/api/v1/sites/report', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { formData, researchData } = req.body || {};
+
+    if (!formData?.companyName) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Company name is required' } });
+    }
+
+    if (!CODEBUDDY_API_KEY) {
+      return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'AI service not configured' } });
+    }
+
+    const name = formData.companyName.trim();
+    const methods = (formData.analysisMethods || ['SWOT', 'PEST']).join('、');
+    const perspectiveMap: Record<string, string> = {
+      investor: '投资者视角：重点关注财务表现、增长潜力和投资价值',
+      management: '管理层视角：重点关注战略方向、运营效率和竞争策略',
+      academic: '学术视角：重点关注理论框架、方法论和研究深度',
+      general: '通用视角：全面覆盖各维度',
+    };
+    const perspectiveText = perspectiveMap[formData.perspective] || perspectiveMap.general;
+
+    const slug = generateSlug(name);
+    const title = `${name} 行业深度分析报告`;
+
+    console.log(`[Wizard Report] User:${userId} Generating report for "${name}" (slug: ${slug})`);
+
+    // SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    // Initial acknowledgment
+    res.write(`data: ${JSON.stringify({
+      type: 'stage',
+      text: `开始为 ${name} 生成深度分析报告...`,
+    })}\n\n`);
+
+    const reportStartTime = Date.now();
+    const reportStageSchedule = [
+      { at: 5, text: '正在构建报告框架...', percent: 5 },
+      { at: 10, text: '正在撰写公司概览...', percent: 15 },
+      { at: 20, text: '正在分析市场规模与趋势...', percent: 35 },
+      { at: 30, text: '正在生成财务与竞争分析...', percent: 55 },
+      { at: 40, text: '正在制作可视化图表...', percent: 75 },
+      { at: 50, text: '正在优化布局与排版...', percent: 90 },
+    ];
+    let reportNextStage = 0;
+
+    const reportTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - reportStartTime) / 1000);
+      while (reportNextStage < reportStageSchedule.length && elapsed >= reportStageSchedule[reportNextStage].at) {
+        const stage = reportStageSchedule[reportNextStage];
+        res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: stage.percent })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'stage', text: stage.text })}\n\n`);
+        reportNextStage++;
+      }
+    }, 2000);
+
+    try {
+      const reportPrompt = `你是一个专业的行业分析报告生成器。
+
+## 分析对象
+${name}${formData.businessDesc ? `（${formData.businessDesc}）` : ''}
+
+## 分析框架
+使用以下分析方法: ${methods}
+
+## 报告视角
+${perspectiveText}
+
+## 研究资料
+以下是之前搜索到的行业数据和分析资料，请基于这些资料生成报告：
+
+${researchData || '（暂无详细研究资料，请基于你的知识生成）'}
+
+请生成一份完整的、可直接打开的 HTML 页面，作为行业深度分析报告。
+
+## 要求
+1. 输出格式: 仅输出 HTML 代码，不要用 markdown 包裹，不要有任何额外说明
+2. 所有样式内嵌在 <style> 标签中，不依赖外部 CSS 或 JS
+3. 中文字体使用系统字体栈 (font-family: -apple-system, "Microsoft YaHei", sans-serif)
+4. 页面结构（基于选用的分析框架进行扩展）:
+   - 顶部: 深色 header 区域，显示报告标题、公司名、生成日期、分析框架标签
+   - 报告摘要 (Executive Summary) — 核心发现和结论
+   - 公司概览 (Company Overview) — 公司简介、主营业务、行业地位
+   - ${methods.includes('PEST') ? 'PEST 分析 (Political, Economic, Social, Technological) — 用表格展示各维度' : '市场规模与趋势 — 行业规模、增长率、发展趋势'}
+   - ${methods.includes('SWOT') ? 'SWOT 分析 — 用表格呈现优势/劣势/机会/威胁' : ''}
+   - ${methods.includes('PORTER') ? '波特五力分析 — 供应商议价能力、买方议价能力、新进入者威胁、替代品威胁、同业竞争' : ''}
+   - ${methods.includes('3C') ? '3C 分析 — 公司(Corporation)、顾客(Customer)、竞争对手(Competitor)' : ''}
+   - 财务分析 (Financial Analysis) — 营收、利润、关键财务指标（可用合理估算数据）
+   - 竞争格局 (Competitive Landscape) — 主要竞争对手、市场份额
+   - 行业展望与建议 (Outlook & Recommendations) — 未来发展预测、投资或战略建议
+   - 底部: "由 YooClaw AI 生成" 版权信息，以及 YooClaw 品牌标识
+5. 设计风格: 专业、清晰、现代，使用蓝色(#2563eb)/灰色为主色调
+6. 尽量包含具体的行业数据和分析，不要泛泛而谈
+7. 页面要适合打印 (A4 布局)
+8. 如果适用，用图表（CSS 柱状图或表格）展示数据和对比
+
+请直接输出完整的 HTML 代码。`;
+
+      const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CODEBUDDY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: CODEBUDDY_MODEL,
+          stream: true,
+          messages: [
+            { role: 'system', content: '你是 YooClaw AI 助手，专门生成专业美观的行业深度分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+            { role: 'user', content: reportPrompt },
+          ],
+          max_tokens: 32768,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`CodeBuddy API error: ${response.status} ${errText}`);
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let fullHtml = '';
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(jsonStr);
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) {
+                fullHtml += content;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      clearInterval(reportTimer);
+
+      // Clean HTML
+      const cleaned = fullHtml
+        .replace(/^```html\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+
+      // Save to database
+      const site = await createReportSite(userId, slug, title, name, cleaned);
+
+      console.log(`[Wizard Report] User:${userId} Report "${name}" deployed at /web/${slug}`);
+
+      // Send 100% progress
+      res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'stage', text: '报告已生成并部署上线!' })}\n\n`);
+
+      res.write(`data: ${JSON.stringify({
+        type: 'report_complete',
+        slug: site.slug,
+        title: site.title,
+        url: `/web/${site.slug}`,
+      })}\n\n`);
+      res.end();
+    } catch (err: any) {
+      clearInterval(reportTimer);
+      console.error(`[Wizard Report Error] User:${userId}:`, err.message);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: `报告生成失败: ${err.message}` })}\n\n`);
+      res.end();
+    }
+  } catch (err: any) {
+    console.error('[Wizard Report Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
 // List user's report sites
 app.get('/api/v1/user/sites', authMiddleware, async (req, res) => {
   try {
