@@ -960,19 +960,50 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
             });
 
             if (searchResp.ok) {
-              const json = await searchResp.json();
-              const results = json.results || json.data || json.items || json.list || [];
-              if (Array.isArray(results)) {
-                for (const r of results) {
-                  const title = r.title || r.name || '';
-                  const url = r.url || r.link || r.source_url || '';
-                  const snippet = r.snippet || r.summary || r.description || r.content || '';
-                  const date = r.date || r.pub_date || r.publish_time || '';
+              const text = await searchResp.text();
+              console.log(`[Metaso] Raw response query="${searchQueries[i].slice(0,30)}..." length=${text.length}`);
+              console.log(`[Metaso] Preview: ${text.slice(0, 500)}`);
+              try {
+                const json = JSON.parse(text);
+                // Search for any array in the response that contains result-like objects
+                let rawResults: any[] = [];
+                const findArrays = (obj: any, depth = 0): any[] => {
+                  if (depth > 3 || !obj || typeof obj !== 'object') return [];
+                  if (Array.isArray(obj)) return obj;
+                  const found: any[] = [];
+                  for (const key of Object.keys(obj)) {
+                    const val = obj[key];
+                    if (Array.isArray(val)) {
+                      if (val.length > 0 && typeof val[0] === 'object' && !Array.isArray(val[0])) {
+                        found.push(...val);
+                      }
+                    } else if (typeof val === 'object' && val !== null) {
+                      found.push(...findArrays(val, depth + 1));
+                    }
+                  }
+                  return found;
+                };
+                rawResults = findArrays(json);
+                console.log(`[Metaso] Found ${rawResults.length} result items`);
+                for (const r of rawResults) {
+                  const title = r.title || r.name || r.headline || '';
+                  const url = r.url || r.link || r.source_url || r.href || '';
+                  const snippet = r.snippet || r.summary || r.description || r.content || r.text || '';
+                  const date = r.date || r.pub_date || r.publish_time || r.time || '';
                   if (title || snippet) {
                     allResults.push(`[${title}](${url})\n${date ? `日期: ${date}` : ''}\n${snippet}\n`);
                   }
                 }
+              } catch (e: any) {
+                console.log(`[Metaso] JSON parse error: ${e.message}`);
+                if (text.trim().length > 50) {
+                  allResults.push(`${text.trim().slice(0, 1000)}`);
+                }
               }
+            } else {
+              const errText = await searchResp.text();
+              console.log(`[Metaso] HTTP ${searchResp.status}: ${errText.slice(0, 200)}`);
+              res.write(`data: ${JSON.stringify({ type: 'stage', text: `秘塔搜索请求失败 (HTTP ${searchResp.status})` })}\n\n`);
             }
           } catch { /* continue */ }
 
