@@ -2199,10 +2199,17 @@ ${researchData || '（暂无）'}
       }
     } finally { reader.releaseLock(); }
 
-    const cleaned = fullHtml.replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim();
+    const cleaned = fullHtml.trim()
+      .replace(/^```html\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
+    const finalHtml = cleaned.startsWith('<!') || cleaned.startsWith('<html')
+      ? cleaned
+      : `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${name} - 行业分析报告</title></head><body>${cleaned}</body></html>`;
     const reportSlug = generateSlug(name);
     const title = `${name} 行业分析报告`;
-    await createReportSite(site.user_id, reportSlug, title, name, cleaned);
+    await createReportSite(site.user_id, reportSlug, title, name, finalHtml);
 
     res.write(`data: ${JSON.stringify({ type: 'report_complete', slug: reportSlug, title, url: '/web/' + reportSlug })}\n\n`);
     res.end();
