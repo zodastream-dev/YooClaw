@@ -870,11 +870,42 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
       let fullResearch = '';
 
       if (searchPlatform) {
-        // Use external search API
+        // Use external search API — must prompt it to actually search the internet
         const apiEndpoint = searchEndpoint || 'https://api.metaso.cn/v1/chat/completions';
         const modelName = searchModel || (searchPlatform === 'metaso' ? 'metaso-search' : 'default');
 
-        res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在调用 ${searchPlatform === 'metaso' ? '秘塔搜索' : '自定义搜索'} API 获取信息...` })}\n\n`);
+        const externalSearchPrompt = `你是一个行业研究分析师。用户正在研究 "${name}"${businessDesc ? `（${businessDesc}）` : ''}。
+
+请使用【联网搜索功能】查找以下信息，并按结构化格式返回该公司的行业研究报告。要求包含具体的实时数据和事实，不要泛泛而谈，尽量引用最新的数据和信息：
+
+## 公司概况
+- 行业定位、主营业务、核心竞争优势
+- 在行业中的地位
+
+## 市场规模与趋势
+- 行业整体规模（用具体数字）
+- 增长率和增长趋势
+- 关键驱动因素
+
+## 财务与经营分析
+- 营收、利润等关键财务指标（引用最新财报数据）
+- 经营效率分析
+
+## 竞争格局
+- 主要竞争对手
+- 市场份额分布
+- 差异化优势
+
+## 近期动态
+- 近期重大新闻、技术突破、政策变化（尽量最新）
+
+## 机遇与挑战
+- 发展机遇
+- 面临的风险和挑战
+
+请用中文，分段清晰，包含具体数据，每个章节用标题开头。这是一份将要交给分析模型进一步处理的原始研究资料，请确保内容详实、数据尽可能新。`;
+
+        res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在调用 ${searchPlatform === 'metaso' ? '秘塔搜索' : '自定义搜索'} API 获取实时信息...` })}\n\n`);
 
         const externalResponse = await fetch(apiEndpoint, {
           method: 'POST',
@@ -886,8 +917,8 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
             model: modelName,
             stream: true,
             messages: [
-              { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。请基于搜索结果回答。' },
-              { role: 'user', content: researchPrompt },
+              { role: 'system', content: '你是一个专业的行业研究分析师。请务必使用【联网搜索】能力查找最新的行业数据和新闻，基于实时搜索结果回答。用中文输出结构化的研究资料。' },
+              { role: 'user', content: externalSearchPrompt },
             ],
             max_tokens: 16384,
           }),
