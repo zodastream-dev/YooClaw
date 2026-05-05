@@ -158,6 +158,12 @@ export async function initDatabase(): Promise<void> {
     END $$;
   `;
 
+  // Add 'portal' to type check constraint (migration)
+  await sql`
+    ALTER TABLE report_sites DROP CONSTRAINT IF EXISTS report_sites_type_check;
+    ALTER TABLE report_sites ADD CONSTRAINT report_sites_type_check CHECK (type IN ('report', 'game', 'portal'));
+  `;
+
   // Create indexes
   await sql`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_user_messages_user_id ON user_messages(user_id)`;
