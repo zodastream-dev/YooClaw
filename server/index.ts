@@ -197,7 +197,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
       <div class="option-btn" onclick="toggle(this,'methods')" data-value="3C"><span class="label">3C 分析</span><span class="desc">公司/顾客/竞争对手</span></div>
     </div></div>
     <div class="form-group"><label>搜索平台 <span style="font-size:11px;color:#94a3b8">（选填，留空使用默认联网搜索）</span></label>
-    <select id="searchPlatform">
+    <select id="searchPlatform" onchange="toggleSearchKey()">
       <option value="">默认 (CodeBuddy)</option>
       <option value="tavily">Tavily</option>
       <option value="metaso">秘塔 (Metaso)</option>
@@ -307,7 +307,7 @@ async function loadReports(){
     if(reports.data&&reports.data.length>0){
       reports.data.slice(0,20).forEach(function(report){
         var d=new Date(report.createdAt).toLocaleDateString('zh-CN');
-        html+='<div class="report-item"><div style="flex:1"><div class="rname">'+report.companyName+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="margin-right:6px">查看</a><button onclick="deleteReport(\''+report.slug+'\')" style="padding:4px 8px;font-size:12px;border:1px solid #e24b4a44;border-radius:6px;background:none;color:#e24b4a;cursor:pointer">删除</button></div>'
+        html+='<div class="report-item"><div style="flex:1"><div class="rname">'+report.companyName+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="margin-right:6px">查看</a><button onclick="deleteReport(&#39;'+report.slug+'&#39;)" style="padding:4px 8px;font-size:12px;border:1px solid #e24b4a44;border-radius:6px;background:none;color:#e24b4a;cursor:pointer">删除</button></div>'
       });
     }else{html='<p style="font-size:13px;color:#94a3b8">暂无报告，开始分析后这里会显示。</p>'}
     $('reportList').innerHTML=html;
