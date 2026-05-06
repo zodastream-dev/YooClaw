@@ -90,6 +90,33 @@ function generateSlug(text: string): string {
   return slug ? `${slug}-${suffix}` : `site-${suffix}`;
 }
 
+// ========== HTML Cleaner ==========
+// Robustly clean AI-generated HTML output and ensure it's a complete valid page
+function cleanAiHtml(raw: string, fallbackTitle: string): string {
+  // 1. Remove markdown code fences (```html ... ```)
+  let html = raw
+    .replace(/^```html\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  // 2. If the model prepended any text before <!DOCTYPE or <html, strip it
+  const doctypeIdx = html.search(/<!DOCTYPE\s+html/i);
+  const htmlTagIdx = html.search(/<html[\s>]/i);
+  const startIdx = doctypeIdx !== -1 ? doctypeIdx : htmlTagIdx;
+  if (startIdx > 0) {
+    html = html.slice(startIdx).trim();
+  }
+
+  // 3. If the output is a complete HTML document, return it as-is
+  if (/^<!DOCTYPE\s+html/i.test(html) || /^<html[\s>]/i.test(html)) {
+    return html;
+  }
+
+  // 4. Otherwise wrap in a minimal document shell
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title></head><body>${html}</body></html>`;
+}
+
 // ========== Portal HTML Generator ==========
 function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string): string {
   const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
@@ -414,15 +441,7 @@ async function generateReportHtml(companyName: string): Promise<string> {
   }
 
   // Strip markdown code fences if the model wraps the output
-  const cleaned = fullHtml
-    .replace(/^```html\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim();
-
-  // Ensure it's valid HTML
-  if (!cleaned.startsWith('<!') && !cleaned.startsWith('<html')) {
-    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${companyName} - 行业分析报告</title></head><body>${cleaned}</body></html>`;
-  }
+  const cleaned = cleanAiHtml(fullHtml, `${companyName} - 行业分析报告`);
   return cleaned;
 }
 
@@ -502,14 +521,7 @@ async function generateGameHtml(gameName: string): Promise<string> {
     reader.releaseLock();
   }
 
-  const cleaned = fullHtml
-    .replace(/^```html\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim();
-
-  if (!cleaned.startsWith('<!') && !cleaned.startsWith('<html')) {
-    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${gameName}</title></head><body>${cleaned}</body></html>`;
-  }
+  const cleaned = cleanAiHtml(fullHtml, gameName);
   return cleaned;
 }
 
@@ -1531,10 +1543,7 @@ ${researchData || '（暂无详细研究资料，请基于你的知识生成）'
       clearInterval(reportTimer);
 
       // Clean HTML
-      const cleaned = fullHtml
-        .replace(/^```html\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim();
+      const cleaned = cleanAiHtml(fullHtml, `${name} 行业深度分析报告`);
 
       // Save to database
       const site = await createReportSite(userId, slug, title, name, cleaned);
@@ -1913,13 +1922,8 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
       }
 
       // Clean up the HTML
-      const cleaned = fullHtml
-        .replace(/^```html\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim();
-      const finalHtml = cleaned.startsWith('<!') || cleaned.startsWith('<html')
-        ? cleaned
-        : `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${gameName}</title></head><body>${cleaned}</body></html>`;
+      const cleaned = cleanAiHtml(fullHtml, gameName);
+      const finalHtml = cleaned;
 
       // Save to database
       const slug = generateSlug(gameName);
@@ -2336,14 +2340,7 @@ ${researchData || '（暂无）'}
 
     res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
 
-    const cleaned = fullHtml.trim()
-      .replace(/^```html\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/```\s*$/i, '')
-      .trim();
-    const finalHtml = cleaned.startsWith('<!') || cleaned.startsWith('<html')
-      ? cleaned
-      : `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${name} - 行业分析报告</title></head><body>${cleaned}</body></html>`;
+    const finalHtml = cleanAiHtml(fullHtml, `${name} - 行业分析报告`);
     const reportSlug = generateSlug(name);
     const title = `${name} 行业分析报告`;
     await createReportSite(site.user_id, reportSlug, title, name, finalHtml);

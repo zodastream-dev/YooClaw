@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { streamResearch, streamWizardReport } from '@/lib/api'
 import {
@@ -53,6 +53,7 @@ export function SiteCreatePage() {
   const [researchData, setResearchData] = useState('')
   const [isResearching, setIsResearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [searchDone, setSearchDone] = useState(false)
 
   // Step 3 - Report generation
   const [reportProgress, setReportProgress] = useState(0)
@@ -85,6 +86,7 @@ export function SiteCreatePage() {
     setSearchStage('')
     setResearchData('')
     setSearchError(null)
+    setSearchDone(false)
 
     try {
       let researchText = ''
@@ -109,6 +111,11 @@ export function SiteCreatePage() {
           setResearchData(researchText)
         }
       }
+      // Show "search complete" state briefly before transitioning to step 3
+      setSearchProgress(100)
+      setSearchStage('行业信息搜索完成！')
+      setSearchDone(true)
+      await new Promise((resolve) => setTimeout(resolve, 800))
       // Auto advance to step 3 after research completes
       setStep(3)
       runReport(name, researchText || '')
@@ -160,6 +167,7 @@ export function SiteCreatePage() {
     setStep(1)
     setSearchProgress(0)
     setSearchStage('')
+    setSearchDone(false)
     setResearchData('')
     setSearchError(null)
     setReportProgress(0)
@@ -440,11 +448,18 @@ export function SiteCreatePage() {
         {step === 2 && (
           <div className="border border-border rounded-xl p-6 bg-card">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Search size={20} className="text-blue-600 dark:text-blue-400" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300
+                ${searchDone
+                  ? 'bg-green-100 dark:bg-green-900/30'
+                  : 'bg-blue-100 dark:bg-blue-900/30'}`}>
+                {searchDone
+                  ? <CheckCircle2 size={20} className="text-green-600 dark:text-green-400" />
+                  : <Search size={20} className="text-blue-600 dark:text-blue-400" />}
               </div>
               <div>
-                <h2 className="text-sm font-medium">正在联网搜索行业信息</h2>
+                <h2 className="text-sm font-medium">
+                  {searchDone ? '行业信息搜索完成' : '正在联网搜索行业信息'}
+                </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">{companyName}</p>
               </div>
             </div>
@@ -457,7 +472,10 @@ export function SiteCreatePage() {
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500 ease-out"
+                  className={`h-full rounded-full transition-all duration-500 ease-out
+                    ${searchDone
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                      : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`}
                   style={{ width: `${searchProgress}%` }}
                 />
               </div>
@@ -465,10 +483,22 @@ export function SiteCreatePage() {
 
             {/* Stage text */}
             {searchStage && (
-              <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg">
-                <Loader2 size={14} className="animate-spin text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-muted-foreground">{searchStage}</p>
+              <div className={`flex items-start gap-2 p-3 rounded-lg transition-colors duration-300
+                ${searchDone ? 'bg-green-50 dark:bg-green-900/10' : 'bg-muted/50'}`}>
+                {searchDone
+                  ? <CheckCircle2 size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
+                  : <Loader2 size={14} className="animate-spin text-primary mt-0.5 flex-shrink-0" />}
+                <p className={`text-sm ${searchDone ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                  {searchStage}
+                </p>
               </div>
+            )}
+
+            {/* Transition hint */}
+            {searchDone && (
+              <p className="mt-3 text-xs text-muted-foreground text-center animate-pulse">
+                正在进入报告生成阶段...
+              </p>
             )}
 
             {/* Error */}
