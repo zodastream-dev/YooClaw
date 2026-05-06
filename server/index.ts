@@ -93,6 +93,10 @@ function generateSlug(text: string): string {
 // ========== HTML Cleaner ==========
 // Robustly clean AI-generated HTML output and ensure it's a complete valid page
 function cleanAiHtml(raw: string, fallbackTitle: string): string {
+  if (!raw || !raw.trim()) {
+    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title></head><body><p style="padding:2em;text-align:center;color:#888">报告内容生成失败，请重试。</p></body></html>`;
+  }
+
   // 1. Remove markdown code fences (```html ... ```)
   let html = raw
     .replace(/^```html\s*/i, '')
@@ -100,21 +104,45 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
     .replace(/```\s*$/i, '')
     .trim();
 
-  // 2. If the model prepended any text before <!DOCTYPE or <html, strip it
+  // 2. Locate the start of the actual HTML document
+  //    Match common variants: <!DOCTYPE html>, <!doctype HTML>, <!DOCTYPE html PUBLIC ...>
   const doctypeIdx = html.search(/<!DOCTYPE\s+html/i);
-  const htmlTagIdx = html.search(/<html[\s>]/i);
+  const htmlTagIdx = html.search(/<html[\s>\/]/i);
   const startIdx = doctypeIdx !== -1 ? doctypeIdx : htmlTagIdx;
+
   if (startIdx > 0) {
-    html = html.slice(startIdx).trim();
+    html = html.slice(startIdx);
   }
 
-  // 3. If the output is a complete HTML document, return it as-is
-  if (/^<!DOCTYPE\s+html/i.test(html) || /^<html[\s>]/i.test(html)) {
+  // 3. Locate the end — trim any text after </html>
+  const htmlCloseIdx = html.search(/<\/html>/i);
+  if (htmlCloseIdx !== -1) {
+    html = html.slice(0, htmlCloseIdx + 7); // +7 for "</html>"
+  }
+
+  html = html.trim();
+
+  // 4. If it's a complete HTML document, return as-is
+  if (/^<!DOCTYPE\s+html/i.test(html) || /^<html[\s>\/]/i.test(html)) {
+    console.log(`[cleanAiHtml] Detected complete HTML document (${html.length} chars)`);
     return html;
   }
 
-  // 4. Otherwise wrap in a minimal document shell
-  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title></head><body>${html}</body></html>`;
+  // 5. Fragment — extract <body> content and <head><style> if present
+  //    This handles the case where the AI returned a partial document with
+  //    <head>/<body> tags but no outer <html> wrapper
+  const headStyleMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+  const styleContent = headStyleMatch
+    ? (headStyleMatch[1].match(/<style[^>]*>[\s\S]*?<\/style>/gi) || []).join('\n')
+    : '';
+
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const bodyContent = bodyMatch ? bodyMatch[1].trim() : html;
+
+  console.log(`[cleanAiHtml] Wrapping HTML fragment (${bodyContent.length} chars body, ${styleContent.length} chars style)`);
+
+  const styleBlock = styleContent ? `\n${styleContent}` : '';
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title>${styleBlock}</head><body>${bodyContent}</body></html>`;
 }
 
 // ========== Portal HTML Generator ==========
@@ -439,6 +467,9 @@ async function generateReportHtml(companyName: string): Promise<string> {
   } finally {
     reader.releaseLock();
   }
+
+  // Debug: log first 300 chars of raw AI output
+  console.log(`[generateReportHtml] Raw AI output (first 300 chars): ${fullHtml.slice(0, 300)}`);
 
   // Strip markdown code fences if the model wraps the output
   const cleaned = cleanAiHtml(fullHtml, `${companyName} - 行业分析报告`);
@@ -1541,6 +1572,9 @@ ${researchData || '（暂无详细研究资料，请基于你的知识生成）'
       }
 
       clearInterval(reportTimer);
+
+      // Debug: log first 300 chars of raw AI output
+      console.log(`[Wizard Report] Raw AI output (first 300 chars): ${fullHtml.slice(0, 300)}`);
 
       // Clean HTML
       const cleaned = cleanAiHtml(fullHtml, `${name} 行业深度分析报告`);
