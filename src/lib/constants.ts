@@ -1,4 +1,4 @@
-export const API_BASE = import.meta.env.VITE_API_BASE || ''
+export const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.PROD ? 'https://api.yookeer.com' : '')
 
 export const TOKEN_KEY = 'codebuddy_token'
 export const THEME_KEY = 'codebuddy_theme'
