@@ -2271,15 +2271,26 @@ app.post('/api/p/report/:slug', async (req, res) => {
 研究资料:
 ${researchData || '（暂无）'}
 
-请生成完整HTML页面作为行业分析报告。要求: 只输出HTML代码，样式内嵌，蓝色/灰色主色调，底部标注"由 YooClaw AI 生成"。
-页面结构需包含: 公司概览、市场规模与趋势、财务分析、竞争格局、行业展望。`;
+请生成一份完整的、可直接正确渲染的 HTML 页面作为行业分析报告。
+
+要求:
+1. 只输出 HTML 代码，不要 markdown 包裹
+2. 所有样式写在 <style> 标签内，必须使用正确的 CSS 语法（每个属性后面必须有冒号和分号）
+3. 字体使用系统字体: font-family: -apple-system, "Microsoft YaHei", sans-serif
+4. 主色调蓝色 (#2563eb) / 灰色 (#6b7280)，白色背景
+5. 页面结构: 蓝色渐变的 header（标题+日期）、执行摘要、公司概览、市场规模与趋势、财务分析、竞争格局、行业展望
+6. 使用卡片式布局，圆角边框，适当的间距和内边距
+7. 内容居中，最大宽度 1000px
+8. 底部标注 "由 YooClaw AI 生成"
+9. 确保 CSS 语法正确，每个样式属性后都要有分号
+10. 生成的页面必须能在浏览器中直接打开并正确显示`;
 
     const apiResp = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${CODEBUDDY_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: CODEBUDDY_MODEL, stream: true,
-        messages: [{ role: 'system', content: '你只输出纯HTML代码，不要markdown标记。' }, { role: 'user', content: prompt }],
+        messages: [{ role: 'system', content: '你是一个专业的HTML报告生成器。生成完整的、可直接运行的HTML页面，CSS语法必须完全正确，每个属性后都要有分号。只输出纯HTML代码。' }, { role: 'user', content: prompt }],
         max_tokens: 16384,
       }),
     });
@@ -2381,7 +2392,7 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
       return res.status(404).json({ error: { message: 'Report not found' } });
     }
 
-    await deleteReportSite(reportSlug);
+    await deleteReportSite(site.user_id, reportSlug);
     res.json({ data: { success: true } });
   } catch (err: any) {
     console.error('[PubDeleteReport Error]', err.message);
