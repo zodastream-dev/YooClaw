@@ -305,13 +305,22 @@ async function loadReports(){
     var reports=await r.json();
     var html='';
     if(reports.data&&reports.data.length>0){
-      reports.data.slice(0,10).forEach(function(report){
+      reports.data.slice(0,20).forEach(function(report){
         var d=new Date(report.createdAt).toLocaleDateString('zh-CN');
-        html+='<div class=\"report-item\"><div><div class=\"rname\">'+report.companyName+' 行业分析报告</div><div class=\"rdate\">'+d+'</div></div><a href=\"'+report.url+'\" target=\"_blank\">查看</a></div>'
+        html+='<div class="report-item"><div style="flex:1"><div class="rname">'+report.companyName+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="margin-right:6px">查看</a><button onclick="deleteReport(\''+report.slug+'\')" style="padding:4px 8px;font-size:12px;border:1px solid #e24b4a44;border-radius:6px;background:none;color:#e24b4a;cursor:pointer">删除</button></div>'
       });
-    }else{html='<p style=\"font-size:13px;color:${mutedClr}\">暂无报告，开始分析后这里会显示。</p>'}
+    }else{html='<p style="font-size:13px;color:#94a3b8">暂无报告，开始分析后这里会显示。</p>'}
     $('reportList').innerHTML=html;
   }catch(e){}
+}
+async function deleteReport(rSlug){
+  if(!confirm('确定删除这个报告？'))return;
+  var slug=window.location.pathname.split('/').pop();
+  try{
+    var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
+    if(!r.ok){alert('删除失败');return}
+    loadReports();
+  }catch(e){alert('删除失败')}
 }
 loadReports();
 </script>
@@ -2190,14 +2199,14 @@ ${useSearch ? '请使用【联网搜索功能】查找最新的行业数据和�
     if (!apiResp.ok) throw new Error(`API error: ${apiResp.status} ${await apiResp.text()}`);
 
     // Stream with real progress based on tokens received
-    res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 5 })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 3 })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在收集 ${name} 的行业信息...` })}\n\n`);
 
     const reader = apiResp.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '', buf = '';
     let tokenCount = 0;
-    let lastProgressPct = 5;
+    let lastPct = 3;
 
     try {
       while (true) {
@@ -2213,10 +2222,10 @@ ${useSearch ? '请使用【联网搜索功能】查找最新的行业数据和�
             if (c) {
               fullText += c;
               tokenCount += c.length;
-              // Report progress: estimate 50KB as 100%, cap at 95%
-              const pct = Math.min(95, 5 + Math.floor((tokenCount / 500) * 90));
-              if (pct > lastProgressPct) {
-                lastProgressPct = pct;
+              // Gradual progress: estimate 15KB per response, cap at 95%
+              const pct = Math.min(95, 3 + Math.floor((tokenCount / 15000) * 92));
+              if (pct > lastPct) {
+                lastPct = pct;
                 res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: pct })}\n\n`);
               }
             }
@@ -2278,14 +2287,14 @@ ${researchData || '（暂无）'}
     if (!apiResp.ok) throw new Error(`API error: ${apiResp.status} ${await apiResp.text()}`);
 
     // Stream with real progress
-    res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 5 })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 3 })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'stage', text: `正在为 ${name} 生成报告...` })}\n\n`);
 
     const reader = apiResp.body.getReader();
     const decoder = new TextDecoder();
     let fullHtml = '', buf = '';
     let tokenCount = 0;
-    let lastProgressPct = 5;
+    let lastPct = 3;
 
     try {
       while (true) {
@@ -2301,10 +2310,10 @@ ${researchData || '（暂无）'}
             if (c) {
               fullHtml += c;
               tokenCount += c.length;
-              // Report progress: estimate 50KB as 100%, cap at 95%
-              const pct = Math.min(95, 5 + Math.floor((tokenCount / 500) * 90));
-              if (pct > lastProgressPct) {
-                lastProgressPct = pct;
+              // Report generates larger output (~30KB), more gradual progress
+              const pct = Math.min(95, 3 + Math.floor((tokenCount / 30000) * 92));
+              if (pct > lastPct) {
+                lastPct = pct;
                 res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: pct })}\n\n`);
               }
             }
@@ -2337,16 +2346,15 @@ ${researchData || '（暂无）'}
   }
 });
 
-// Public report list endpoint
+// Public report list endpoint - get all reports for a portal
 app.get('/api/p/reports/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const site = await getReportSiteBySlug(slug, 'portal');
     if (!site) return res.status(404).json({ error: { message: 'Portal not found' } });
 
-    // Get all reports created by the portal owner
     const reports = await getUserReportSites(site.user_id, 'report');
-    const data = (reports || []).slice(-10).reverse().map((r: any) => ({
+    const data = (reports || []).slice(-20).reverse().map((r: any) => ({
       id: r.id,
       slug: r.slug,
       companyName: r.company_name || r.companyName,
@@ -2356,6 +2364,27 @@ app.get('/api/p/reports/:slug', async (req, res) => {
     res.json({ data });
   } catch (err: any) {
     console.error('[PubReports Error]', err.message);
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// Public delete report endpoint
+app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
+  try {
+    const { slug, reportSlug } = req.params;
+    const site = await getReportSiteBySlug(slug, 'portal');
+    if (!site) return res.status(404).json({ error: { message: 'Portal not found' } });
+
+    // Verify the report belongs to the portal owner
+    const report = await getReportSiteBySlug(reportSlug, 'report');
+    if (!report || report.user_id !== site.user_id) {
+      return res.status(404).json({ error: { message: 'Report not found' } });
+    }
+
+    await deleteReportSite(reportSlug);
+    res.json({ data: { success: true } });
+  } catch (err: any) {
+    console.error('[PubDeleteReport Error]', err.message);
     res.status(500).json({ error: { message: err.message } });
   }
 });
