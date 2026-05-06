@@ -1,0 +1,4 @@
+{
+  "start_command": "node --import tsx server/index.ts",
+  "output_dir": "dist"
+}

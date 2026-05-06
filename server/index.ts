@@ -2221,9 +2221,9 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
 
     console.log(`[Portal] User:${userId} Deploying "${name}" (slug: ${slug}, template: ${template})`);
 
-    const apiBase = process.env.RAILWAY_PUBLIC_DOMAIN
-      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-      : (process.env.FRONTEND_URL || `http://localhost:${APP_PORT}`);
+    const apiBase = process.env.FRONTEND_URL
+      || (req.get('host') ? `https://${req.get('host')}` : null)
+      || `http://localhost:${APP_PORT}`;
 
     const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'business-blue', apiBase);
     const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal');
