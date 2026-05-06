@@ -76,10 +76,10 @@ if (!CODEBUDDY_API_KEY) {
 
 // ========== Slug Helper ==========
 function generateSlug(text: string): string {
-  // Simple Chinese-to-pinyin-like slug: keep alphanumeric + hyphens
+  // Generate a clean ASCII-only slug: remove Chinese chars and special chars
   let slug = text
     .toLowerCase()
-    .replace(/[^\w\s\u4e00-\u9fa5-]/g, '')  // Keep Chinese chars, alphanumeric, hyphens
+    .replace(/[^\w\s-]/g, '')   // Remove non-alphanumeric (drops Chinese chars too)
     .trim()
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
