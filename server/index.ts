@@ -122,15 +122,22 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
 
   html = html.trim();
 
-  // 4. If it's a complete HTML document, return as-is
+  // 4. If starts with <html> but no DOCTYPE, prepend DOCTYPE
+  if (/^<html[\s>\/]/i.test(html) && !/^<!DOCTYPE\s+html/i.test(html)) {
+    html = '<!DOCTYPE html>\n' + html;
+    console.log(`[cleanAiHtml] Prepended DOCTYPE (${html.length} chars)`);
+  }
+
+  // 5. Fix common AI CSS/HTML syntax errors
+  html = fixAiCssErrors(html);
+
+  // 6. If it's a complete HTML document, return as-is
   if (/^<!DOCTYPE\s+html/i.test(html) || /^<html[\s>\/]/i.test(html)) {
     console.log(`[cleanAiHtml] Detected complete HTML document (${html.length} chars)`);
     return html;
   }
 
-  // 5. Fragment — extract <body> content and <head><style> if present
-  //    This handles the case where the AI returned a partial document with
-  //    <head>/<body> tags but no outer <html> wrapper
+  // 7. Fragment — extract <body> content and <head><style> if present
   const headStyleMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
   const styleContent = headStyleMatch
     ? (headStyleMatch[1].match(/<style[^>]*>[\s\S]*?<\/style>/gi) || []).join('\n')
@@ -143,6 +150,51 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
 
   const styleBlock = styleContent ? `\n${styleContent}` : '';
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title>${styleBlock}</head><body>${bodyContent}</body></html>`;
+}
+
+/** Clean up common CSS/HTML syntax mistakes that AI models tend to make */
+function fixAiCssErrors(html: string): string {
+  let s = html;
+
+  // Fix: <meta="UTF-8"> → <meta charset="UTF-8">
+  s = s.replace(/<meta\s*=\s*"([^"]*?)"\s*\/?>/gi, '<meta charset="$1">');
+
+  // Fix: CSS property missing colon — e.g., "text-align center;" → "text-align: center;"
+  // Match known CSS properties followed by space + value + ; (without colon)
+  const cssProps = 'text-align|border-radius|font-size|font-weight|line-height|margin(?:-top|-bottom|-left|-right)?|padding(?:-top|-bottom|-left|-right)?|max-width|min-width|width|height|display|justify(?:-content)?|align-items|flex-direction|flex-wrap|gap|grid-template-columns|background(?:-color)?|color|border(?:-bottom|-left|-right|-top|-radius)?|box-shadow|opacity|overflow|position|top|right|bottom|left|z-index|transform|transition|cursor|list-style|text-decoration|white-space|word-break|vertical-align|float|clear|grid-gap|flex';
+  s = s.replace(new RegExp('\\b(' + cssProps + ')\\s+(?!:)([a-zA-Z0-9#.%()\\[\\]\'"\\-, ]+?);', 'g'),
+    (_m, prop, val) => prop + ': ' + val + ';');
+
+  // Fix: "box:-box" or "box: -box" → "box-sizing: border-box"
+  s = s.replace(/box\s*:\s*-box/gi, 'box-sizing: border-box');
+  // Also handle standalone "box-sizing border-box" (missing colon)
+  s = s.replace(/box-sizing\s+border-box/gi, 'box-sizing: border-box');
+
+  // Fix: "max-width: 0px" or "max-width:0px" → "max-width: 1100px"
+  s = s.replace(/max-width\s*:\s*0px/gi, 'max-width: 1100px');
+
+  // Fix: "line-height: 15-29;" (bogus unitless number) → "line-height: 1.6;"
+  s = s.replace(/line-height\s*:\s*(1[5-9]|2[0-9])\s*;/g, 'line-height: 1.6;');
+
+  // Fix: broken closing tags — e.g., "h1>" → "</h1>", "div>" → "</div>"
+  // Only match when NOT preceded by < or / (to avoid breaking <h1> or </h1>)
+  s = s.replace(/(?<![<\/])(h[1-6]|div|p|span|strong|em|ul|ol|li|section|article|header|footer|nav)\s*>/g, '</$1>');
+
+  // Fix: <section="card"> → <section class="card">
+  s = s.replace(/<(\w+)\s*=\s*"([^"]*?)"/g, '<$1 class="$2"');
+
+  // Fix: CSS values missing semicolon at end (just before })
+  s = s.replace(/([a-zA-Z0-9%#.\-]+)\s*\}/g, '$1; }');
+  s = s.replace(/;(\s*;)+/g, ';'); // deduplicate semicolons
+
+  // Fix: "font-family: ... ,-serif" → "font-family: ... , sans-serif"
+  s = s.replace(/,\s*-?serif/gi, ', serif');
+  s = s.replace(/,\s*-?sans-serif/gi, ', sans-serif');
+
+  // Fix: "margin: 20;" (unitless number) → "margin: 20px;"
+  s = s.replace(/(margin|padding)\s*:\s*(\d+)\s*;/g, (_m, p, v) => p + ': ' + v + 'px;');
+
+  return s;
 }
 
 // ========== Portal HTML Generator ==========
@@ -411,6 +463,15 @@ async function generateReportHtml(companyName: string): Promise<string> {
 5. 设计风格: 专业、清晰、现代，使用蓝色(#2563eb)/灰色为主色调
 6. 尽量包含具体的行业数据和分析，不要泛泛而谈
 7. 页面要适合打印 (A4 布局)
+
+## HTML 质量检查 — 生成前务必逐条确认
+8. HTML 必须以 <!DOCTYPE html> 开头，不能省略
+9. CSS 语法必须正确：每条规则用 \`属性名: 值;\` 格式，冒号和分号不可省略
+10. HTML 标签必须正确闭合，例如 \`</h1>\` 而不是 \`h1>\`，\`</div>\` 而不是 \`div>\`
+11. 容器宽度设置必须合理，\`max-width\` 不能设置为 \`0px\`
+12. \`box-sizing\` 的值必须是 \`border-box\`，不能写成 \`-box\` 或 \`:box\`
+13. 行高 \`line-height\` 必须用无单位数值（如 \`1.6\`），不能用 \`16\`
+14. \`<meta charset="UTF-8">\` 必须包含 \`charset=\` 属性名
 
 请直接输出完整的 HTML 代码。`;
 
@@ -1518,6 +1579,16 @@ ${researchData || '（暂无详细研究资料，请基于你的知识生成）'
 7. 页面要适合打印 (A4 布局)
 8. 如果适用，用图表（CSS 柱状图或表格）展示数据和对比
 
+## HTML 质量检查 — 生成前务必逐条确认
+9. HTML 必须以 <!DOCTYPE html> 开头，不能省略
+10. CSS 语法必须正确：每条规则用 \`属性名: 值;\` 格式，冒号和分号不可省略
+11. HTML 标签必须正确闭合，例如 \`</h1>\` 而不是 \`h1>\`，\`</div>\` 而不是 \`div>\`
+12. 容器宽度设置必须合理，\`max-width\` 不能设置为 \`0px\`
+13. \`box-sizing\` 的值必须是 \`border-box\`，不能写成 \`-box\` 或 \`:box\`
+14. 行高 \`line-height\` 必须用无单位数值（如 \`1.6\`），不能用 \`16\`
+15. \`<meta charset="UTF-8">\` 必须包含 \`charset=\` 属性名
+16. 不要使用 \`<meta="UTF-8">\`，要写 \`<meta charset="UTF-8">\`
+
 请直接输出完整的 HTML 代码。`;
 
       const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
@@ -2321,7 +2392,16 @@ ${researchData || '（暂无）'}
 7. 内容居中，最大宽度 1000px
 8. 底部标注 "由 YooClaw AI 生成"
 9. 确保 CSS 语法正确，每个样式属性后都要有分号
-10. 生成的页面必须能在浏览器中直接打开并正确显示`;
+
+## HTML 质量检查 — 生成前务必逐条确认
+10. HTML 必须以 <!DOCTYPE html> 开头
+11. CSS 每一条规则必须用 \`属性名: 值;\` 格式，冒号和分号不可省略
+12. HTML 标签必须正确闭合，如 \`</h1>\` 不是 \`h1>\`，\`</div>\` 不是 \`div>\`
+13. \`max-width\` 不能设置为 \`0px\`，必须用合理数值如 \`1000px\`
+14. \`box-sizing\` 的值必须是 \`border-box\`
+15. \`line-height\` 用无单位数值如 \`1.6\`，不是 \`16\`
+16. \`<meta charset="UTF-8">\` 必须写完整属性名，不能写成 \`<meta="UTF-8">\`
+17. 生成的页面必须在浏览器中直接打开能正确显示`;
 
     const apiResp = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
       method: 'POST',
