@@ -662,6 +662,7 @@ app.use(cors({
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     if (origin.endsWith('.vercel.app')) return callback(null, true);
+    if (origin.endsWith('.zeabur.app')) return callback(null, true);
     callback(null, true);
   },
   credentials: true,
