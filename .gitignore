@@ -44,3 +44,8 @@ _git_config_check.txt
 _git_ops_result.txt
 start.bat
 start.sh
+
+# Deployment configs (contain secrets — use example files instead)
+ecosystem.config.cjs
+deploy.sh
+*.tar.gz
