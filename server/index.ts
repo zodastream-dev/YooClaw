@@ -2426,6 +2426,10 @@ app.get('/p/:slug', async (req, res) => {
     }
     incrementSiteViewCount(slug).catch(() => {});
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    // Prevent browser caching of dynamic portal pages
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.send(site.html_content);
   } catch (err: any) {
     console.error('[Portal Serve Error]', err.message);

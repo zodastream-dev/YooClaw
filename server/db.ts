@@ -380,6 +380,12 @@ export async function createReportSite(
   const rows = await sql`
     INSERT INTO report_sites (user_id, slug, title, company_name, html_content, type)
     VALUES (${userId}, ${slug}, ${title}, ${companyName}, ${htmlContent}, ${type})
+    ON CONFLICT (slug) DO UPDATE SET
+      title = EXCLUDED.title,
+      company_name = EXCLUDED.company_name,
+      html_content = EXCLUDED.html_content,
+      type = EXCLUDED.type,
+      updated_at = now()
     RETURNING *
   `;
   return rows[0] as unknown as DbReportSite;
