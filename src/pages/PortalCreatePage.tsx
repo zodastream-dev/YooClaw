@@ -54,8 +54,7 @@ export function PortalCreatePage() {
   const [copied, setCopied] = useState(false)
 
   const handleDeploy = async () => {
-    const name = siteName.trim()
-    if (!name) return
+    const name = siteName.trim() || '行业分析门户'
 
     setIsDeploying(true)
     setError(null)
@@ -175,7 +174,7 @@ export function PortalCreatePage() {
             <div className="border border-border rounded-xl p-6 bg-card space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1.5">
-                  网站名称 <span className="text-destructive">*</span>
+                  网站名称 <span className="text-muted-foreground text-xs">（选填）</span>
                 </label>
                 <input
                   type="text"
@@ -201,7 +200,7 @@ export function PortalCreatePage() {
               {/* Deploy button */}
               <button
                 onClick={handleDeploy}
-                disabled={isDeploying || !siteName.trim()}
+                disabled={isDeploying}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isDeploying ? (

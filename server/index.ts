@@ -412,16 +412,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
     <select id="searchPlatform" onchange="toggleSearchKey()">
       <option value="">默认 (CodeBuddy)</option>
       <option value="tavily">Tavily</option>
-      <option value="metaso">秘塔 (Metaso)</option>
+      <option value="metaso" selected>秘塔 (Metaso)</option>
       <option value="deepseek">DeepSeek</option>
       <option value="custom">自定义 API</option>
     </select>
-    <input type="password" id="searchApiKey" class="api-key-input" placeholder="输入该平台的 API Key..."/>
+    <input type="password" id="searchApiKey" class="api-key-input" placeholder="输入该平台的 API Key..." value="mk-65F31E31CBAB4DD4697CF57DA49000CB"/>
     <input type="text" id="searchEndpoint" class="api-key-input" placeholder="自定义 API 端点 URL..." style="margin-top:6px"/>
     </div>
     <div class="form-group"><label>系统提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改 AI 的角色设定）</span></label>
     <textarea id="sysPromptInput" class="prompt-input" placeholder="例如：你是一个专业的金融分析师..." style="width:100%;min-height:60px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">你是一个行业研究分析师，输出结构化研究资料，用中文。</textarea></div>
-    <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span></label>
+    <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span>
+      <span style="margin-left:8px;font-size:12px;color:${mutedClr}"><input type="checkbox" id="stockAnalysisCheck" style="margin-right:4px;accent-color:${theme.primary}" onchange="toggleStockAnalysis()"/>股价分析</span></label>
     <textarea id="userPromptInput" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:80px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">按以下格式输出行业研究报告：
 
 ## 公司概况
@@ -489,16 +490,46 @@ function toggleSearchKey(){
   var p=$('searchPlatform').value;
   $('searchApiKey').style.display=p?'block':'none';
   $('searchEndpoint').style.display=p==='custom'?'block':'none';
+  if(p==='metaso'&&!$('searchApiKey').value){
+    $('searchApiKey').value='mk-65F31E31CBAB4DD4697CF57DA49000CB';
+  }
+}
+var stockAnalysisText='结合公司最新的年报/季报，预测公司股价未来12个月的走势。';
+function toggleStockAnalysis(){
+  var checked=$('stockAnalysisCheck').checked;
+  var up=$('userPromptInput');
+  if(checked){
+    if(up.value.indexOf(stockAnalysisText)===-1){
+      up.value=up.value.trim()+'\n\n'+stockAnalysisText;
+    }
+  }else{
+    up.value=up.value.replace(stockAnalysisText,'').trim();
+  }
 }
 async function startAnalysis(){
   var n=$('companyInput').value.trim();if(!n)return;
   var methods=[];document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
   if(methods.length===0)methods=['SWOT','PEST'];
+
+  // 整合分析框架到提示词
+  var methodNames={'SWOT':'SWOT分析','PEST':'PEST分析','PORTER':'波特五力分析','3C':'3C分析'};
+  var methodText='';
+  if(methods.length>0){
+    methodText='\n\n请使用以下分析框架进行分析：';
+    methods.forEach(function(m){methodText+=methodNames[m]+'、'});
+    methodText=methodText.replace(/、$/,'。
+');
+  }
+
   var sp=$('searchPlatform').value;
   var sak=$('searchApiKey').value.trim();
   var se=$('searchEndpoint').value.trim();
   var sprompt=$('sysPromptInput').value.trim();
   var uprompt=$('userPromptInput').value.trim();
+
+  // 将分析框架整合到用户提示词
+  uprompt=uprompt+methodText;
+
   var slug=window.location.pathname.split('/').pop();
   h('step1');h('result');s('step2');h('step3')
   t('s2sub',n);t('sp','0%');$('sbar').style.width='0%';t('smsg','');$('stxt').style.display='none';
