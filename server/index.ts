@@ -2923,15 +2923,19 @@ app.post('/api/v1/videos/login', authMiddleware, async (req, res) => {
     console.log('[VideoLogin] Starting OAuth device flow...');
     const { stdout } = await execAsync(`${DREAMINA_BIN} login --headless 2>&1`, { timeout: 15000, cwd: '/tmp' });
     
-    // Parse the JSON output from dreamina login --headless
-    const match = stdout.match(/\{[\s\S]*\}/);
-    if (!match) {
+    // Parse the text output from dreamina login --headless
+    const vMatch = stdout.match(/verification_uri:\s*(.+)/);
+    const uMatch = stdout.match(/user_code:\s*(.+)/);
+    const dMatch = stdout.match(/device_code:\s*(.+)/);
+    
+    if (!uMatch || !dMatch) {
       console.error('[VideoLogin] Failed to parse output:', stdout);
-      return res.status(500).json({ error: { code: 'CLI_ERROR', message: '无法解析dreamina登录输出' } });
+      return res.status(500).json({ error: { code: 'CLI_ERROR', message: '无法解析dreamina登录输出: ' + stdout.slice(0, 200) } });
     }
     
-    const data = JSON.parse(match[0]);
-    const { verification_uri, user_code, device_code } = data;
+    const verification_uri = (vMatch ? vMatch[1].trim() : 'https://jimeng.jianying.com/ai-tool/cli-auth') + '';
+    const user_code = uMatch[1].trim();
+    const device_code = dMatch[1].trim();
     
     if (!verification_uri || !user_code || !device_code) {
       return res.status(500).json({ error: { code: 'AUTH_FAILED', message: '登录信息不完整: ' + JSON.stringify(data) } });
