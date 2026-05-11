@@ -6,6 +6,7 @@ import { SitesPage } from '@/pages/SitesPage'
 import { SiteCreatePage } from '@/pages/SiteCreatePage'
 import { PortalCreatePage } from '@/pages/PortalCreatePage'
 import { GameCreatePage } from '@/pages/GameCreatePage'
+import { VideoCreatePage } from '@/pages/VideoCreatePage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { useAuthStore } from '@/lib/store'
 
@@ -86,6 +87,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <GameCreatePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/videos/create"
+          element={
+            <ProtectedRoute>
+              <VideoCreatePage />
             </ProtectedRoute>
           }
         />

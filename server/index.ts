@@ -2906,6 +2906,112 @@ app.post('/v2/chat/completions', async (req, res) => {
   }
 });
 
+// ========== Video Generation (Jimeng API) ==========
+
+app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
+  try {
+    const { prompt, duration, resolution, apiKey, apiSecret } = req.body || {};
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Video prompt is required' } });
+    }
+
+    const ak = (apiKey && apiKey.trim()) || process.env.JIMENG_ACCESS_KEY;
+    const sk = (apiSecret && apiSecret.trim()) || process.env.JIMENG_SECRET_KEY;
+
+    if (!ak || !sk) {
+      return res.status(400).json({
+        error: { code: 'NO_API_KEY', message: '请在页面配置区填写火山引擎 Access Key 和 Secret Key' }
+      });
+    }
+
+    console.log(`[VideoGen] Generating video: "${prompt.slice(0, 80)}..." (${duration}s, ${resolution})`);
+
+    // Call Volcano Engine Jimeng API
+    const timestamp = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+    const date = timestamp.slice(0, 8);
+    const service = 'cv';
+    const region = 'cn-north-1';
+    const host = 'visual.volcengineapi.com';
+    const action = 'CVProcess';
+    const version = '2022-08-31';
+
+    // Build request body
+    const body = JSON.stringify({
+      req_key: 'jimeng_video_gen_30_720p',
+      prompt: prompt.trim(),
+      duration: Number(duration) || 5,
+      resolution: resolution || '720p',
+      return_url: true,
+    });
+
+    // Create signing key
+    const kDate = crypto.createHmac('sha256', sk).update(date).digest();
+    const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
+    const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+    const signingKey = crypto.createHmac('sha256', kService).update('request').digest();
+
+    // Create canonical request
+    const payloadHash = crypto.createHash('sha256').update(body).digest('hex');
+    const canonicalRequest = [
+      'POST', '/', '', 'host:' + host, 'x-date:' + timestamp, '',
+      'host;x-date', payloadHash
+    ].join('\n');
+
+    // Create string to sign
+    const credentialScope = date + '/' + region + '/' + service + '/request';
+    const stringToSign = [
+      'HMAC-SHA256', timestamp, credentialScope,
+      crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+    ].join('\n');
+
+    // Create signature
+    const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
+    const authHeader = `HMAC-SHA256 Credential=${ak}/${credentialScope}, SignedHeaders=host;x-date, Signature=${signature}`;
+
+    // Make the API call
+    const response = await fetch('https://' + host, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Host': host,
+        'X-Date': timestamp,
+        'Authorization': authHeader,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[VideoGen] API error:', response.status, errText);
+      return res.status(502).json({ error: { code: 'API_ERROR', message: `即梦 API 返回错误 (${response.status}): ${errText.slice(0, 200)}` } });
+    }
+
+    const result = await response.json();
+    console.log('[VideoGen] API response:', JSON.stringify(result).slice(0, 300));
+
+    // Extract video URL from response
+    const data = result.ResponseMetadata || result.data || result;
+    const videoUrl = data.video_url || data.url || '';
+    const taskId = data.task_id || data.id || crypto.randomUUID();
+
+    if (!videoUrl) {
+      return res.status(500).json({ error: { code: 'NO_VIDEO', message: '未能获取视频结果，请重试' } });
+    }
+
+    res.json({
+      data: {
+        id: taskId,
+        title: prompt.trim().slice(0, 30),
+        url: videoUrl,
+        thumbnail: data.thumbnail || data.cover_url || '',
+      },
+    });
+  } catch (err: any) {
+    console.error('[VideoGen Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '视频生成失败: ' + err.message } });
+  }
+});
+
 // ========== Serve Frontend (only in local dev mode) ==========
 if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'true') {
   const distPath = path.join(__dirname, '..', 'dist');

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSessionStore, useSidebarStore, useChatStore, useThemeStore, useAuthStore } from '@/lib/store'
 import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession, getSessionMessages } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2, Globe, Gamepad2 } from 'lucide-react'
+import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2, Globe, Gamepad2, Clapperboard } from 'lucide-react'
 import { DEFAULT_SESSION_NAME, formatBytes } from '@/lib/constants'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '@/lib/types'
@@ -257,6 +257,35 @@ export function Sidebar() {
             <div className="relative z-10 flex-1 text-left">
               <div className="text-[13px] font-semibold leading-tight">创建小游戏</div>
               <div className="text-[10px] font-normal text-white/70 leading-tight mt-0.5">AI 一键生成可玩小游戏</div>
+            </div>
+            <span className="relative z-10 text-[9px] font-bold px-1.5 py-1 rounded-md bg-white/20 text-white
+              animate-pulse shadow-inner shadow-white/10">
+              NEW
+            </span>
+          </button>
+        </div>
+
+        {/* Create Video CTA */}
+        <div className="px-3 pb-3 flex-shrink-0">
+          <button
+            onClick={() => {
+              closeMobile()
+              navigate('/videos/create')
+            }}
+            className="group relative w-full overflow-hidden flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300
+              bg-gradient-to-br from-orange-500 via-red-500 to-pink-500
+              text-white shadow-md shadow-orange-500/20
+              hover:shadow-xl hover:shadow-orange-500/25 hover:scale-[1.02]
+              active:scale-[0.97]"
+          >
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-white/40 blur-[1px]" />
+            <div className="relative z-10 w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-[1px]">
+              <Clapperboard size={15} className="text-white" />
+            </div>
+            <div className="relative z-10 flex-1 text-left">
+              <div className="text-[13px] font-semibold leading-tight">视频创作</div>
+              <div className="text-[10px] font-normal text-white/70 leading-tight mt-0.5">即梦 AI 一键生成视频</div>
             </div>
             <span className="relative z-10 text-[9px] font-bold px-1.5 py-1 rounded-md bg-white/20 text-white
               animate-pulse shadow-inner shadow-white/10">
