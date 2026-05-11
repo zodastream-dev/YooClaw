@@ -3,6 +3,9 @@ import cors from 'cors';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
 import fs from 'fs';
 import { spawn } from 'child_process';
 import {
@@ -2906,98 +2909,163 @@ app.post('/v2/chat/completions', async (req, res) => {
   }
 });
 
-// ========== Video Generation (Jimeng API) ==========
+// ========== Video Generation (dreamina CLI) ==========
 
+const DREAMINA_BIN = '/root/.local/bin/dreamina';
+const execAsync = promisify(exec);
+
+// Store pending device_code logins
+const pendingLogins = new Map<string, { deviceCode: string; startedAt: number }>();
+
+// OAuth Device Flow: Start login, return verification URL and code
+app.post('/api/v1/videos/login', authMiddleware, async (req, res) => {
+  try {
+    console.log('[VideoLogin] Starting OAuth device flow...');
+    const { stdout } = await execAsync(`${DREAMINA_BIN} login --headless 2>&1`, { timeout: 15000, cwd: '/tmp' });
+    
+    // Parse the JSON output from dreamina login --headless
+    const match = stdout.match(/\{[\s\S]*\}/);
+    if (!match) {
+      console.error('[VideoLogin] Failed to parse output:', stdout);
+      return res.status(500).json({ error: { code: 'CLI_ERROR', message: '无法解析dreamina登录输出' } });
+    }
+    
+    const data = JSON.parse(match[0]);
+    const { verification_uri, user_code, device_code } = data;
+    
+    if (!verification_uri || !user_code || !device_code) {
+      return res.status(500).json({ error: { code: 'AUTH_FAILED', message: '登录信息不完整: ' + JSON.stringify(data) } });
+    }
+    
+    // Store pending login
+    pendingLogins.set(device_code, { deviceCode: device_code, startedAt: Date.now() });
+    
+    console.log(`[VideoLogin] Device code: ${device_code}, Verification URI: ${verification_uri}`);
+    
+    res.json({
+      data: {
+        verificationUri: verification_uri,
+        userCode: user_code,
+        deviceCode: device_code,
+      },
+    });
+  } catch (err: any) {
+    console.error('[VideoLogin Error]', err.message);
+    res.status(500).json({ error: { code: 'LOGIN_FAILED', message: '登录初始化失败: ' + err.message } });
+  }
+});
+
+// Check OAuth login status
+app.get('/api/v1/videos/login/status', authMiddleware, async (req, res) => {
+  try {
+    const deviceCode = req.query.device_code as string;
+    if (!deviceCode) {
+      return res.status(400).json({ error: { code: 'INVALID', message: 'Missing device_code' } });
+    }
+    
+    console.log(`[VideoLogin] Checking status for device: ${deviceCode}`);
+    const { stdout } = await execAsync(`${DREAMINA_BIN} login checklogin --device_code=${deviceCode} --poll=10 2>&1`, { timeout: 15000, cwd: '/tmp' });
+    
+    if (stdout.includes('登录成功') || stdout.includes('success') || stdout.includes('authorized')) {
+      pendingLogins.delete(deviceCode);
+      res.json({ data: { status: 'success' } });
+    } else {
+      res.json({ data: { status: 'pending' } });
+    }
+  } catch (err: any) {
+    // Timeout or error means still pending
+    if (err.killed || err.message?.includes('timeout')) {
+      res.json({ data: { status: 'pending' } });
+    } else {
+      res.json({ data: { status: 'pending', message: err.message } });
+    }
+  }
+});
+
+// Check login status (simple)
+app.get('/api/v1/videos/status', authMiddleware, async (req, res) => {
+  try {
+    const { stdout } = await execAsync(`${DREAMINA_BIN} user_credit 2>&1`, { timeout: 10000, cwd: '/tmp' });
+    res.json({ data: { loggedIn: !stdout.includes('请先登录'), credit: stdout.trim() } });
+  } catch {
+    res.json({ data: { loggedIn: false } });
+  }
+});
+
+// Generate video using dreamina CLI
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   try {
-    const { prompt, duration, resolution, jimengCookie, jimengUid } = req.body || {};
+    const { prompt, duration, resolution, ratio } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Video prompt is required' } });
     }
 
-    const cookie = (jimengCookie && jimengCookie.trim()) || process.env.JIMENG_COOKIE;
-    const uid = (jimengUid && jimengUid.trim()) || process.env.JIMENG_UID || '0';
-
-    if (!cookie || cookie.length < 20) {
-      return res.status(400).json({
-        error: { code: 'NO_COOKIE', message: '请先在即梦网站登录，然后复制浏览器 Cookie 粘贴到配置区' }
-      });
+    // Check if logged in
+    const creditCheck = await execAsync(`${DREAMINA_BIN} user_credit 2>&1`, { timeout: 10000, cwd: '/tmp' }).catch(() => ({ stdout: '' }));
+    if (creditCheck.stdout.includes('请先登录')) {
+      return res.status(401).json({ error: { code: 'NOT_LOGGED_IN', message: '请先点击"登录即梦"完成认证' } });
     }
 
-    console.log(`[VideoGen] Generating video: "${prompt.slice(0, 80)}..." (${duration}s, ${resolution})`);
+    const dur = Number(duration) || 5;
+    const reso = resolution || '720p';
+    const rat = ratio || '16:9';
+    
+    console.log(`[VideoGen] Generating: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
 
-    const deviceTime = String(Math.floor(Date.now() / 1000));
-    const appId = '513695';
+    const cmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=300`;
+    console.log('[VideoGen] Running:', cmd.slice(0, 150));
+    
+    const { stdout } = await execAsync(cmd + ' 2>&1', { timeout: 360000, maxBuffer: 10 * 1024 * 1024, cwd: '/tmp' });
 
-    // Generate sign: MD5 of params
-    const signStr = `device-time=${deviceTime}&pf=7&appvr=6.6.0&loc=cn&lan=zh-Hans&appid=${appId}`;
-    const sign = crypto.createHash('md5').update(signStr).digest('hex');
+    console.log('[VideoGen] Output:', stdout.slice(0, 500));
 
-    // Call Jimeng API with cookie-based auth
-    const response = await fetch('https://jimeng.jianying.com/mweb/v1/generate_video?aid=' + appId + '&device-time=' + deviceTime, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': cookie,
-        'appid': appId,
-        'sign': sign,
-        'sign-ver': '1',
-        'device-time': deviceTime,
-        'x-ep-thirdparty-uid': uid,
-        'pf': '7',
-        'appvr': '6.6.0',
-        'loc': 'cn',
-        'lan': 'zh-Hans',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://jimeng.jianying.com/ai-tool/video/generate',
-      },
-      body: JSON.stringify({
-        prompt: prompt.trim(),
-        duration: Number(duration) || 5,
-        resolution: resolution || '720p',
-        model: 'jimeng_video_gen',
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[VideoGen] API error:', response.status, errText.slice(0, 300));
-      if (response.status === 401 || response.status === 403) {
-        return res.status(401).json({ error: { code: 'AUTH_FAILED', message: 'Cookie 已过期，请重新登录即梦网站获取新的 Cookie' } });
-      }
-      return res.status(502).json({ error: { code: 'API_ERROR', message: `即梦 API 返回错误 (${response.status})` } });
+    // Parse video output - look for video URL
+    let videoUrl = '';
+    let submitId = '';
+    
+    // Try JSON parsing first
+    const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        videoUrl = parsed.video_url || parsed.url || '';
+        submitId = parsed.submit_id || parsed.id || '';
+      } catch {}
     }
-
-    const result = await response.json();
-    console.log('[VideoGen] API response:', JSON.stringify(result).slice(0, 300));
-
-    const taskId = result.data?.task_id || result.data?.id || '';
-    // Jimeng video generation is async - return task ID for polling
-    if (taskId) {
+    
+    // Try URL patterns
+    if (!videoUrl) {
+      const urlMatch = stdout.match(/https?:\/\/[^\s"']+\.(mp4|mov|webm)[^\s"']*/i);
+      if (urlMatch) videoUrl = urlMatch[0];
+    }
+    
+    if (videoUrl) {
       res.json({
         data: {
-          id: taskId,
+          id: submitId || crypto.randomUUID(),
           title: prompt.trim().slice(0, 30),
-          url: '',  // Will be available after generation completes
-          status: 'processing',
-          message: '视频生成中，请稍后查看结果',
-        },
-      });
-    } else if (result.data?.video_url || result.data?.url) {
-      res.json({
-        data: {
-          id: crypto.randomUUID(),
-          title: prompt.trim().slice(0, 30),
-          url: result.data.video_url || result.data.url,
+          url: videoUrl,
           status: 'completed',
         },
       });
     } else {
-      res.status(500).json({ error: { code: 'UNKNOWN', message: '未能解析即梦API响应: ' + JSON.stringify(result).slice(0, 200) } });
+      // Return the raw output as info
+      res.json({
+        data: {
+          id: crypto.randomUUID(),
+          title: prompt.trim().slice(0, 30),
+          url: '',
+          status: 'processing',
+          message: '视频已提交即梦生成，请稍后查看: ' + stdout.slice(0, 200),
+        },
+      });
     }
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '视频生成失败: ' + err.message } });
+    if (err.message?.includes('请先登录')) {
+      return res.status(401).json({ error: { code: 'NOT_LOGGED_IN', message: '请先点击"登录即梦"完成认证' } });
+    }
+    res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
   }
 });
 

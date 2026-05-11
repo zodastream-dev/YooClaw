@@ -340,12 +340,29 @@ export async function deployPortal(siteName: string, siteDesc: string, template:
 
 // ========== Video Generation ==========
 
+export async function videoLogin() {
+  return apiRequest<{ verificationUri: string; userCode: string; deviceCode: string }>(
+    'POST', '/api/v1/videos/login'
+  )
+}
+
+export async function videoLoginStatus(deviceCode: string) {
+  return apiRequest<{ status: string; message?: string }>(
+    'GET', `/api/v1/videos/login/status?device_code=${deviceCode}`
+  )
+}
+
+export async function videoStatus() {
+  return apiRequest<{ loggedIn: boolean; credit?: string }>(
+    'GET', '/api/v1/videos/status'
+  )
+}
+
 export async function generateVideo(params: {
   prompt: string
   duration: string
   resolution: string
-  jimengCookie?: string
-  jimengUid?: string
+  ratio?: string
 }) {
   return apiRequest<{ id: string; title?: string; url: string; status?: string; message?: string }>(
     'POST', '/api/v1/videos/generate', params
