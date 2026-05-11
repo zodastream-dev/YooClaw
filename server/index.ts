@@ -496,15 +496,15 @@ function updatePromptFromOptions(){
   if(methods.length===0)methods=['SWOT','PEST'];
   var methodText='';
   if(methods.length>0){
-    methodText='\n\n请使用以下分析框架进行分析：';
+    methodText='\\n\\n请使用以下分析框架进行分析：';
     methods.forEach(function(m){methodText+=methodNames[m]+'、'});
     methodText=methodText.replace(/、$/,'');
-    methodText=methodText+'。\n';
+    methodText=methodText+'。\\n';
   }
-  var stockText=$('stockAnalysisCheck').checked?'\n\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。':'';
+  var stockText=$('stockAnalysisCheck').checked?'\\n\\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。':'';
   var up=$('userPromptInput');
   var v=up.value;
-  var lines=v.split('\n');
+  var lines=v.split('\\n');
   var result=[];
   var skip=false;
   for(var i=0;i<lines.length;i++){
@@ -514,11 +514,11 @@ function updatePromptFromOptions(){
     if(lines[i].indexOf('结合公司最新的年报/季报')!=-1)continue;
     result.push(lines[i]);
   }
-  v=result.join('\n').trim();
+  v=result.join('\\n').trim();
   var extra='';
   if(methodText)extra+=methodText;
   if(stockText)extra+=stockText;
-  up.value=v+(extra?'\n\n':'')+extra.trim();
+  up.value=v+(extra?'\\n\\n':'')+extra.trim();
 }
 function toggleSearchKey(){
   var p=$('searchPlatform').value;
