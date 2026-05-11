@@ -2416,6 +2416,45 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
   }
 });
 
+// Re-deploy an existing portal (regenerates HTML from latest code)
+app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
+  try {
+    const { userId } = (req as any).user as JwtPayload;
+    const { slug } = req.body || {};
+
+    if (!slug || typeof slug !== 'string') {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Slug is required' } });
+    }
+
+    const existing = await getReportSiteBySlug(slug, 'portal');
+    if (!existing || existing.user_id !== userId) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Portal not found' } });
+    }
+
+    console.log(`[Portal] User:${userId} Re-deploying portal "${existing.title}" (slug: ${slug})`);
+
+    const apiBase = process.env.FRONTEND_URL
+      || (req.get('host') ? `https://${req.get('host')}` : null)
+      || `http://localhost:${APP_PORT}`;
+
+    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase);
+    await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal');
+
+    res.json({
+      data: {
+        id: existing.id,
+        slug: slug,
+        title: existing.title,
+        url: `/p/${slug}`,
+        updated: true,
+      },
+    });
+  } catch (err: any) {
+    console.error('[Portal Redeploy Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
 // Serve a deployed portal
 app.get('/p/:slug', async (req, res) => {
   try {
