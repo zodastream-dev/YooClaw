@@ -483,8 +483,42 @@ async function*_s(url,body){
   try{while(true){var{done,value}=await rd.read();if(done)break;buf+=dc.decode(value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch{}}}}
   finally{rd.releaseLock()}
 }
+var methodNames={'SWOT':'SWOT分析','PEST':'PEST分析','PORTER':'波特五力分析','3C':'3C分析'};
 function toggle(el,grp){
-  if(grp==='methods'){el.classList.toggle('selected')}
+  if(grp==='methods'){
+    el.classList.toggle('selected');
+    updatePromptFromOptions();
+  }
+}
+function updatePromptFromOptions(){
+  var methods=[];
+  document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
+  if(methods.length===0)methods=['SWOT','PEST'];
+  var methodText='';
+  if(methods.length>0){
+    methodText='\n\n请使用以下分析框架进行分析：';
+    methods.forEach(function(m){methodText+=methodNames[m]+'、'});
+    methodText=methodText.replace(/、$/,'');
+    methodText=methodText+'。\n';
+  }
+  var stockText=$('stockAnalysisCheck').checked?'\n\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。':'';
+  var up=$('userPromptInput');
+  var v=up.value;
+  var lines=v.split('\n');
+  var result=[];
+  var skip=false;
+  for(var i=0;i<lines.length;i++){
+    if(lines[i].indexOf('请使用以下分析框架进行分析：')===0){skip=true;continue;}
+    if(skip&&lines[i].trim()===''){skip=false;continue;}
+    if(skip)continue;
+    if(lines[i].indexOf('结合公司最新的年报/季报')!=-1)continue;
+    result.push(lines[i]);
+  }
+  v=result.join('\n').trim();
+  var extra='';
+  if(methodText)extra+=methodText;
+  if(stockText)extra+=stockText;
+  up.value=v+(extra?'\n\n':'')+extra.trim();
 }
 function toggleSearchKey(){
   var p=$('searchPlatform').value;
@@ -496,42 +530,20 @@ function toggleSearchKey(){
 }
 var stockAnalysisText='结合公司最新的年报/季报，预测公司股价未来12个月的走势。';
 function toggleStockAnalysis(){
-  var checked=$('stockAnalysisCheck').checked;
-  var up=$('userPromptInput');
-  if(checked){
-    if(up.value.indexOf(stockAnalysisText)===-1){
-      up.value=up.value.trim()+'\n\n'+stockAnalysisText;
-    }
-  }else{
-    up.value=up.value.replace(stockAnalysisText,'').trim();
-  }
+  updatePromptFromOptions();
 }
 async function startAnalysis(){
   var n=$('companyInput').value.trim();if(!n)return;
-  var methods=[];document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
-  if(methods.length===0)methods=['SWOT','PEST'];
-
-  // 整合分析框架到提示词
-  var methodNames={'SWOT':'SWOT分析','PEST':'PEST分析','PORTER':'波特五力分析','3C':'3C分析'};
-  var methodText='';
-  if(methods.length>0){
-    methodText='\n\n请使用以下分析框架进行分析：';
-    methods.forEach(function(m){methodText+=methodNames[m]+'、'});
-    methodText=methodText.replace(/、$/,'。
-');
-  }
-
   var sp=$('searchPlatform').value;
   var sak=$('searchApiKey').value.trim();
   var se=$('searchEndpoint').value.trim();
   var sprompt=$('sysPromptInput').value.trim();
   var uprompt=$('userPromptInput').value.trim();
-
-  // 将分析框架整合到用户提示词
-  uprompt=uprompt+methodText;
-
+  var methods=[];
+  document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
+  if(methods.length===0)methods=['SWOT','PEST'];
   var slug=window.location.pathname.split('/').pop();
-  h('step1');h('result');s('step2');h('step3')
+  h('step1');h('result');s('step2');h('step3');
   t('s2sub',n);t('sp','0%');$('sbar').style.width='0%';t('smsg','');$('stxt').style.display='none';
   try{
     var rt='';
@@ -554,7 +566,14 @@ async function startAnalysis(){
     else throw new Error('未获取到链接');
   }catch(e){h('step2');h('step3');s('result');$('rsucc').style.display='none';$('rerr').style.display='block';$('rerr').textContent='错误: '+e.message}
 }
-function copyUrl(){navigator.clipboard.writeText($('rlink').textContent);event.target.textContent='已复制';setTimeout(function(){event.target.textContent='复制'},2000)}
+function copyUrl(){
+  var btn=event&&event.target;
+  if(btn){
+    navigator.clipboard.writeText($('rlink').textContent);
+    btn.textContent='已复制';
+    setTimeout(function(){btn.textContent='复制'},2000);
+  }
+}
 async function loadReports(){
   var slug=window.location.pathname.split('/').pop();
   try{
@@ -580,6 +599,7 @@ async function deleteReport(rSlug){
     loadReports();
   }catch(e){alert('删除失败')}
 }
+toggleSearchKey();updatePromptFromOptions();
 loadReports();
 </script>
 </body>
