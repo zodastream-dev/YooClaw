@@ -364,6 +364,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
 .option-btn .desc{font-size:11px;color:${mutedClr}}
 .option-btn.selected{border-color:${theme.primary};background:${theme.primary}15;color:${theme.primary}}
 .option-btn.selected .label{color:${theme.primary}}
+.option-btn .cb-row{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:${textClr};margin-bottom:2px}
+.option-btn .opt-cb{accent-color:${theme.primary};width:16px;height:16px;margin:0;cursor:pointer;flex-shrink:0}
 .option-btn:hover:not(.selected){border-color:${theme.primary}66}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 20px;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:opacity .2s;color:#fff;background:${theme.primary}}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -403,10 +405,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
     <input type="text" id="companyInput" placeholder="例如：比亚迪、特斯拉、宁德时代..."/></div>
     <div class="form-group"><label>分析框架 <span style="font-size:11px;color:#94a3b8">（可多选）</span></label>
     <div class="option-grid">
-      <div class="option-btn selected" onclick="toggle(this,'methods')" data-value="SWOT"><span class="label">SWOT 分析</span><span class="desc">优势/劣势/机会/威胁</span></div>
-      <div class="option-btn selected" onclick="toggle(this,'methods')" data-value="PEST"><span class="label">PEST 分析</span><span class="desc">政治/经济/社会/技术</span></div>
-      <div class="option-btn" onclick="toggle(this,'methods')" data-value="PORTER"><span class="label">波特五力</span><span class="desc">供应商/买方/新进入者/替代品/竞争</span></div>
-      <div class="option-btn" onclick="toggle(this,'methods')" data-value="3C"><span class="label">3C 分析</span><span class="desc">公司/顾客/竞争对手</span></div>
+      <div class="option-btn selected" data-value="SWOT"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOpt(this)"/>SWOT 分析</div><span class="desc">优势/劣势/机会/威胁</span></div>
+      <div class="option-btn selected" data-value="PEST"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOpt(this)"/>PEST 分析</div><span class="desc">政治/经济/社会/技术</span></div>
+      <div class="option-btn" data-value="PORTER"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOpt(this)"/>波特五力</div><span class="desc">供应商/买方/新进入者/替代品/竞争</span></div>
+      <div class="option-btn" data-value="3C"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOpt(this)"/>3C 分析</div><span class="desc">公司/顾客/竞争对手</span></div>
+      <div class="option-btn" data-value="STOCK"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOpt(this)"/>股价预测</div><span class="desc">年报/季报分析，预测12个月走势</span></div>
     </div></div>
     <div class="form-group"><label>搜索平台 <span style="font-size:11px;color:#94a3b8">（选填，留空使用默认联网搜索）</span></label>
     <select id="searchPlatform" onchange="toggleSearchKey()">
@@ -416,14 +419,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
       <option value="deepseek">DeepSeek</option>
       <option value="custom">自定义 API</option>
     </select>
-    <input type="password" id="searchApiKey" class="api-key-input" placeholder="输入该平台的 API Key..." value="mk-65F31E31CBAB4DD4697CF57DA49000CB"/>
+    <div id="searchApiKeyWrap" class="api-key-input" style="position:relative">
+    <input type="password" id="searchApiKey" placeholder="输入该平台的 API Key..." value="mk-65F31E31CBAB4DD4697CF57DA49000CB" style="width:100%;padding:10px 14px;padding-right:40px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none"/>
+    <span onclick="toggleApiKey()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:${mutedClr};user-select:none;line-height:1" id="apiKeyEye"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+    </div>
     <input type="text" id="searchEndpoint" class="api-key-input" placeholder="自定义 API 端点 URL..." style="margin-top:6px"/>
     </div>
     <div class="form-group"><label>系统提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改 AI 的角色设定）</span></label>
     <textarea id="sysPromptInput" class="prompt-input" placeholder="例如：你是一个专业的金融分析师..." style="width:100%;min-height:60px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">你是一个行业研究分析师，输出结构化研究资料，用中文。</textarea></div>
-    <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span>
-      <span style="margin-left:8px;font-size:12px;color:${mutedClr}"><input type="checkbox" id="stockAnalysisCheck" style="margin-right:4px;accent-color:${theme.primary}" onchange="toggleStockAnalysis()"/>股价分析</span></label>
-    <textarea id="userPromptInput" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:80px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">按以下格式输出行业研究报告：
+    <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span></label>
+    <textarea id="userPromptInput" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:120px;padding:12px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">按以下格式输出行业研究报告：
 
 ## 公司概况
 ## 市场规模与趋势
@@ -483,16 +488,19 @@ async function*_s(url,body){
   try{while(true){var{done,value}=await rd.read();if(done)break;buf+=dc.decode(value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch{}}}}
   finally{rd.releaseLock()}
 }
-var methodNames={'SWOT':'SWOT分析','PEST':'PEST分析','PORTER':'波特五力分析','3C':'3C分析'};
-function toggle(el,grp){
-  if(grp==='methods'){
-    el.classList.toggle('selected');
-    updatePromptFromOptions();
-  }
+var methodNames={'SWOT':'SWOT分析','PEST':'PEST分析','PORTER':'波特五力分析','3C':'3C分析','STOCK':'股价预测'};
+function toggleOpt(cb){
+  var btn=cb.parentElement.parentElement;
+  if(cb.checked){btn.classList.add('selected')}else{btn.classList.remove('selected')}
+  updatePromptFromOptions();
 }
 function updatePromptFromOptions(){
   var methods=[];
-  document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
+  var hasStock=false;
+  document.querySelectorAll('.option-btn.selected').forEach(function(e){
+    var v=e.getAttribute('data-value');
+    if(v==='STOCK'){hasStock=true;}else{methods.push(v);}
+  });
   if(methods.length===0)methods=['SWOT','PEST'];
   var methodText='';
   if(methods.length>0){
@@ -501,7 +509,7 @@ function updatePromptFromOptions(){
     methodText=methodText.replace(/、$/,'');
     methodText=methodText+'。\\n';
   }
-  var stockText=$('stockAnalysisCheck').checked?'\\n\\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。':'';
+  var stockText=hasStock?'\\n\\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。':'';
   var up=$('userPromptInput');
   var v=up.value;
   var lines=v.split('\\n');
@@ -522,15 +530,21 @@ function updatePromptFromOptions(){
 }
 function toggleSearchKey(){
   var p=$('searchPlatform').value;
-  $('searchApiKey').style.display=p?'block':'none';
+  $('searchApiKeyWrap').style.display=p?'block':'none';
   $('searchEndpoint').style.display=p==='custom'?'block':'none';
   if(p==='metaso'&&!$('searchApiKey').value){
     $('searchApiKey').value='mk-65F31E31CBAB4DD4697CF57DA49000CB';
   }
 }
-var stockAnalysisText='结合公司最新的年报/季报，预测公司股价未来12个月的走势。';
-function toggleStockAnalysis(){
-  updatePromptFromOptions();
+function toggleApiKey(){
+  var inp=$('searchApiKey'),eye=$('apiKeyEye');
+  if(inp.type==='password'){
+    inp.type='text';
+    eye.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  }else{
+    inp.type='password';
+    eye.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+  }
 }
 async function startAnalysis(){
   var n=$('companyInput').value.trim();if(!n)return;
@@ -541,6 +555,8 @@ async function startAnalysis(){
   var uprompt=$('userPromptInput').value.trim();
   var methods=[];
   document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
+  if(methods.length===0)methods=['SWOT','PEST'];
+  methods=methods.filter(function(m){return m!=='STOCK'});
   if(methods.length===0)methods=['SWOT','PEST'];
   var slug=window.location.pathname.split('/').pop();
   h('step1');h('result');s('step2');h('step3');
