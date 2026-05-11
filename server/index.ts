@@ -329,6 +329,9 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
   const errBg = isDark ? '#450a0a' : '#fef2f2';
   const errBorder = isDark ? '#991b1b' : '#fecaca';
   const errText = isDark ? '#fca5a5' : '#dc2626';
+  const selectBorder = isDark ? theme.secondary : theme.primary;
+  const selectBg = isDark ? theme.secondary + '22' : theme.primary + '15';
+  const selectColor = isDark ? theme.secondary : theme.primary;
 
   const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const sd = siteDesc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -362,8 +365,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
 .option-btn{text-align:left;padding:12px 14px;border:2px solid ${inputBorder};border-radius:10px;background:${inputBg};cursor:pointer;font-size:13px;color:${mutedClr};transition:all .2s;line-height:1.5}
 .option-btn .label{font-weight:600;font-size:14px;color:${textClr};display:block;margin-bottom:2px}
 .option-btn .desc{font-size:11px;color:${mutedClr}}
-.option-btn.selected{border-color:${theme.primary};background:${theme.primary}15;color:${theme.primary}}
-.option-btn.selected .label{color:${theme.primary}}
+.option-btn.selected{border-color:${selectBorder};background:${selectBg};color:${selectColor}}
+.option-btn.selected .label{color:${selectColor}}
 .option-btn .cb-row{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:${textClr};margin-bottom:2px}
 .option-btn .opt-cb{accent-color:${theme.primary};width:16px;height:16px;margin:0;cursor:pointer;flex-shrink:0}
 .option-btn:hover:not(.selected){border-color:${theme.primary}66}
@@ -599,7 +602,7 @@ async function loadReports(){
     var html='';
     if(reports.data&&reports.data.length>0){
       reports.data.slice(0,20).forEach(function(report){
-        var d=new Date(report.createdAt).toLocaleDateString('zh-CN');
+        var d=new Date(report.createdAt).toLocaleString('zh-CN');
         html+='<div class="report-item"><div style="flex:1"><div class="rname">'+report.companyName+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="margin-right:6px">查看</a><button onclick="deleteReport(&#39;'+report.slug+'&#39;)" style="padding:4px 8px;font-size:12px;border:1px solid #e24b4a44;border-radius:6px;background:none;color:#e24b4a;cursor:pointer">删除</button></div>'
       });
     }else{html='<p style="font-size:13px;color:#94a3b8">暂无报告，开始分析后这里会显示。</p>'}
@@ -644,7 +647,7 @@ async function generateReportHtml(companyName: string): Promise<string> {
    - 市场规模与趋势 (Market Size & Trends) — 行业规模、增长率、发展趋势
    - 财务分析 (Financial Analysis) — 营收、利润、关键财务指标（可用合理估算数据）
    - 竞争格局 (Competitive Landscape) — 主要竞争对手、市场份额
-   - SWOT 分析 — 用表格形式呈现
+   - SWOT 分析 — 用 HTML table 呈现；表格必须带边框(border:1px solid #d1d5db)、单元格内边距(padding:10px 14px)、表头背景色(#f8fafc)、文字自动换行(word-break:break-all)、表格宽度100%、字体大小14px
    - 行业展望与建议 (Outlook & Recommendations) — 未来发展预测
    - 底部: "由 YooClaw AI 生成" 版权信息，以及 YooClaw 品牌标识
 5. 设计风格: 专业、清晰、现代，使用蓝色(#2563eb)/灰色为主色调
@@ -1756,7 +1759,7 @@ ${researchData || '（暂无详细研究资料，请基于你的知识生成）'
    - 报告摘要 (Executive Summary) — 核心发现和结论
    - 公司概览 (Company Overview) — 公司简介、主营业务、行业地位
    - ${methods.includes('PEST') ? 'PEST 分析 (Political, Economic, Social, Technological) — 用表格展示各维度' : '市场规模与趋势 — 行业规模、增长率、发展趋势'}
-   - ${methods.includes('SWOT') ? 'SWOT 分析 — 用表格呈现优势/劣势/机会/威胁' : ''}
+   - ${methods.includes('SWOT') ? 'SWOT 分析 — 用 HTML table 呈现，表格带边框(border:1px solid #d1d5db)、单元格内边距(padding:10px 14px)、表头背景色(#f8fafc)、文字自动换行(word-break:break-all)、表格宽度100%' : ''}
    - ${methods.includes('PORTER') ? '波特五力分析 — 供应商议价能力、买方议价能力、新进入者威胁、替代品威胁、同业竞争' : ''}
    - ${methods.includes('3C') ? '3C 分析 — 公司(Corporation)、顾客(Customer)、竞争对手(Competitor)' : ''}
    - 财务分析 (Financial Analysis) — 营收、利润、关键财务指标（可用合理估算数据）
