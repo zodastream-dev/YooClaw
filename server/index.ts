@@ -2910,102 +2910,91 @@ app.post('/v2/chat/completions', async (req, res) => {
 
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   try {
-    const { prompt, duration, resolution, apiKey, apiSecret } = req.body || {};
+    const { prompt, duration, resolution, jimengCookie, jimengUid } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Video prompt is required' } });
     }
 
-    const ak = (apiKey && apiKey.trim()) || process.env.JIMENG_ACCESS_KEY;
-    const sk = (apiSecret && apiSecret.trim()) || process.env.JIMENG_SECRET_KEY;
+    const cookie = (jimengCookie && jimengCookie.trim()) || process.env.JIMENG_COOKIE;
+    const uid = (jimengUid && jimengUid.trim()) || process.env.JIMENG_UID || '0';
 
-    if (!ak || !sk) {
+    if (!cookie || cookie.length < 20) {
       return res.status(400).json({
-        error: { code: 'NO_API_KEY', message: '请在页面配置区填写火山引擎 Access Key 和 Secret Key' }
+        error: { code: 'NO_COOKIE', message: '请先在即梦网站登录，然后复制浏览器 Cookie 粘贴到配置区' }
       });
     }
 
     console.log(`[VideoGen] Generating video: "${prompt.slice(0, 80)}..." (${duration}s, ${resolution})`);
 
-    // Call Volcano Engine Jimeng API
-    const timestamp = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-    const date = timestamp.slice(0, 8);
-    const service = 'cv';
-    const region = 'cn-north-1';
-    const host = 'visual.volcengineapi.com';
-    const action = 'CVProcess';
-    const version = '2022-08-31';
+    const deviceTime = String(Math.floor(Date.now() / 1000));
+    const appId = '513695';
 
-    // Build request body
-    const body = JSON.stringify({
-      req_key: 'jimeng_video_gen_30_720p',
-      prompt: prompt.trim(),
-      duration: Number(duration) || 5,
-      resolution: resolution || '720p',
-      return_url: true,
-    });
+    // Generate sign: MD5 of params
+    const signStr = `device-time=${deviceTime}&pf=7&appvr=6.6.0&loc=cn&lan=zh-Hans&appid=${appId}`;
+    const sign = crypto.createHash('md5').update(signStr).digest('hex');
 
-    // Create signing key
-    const kDate = crypto.createHmac('sha256', sk).update(date).digest();
-    const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
-    const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
-    const signingKey = crypto.createHmac('sha256', kService).update('request').digest();
-
-    // Create canonical request
-    const payloadHash = crypto.createHash('sha256').update(body).digest('hex');
-    const canonicalRequest = [
-      'POST', '/', '', 'host:' + host, 'x-date:' + timestamp, '',
-      'host;x-date', payloadHash
-    ].join('\n');
-
-    // Create string to sign
-    const credentialScope = date + '/' + region + '/' + service + '/request';
-    const stringToSign = [
-      'HMAC-SHA256', timestamp, credentialScope,
-      crypto.createHash('sha256').update(canonicalRequest).digest('hex')
-    ].join('\n');
-
-    // Create signature
-    const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
-    const authHeader = `HMAC-SHA256 Credential=${ak}/${credentialScope}, SignedHeaders=host;x-date, Signature=${signature}`;
-
-    // Make the API call
-    const response = await fetch('https://' + host, {
+    // Call Jimeng API with cookie-based auth
+    const response = await fetch('https://jimeng.jianying.com/mweb/v1/generate_video?aid=' + appId + '&device-time=' + deviceTime, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Host': host,
-        'X-Date': timestamp,
-        'Authorization': authHeader,
+        'Cookie': cookie,
+        'appid': appId,
+        'sign': sign,
+        'sign-ver': '1',
+        'device-time': deviceTime,
+        'x-ep-thirdparty-uid': uid,
+        'pf': '7',
+        'appvr': '6.6.0',
+        'loc': 'cn',
+        'lan': 'zh-Hans',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://jimeng.jianying.com/ai-tool/video/generate',
       },
-      body,
+      body: JSON.stringify({
+        prompt: prompt.trim(),
+        duration: Number(duration) || 5,
+        resolution: resolution || '720p',
+        model: 'jimeng_video_gen',
+      }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('[VideoGen] API error:', response.status, errText);
-      return res.status(502).json({ error: { code: 'API_ERROR', message: `即梦 API 返回错误 (${response.status}): ${errText.slice(0, 200)}` } });
+      console.error('[VideoGen] API error:', response.status, errText.slice(0, 300));
+      if (response.status === 401 || response.status === 403) {
+        return res.status(401).json({ error: { code: 'AUTH_FAILED', message: 'Cookie 已过期，请重新登录即梦网站获取新的 Cookie' } });
+      }
+      return res.status(502).json({ error: { code: 'API_ERROR', message: `即梦 API 返回错误 (${response.status})` } });
     }
 
     const result = await response.json();
     console.log('[VideoGen] API response:', JSON.stringify(result).slice(0, 300));
 
-    // Extract video URL from response
-    const data = result.ResponseMetadata || result.data || result;
-    const videoUrl = data.video_url || data.url || '';
-    const taskId = data.task_id || data.id || crypto.randomUUID();
-
-    if (!videoUrl) {
-      return res.status(500).json({ error: { code: 'NO_VIDEO', message: '未能获取视频结果，请重试' } });
+    const taskId = result.data?.task_id || result.data?.id || '';
+    // Jimeng video generation is async - return task ID for polling
+    if (taskId) {
+      res.json({
+        data: {
+          id: taskId,
+          title: prompt.trim().slice(0, 30),
+          url: '',  // Will be available after generation completes
+          status: 'processing',
+          message: '视频生成中，请稍后查看结果',
+        },
+      });
+    } else if (result.data?.video_url || result.data?.url) {
+      res.json({
+        data: {
+          id: crypto.randomUUID(),
+          title: prompt.trim().slice(0, 30),
+          url: result.data.video_url || result.data.url,
+          status: 'completed',
+        },
+      });
+    } else {
+      res.status(500).json({ error: { code: 'UNKNOWN', message: '未能解析即梦API响应: ' + JSON.stringify(result).slice(0, 200) } });
     }
-
-    res.json({
-      data: {
-        id: taskId,
-        title: prompt.trim().slice(0, 30),
-        url: videoUrl,
-        thumbnail: data.thumbnail || data.cover_url || '',
-      },
-    });
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '视频生成失败: ' + err.message } });

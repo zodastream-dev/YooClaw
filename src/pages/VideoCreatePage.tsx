@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { generateVideo } from '@/lib/api'
-import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Key, Play, Download } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Key, Play, Download, Info } from 'lucide-react'
 
 interface GeneratedVideo {
   id: string
   title: string
   url: string
+  status?: string
+  message?: string
   thumbnail?: string
 }
 
@@ -15,9 +17,9 @@ export function VideoCreatePage() {
   const [prompt, setPrompt] = useState('')
   const [duration, setDuration] = useState('5')
   const [resolution, setResolution] = useState('720p')
-  const [apiKey, setApiKey] = useState('')
-  const [apiSecret, setApiSecret] = useState('')
-  const [showApiConfig, setShowApiConfig] = useState(false)
+  const [jimengCookie, setJimengCookie] = useState('')
+  const [jimengUid, setJimengUid] = useState('')
+  const [showApiConfig, setShowApiConfig] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [result, setResult] = useState<GeneratedVideo | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -36,8 +38,8 @@ export function VideoCreatePage() {
         prompt: p,
         duration,
         resolution,
-        apiKey: apiKey.trim(),
-        apiSecret: apiSecret.trim(),
+        jimengCookie: jimengCookie.trim(),
+        jimengUid: jimengUid.trim(),
       })
       if (res.data) {
         setResult({
@@ -148,37 +150,45 @@ export function VideoCreatePage() {
                 </div>
               </div>
 
-              {/* API Configuration */}
+              {/* Cookie Configuration */}
               <div className="border-t border-border pt-4">
                 <button
                   onClick={() => setShowApiConfig(!showApiConfig)}
                   className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Key size={14} />
-                  即梦 API 配置
+                  即梦账号配置（Cookie 认证）
                   <span className="text-xs">{showApiConfig ? '收起' : '展开'}</span>
                 </button>
                 {showApiConfig && (
                   <div className="mt-3 space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      请前往 <a href="https://console.volcengine.com/ark" target="_blank" rel="noopener" className="text-primary hover:underline">火山引擎控制台</a> 获取即梦 API 的 Access Key 和 Secret Key。
-                    </p>
-                    <div className="grid grid-cols-1 gap-3">
-                      <input
-                        type="text"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="Access Key ID"
-                        className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                      />
-                      <input
-                        type="password"
-                        value={apiSecret}
-                        onChange={(e) => setApiSecret(e.target.value)}
-                        placeholder="Secret Access Key"
-                        className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                      />
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Info size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs text-blue-700 dark:text-blue-300">
+                          <p className="font-medium mb-1">如何获取 Cookie？</p>
+                          <ol className="list-decimal list-inside space-y-0.5">
+                            <li>用浏览器打开 <a href="https://jimeng.jianying.com/ai-tool/video/generate" target="_blank" rel="noopener" className="underline">即梦视频生成页</a> 并登录</li>
+                            <li>按 <kbd className="px-1 bg-blue-100 dark:bg-blue-800 rounded">F12</kbd> 打开开发者工具</li>
+                            <li>切换到 <strong>Application</strong>（应用程序）→ <strong>Cookies</strong> → 选择 jimeng.jianying.com</li>
+                            <li>复制所有 Cookie 值（或右键任一 Cookie → 复制全部）</li>
+                          </ol>
+                        </div>
+                      </div>
                     </div>
+                    <textarea
+                      value={jimengCookie}
+                      onChange={(e) => setJimengCookie(e.target.value)}
+                      placeholder="粘贴即梦网站的完整 Cookie（例如：sessionid=xxx; passport_csrf_token=xxx; ...）"
+                      className="w-full min-h-[80px] px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all resize-vertical font-mono"
+                    />
+                    <input
+                      type="text"
+                      value={jimengUid}
+                      onChange={(e) => setJimengUid(e.target.value)}
+                      placeholder="用户 UID（选填，可在 Cookie 的 passport_uid 中找到）"
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all font-mono"
+                    />
                   </div>
                 )}
               </div>
@@ -214,71 +224,50 @@ export function VideoCreatePage() {
           /* Success */
           <div className="border border-border rounded-xl p-6 bg-card">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <Play size={20} className="text-green-600 dark:text-green-400" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${result.status === 'processing' ? 'bg-yellow-100 dark:bg-yellow-900/30' : 'bg-green-100 dark:bg-green-900/30'}`}>
+                {result.status === 'processing' ? <Loader2 size={20} className="text-yellow-600 animate-spin" /> : <Play size={20} className="text-green-600 dark:text-green-400" />}
               </div>
               <div>
-                <h2 className="text-sm font-medium text-green-600 dark:text-green-400">视频生成成功!</h2>
+                <h2 className={`text-sm font-medium ${result.status === 'processing' ? 'text-yellow-600' : 'text-green-600 dark:text-green-400'}`}>
+                  {result.status === 'processing' ? '视频生成中...' : '视频生成成功!'}
+                </h2>
                 <p className="text-xs text-muted-foreground">{result.title}</p>
               </div>
             </div>
 
-            {/* Video Preview */}
-            <div className="bg-muted rounded-lg p-4 mb-4">
-              <video
-                src={result.url}
-                controls
-                className="w-full rounded-lg"
-                poster={result.thumbnail}
-                style={{ maxHeight: '360px' }}
-              >
-                您的浏览器不支持视频播放
-              </video>
-            </div>
-
-            {/* URL */}
-            <div className="bg-muted rounded-lg p-4 mb-4">
-              <p className="text-xs text-muted-foreground mb-2">视频链接</p>
-              <div className="flex items-center gap-2">
-                <a
-                  href={result.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary hover:bg-primary/5 hover:border-primary/40 transition-all flex items-center gap-1.5"
-                >
-                  <ExternalLink size={13} className="flex-shrink-0" />
-                  <span className="truncate">{result.url}</span>
-                </a>
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
-                >
-                  {copied ? '已复制' : <Copy size={14} />}
-                </button>
+            {result.status === 'processing' ? (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">{result.message || '视频正在生成中，请稍后到即梦网站查看结果'}</p>
               </div>
-            </div>
-
-            <div className="flex gap-3">
-              <a
-                href={result.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                download
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                <Download size={16} />
-                下载视频
-              </a>
-              <button
-                onClick={() => {
-                  setResult(null)
-                  setCopied(false)
-                }}
-                className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-              >
-                再生成一个
-              </button>
-            </div>
+            ) : (
+              <>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <video src={result.url} controls className="w-full rounded-lg" poster={result.thumbnail} style={{ maxHeight: '360px' }}>
+                    您的浏览器不支持视频播放
+                  </video>
+                </div>
+                <div className="bg-muted rounded-lg p-4 mb-4">
+                  <p className="text-xs text-muted-foreground mb-2">视频链接</p>
+                  <div className="flex items-center gap-2">
+                    <a href={result.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary hover:bg-primary/5 hover:border-primary/40 transition-all flex items-center gap-1.5">
+                      <ExternalLink size={13} className="flex-shrink-0" />
+                      <span className="truncate">{result.url}</span>
+                    </a>
+                    <button onClick={handleCopy} className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity">
+                      {copied ? '已复制' : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <a href={result.url} target="_blank" rel="noopener noreferrer" download className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+                    <Download size={16} />下载视频
+                  </a>
+                  <button onClick={() => { setResult(null); setCopied(false) }} className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors">
+                    再生成一个
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

@@ -344,10 +344,10 @@ export async function generateVideo(params: {
   prompt: string
   duration: string
   resolution: string
-  apiKey?: string
-  apiSecret?: string
+  jimengCookie?: string
+  jimengUid?: string
 }) {
-  return apiRequest<{ id: string; title?: string; url: string; thumbnail?: string }>(
+  return apiRequest<{ id: string; title?: string; url: string; status?: string; message?: string }>(
     'POST', '/api/v1/videos/generate', params
   )
 }
