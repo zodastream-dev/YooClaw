@@ -440,16 +440,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
     <div class="form-group"><label>系统提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改 AI 的角色设定）</span></label>
     <textarea id="sysPromptInput" class="prompt-input" placeholder="例如：你是一个专业的金融分析师..." style="width:100%;min-height:60px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">你是一个行业研究分析师，输出结构化研究资料，用中文。</textarea></div>
     <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span></label>
-    <textarea id="userPromptInput" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:120px;padding:12px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">按以下格式输出行业研究报告：
+    <textarea id="userPromptInput" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:120px;padding:12px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 <h2> 标题和 <p>/<ul>/<table> 等 HTML 标签）：
 
-## 公司概况
-## 市场规模与趋势
-## 财务与经营分析
-## 竞争格局
-## 近期动态
-## 机遇与挑战
+<h2>公司概况</h2>
+<h2>市场规模与趋势</h2>
+<h2>财务与经营分析</h2>
+<h2>竞争格局</h2>
+<h2>近期动态</h2>
+<h2>机遇与挑战</h2>
 
-请用中文，分段清晰，包含具体数据。</textarea></div>
+要求：
+- 每个章节用 <h2> 标题，内容用 <p> 段落和 <ul>/<li> 列表
+- 关键数字用 <strong>加粗</strong>
+- 包含具体数据，每个章节不少于 3 个要点
+- 只输出纯 HTML 代码，不要 markdown 标记，不要额外说明文字</textarea></div>
     <button class="btn" id="startBtn" onclick="startAnalysis()">开始分析</button>
   </div>
   <div class="card" id="step2" style="display:none">
@@ -2642,16 +2646,20 @@ app.post('/api/p/research/:slug', async (req, res) => {
     const systemMsg = sysPrompt || `你是 YooClaw AI 助手，专门生成专业美观的行业分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记或额外说明文字。`;
     const defaultPrompt = `请研究以下公司：${name}${businessDesc ? `（${businessDesc}）` : ''}
 ${searchResults || '\n请使用你的知识储备进行回答。'}
-按以下格式输出行业研究报告：
+请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 <h2> 标题和 <p>/<ul>/<table> 等 HTML 标签）：
 
-## 公司概况
-## 市场规模与趋势
-## 财务与经营分析
-## 竞争格局
-## 近期动态
-## 机遇与挑战
+<h2>公司概况</h2>
+<h2>市场规模与趋势</h2>
+<h2>财务与经营分析</h2>
+<h2>竞争格局</h2>
+<h2>近期动态</h2>
+<h2>机遇与挑战</h2>
 
-请用中文，分段清晰，包含具体数据。`;
+要求：
+- 每个章节用 <h2> 标题，内容用 <p> 段落和 <ul>/<li> 列表
+- 关键数字用 <strong>加粗</strong>
+- 包含具体数据，每个章节不少于 3 个要点
+- 只输出纯 HTML 代码，不要 markdown 标记，不要额外说明文字`;
     // If user provided custom prompt, prepend company context + search results
     const prompt = userPrompt
       ? `请研究以下公司：${name}${businessDesc ? `（${businessDesc}）` : ''}
