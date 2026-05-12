@@ -125,53 +125,76 @@ function stopCodeBuddyCLI() {
 }
 
 async function* streamCodebuddy(systemMsg: string, userMsg: string): AsyncGenerator<{ type: string; content?: string; text?: string }> {
-  // Use the persistent CodeBuddy CLI HTTP API (Runs API with SSE streaming)
-  const runRes = await fetch(`http://127.0.0.1:${CB_SERVE_PORT}/api/v1/runs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CodeBuddy-Request': '1' },
-    body: JSON.stringify({
-      id: crypto.randomUUID(),
-      type: 'text',
-      text: `${systemMsg}\n\n${userMsg}`,
-      sender: { id: 'yooclaw', name: 'YooClaw', type: 'user' },
-    }),
-  });
-  if (!runRes.ok) throw new Error(`CodeBuddy run error: ${runRes.status} ${await runRes.text()}`);
-  const runData = await runRes.json();
-  const runId = runData.data?.runId;
-  if (!runId) throw new Error(`CodeBuddy run failed: ${JSON.stringify(runData)}`);
+  // Timeout: 5 minutes for entire operation
+  const STREAM_TIMEOUT = 5 * 60 * 1000;
+  const startTime = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), STREAM_TIMEOUT);
 
-  // Stream the result via SSE
-  const streamRes = await fetch(`http://127.0.0.1:${CB_SERVE_PORT}/api/v1/runs/${runId}/stream`, {
-    headers: { 'X-CodeBuddy-Request': '1' },
-  });
-  if (!streamRes.ok || !streamRes.body) throw new Error(`CodeBuddy stream error: ${streamRes.status}`);
-
-  const reader = streamRes.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop() || '';
-      for (const line of lines) {
-        if (line.startsWith('event: done')) continue;
-        if (!line.startsWith('data: ')) { continue; }
-        const jsonStr = line.slice(6).trim();
-        if (!jsonStr || jsonStr === '{}') continue;
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.content?.markdown || parsed.content?.text || parsed.content;
-          if (content) {
-            yield { type: 'content', content };
-          }
-        } catch {}
+    // Use the persistent CodeBuddy CLI HTTP API (Runs API with SSE streaming)
+    const runRes = await fetch(`http://127.0.0.1:${CB_SERVE_PORT}/api/v1/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CodeBuddy-Request': '1' },
+      body: JSON.stringify({
+        id: crypto.randomUUID(),
+        type: 'text',
+        text: `${systemMsg}\n\n${userMsg}`,
+        sender: { id: 'yooclaw', name: 'YooClaw', type: 'user' },
+      }),
+      signal: controller.signal,
+    });
+    if (!runRes.ok) throw new Error(`CodeBuddy run error: ${runRes.status} ${await runRes.text()}`);
+    const runData = await runRes.json();
+    const runId = runData.data?.runId;
+    if (!runId) throw new Error(`CodeBuddy run failed: ${JSON.stringify(runData)}`);
+
+    // Stream the result via SSE
+    const streamRes = await fetch(`http://127.0.0.1:${CB_SERVE_PORT}/api/v1/runs/${runId}/stream`, {
+      headers: { 'X-CodeBuddy-Request': '1' },
+      signal: controller.signal,
+    });
+    if (!streamRes.ok || !streamRes.body) throw new Error(`CodeBuddy stream error: ${streamRes.status}`);
+
+    const reader = streamRes.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    try {
+      while (true) {
+        // Check timeout
+        if (Date.now() - startTime > STREAM_TIMEOUT) {
+          throw new Error('Stream timeout: AI generation took too long');
+        }
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (line.startsWith('event: done')) continue;
+          if (!line.startsWith('data: ')) { continue; }
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === '{}') continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.content?.markdown || parsed.content?.text || parsed.content;
+            if (content) {
+              yield { type: 'content', content };
+            }
+          } catch {}
+        }
       }
+    } finally { 
+      clearTimeout(timeoutId);
+      reader.releaseLock(); 
     }
-  } finally { reader.releaseLock(); }
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Stream timeout: AI generation took too long (5 minutes)');
+    }
+    throw error;
+  }
 }
 
 async function fetchCodebuddyNonStream(systemMsg: string, userMsg: string): Promise<string> {
