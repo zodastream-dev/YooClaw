@@ -2782,7 +2782,29 @@ ${userPrompt.replace(/\{company\}/g, name).replace(/\{name\}/g, name)}
 
 请用 HTML 格式输出，包含完整的 HTML 页面结构。`
       : defaultReportPrompt;
-    const reportSysMsg = '你是一个行业分析报告生成器。用 HTML 格式输出完整的报告页面，包含样式和布局。只输出 HTML 代码，不要有任何额外说明。';
+    const reportSysMsg = `You are an HTML code generator. You are NOT a conversational assistant. Your ONLY job is to output raw HTML code.
+
+STRICT RULES:
+1. Your VERY FIRST character of output MUST be '<' (start of HTML tag)
+2. DO NOT output any text descriptions, explanations, or summaries
+3. DO NOT say things like "报告已更新保存至..." or "Here is the report..."
+4. DO NOT use markdown code blocks (no \`\`\`)
+5. ONLY output raw HTML code starting with <!DOCTYPE html>
+6. NO conversational text before, during, or after the HTML code
+
+WRONG (DO NOT DO THIS):
+"报告已生成，保存至 /path/to/file.html"
+"以下是报告内容："
+\`\`\`html
+<html>...
+\`\`\`
+
+RIGHT (DO THIS):
+<!DOCTYPE html>
+<html>
+...
+
+Remember: You are a code generator, not a chat assistant. Output ONLY HTML code.`;
     const finalReportPrompt = reportUserPrompt;
 
     // Send initial progress before AI starts
