@@ -59,7 +59,7 @@ fi
 
 # Restart service (graceful reload for zero-downtime)
 log "Reloading PM2..."
-pm2 reload yooclaw-api --update-env
+pm2 reload yooclaw --update-env
 
 # Wait for health check
 sleep 5

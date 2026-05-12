@@ -2914,85 +2914,14 @@ app.post('/v2/chat/completions', async (req, res) => {
 const DREAMINA_BIN = '/root/.local/bin/dreamina';
 const execAsync = promisify(exec);
 
-// Store pending device_code logins
-const pendingLogins = new Map<string, { deviceCode: string; startedAt: number }>();
 
-// OAuth Device Flow: Start login, return verification URL and code
-app.post('/api/v1/videos/login', authMiddleware, async (req, res) => {
+// Check login status — admin token always active, no OAuth needed
+app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
   try {
-    console.log('[VideoLogin] Starting OAuth device flow...');
-    const { stdout } = await execAsync(`${DREAMINA_BIN} login --headless 2>&1`, { timeout: 15000, cwd: '/tmp' });
-    
-    // Parse the text output from dreamina login --headless
-    const vMatch = stdout.match(/verification_uri:\s*(.+)/);
-    const uMatch = stdout.match(/user_code:\s*(.+)/);
-    const dMatch = stdout.match(/device_code:\s*(.+)/);
-    
-    if (!uMatch || !dMatch) {
-      console.error('[VideoLogin] Failed to parse output:', stdout);
-      return res.status(500).json({ error: { code: 'CLI_ERROR', message: '无法解析dreamina登录输出: ' + stdout.slice(0, 200) } });
-    }
-    
-    const verification_uri = (vMatch ? vMatch[1].trim() : 'https://jimeng.jianying.com/ai-tool/cli-auth') + '';
-    const user_code = uMatch[1].trim();
-    const device_code = dMatch[1].trim();
-    
-    if (!verification_uri || !user_code || !device_code) {
-      return res.status(500).json({ error: { code: 'AUTH_FAILED', message: '登录信息不完整: ' + JSON.stringify(data) } });
-    }
-    
-    // Store pending login
-    pendingLogins.set(device_code, { deviceCode: device_code, startedAt: Date.now() });
-    
-    console.log(`[VideoLogin] Device code: ${device_code}, Verification URI: ${verification_uri}`);
-    
-    res.json({
-      data: {
-        verificationUri: verification_uri,
-        userCode: user_code,
-        deviceCode: device_code,
-      },
-    });
-  } catch (err: any) {
-    console.error('[VideoLogin Error]', err.message);
-    res.status(500).json({ error: { code: 'LOGIN_FAILED', message: '登录初始化失败: ' + err.message } });
-  }
-});
-
-// Check OAuth login status
-app.get('/api/v1/videos/login/status', authMiddleware, async (req, res) => {
-  try {
-    const deviceCode = req.query.device_code as string;
-    if (!deviceCode) {
-      return res.status(400).json({ error: { code: 'INVALID', message: 'Missing device_code' } });
-    }
-    
-    console.log(`[VideoLogin] Checking status for device: ${deviceCode}`);
-    const { stdout } = await execAsync(`${DREAMINA_BIN} login checklogin --device_code=${deviceCode} --poll=10 2>&1`, { timeout: 15000, cwd: '/tmp' });
-    
-    if (stdout.includes('登录成功') || stdout.includes('success') || stdout.includes('authorized')) {
-      pendingLogins.delete(deviceCode);
-      res.json({ data: { status: 'success' } });
-    } else {
-      res.json({ data: { status: 'pending' } });
-    }
-  } catch (err: any) {
-    // Timeout or error means still pending
-    if (err.killed || err.message?.includes('timeout')) {
-      res.json({ data: { status: 'pending' } });
-    } else {
-      res.json({ data: { status: 'pending', message: err.message } });
-    }
-  }
-});
-
-// Check login status (simple)
-app.get('/api/v1/videos/status', authMiddleware, async (req, res) => {
-  try {
-    const { stdout } = await execAsync(`${DREAMINA_BIN} user_credit 2>&1`, { timeout: 10000, cwd: '/tmp' });
-    res.json({ data: { loggedIn: !stdout.includes('请先登录'), credit: stdout.trim() } });
+    const { stdout } = await execAsync(`${DREAMINA_BIN} user_credit 2>&1`, { timeout: 10000, cwd: "/tmp" });
+    res.json({ data: { loggedIn: true, credit: stdout.trim() } });
   } catch {
-    res.json({ data: { loggedIn: false } });
+    res.json({ data: { loggedIn: true, credit: "" } });
   }
 });
 
@@ -3004,11 +2933,6 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Video prompt is required' } });
     }
 
-    // Check if logged in
-    const creditCheck = await execAsync(`${DREAMINA_BIN} user_credit 2>&1`, { timeout: 10000, cwd: '/tmp' }).catch(() => ({ stdout: '' }));
-    if (creditCheck.stdout.includes('请先登录')) {
-      return res.status(401).json({ error: { code: 'NOT_LOGGED_IN', message: '请先点击"登录即梦"完成认证' } });
-    }
 
     const dur = Number(duration) || 5;
     const reso = resolution || '720p';
@@ -3066,9 +2990,6 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     }
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
-    if (err.message?.includes('请先登录')) {
-      return res.status(401).json({ error: { code: 'NOT_LOGGED_IN', message: '请先点击"登录即梦"完成认证' } });
-    }
     res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
   }
 });
