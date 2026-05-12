@@ -248,7 +248,7 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
   // 6.5. Guard: AI sometimes outputs text summary instead of HTML
   if (!/<[a-zA-Z]/.test(html)) {
     console.log(`[cleanAiHtml] Non-HTML output detected, first 200 chars: "${html.slice(0, 200)}"`);
-    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;color:#666;text-align:center;padding:2em}</style></head><body><h2>⚠️ 生成失败</h2><p>AI 返回了文本摘要而非游戏代码，请重试。</p></body></html>`;
+    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;color:#666;text-align:center;padding:2em}</style></head><body><h2>⚠️ 生成失败</h2><p>AI 返回了无效内容，请重试。</p></body></html>`;
   }
 
   // 7. Fragment — extract <body> content and <head><style> if present
