@@ -2639,7 +2639,7 @@ app.post('/api/p/research/:slug', async (req, res) => {
     }
 
     // Build the AI prompt — use custom prompts if provided
-    const systemMsg = sysPrompt || `你是一个行业研究分析师，输出结构化研究资料，用中文。`;
+    const systemMsg = sysPrompt || `你是 YooClaw AI 助手，专门生成专业美观的行业分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记或额外说明文字。`;
     const defaultPrompt = `请研究以下公司：${name}${businessDesc ? `（${businessDesc}）` : ''}
 ${searchResults || '\n请使用你的知识储备进行回答。'}
 按以下格式输出行业研究报告：
