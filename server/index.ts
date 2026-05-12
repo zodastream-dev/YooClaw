@@ -2719,7 +2719,7 @@ app.post('/api/p/report/:slug', async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
 
     const methods = (formData?.analysisMethods || ['SWOT', 'PEST']).join('、');
-    const defaultReportPrompt = `我正在研究"${name}"，请根据以下研究资料，用 Markdown 格式撰写一份完整的行业分析报告。
+    const defaultReportPrompt = `我正在研究"${name}"，请根据以下研究资料，用 HTML 格式撰写一份完整的行业分析报告。
 
 分析框架: ${methods}
 
@@ -2749,9 +2749,9 @@ ${researchData || '（暂无）'}
 用户要求：
 ${userPrompt.replace(/\{company\}/g, name).replace(/\{name\}/g, name)}
 
-请用 Markdown 格式输出，标题用 ##，列表用 -，关键数据用 **加粗**。`
+请用 HTML 格式输出，包含完整的 HTML 页面结构。`
       : defaultReportPrompt;
-    const reportSysMsg = '你是一个行业分析报告撰写专家。用 Markdown 格式输出结构化报告内容。只输出报告正文。';
+    const reportSysMsg = '你是一个行业分析报告生成器。用 HTML 格式输出完整的报告页面，包含样式和布局。只输出 HTML 代码，不要有任何额外说明。';
     const finalReportPrompt = reportUserPrompt;
 
     // Send initial progress before AI starts
