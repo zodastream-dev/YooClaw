@@ -88,7 +88,9 @@ export async function initDatabase(): Promise<void> {
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     max: 10,
     idle_timeout: 20000,
-    connect_timeout: 10,
+    max_lifetime: 0,
+    connect_timeout: 30,
+    query_timeout: 60000,
     prepare: false,  // Required for Supabase Transaction mode pooler
     connection: {
       client_encoding: 'UTF8',  // Ensure UTF-8 encoding for Chinese characters
