@@ -650,12 +650,45 @@ async function generateReportHtml(companyName: string): Promise<string> {
    - 市场规模与趋势 (Market Size & Trends) — 行业规模、增长率、发展趋势
    - 财务分析 (Financial Analysis) — 营收、利润、关键财务指标（可用合理估算数据）
    - 竞争格局 (Competitive Landscape) — 主要竞争对手、市场份额
-   - SWOT 分析 — 用 HTML table 呈现；表格必须带边框(border:1px solid #d1d5db)、单元格内边距(padding:10px 14px)、表头背景色(#f8fafc)、文字自动换行(word-break:break-all)、表格宽度100%、字体大小14px
+   - SWOT 分析 — 用卡片式布局呈现，四个象限(S/优势、W/劣势、O/机会、T/威胁)用2x2网格排列，每个卡片有圆角边框和阴影效果
+   - PEST 分析 — 同样用卡片式布局，四个维度(P/政治、E/经济、S/社会、T/技术)用2x2网格排列
    - 行业展望与建议 (Outlook & Recommendations) — 未来发展预测
    - 底部: "由 YooClaw AI 生成" 版权信息，以及 YooClaw 品牌标识
 5. 设计风格: 专业、清晰、现代，使用蓝色(#2563eb)/灰色为主色调
 6. 尽量包含具体的行业数据和分析，不要泛泛而谈
 7. 页面要适合打印 (A4 布局)
+
+## 表格样式规范（非常重要）
+- 所有表格必须使用统一的样式：
+  - 表头行：背景色 #2563eb（蓝色），文字白色，字体加粗
+  - 数据行：背景色白色，文字 #1f2937
+  - 奇偶行交替：偶数行背景色 #f8fafc
+  - 表格边框：1px solid #e5e7eb
+  - 单元格内边距：padding: 12px 16px
+  - 表格宽度：width: 100%
+  - 字体大小：14px
+  - 文字对齐：数字右对齐，文本左对齐
+  - 表格必须包含 thead 和 tbody 标签
+- 财务数据表格示例：
+  <table class=data-table>
+    <thead>
+      <tr><th>指标</th><th>2023年</th><th>2024年</th><th>2025年</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>营业收入（亿元）</td><td>16.45</td><td>19.29</td><td>22.60</td></tr>
+    </tbody>
+  </table>
+
+## 卡片样式规范（SWOT/PEST）
+- 使用 CSS Grid 布局：grid-template-columns: 1fr 1fr; gap: 16px
+- 每个卡片：
+  - 背景色：白色
+  - 边框：1px solid #e5e7eb
+  - 圆角：border-radius: 12px
+  - 阴影：box-shadow: 0 1px 3px rgba(0,0,0,0.1)
+  - 内边距：padding: 20px
+  - 标题：字体加粗，颜色 #2563eb，字号 16px
+  - 内容：颜色 #374151，字号 14px，行高 1.6
 
 ## HTML 质量检查 — 生成前务必逐条确认
 8. HTML 必须以 <!DOCTYPE html> 开头，不能省略
@@ -751,6 +784,7 @@ async function generateGameHtml(gameName: string): Promise<string> {
 5. 设计风格: 精致、现代、色彩丰富
 6. 使用 HTML5 Canvas 或 DOM 元素实现
 7. 确保在移动端和桌面端都能正常游玩
+8. **重要**: 游戏页面打开后必须直接显示游戏界面，不要显示游戏摘要、介绍或说明页面。用户点击链接后应该立即可以开始游戏。
 
 请直接输出完整的 HTML 代码。`;
 
@@ -2127,6 +2161,7 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
 5. 设计风格: 精致、现代、色彩丰富
 6. 使用 HTML5 Canvas 或 DOM 元素实现
 7. 确保在移动端和桌面端都能正常游玩
+8. **重要**: 游戏页面打开后必须直接显示游戏界面，不要显示游戏摘要、介绍或说明页面。用户点击链接后应该立即可以开始游戏。
 
 请直接输出完整的 HTML 代码。`;
 
