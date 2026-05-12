@@ -245,6 +245,12 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
     return html;
   }
 
+  // 6.5. Guard: AI sometimes outputs text summary instead of HTML
+  if (!/<[a-zA-Z]/.test(html)) {
+    console.log(`[cleanAiHtml] Non-HTML output detected, first 200 chars: "${html.slice(0, 200)}"`);
+    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;color:#666;text-align:center;padding:2em}</style></head><body><h2>⚠️ 生成失败</h2><p>AI 返回了文本摘要而非游戏代码，请重试。</p></body></html>`;
+  }
+
   // 7. Fragment — extract <body> content and <head><style> if present
   const headStyleMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
   const styleContent = headStyleMatch
@@ -765,11 +771,11 @@ async function generateReportHtml(companyName: string): Promise<string> {
 
 // ========== Game HTML Generator ==========
 async function generateGameHtml(gameName: string): Promise<string> {
-  const prompt = `你是一个专业的 HTML 小游戏生成器。
+const prompt = `你是一个 HTML 游戏代码生成器，不是对话机器人。你的唯一任务是输出完整的游戏 HTML 代码。
 
 用户想玩的游戏是: "${gameName}"
 
-请生成一个完整的、可直接运行的 HTML 页面，实现这个游戏。
+请生成一个完整的、可直接运行的 HTML 游戏页面。
 
 ## 要求
 1. 输出格式: 仅输出 HTML 代码，不要用 markdown 包裹，不要有任何额外说明
@@ -784,8 +790,18 @@ async function generateGameHtml(gameName: string): Promise<string> {
 5. 设计风格: 精致、现代、色彩丰富
 6. 使用 HTML5 Canvas 或 DOM 元素实现
 7. 确保在移动端和桌面端都能正常游玩
-8. **重要**: 游戏页面打开后必须直接显示游戏界面，不要显示游戏摘要、介绍或说明页面。用户点击链接后应该立即可以开始游戏。
+8. 游戏页面打开后直接显示游戏界面（而非摘要或介绍页），用户点击链接后可以立即开始游戏
+9. 游戏内可以有"开始"按钮或覆盖层来开始游戏（这是正常的游戏交互，不是摘要页）
 
+## ⚠️ 关键禁止项
+
+以下行为严禁发生:
+- 绝对禁止输出任何中文说明文字，例如"已生成游戏文件"、"功能包括"、"直接在浏览器中打开"
+- 绝对禁止输出文件路径（如 /opt/YooClaw/...）
+- 你的回答第一个字符必须是 <
+- 你的回答必须以 </html> 结束
+
+你是一个代码生成器，不是对话助手。不要描述、解释或总结任何内容，直接输出 HTML 游戏代码。`;
 请直接输出完整的 HTML 代码。`;
 
   const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
@@ -798,7 +814,7 @@ async function generateGameHtml(gameName: string): Promise<string> {
       model: CODEBUDDY_MODEL,
       stream: true,
       messages: [
-        { role: 'system', content: '你是 YooClaw AI 助手，专门生成可直接运行的 HTML 小游戏。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+        { role: 'system', content: '你是 YooClaw 游戏代码生成器。你只能输出纯 HTML 代码，第一个字符必须是<。禁止输出任何中文文字、说明、文件路径、摘要或描述。你不是对话助手，你是一个代码输出机器。' },
         { role: 'user', content: prompt },
       ],
       max_tokens: 16384,
@@ -2132,26 +2148,37 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
     try {
       const messages = await getSessionMessages(token.userId, sessionId);
       const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-      if (lastUserMsg) userMessage = lastUserMsg.content;
-    } catch {}
-  }
-
-  // Check if this is a game request (detect from user message text)
-  if (userMessage && isGameRequest(userMessage)) {
-    const gameName = extractGameName(userMessage);
-    console.log(`[Stream] Run ${runId} is a game request: "${gameName}"`);
-    try {
-      // Stream game generation in real-time so user sees progress
-      const gamePrompt = `你是一个专业的 HTML 小游戏生成器。
+const gamePrompt = `你是一个 HTML 游戏代码生成器，不是对话机器人。你的唯一任务是输出完整的游戏 HTML 代码。
 
 用户想玩的游戏是: "${gameName}"
 
-请生成一个完整的、可直接运行的 HTML 页面，实现这个游戏。
+请生成一个完整的、可直接运行的 HTML 游戏页面。
 
 ## 要求
 1. 输出格式: 仅输出 HTML 代码，不要用 markdown 包裹，不要有任何额外说明
 2. 所有样式（CSS）和逻辑（JavaScript）内嵌在同一个 HTML 文件中
 3. 不依赖任何外部资源（CDN、图片、字体等）
+4. 游戏需要包含:
+   - 完整的游戏逻辑和交互
+   - 键盘/触控操作支持
+   - 得分/计时显示
+   - 游戏结束判定和重新开始按钮
+   - 清晰的界面和操作说明
+5. 设计风格: 精致、现代、色彩丰富
+6. 使用 HTML5 Canvas 或 DOM 元素实现
+7. 确保在移动端和桌面端都能正常游玩
+8. 游戏页面打开后直接显示游戏界面（而非摘要或介绍页），用户点击链接后可以立即开始游戏
+9. 游戏内可以有"开始"按钮或覆盖层来开始游戏（这是正常的游戏交互，不是摘要页）
+
+## ⚠️ 关键禁止项
+
+以下行为严禁发生:
+- 绝对禁止输出任何中文说明文字，例如"已生成游戏文件"、"功能包括"、"直接在浏览器中打开"
+- 绝对禁止输出文件路径（如 /opt/YooClaw/...）
+- 你的回答第一个字符必须是 <
+- 你的回答必须以 </html> 结束
+
+你是一个代码生成器，不是对话助手。不要描述、解释或总结任何内容，直接输出 HTML 游戏代码。`;
 4. 游戏需要包含:
    - 完整的游戏逻辑和交互
    - 键盘/触控操作支持
@@ -2212,7 +2239,7 @@ app.get('/api/v1/runs/:runId/stream', async (req, res) => {
           model: CODEBUDDY_MODEL,
           stream: true,
           messages: [
-            { role: 'system', content: '你是 YooClaw AI 助手，专门生成可直接运行的 HTML 小游戏。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+            { role: 'system', content: '你是 YooClaw 游戏代码生成器。你只能输出纯 HTML 代码，第一个字符必须是<。禁止输出任何中文文字、说明、文件路径、摘要或描述。你不是对话助手，你是一个代码输出机器。' },
             { role: 'user', content: gamePrompt },
           ],
           max_tokens: 16384,
