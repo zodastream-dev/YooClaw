@@ -360,158 +360,105 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
   const errBg = isDark ? '#450a0a' : '#fef2f2';
   const errBorder = isDark ? '#991b1b' : '#fecaca';
   const errText = isDark ? '#fca5a5' : '#dc2626';
-  const selectBorder = isDark ? theme.secondary : theme.primary;
-  const selectBg = isDark ? theme.secondary + '22' : theme.primary + '15';
-  const selectColor = isDark ? theme.secondary : theme.primary;
 
   const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const sd = siteDesc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-  // Build widget cards HTML
-  const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'report-generator', title: '行业分析报告', config: { defaultOpen: true } }];
-  let widgetCardsHtml = '';
+  const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'report-generator', title: '行业分析报告', config: {} }];
   const reportWidgetIndices: number[] = [];
   const monitorWidgetIndices: number[] = [];
+
+  // Build compact cards HTML
+  let cardsHtml = '';
 
   wlist.forEach((w: any, i: number) => {
     if (w.type === 'report-generator') {
       reportWidgetIndices.push(i);
       const title = (w.title || '行业分析报告').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-      const subtitle = (w.config?.subtitle || '配置分析参数，AI 将自动搜索信息并生成专业的分析报告。').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-      const defaultOpen = w.config?.defaultOpen !== false;
-      widgetCardsHtml += `
-  <div class="portal-card${defaultOpen?' open':''}" id="portal-card-${i}">
-    <div class="card-header" onclick="toggleCard(${i})">
-      <div class="card-header-left">
-        <span class="card-icon">📊</span>
-        <div>
-          <div class="card-title">${title}</div>
-          <div class="card-subtitle">${subtitle}</div>
-        </div>
-      </div>
-      <span class="card-chevron" id="chevron-${i}">▼</span>
-    </div>
-    <div class="card-body" id="card-body-${i}">
-      <div class="card" id="step1-${i}">
-        <h3>配置分析参数</h3>
-        <div class="form-group"><label>公司 / 行业名称</label>
-        <input type="text" id="companyInput-${i}" placeholder="例如：比亚迪、特斯拉、宁德时代..."/></div>
-        <div class="form-group"><label>分析框架 <span style="font-size:11px;color:#94a3b8">（可多选）</span></label>
-        <div class="option-grid" id="optionGrid-${i}">
-          <div class="option-btn selected" data-value="SWOT"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOptCard(${i},this)"/>SWOT 分析</div><span class="desc">优势/劣势/机会/威胁</span></div>
-          <div class="option-btn selected" data-value="PEST"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOptCard(${i},this)"/>PEST 分析</div><span class="desc">政治/经济/社会/技术</span></div>
-          <div class="option-btn" data-value="PORTER"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOptCard(${i},this)"/>波特五力</div><span class="desc">供应商/买方/新进入者/替代品/竞争</span></div>
-          <div class="option-btn" data-value="3C"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOptCard(${i},this)"/>3C 分析</div><span class="desc">公司/顾客/竞争对手</span></div>
-          <div class="option-btn" data-value="STOCK"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOptCard(${i},this)"/>股价预测</div><span class="desc">年报/季报分析，预测12个月走势</span></div>
-        </div></div>
-        <div class="form-group"><label>搜索平台 <span style="font-size:11px;color:#94a3b8">（选填，留空使用默认联网搜索）</span></label>
-        <select id="searchPlatform-${i}" onchange="toggleSearchKeyCard(${i})">
-          <option value="">默认 (CodeBuddy)</option>
-          <option value="tavily">Tavily</option>
-          <option value="metaso" selected>秘塔 (Metaso)</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="custom">自定义 API</option>
-        </select>
-        <div id="searchApiKeyWrap-${i}" class="api-key-input" style="position:relative">
-        <input type="password" id="searchApiKey-${i}" placeholder="输入该平台的 API Key..." value="mk-65F31E31CBAB4DD4697CF57DA49000CB" style="width:100%;padding:10px 14px;padding-right:40px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none"/>
-        <span onclick="toggleApiKeyCard(${i})" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:${mutedClr};user-select:none;line-height:1" id="apiKeyEye-${i}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
-        </div>
-        <input type="text" id="searchEndpoint-${i}" class="api-key-input" placeholder="自定义 API 端点 URL..." style="margin-top:6px"/>
-        </div>
-        <div class="form-group"><label>系统提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改 AI 的角色设定）</span></label>
-        <textarea id="sysPromptInput-${i}" class="prompt-input" placeholder="例如：你是一个专业的金融分析师..." style="width:100%;min-height:60px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">你是一个行业研究分析师，输出结构化研究资料，用中文。</textarea></div>
-        <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span></label>
-        <textarea id="userPromptInput-${i}" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:120px;padding:12px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 &lt;h2&gt; 标题和 &lt;p&gt;/&lt;ul&gt;/&lt;table&gt; 等 HTML 标签）：
-
-&lt;h2&gt;公司概况&lt;/h2&gt;
-&lt;h2&gt;市场规模与趋势&lt;/h2&gt;
-&lt;h2&gt;财务与经营分析&lt;/h2&gt;
-&lt;h2&gt;竞争格局&lt;/h2&gt;
-&lt;h2&gt;近期动态&lt;/h2&gt;
-&lt;h2&gt;机遇与挑战&lt;/h2&gt;
-
-要求：
-- 每个章节用 &lt;h2&gt; 标题，内容用 &lt;p&gt; 段落和 &lt;ul&gt;/&lt;li&gt; 列表
-- 关键数字用 &lt;strong&gt;加粗&lt;/strong&gt;
-- 包含具体数据，每个章节不少于 3 个要点
-- 只输出纯 HTML 代码，不要 markdown 标记，不要额外说明文字</textarea></div>
-        <button class="btn" id="startBtn-${i}" onclick="startAnalysisCard(${i})">开始分析</button>
-      </div>
-      <div class="card" id="step2-${i}" style="display:none">
-        <h3>正在搜索行业信息</h3>
-        <p id="s2sub-${i}" style="font-size:13px;color:${mutedClr}"></p>
-        <div class="progress-section">
-          <div class="progress-label"><span>搜索进度</span><span id="sp-${i}">0%</span></div>
-          <div class="progress-bar"><div class="progress-fill" id="sbar-${i}" style="width:0%"></div></div>
-          <div class="stage-text" id="stxt-${i}" style="display:none"><div class="spinner"></div><span id="smsg-${i}"></span></div>
-        </div>
-      </div>
-      <div class="card" id="step3-${i}" style="display:none">
-        <h3>正在生成深度分析报告</h3>
-        <p id="s3sub-${i}" style="font-size:13px;color:${mutedClr}"></p>
-        <div class="progress-section">
-          <div class="progress-label"><span>报告进度</span><span id="rp-${i}">0%</span></div>
-          <div class="progress-bar"><div class="progress-fill" id="rbar-${i}" style="width:0%"></div></div>
-          <div class="stage-text" id="rtxt-${i}" style="display:none"><div class="spinner"></div><span id="rmsg-${i}"></span></div>
-        </div>
-      </div>
-      <div class="card" id="result-${i}" style="display:none">
-        <div class="result-card" id="rsucc-${i}" style="display:none">
-          <h3>报告生成成功!</h3>
-          <p id="rtitle-${i}" style="font-size:13px;color:#6b7280;margin-bottom:4px"></p>
-          <div class="url-box">
-            <a id="rlink-${i}" href="#" target="_blank" rel="noopener"></a>
-            <button onclick="copyUrlCard(${i})" style="flex-shrink:0;padding:4px 10px;font-size:12px;background:${theme.primary};color:#fff;border:none;border-radius:6px;cursor:pointer">复制</button>
-          </div>
-        </div>
-        <div class="error-box" id="rerr-${i}" style="display:none"></div>
-      </div>
-      <div class="card" id="reportListCard-${i}">
-        <h3>最近生成的报告</h3>
-        <div id="reportList-${i}"><p style="font-size:13px;color:${mutedClr}">暂无报告，开始分析后这里会显示。</p></div>
-      </div>
-    </div>
+      cardsHtml += `
+  <div class="c-card type-report" onclick="openModal(${i})" title="${title}">
+    <div class="cc-icon">📊</div>
+    <div class="cc-title">${title}</div>
+    <div class="cc-meta"><span>SWOT</span><span class="cc-dot"></span><span>PEST</span><span class="cc-dot"></span><span>+3</span></div>
   </div>`;
     } else if (w.type === 'intel-monitor') {
       monitorWidgetIndices.push(i);
       const title = (w.title || '情报监控').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const sources = w.config?.sources || [];
-      const defaultOpen = w.config?.defaultOpen !== false;
-      const sourcesHtml = sources.length > 0 ? sources.map((s: any) => {
-        const sname = (s.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        const keywordsHtml = (s.keywords || []).map((k: string) =>
-          '<span style="display:inline-block;padding:2px 8px;background:' + (isDark ? '#1e293b' : '#f3f0ff') + ';color:' + (isDark ? '#a78bfa' : '#7c3aed') + ';border-radius:12px;font-size:11px;margin:2px 3px 2px 0">' + k.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'
-        ).join('');
-        const prompt = (s.customPrompt || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        return '<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid ' + borderClr + '">' +
-          '<div style="font-size:14px;font-weight:600;margin-bottom:6px;color:' + textClr + '">📡 ' + sname + '</div>' +
-          '<div style="font-size:11px;color:' + mutedClr + ';margin-bottom:8px">🤖 ' + (s.aiProvider || '') + ' · ' + (s.aiModel || '默认') + ' · 更新: ' + (s.updateFrequency || 'daily') + '</div>' +
-          (s.keywords && s.keywords.length > 0 ? '<div style="margin-bottom:8px">' + keywordsHtml + '</div>' : '<div style="margin-bottom:8px"><span style="font-size:11px;color:' + mutedClr + '">暂无关键词</span></div>') +
-          (prompt ? '<div style="font-size:11px;color:' + mutedClr + ';padding:8px;background:' + (isDark ? '#1e293b' : '#f8fafc') + ';border-radius:8px;border:1px solid ' + borderClr + ';line-height:1.5">💬 ' + prompt + '</div>' : '') +
-          '</div>';
-      }).join('') : '<p style="font-size:13px;color:' + mutedClr + '">暂无监控源配置</p>';
-
-      widgetCardsHtml += `
-  <div class="portal-card${defaultOpen?' open':''}" id="portal-card-${i}">
-    <div class="card-header" onclick="toggleCard(${i})">
-      <div class="card-header-left">
-        <span class="card-icon">🛰️</span>
-        <div>
-          <div class="card-title">${title}</div>
-          <div class="card-subtitle">AI 持续监控以下关键词情报，定期更新行业动态摘要。</div>
-        </div>
-      </div>
-      <span class="card-chevron" id="chevron-${i}">▼</span>
-    </div>
-    <div class="card-body" id="card-body-${i}">
-      ${sourcesHtml}
-    </div>
+      const kwCount = sources.reduce((sum: number, s: any) => sum + (s.keywords?.length || 0), 0);
+      const freq = sources[0]?.updateFrequency || 'daily';
+      const freqLabel = freq === 'realtime' ? '实时' : freq === 'daily' ? '每日' : '每周';
+      cardsHtml += `
+  <div class="c-card type-monitor" onclick="openModal(${i})" title="${title}">
+    <div class="cc-icon">🛰️</div>
+    <div class="cc-title">${title}</div>
+    <div class="cc-meta"><span>${kwCount} 关键词</span><span class="cc-dot"></span><span>${freqLabel}</span></div>
   </div>`;
     }
   });
 
-  // Build JS report widget indices array
+  // Build widget configs for JS (modal content data)
+  const widgetConfigsJs = JSON.stringify(wlist.map((w: any, i: number) => {
+    if (w.type === 'report-generator') {
+      return {
+        type: 'report',
+        idx: i,
+        title: w.title || '行业分析报告',
+        subtitle: (w.config?.subtitle || '配置分析参数，AI 将自动搜索信息并生成专业的分析报告。')
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
+        defaultOpen: w.config?.defaultOpen !== false,
+        sysPrompt: (w.config?.sysPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
+        userPrompt: (w.config?.userPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
+        searchPlatform: w.config?.searchPlatform || 'metaso',
+        searchApiKey: (w.config?.searchApiKey || '').replace(/'/g,'\\x27'),
+        searchEndpoint: (w.config?.searchEndpoint || '').replace(/'/g,'\\x27'),
+      };
+    } else {
+      const sources = (w.config?.sources || []).map((s: any) => ({
+        name: (s.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
+        aiProvider: (s.aiProvider || '默认').replace(/'/g,'\\x27'),
+        aiModel: (s.aiModel || '默认').replace(/'/g,'\\x27'),
+        updateFrequency: s.updateFrequency || 'daily',
+        keywords: (s.keywords || []).map((k: string) => k.replace(/'/g,'\\x27')),
+        customPrompt: (s.customPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'\\x27'),
+      }));
+      return {
+        type: 'monitor',
+        idx: i,
+        title: (w.title || '情报监控').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
+        subtitle: sources.length > 0 ? '追踪配置的关键词情报' : '暂无监控源配置',
+        sources,
+      };
+    }
+  }));
+
   const reportIndicesJson = JSON.stringify(reportWidgetIndices);
+
+  // Modal dark/light colors
+  const modalBg = isDark ? '#111118' : '#ffffff';
+  const modalBorder = isDark ? 'rgba(255,255,255,.08)' : '#e5e7eb';
+  const modalInputBg = isDark ? 'rgba(255,255,255,.02)' : '#f8fafc';
+  const modalInputBorder = isDark ? 'rgba(255,255,255,.06)' : '#d1d5db';
+  const reportAccent = '#6366f1';
+  const reportAccentLight = '#818cf8';
+  const monitorAccent = '#f59e0b';
+  const monitorAccentLight = '#fbbf24';
+
+  const defaultSysPrompt = '你是一个行业研究分析师，输出结构化研究资料，用中文。';
+  const defaultUserPrompt = `请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 <h2> 标题和 <p>/<ul>/<table> 等 HTML 标签）：
+
+<h2>公司概况</h2>
+<h2>市场规模与趋势</h2>
+<h2>财务与经营分析</h2>
+<h2>竞争格局</h2>
+<h2>近期动态</h2>
+<h2>机遇与挑战</h2>
+
+要求：
+- 每个章节用 <h2> 标题，内容用 <p> 段落和 <ul>/<li> 列表
+- 关键数字用 <strong>加粗</strong>
+- 包含具体数据，每个章节不少于 3 个要点
+- 只输出纯 HTML 代码，不要 markdown 标记，不要额外说明文字`;
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -521,54 +468,110 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
 <title>${sn}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:${pageBg};color:${textClr};min-height:100vh}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:${pageBg};color:${textClr};min-height:100vh;display:flex;flex-direction:column}
+
+/* ===== HEADER ===== */
 .header{${headerBg};padding:40px 20px;text-align:center}
 .header h1{font-size:28px;font-weight:700;color:${isDark?'#f1f5f9':'#ffffff'};margin-bottom:8px}
 .header p{font-size:15px;color:${isDark?'#94a3b8':'rgba(255,255,255,0.85)'};max-width:600px;margin:0 auto;line-height:1.5}
-.container{max-width:720px;margin:0 auto;padding:24px 16px 60px}
-.footer{text-align:center;padding:20px;font-size:12px;color:#94a3b8;border-top:1px solid ${borderClr}}
 
-/* Portal Card */
-.portal-card{background:${cardBg};border:1px solid ${borderClr};border-radius:12px;margin-bottom:16px;overflow:hidden;transition:box-shadow .2s}
-.portal-card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.08)}
-.portal-card.open{box-shadow:0 2px 12px rgba(0,0,0,0.1)}
-.card-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;cursor:pointer;user-select:none;transition:background .2s}
-.card-header:hover{background:${isDark?'#1e293b':'#f8fafc'}}
-.card-header-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
-.card-icon{font-size:24px;flex-shrink:0}
-.card-title{font-size:16px;font-weight:600;color:${textClr};line-height:1.4}
-.card-subtitle{font-size:12px;color:${mutedClr};margin-top:2px;line-height:1.4}
-.card-chevron{font-size:12px;color:${mutedClr};transition:transform .3s ease;flex-shrink:0}
-.portal-card.open .card-chevron{transform:rotate(180deg)}
-.card-body{max-height:0;overflow:hidden;transition:max-height .4s ease,opacity .3s ease;opacity:0;padding:0 24px}
-.portal-card.open .card-body{max-height:8000px;opacity:1;padding:0 24px 24px}
-.card-body .card{margin-bottom:12px}
-.card-body .card:last-child{margin-bottom:0}
+/* ===== CARD ROW ===== */
+.card-row-wrap{display:flex;justify-content:center;gap:14px;padding:18px 24px 10px;flex-wrap:wrap;max-width:1100px;margin:0 auto}
 
-/* Inner card */
-.card{background:${cardBg};border:1px solid ${borderClr};border-radius:10px;padding:20px}
-.card h3{font-size:15px;font-weight:600;margin-bottom:6px;color:${textClr}}
-.card p{font-size:13px;color:${mutedClr};margin-bottom:16px;line-height:1.5}
-.form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:${textClr}}
-.form-group input{width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none}
-.form-group input:focus{border-color:${theme.primary};box-shadow:0 0 0 3px ${theme.primary}22}
-.form-group select{width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;cursor:pointer}
-.form-group select:focus{border-color:${theme.primary}}
-.form-group select option{background:${cardBg};color:${textClr}}
-.form-group .api-key-input{margin-top:8px;display:none}
-.option-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
-.option-btn{text-align:left;padding:12px 14px;border:2px solid ${inputBorder};border-radius:10px;background:${inputBg};cursor:pointer;font-size:13px;color:${mutedClr};transition:all .2s;line-height:1.5}
-.option-btn .label{font-weight:600;font-size:14px;color:${textClr};display:block;margin-bottom:2px}
-.option-btn .desc{font-size:11px;color:${mutedClr}}
-.option-btn.selected{border-color:${selectBorder};background:${selectBg};color:${selectColor}}
-.option-btn.selected .label{color:${selectColor}}
-.option-btn .cb-row{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:${textClr};margin-bottom:2px}
-.option-btn .opt-cb{accent-color:${theme.primary};width:16px;height:16px;margin:0;cursor:pointer;flex-shrink:0}
-.option-btn:hover:not(.selected){border-color:${theme.primary}66}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 20px;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:opacity .2s;color:#fff;background:${theme.primary}}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn:hover:not(:disabled){opacity:.9}
+/* Compact card */
+.c-card{width:200px;height:120px;border-radius:10px;border:1px solid ${borderClr};background:${cardBg};cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;transition:all .3s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+.c-card:hover{border-color:${theme.primary}33;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,${isDark?'.3':'.08'})}
+.c-card:active{transform:scale(.97)}
+.c-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0;transition:opacity .3s}
+.c-card:hover::after{opacity:1}
+.type-report::after{background:linear-gradient(90deg,${reportAccent},${reportAccentLight})}
+.type-monitor::after{background:linear-gradient(90deg,${monitorAccent},${monitorAccentLight})}
+.cc-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px}
+.type-report .cc-icon{background:rgba(99,102,241,.1);color:#818cf8}
+.type-monitor .cc-icon{background:rgba(245,158,11,.1);color:#fbbf24}
+.cc-title{font-size:12px;font-weight:700;color:${textClr};letter-spacing:-.1px;text-align:center;line-height:1.3;padding:0 8px}
+.cc-meta{font-size:9px;color:${mutedClr};display:flex;align-items:center;gap:6px}
+.cc-dot{width:4px;height:4px;border-radius:50%;background:${isDark?'#334155':'#d1d5db'}}
+
+/* ===== DIVIDER ===== */
+.divider{max-width:1100px;margin:16px auto;padding:0 24px;display:flex;align-items:center;gap:10px}
+.divider .dlabel{font-size:9px;font-weight:700;letter-spacing:1.5px;color:${mutedClr};text-transform:uppercase;white-space:nowrap}
+.divider .dline{flex:1;height:1px;background:${borderClr}}
+
+/* ===== CONTENT AREA ===== */
+.content-area{flex:1;max-width:1100px;margin:0 auto;padding:10px 24px 40px;width:100%}
+.placeholder{text-align:center;padding:50px 20px}
+.placeholder .ph-icon{font-size:36px;margin-bottom:10px;opacity:.3}
+.placeholder .ph-text{font-size:12px;color:${mutedClr}}
+
+/* ===== REPORT LIST ===== */
+.report-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid ${borderClr};border-radius:8px;margin-bottom:8px;transition:background .2s}
+.report-item:hover{background:${isDark?'#1e293b':'#f8fafc'}}
+.report-item .rname{font-size:13px;font-weight:500;color:${textClr}}
+.report-item .rdate{font-size:11px;color:${mutedClr};margin-top:2px}
+.report-item a,.report-item button{font-size:12px;text-decoration:none;flex-shrink:0;padding:4px 10px;border-radius:6px;cursor:pointer}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px)}
+.modal-panel{position:relative;width:100%;max-width:560px;max-height:85vh;background:${modalBg};border:1px solid ${modalBorder};border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(16px);transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+.modal-overlay.open .modal-panel{transform:scale(1) translateY(0)}
+.modal-panel.type-report{border-top:3px solid ${reportAccent}}
+.modal-panel.type-monitor{border-top:3px solid ${monitorAccent}}
+.modal-hd{display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid ${modalBorder};flex-shrink:0}
+.modal-hd .mh-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.modal-panel.type-report .mh-icon{background:rgba(99,102,241,.12);color:#818cf8}
+.modal-panel.type-monitor .mh-icon{background:rgba(245,158,11,.12);color:#fbbf24}
+.modal-hd .mh-info{flex:1;min-width:0}
+.modal-hd .mh-title{font-size:15px;font-weight:700;color:${textClr}}
+.modal-hd .mh-sub{font-size:11px;color:${mutedClr};margin-top:2px}
+.modal-close{width:32px;height:32px;border-radius:50%;border:1px solid ${modalBorder};background:transparent;color:${mutedClr};cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-size:16px;line-height:1}
+.modal-close:hover{background:${isDark?'rgba(255,255,255,.06)':'#f1f5f9'};color:${textClr};border-color:${isDark?'rgba(255,255,255,.15)':'#94a3b8'}}
+.modal-bd{flex:1;overflow-y:auto;padding:18px 20px 20px}
+.modal-ft{padding:14px 20px;border-top:1px solid ${modalBorder};flex-shrink:0;display:flex;gap:10px}
+.modal-ft button{flex:1;padding:10px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;letter-spacing:.2px}
+.btn-save{color:#fff}
+.modal-panel.type-report .btn-save{background:${reportAccent}}
+.modal-panel.type-monitor .btn-save{background:${monitorAccent}}
+.btn-save:hover{opacity:.9}
+.btn-cancel{background:${isDark?'rgba(255,255,255,.03)':'#f1f5f9'};color:${mutedClr};border:1px solid ${modalBorder}}
+.btn-cancel:hover{background:${isDark?'rgba(255,255,255,.06)':'#e2e8f0'};color:${textClr}}
+
+/* ===== MODAL FORM ===== */
+.mb-group{margin-bottom:16px}
+.mb-group:last-child{margin-bottom:0}
+.mb-label{display:block;font-size:11px;font-weight:600;color:${mutedClr};margin-bottom:6px}
+.mb-label span{font-weight:400;color:${isDark?'#334155':'#94a3b8'}}
+.mb-input,.mb-select{width:100%;padding:9px 13px;font-size:13px;border:1px solid ${modalInputBorder};border-radius:8px;background:${modalInputBg};color:${textClr};outline:none;transition:all .2s;font-family:inherit}
+.mb-input:focus,.mb-select:focus{border-color:${theme.primary}55;box-shadow:0 0 0 3px ${theme.primary}11}
+.mb-input::placeholder{color:${mutedClr}}
+.mb-select option{background:${cardBg};color:${textClr}}
+.mb-area{width:100%;padding:9px 13px;font-size:12px;border:1px solid ${modalInputBorder};border-radius:8px;background:${modalInputBg};color:${textClr};outline:none;transition:all .2s;resize:vertical;font-family:inherit;min-height:60px;line-height:1.7}
+.mb-area:focus{border-color:${theme.primary}55;box-shadow:0 0 0 3px ${theme.primary}11}
+.mb-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ===== FRAMEWORK CHIPS ===== */
+.fw-chips{display:flex;flex-wrap:wrap;gap:5px}
+.fw-c{position:relative;cursor:pointer;user-select:none}
+.fw-c input{position:absolute;opacity:0;width:0;height:0}
+.fw-c .fw-v{display:block;padding:6px 14px;border:2px solid ${modalInputBorder};border-radius:8px;font-size:12px;font-weight:500;color:${mutedClr};transition:all .2s}
+.fw-c input:checked+.fw-v{border-color:${theme.primary}55;background:${theme.primary}11;color:${isDark?reportAccentLight:theme.primary}}
+.fw-c:hover .fw-v{border-color:${theme.primary}33}
+
+/* ===== KEYWORD TAGS ===== */
+.kw-tags{display:flex;flex-wrap:wrap;gap:4px}
+.kw-t{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:500;background:rgba(129,140,248,.06);color:#a5b4fc;border:1px solid rgba(129,140,248,.1)}
+
+/* ===== MONITOR SOURCE MINI CARD ===== */
+.src-mini{background:${isDark?'rgba(255,255,255,.01)':'#f8fafc'};border:1px solid ${modalBorder};border-radius:8px;padding:14px;margin-bottom:10px}
+.src-mini:last-child{margin-bottom:0}
+.src-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.src-top .st-name{font-size:12px;font-weight:600;color:${textClr};display:flex;align-items:center;gap:7px}
+.src-top .st-name::before{content:'';width:4px;height:4px;border-radius:50%;background:${monitorAccent};flex-shrink:0}
+.src-top .st-model{font-size:9px;padding:2px 8px;border-radius:10px;border:1px solid rgba(251,191,36,.15);color:#fbbf24;background:rgba(251,191,36,.04);font-weight:600}
+
+/* ===== PROGRESS ===== */
 .progress-section{margin-top:16px}
 .progress-label{display:flex;justify-content:space-between;font-size:12px;color:${mutedClr};margin-bottom:6px}
 .progress-bar{height:6px;background:${isDark?'#1e293b':'#e5e7eb'};border-radius:3px;overflow:hidden}
@@ -576,218 +579,380 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
 .stage-text{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:${isDark?'#1e293b':'#f8fafc'};border-radius:8px;margin-top:12px;font-size:13px;color:${mutedClr};line-height:1.5}
 .spinner{width:14px;height:14px;border:2px solid ${theme.primary}33;border-top-color:${theme.primary};border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;margin-top:2px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.result-section{margin-top:16px}
-.result-card{background:${successBg};border:1px solid ${successBorder};border-radius:12px;padding:24px;text-align:center}
+.result-card{background:${successBg};border:1px solid ${successBorder};border-radius:12px;padding:20px;text-align:center;margin-top:10px}
 .result-card h3{font-size:18px;color:${successText};margin-bottom:8px}
 .result-card .url-box{display:flex;align-items:center;gap:8px;background:${cardBg};border:1px solid ${inputBorder};border-radius:8px;padding:10px 14px;margin-top:12px}
 .result-card .url-box a{flex:1;font-size:13px;color:${theme.primary};text-decoration:none;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.result-card .url-box a:hover{text-decoration:underline}
 .error-box{background:${errBg};border:1px solid ${errBorder};border-radius:8px;padding:14px;margin-top:12px;font-size:13px;color:${errText};line-height:1.5;white-space:pre-wrap}
-.report-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid ${borderClr};border-radius:8px;margin-bottom:8px;transition:background .2s}
-.report-item:hover{background:${isDark?'#1e293b':'#f8fafc'}}
-.report-item .rname{font-size:13px;font-weight:500;color:${textClr}}
-.report-item .rdate{font-size:11px;color:${mutedClr};margin-top:2px}
-.report-item a{font-size:12px;color:${theme.primary};text-decoration:none;flex-shrink:0;padding:4px 10px;border:1px solid ${theme.primary}44;border-radius:6px}
-.report-item a:hover{background:${theme.primary}11}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 20px;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:opacity .2s;color:#fff;background:${theme.primary};margin-top:16px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:hover:not(:disabled){opacity:.9}
+
+/* ===== FOOTER ===== */
+.footer{text-align:center;padding:20px;font-size:12px;color:${mutedClr};border-top:1px solid ${borderClr}}
+
+@media(max-width:600px){
+  .card-row-wrap{gap:10px;padding:12px 16px 8px}
+  .c-card{width:150px;height:100px}
+  .cc-icon{width:32px;height:32px;font-size:16px}
+  .cc-title{font-size:11px}
+  .modal-panel{max-width:95vw}
+  .mb-row{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
+<!-- ===== MODAL OVERLAY ===== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal-bg"></div>
+  <div class="modal-panel" id="modalPanel" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <div class="mh-icon" id="modalIcon"></div>
+      <div class="mh-info">
+        <div class="mh-title" id="modalTitle"></div>
+        <div class="mh-sub" id="modalSub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()">&times;</button>
+    </div>
+    <div class="modal-bd" id="modalBody"></div>
+    <div class="modal-ft" id="modalFooter">
+      <button class="btn-cancel" onclick="closeModalDirect()">取消</button>
+      <button class="btn-save" id="btnSave" onclick="closeModalDirect()">保存配置</button>
+    </div>
+  </div>
+</div>
+
 <div class="header">
   <h1>${sn}</h1>
   ${sd ? '<p>'+sd+'</p>' : ''}
 </div>
-<div class="container">
-  ${widgetCardsHtml}
+
+<div class="card-row-wrap">
+  ${cardsHtml}
 </div>
+
+<div class="divider"><span class="dlabel">Recent Reports</span><span class="dline"></span></div>
+
+<div class="content-area">
+  <div class="placeholder" id="globalPlaceholder">
+    <div class="ph-icon">📋</div>
+    <p class="ph-text">点击上方卡片开始分析或查看监控配置。</p>
+  </div>
+  <div id="globalReports" style="display:none"></div>
+</div>
+
 <div class="footer">Powered by <strong>YooClaw AI</strong></div>
+
 <script>
 var API='${apiBase}';
 var REPORT_INDICES=${reportIndicesJson};
+var WIDGETS=${widgetConfigsJs};
+var METHOD_NAMES={SWOT:'SWOT分析',PEST:'PEST分析',PORTER:'波特五力分析','3C':'3C分析',STOCK:'股价预测'};
 
 function $(id){return document.getElementById(id)}
-function h(id){var e=$(id);if(e)e.style.display='none'}
-function s(id){var e=$(id);if(e)e.style.display='block'}
-function t(id,v){var e=$(id);if(e)e.textContent=v}
 
-function toggleCard(idx){
-  var card=$('portal-card-'+idx);
-  if(card)card.classList.toggle('open');
-}
+/* ===== MODAL ===== */
+var _activeIdx=-1;
 
-var methodNames={'SWOT':'SWOT分析','PEST':'PEST分析','PORTER':'波特五力分析','3C':'3C分析','STOCK':'股价预测'};
-
-function toggleOptCard(idx,cb){
-  var btn=cb.parentElement.parentElement;
-  if(cb.checked){btn.classList.add('selected')}else{btn.classList.remove('selected')}
-  updatePromptCard(idx);
-}
-
-function updatePromptCard(idx){
-  var methods=[];
-  var hasStock=false;
-  var grid=$('optionGrid-'+idx);
-  if(!grid)return;
-  grid.querySelectorAll('.option-btn.selected').forEach(function(e){
-    var v=e.getAttribute('data-value');
-    if(v==='STOCK'){hasStock=true}else{methods.push(v)}
-  });
-  if(methods.length===0)methods=['SWOT','PEST'];
-  var methodText='';
-  if(methods.length>0){
-    methodText='\\n\\n请使用以下分析框架进行分析：';
-    methods.forEach(function(m){methodText+=methodNames[m]+'、'});
-    methodText=methodText.replace(/、$/,'');
-    methodText=methodText+'。\\n';
+function openModal(idx){
+  _activeIdx=idx;
+  var w=WIDGETS[idx];
+  if(!w)return;
+  var overlay=$('modalOverlay');
+  var panel=$('modalPanel');
+  panel.className='modal-panel type-'+(w.type==='report'?'report':'monitor');
+  $('modalIcon').textContent=w.type==='report'?'📊':'🛰️';
+  $('modalTitle').textContent=w.title;
+  $('modalSub').textContent=w.subtitle;
+  if(w.type==='report'){
+    renderReportForm(idx,w);
+    $('modalFooter').style.display='flex';
+    $('btnSave').style.display='none';
+  }else{
+    renderMonitorView(idx,w);
+    $('modalFooter').style.display='flex';
+    $('btnSave').style.display='inline-flex';
+    $('btnSave').onclick=function(){closeModalDirect()};
   }
-  var stockText=hasStock?'\\n\\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。':'';
-  var up=$('userPromptInput-'+idx);
+  overlay.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeModal(e){
+  if(e&&e.target!==$('modalOverlay'))return;
+  closeModalDirect();
+}
+
+function closeModalDirect(){
+  $('modalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  _activeIdx=-1;
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape')closeModalDirect();
+});
+
+/* ===== REPORT FORM ===== */
+function renderReportForm(idx,w){
+  var defSys='${defaultSysPrompt.replace(/'/g,"\\'").replace(/\n/g,'\\n')}';
+  var defUsr='${defaultUserPrompt.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')}';
+  var s='<div class="mb-group">';
+  s+='<label class="mb-label">公司 / 行业名称</label>';
+  s+='<input class="mb-input" id="mfCompany_'+idx+'" placeholder="例如：比亚迪、特斯拉、宁德时代...">';
+  s+='</div><div class="mb-group">';
+  s+='<label class="mb-label">分析框架 <span>· 可多选</span></label>';
+  s+='<div class="fw-chips" id="mfFrameworks_'+idx+'">';
+  var fws=[{v:'SWOT',l:'SWOT',c:true},{v:'PEST',l:'PEST',c:true},{v:'PORTER',l:'波特五力',c:false},{v:'3C',l:'3C分析',c:false},{v:'STOCK',l:'股价预测',c:false}];
+  fws.forEach(function(f){
+    s+='<label class="fw-c"><input type="checkbox" value="'+f.v+'"'+(f.c?' checked':'')+' onchange="onFrameworkChange('+idx+')"><span class="fw-v">'+f.l+'</span></label>';
+  });
+  s+='</div></div><div class="mb-row"><div class="mb-group">';
+  s+='<label class="mb-label">搜索平台</label>';
+  s+='<select class="mb-select" id="mfPlatform_'+idx+'" onchange="onPlatformChange('+idx+')">';
+  s+='<option value="">默认 (CodeBuddy)</option>';
+  s+='<option value="tavily">Tavily</option>';
+  s+='<option value="metaso" selected>秘塔 (Metaso)</option>';
+  s+='<option value="deepseek">DeepSeek</option>';
+  s+='<option value="custom">自定义 API</option></select></div>';
+  s+='<div class="mb-group"><label class="mb-label">API Key</label>';
+  s+='<div style="position:relative"><input class="mb-input" type="password" id="mfApiKey_'+idx+'" value="'+(w.searchApiKey||'mk-65F31E31CBAB4DD4697CF57DA49000CB')+'" style="padding-right:36px"><span onclick="toggleApiKeyEye('+idx+')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#94a3b8;user-select:none" id="mfApiKeyEye_'+idx+'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span></div>';
+  s+='<input class="mb-input" id="mfEndpoint_'+idx+'" placeholder="自定义 API 端点 URL..." style="margin-top:6px;display:none"></div></div>';
+  s+='<div class="mb-group"><label class="mb-label">系统提示词 <span>（可选）</span></label>';
+  s+='<textarea class="mb-area" id="mfSysPrompt_'+idx+'" style="min-height:50px">'+(w.sysPrompt||defSys)+'</textarea></div>';
+  s+='<div class="mb-group"><label class="mb-label">用户提示词 <span>（可选）</span></label>';
+  s+='<textarea class="mb-area" id="mfUserPrompt_'+idx+'" style="min-height:100px">'+(w.userPrompt||defUsr)+'</textarea></div>';
+  s+='<button class="btn" id="btnStartAnalysis_'+idx+'" onclick="startAnalysis('+idx+')">开始分析</button>';
+  s+='<div id="modalResultArea_'+idx+'"></div>';
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+/* ===== MONITOR VIEW ===== */
+function renderMonitorView(idx,w){
+  var s='';
+  if(w.sources&&w.sources.length>0){
+    w.sources.forEach(function(src){
+      s+='<div class="src-mini">';
+      s+='<div class="src-top"><span class="st-name">'+src.name+'</span><span class="st-model">'+(src.aiModel||'默认')+'</span></div>';
+      s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label><select class="mb-select"><option>'+(src.aiProvider||'默认')+'</option></select></div>';
+      s+='<div class="mb-group"><label class="mb-label">更新频率</label><select class="mb-select"><option>'+(src.updateFrequency||'daily')+'</option></select></div></div>';
+      if(src.keywords&&src.keywords.length>0){
+        s+='<div class="mb-group"><label class="mb-label">监控关键词</label><div class="kw-tags">';
+        src.keywords.forEach(function(k){s+='<span class="kw-t">'+k+'</span>'});
+        s+='</div></div>';
+      }
+      if(src.customPrompt){
+        s+='<div class="mb-group"><label class="mb-label">自定义提示词</label><textarea class="mb-area" style="min-height:40px" readonly>'+src.customPrompt+'</textarea></div>';
+      }
+      s+='</div>';
+    });
+  }else{
+    s='<div class="placeholder"><div class="ph-icon">🛰️</div><p class="ph-text">暂无监控源配置。<br>请在 Portal Builder 中添加监控源。</p></div>';
+  }
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+/* ===== FRAMEWORK & PLATFORM ===== */
+function onFrameworkChange(idx){
+  updatePrompt(idx);
+}
+
+function updatePrompt(idx){
+  var container=$('mfFrameworks_'+idx);
+  if(!container)return;
+  var methods='',hasStock=false;
+  container.querySelectorAll('input[type=checkbox]:checked').forEach(function(cb){
+    if(cb.value==='STOCK')hasStock=true;
+    else{methods+=METHOD_NAMES[cb.value]+'、'}
+  });
+  methods=methods.replace(/、$/,'');
+  var up=$('mfUserPrompt_'+idx);
   if(!up)return;
   var v=up.value;
-  var lines=v.split('\\n');
-  var result=[];
-  var skip=false;
+  var lines=v.split('\\n'),result=[];
   for(var i=0;i<lines.length;i++){
-    if(lines[i].indexOf('请使用以下分析框架进行分析：')===0){skip=true;continue}
-    if(skip&&lines[i].trim()===''){skip=false;continue}
-    if(skip)continue;
-    if(lines[i].indexOf('结合公司最新的年报/季报')!=-1)continue;
-    result.push(lines[i]);
+    var l=lines[i];
+    if(l.indexOf('请使用以下分析框架')===0)continue;
+    if(l.indexOf('结合公司最新的年报/季报')!=-1)continue;
+    result.push(l);
   }
   v=result.join('\\n').trim();
   var extra='';
-  if(methodText)extra+=methodText;
-  if(stockText)extra+=stockText;
-  up.value=v+(extra?'\\n\\n':'')+extra.trim();
+  if(methods)extra+='\\n\\n请使用以下分析框架进行分析：'+methods+'。';
+  if(hasStock)extra+='\\n\\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。';
+  up.value=v+extra;
 }
 
-function toggleSearchKeyCard(idx){
-  var p=$('searchPlatform-'+idx);
+function onPlatformChange(idx){
+  var p=$('mfPlatform_'+idx);
   if(!p)return;
-  var v=p.value;
-  var wrap=$('searchApiKeyWrap-'+idx);
-  var ep=$('searchEndpoint-'+idx);
-  if(wrap)wrap.style.display=v?'block':'none';
-  if(ep)ep.style.display=v==='custom'?'block':'none';
-  if(v==='metaso'){
-    var key=$('searchApiKey-'+idx);
+  var ep=$('mfEndpoint_'+idx);
+  if(ep)ep.style.display=p.value==='custom'?'block':'none';
+  if(p.value==='metaso'){
+    var key=$('mfApiKey_'+idx);
     if(key&&!key.value)key.value='mk-65F31E31CBAB4DD4697CF57DA49000CB';
   }
 }
 
-function toggleApiKeyCard(idx){
-  var inp=$('searchApiKey-'+idx),eye=$('apiKeyEye-'+idx);
+function toggleApiKeyEye(idx){
+  var inp=$('mfApiKey_'+idx),eye=$('mfApiKeyEye_'+idx);
   if(!inp||!eye)return;
   if(inp.type==='password'){
     inp.type='text';
-    eye.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+    eye.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.9 9.9a3 3 0 1 0 4.2 4.2"/><path d="M10.7 5.1A10.4 10.4 0 0 1 12 5c7 0 10 7 10 7a13 13 0 0 1-1.7 2.7"/><path d="M6.6 6.6A13.5 13.5 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
   }else{
     inp.type='password';
-    eye.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+    eye.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
   }
 }
 
+/* ===== STREAMING ===== */
 async function* _s(url,body){
   var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(!r.ok)throw new Error('HTTP '+r.status);
   var rd=r.body.getReader(),dc=new TextDecoder(),buf='';
-  try{while(true){var done,value;var nxt=await rd.read();done=nxt.done;value=nxt.value;if(done)break;buf+=dc.decode(value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch(e){}}}}
+  try{while(true){var nxt=await rd.read();if(nxt.done)break;buf+=dc.decode(nxt.value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch(e){}}}}
   finally{rd.releaseLock()}
 }
 
-async function startAnalysisCard(idx){
-  var n=$('companyInput-'+idx);
+/* ===== ANALYSIS ===== */
+async function startAnalysis(idx){
+  var n=$('mfCompany_'+idx);
   if(!n)return;
   n=n.value.trim();if(!n)return;
-  var sp=$('searchPlatform-'+idx);sp=sp?sp.value:'';
-  var sak=$('searchApiKey-'+idx);sak=sak?sak.value.trim():'';
-  var se=$('searchEndpoint-'+idx);se=se?se.value.trim():'';
-  var sprompt=$('sysPromptInput-'+idx);sprompt=sprompt?sprompt.value.trim():'';
-  var uprompt=$('userPromptInput-'+idx);uprompt=uprompt?uprompt.value.trim():'';
+  var sp=$('mfPlatform_'+idx);sp=sp?sp.value:'';
+  var sak=$('mfApiKey_'+idx);sak=sak?sak.value.trim():'';
+  var se=$('mfEndpoint_'+idx);se=se?se.value.trim():'';
+  var sprompt=$('mfSysPrompt_'+idx);sprompt=sprompt?sprompt.value.trim():'';
+  var uprompt=$('mfUserPrompt_'+idx);uprompt=uprompt?uprompt.value.trim():'';
+  var fwContainer=$('mfFrameworks_'+idx);
   var methods=[];
-  var grid=$('optionGrid-'+idx);
-  if(grid){grid.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))})}
+  if(fwContainer){fwContainer.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){methods.push(c.value)})}
   if(methods.length===0)methods=['SWOT','PEST'];
   methods=methods.filter(function(m){return m!=='STOCK'});
   if(methods.length===0)methods=['SWOT','PEST'];
   var slug=window.location.pathname.split('/').pop();
-  h('step1-'+idx);h('result-'+idx);s('step2-'+idx);h('step3-'+idx);
-  t('s2sub-'+idx,n);t('sp-'+idx,'0%');var sb=$('sbar-'+idx);if(sb)sb.style.width='0%';t('smsg-'+idx,'');var st=$('stxt-'+idx);if(st)st.style.display='none';
+  
+  $('modalBody').innerHTML=
+    '<h3 style="font-size:15px;font-weight:600;margin-bottom:6px;color:${textClr}">正在搜索行业信息</h3>'+
+    '<p style="font-size:13px;margin-bottom:16px;color:${mutedClr}">'+n+'</p>'+
+    '<div class="progress-section"><div class="progress-label"><span>搜索进度</span><span id="sp_'+idx+'">0%</span></div>'+
+    '<div class="progress-bar"><div class="progress-fill" id="sbar_'+idx+'" style="width:0%"></div></div>'+
+    '<div class="stage-text" id="stxt_'+idx+'" style="display:none"><div class="spinner"></div><span id="smsg_'+idx+'"></span></div></div>';
+  $('modalBody').scrollTop=0;
+  
   try{
     var rt='';
     for await(var ev of _s(API+'/api/p/research/'+slug,{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor',searchPlatform:sp,searchApiKey:sak,searchEndpoint:se,sysPrompt:sprompt,userPrompt:uprompt})){
-      if(ev.type==='progress_update'){t('sp-'+idx,ev.percent+'%');var sb=$('sbar-'+idx);if(sb)sb.style.width=ev.percent+'%'}
-      else if(ev.type==='stage'){var st=$('stxt-'+idx);if(st)st.style.display='flex';t('smsg-'+idx,ev.text)}
+      if(ev.type==='progress_update'){$('sp_'+idx).textContent=ev.percent+'%';$('sbar_'+idx).style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){$('stxt_'+idx).style.display='flex';$('smsg_'+idx).textContent=ev.text}
       else if(ev.type==='research_complete'){rt=ev.data||''}
       else if(ev.type==='error'){throw new Error(ev.message||'搜索失败')}
     }
-    h('step2-'+idx);s('step3-'+idx);t('s3sub-'+idx,n);t('rp-'+idx,'0%');var rb=$('rbar-'+idx);if(rb)rb.style.width='0%';t('rmsg-'+idx,'');var rtx=$('rtxt-'+idx);if(rtx)rtx.style.display='none';
+    
+    $('modalBody').innerHTML=
+      '<h3 style="font-size:15px;font-weight:600;margin-bottom:6px;color:${textClr}">正在生成深度分析报告</h3>'+
+      '<p style="font-size:13px;margin-bottom:16px;color:${mutedClr}">'+n+'</p>'+
+      '<div class="progress-section"><div class="progress-label"><span>报告进度</span><span id="rp_'+idx+'">0%</span></div>'+
+      '<div class="progress-bar"><div class="progress-fill" id="rbar_'+idx+'" style="width:0%"></div></div>'+
+      '<div class="stage-text" id="rtxt_'+idx+'" style="display:none"><div class="spinner"></div><span id="rmsg_'+idx+'"></span></div></div>';
+    $('modalBody').scrollTop=0;
+    
     var url='';
     for await(var ev of _s(API+'/api/p/report/'+slug,{formData:{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor'},researchData:rt,sysPrompt:sprompt,userPrompt:uprompt})){
-      if(ev.type==='progress_update'){t('rp-'+idx,ev.percent+'%');var rb=$('rbar-'+idx);if(rb)rb.style.width=ev.percent+'%'}
-      else if(ev.type==='stage'){var rtx=$('rtxt-'+idx);if(rtx)rtx.style.display='flex';t('rmsg-'+idx,ev.text)}
+      if(ev.type==='progress_update'){$('rp_'+idx).textContent=ev.percent+'%';$('rbar_'+idx).style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){$('rtxt_'+idx).style.display='flex';$('rmsg_'+idx).textContent=ev.text}
       else if(ev.type==='report_complete'){url=ev.url||''}
       else if(ev.type==='error'){throw new Error(ev.message||'生成失败')}
     }
-    h('step3-'+idx);s('result-'+idx);
+    
     if(url){
-      var rs=$('rsucc-'+idx);if(rs)rs.style.display='block';
-      t('rtitle-'+idx,n+' 行业分析报告');
       var lu=window.location.origin+url;
-      var rl=$('rlink-'+idx);if(rl){rl.href=lu;rl.textContent=lu}
-      loadReportsCard(idx);
+      $('modalBody').innerHTML=
+        '<div class="result-card"><h3>✅ 报告生成成功!</h3>'+
+        '<p style="font-size:13px;margin-bottom:4px;color:${mutedClr}">'+n+' 行业分析报告</p>'+
+        '<div class="url-box"><a href="'+lu+'" target="_blank" rel="noopener">'+lu+'</a>'+
+        '<button onclick="copyUrlModal()" style="flex-shrink:0;padding:4px 10px;font-size:12px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer">复制</button></div></div>'+
+        '<div id="modalReportList_'+idx+'" style="margin-top:16px"><p style="font-size:13px;text-align:center;color:${mutedClr}">加载报告列表...</p></div>';
+      loadReports(idx);
     }else throw new Error('未获取到链接');
   }catch(e){
-    h('step2-'+idx);h('step3-'+idx);s('result-'+idx);
-    var rs=$('rsucc-'+idx);if(rs)rs.style.display='none';
-    var re=$('rerr-'+idx);if(re){re.style.display='block';re.textContent='错误: '+e.message}
+    $('modalBody').innerHTML=
+      '<div class="error-box">❌ 错误: '+e.message+'</div>'+
+      '<button class="btn" onclick="openModal('+idx+')">返回重试</button>';
+    $('modalBody').scrollTop=0;
   }
 }
 
-function copyUrlCard(idx){
-  var rl=$('rlink-'+idx);
-  if(!rl)return;
-  navigator.clipboard.writeText(rl.textContent||'');
-  var btn=event&&event.target;
-  if(btn){btn.textContent='已复制';setTimeout(function(){btn.textContent='复制'},2000)}
+function copyUrlModal(){
+  var links=$('modalBody').querySelectorAll('a');
+  if(links.length>0){
+    navigator.clipboard.writeText(links[0].textContent||'');
+    var btns=$('modalBody').querySelectorAll('button');
+    btns.forEach(function(b){
+      if(b.textContent==='复制'){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},2000)}
+    });
+  }
 }
 
-async function loadReportsCard(idx){
+/* ===== REPORTS ===== */
+async function loadReports(idx){
   var slug=window.location.pathname.split('/').pop();
   try{
     var r=await fetch(API+'/api/p/reports/'+slug);
-    if(!r.ok)return;
+    if(!r.ok){renderReportList(idx,[]);return}
     var reports=await r.json();
-    var html='';
-    if(reports.data&&reports.data.length>0){
-      reports.data.slice(0,20).forEach(function(report){
-        var d=new Date(report.createdAt).toLocaleString('zh-CN');
-        html+='<div class="report-item"><div style="flex:1"><div class="rname">'+report.companyName+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="margin-right:6px">查看</a><button onclick="deleteReportCard('+idx+',\''+report.slug+'\')" style="padding:4px 8px;font-size:12px;border:1px solid #e24b4a44;border-radius:6px;background:none;color:#e24b4a;cursor:pointer">删除</button></div>'
-      });
-    }else{html='<p style="font-size:13px;color:#94a3b8">暂无报告，开始分析后这里会显示。</p>'}
-    var rl=$('reportList-'+idx);if(rl)rl.innerHTML=html;
-  }catch(e){}
+    renderReportList(idx,reports.data||[]);
+  }catch(e){renderReportList(idx,[])}
 }
 
-async function deleteReportCard(idx,rSlug){
+function renderReportList(idx,reports){
+  var html='<h4 style="font-size:13px;font-weight:600;margin-bottom:10px;color:${textClr}">最近生成的报告 ('+reports.length+')</h4>';
+  if(reports.length>0){
+    reports.slice(0,20).forEach(function(report){
+      var d=new Date(report.createdAt).toLocaleString('zh-CN');
+      html+='<div class="report-item"><div style="flex:1"><div class="rname">'+(report.companyName||'未知')+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="color:${reportAccent};border:1px solid ${reportAccent}33">查看</a><button onclick="deleteReport('+idx+',\\''+(report.slug||'').replace(/'/g,'\\x27')+'\\')" style="border:1px solid rgba(226,75,74,.3);background:none;color:#e24b4a;cursor:pointer">删除</button></div>';
+    });
+  }else{
+    html+='<p style="font-size:13px;text-align:center;color:${mutedClr}">暂无报告，开始分析后这里会显示。</p>';
+  }
+  var container=$('modalReportList_'+idx);
+  if(container)container.innerHTML=html;
+  // Update global list
+  var global=$('globalReports');
+  if(global&&reports.length>0){
+    var gh='<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;color:${textClr}">最近报告 ('+reports.length+')</h3>';
+    reports.slice(0,5).forEach(function(report){
+      var d=new Date(report.createdAt).toLocaleString('zh-CN');
+      gh+='<div class="report-item" style="margin-bottom:8px"><div style="flex:1"><div class="rname">'+(report.companyName||'未知')+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="color:${reportAccent};border:1px solid ${reportAccent}33">查看</a></div>';
+    });
+    $('globalPlaceholder').style.display='none';
+    global.innerHTML=gh;
+    global.style.display='block';
+  }
+}
+
+async function deleteReport(idx,rSlug){
   if(!confirm('确定删除这个报告？'))return;
   var slug=window.location.pathname.split('/').pop();
   try{
     var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
     if(!r.ok){alert('删除失败');return}
-    loadReportsCard(idx);
+    loadReports(idx);
   }catch(e){alert('删除失败')}
 }
 
-// Init: set up search key visibility and load reports for each report widget
+/* ===== INIT ===== */
 REPORT_INDICES.forEach(function(idx){
-  toggleSearchKeyCard(idx);
-  updatePromptCard(idx);
-  loadReportsCard(idx);
+  setTimeout(function(){loadReports(idx)},100);
 });
 </script>
 </body>
 </html>`;
 }
+
 
 // ========== Report HTML Generator ==========
 function escapeHtml(s: string): string {
