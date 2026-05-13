@@ -5,6 +5,7 @@ import { AdminPage } from '@/pages/AdminPage'
 import { SitesPage } from '@/pages/SitesPage'
 import { SiteCreatePage } from '@/pages/SiteCreatePage'
 import { PortalCreatePage } from '@/pages/PortalCreatePage'
+import { PortalBuilderPage } from '@/pages/PortalBuilderPage'
 import { GameCreatePage } from '@/pages/GameCreatePage'
 import { VideoCreatePage } from '@/pages/VideoCreatePage'
 import { ProfilePage } from '@/pages/ProfilePage'
@@ -79,6 +80,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <PortalCreatePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sites/portal/create"
+          element={
+            <ProtectedRoute>
+              <PortalBuilderPage />
             </ProtectedRoute>
           }
         />

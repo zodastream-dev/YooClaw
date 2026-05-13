@@ -118,3 +118,22 @@ export interface ResearchData {
   news: string
   opportunities: string
 }
+
+// ========== Portal Builder Types ==========
+
+export interface WidgetSourceConfig {
+  id: string
+  name: string
+  aiProvider: string
+  aiModel: string
+  apiKey: string
+  keywords: string[]
+  updateFrequency: string
+  customPrompt: string
+}
+
+export interface WidgetConfig {
+  type: 'report-generator' | 'intel-monitor'
+  title: string
+  config: Record<string, unknown>
+}

@@ -1,4 +1,4 @@
-import type { APIResponse, RunData, SessionData, User, StorageInfo, AdminUser, AdminStats, ReportSite } from './types'
+import type { APIResponse, RunData, SessionData, User, StorageInfo, AdminUser, AdminStats, ReportSite, WidgetConfig } from './types'
 import { API_BASE, TOKEN_KEY } from './constants'
 
 function getToken(): string | null {
@@ -335,6 +335,20 @@ export async function changePassword(oldPassword: string, newPassword: string) {
 export async function deployPortal(siteName: string, siteDesc: string, template: string, slug?: string) {
   return apiRequest<{ id: string; slug: string; title: string; url: string; createdAt: number }>(
     'POST', '/api/v1/sites/portal/deploy', { siteName, siteDesc, template, slug }
+  )
+}
+
+// ========== Portal Builder (Widget-based) ==========
+
+export async function deployPortalWithWidgets(
+  siteName: string,
+  siteDesc: string,
+  template: string,
+  widgets: WidgetConfig[],
+  slug?: string
+) {
+  return apiRequest<{ id: string; slug: string; title: string; url: string; createdAt: number }>(
+    'POST', '/api/v1/sites/portal/deploy', { siteName, siteDesc, template, widgets, slug }
   )
 }
 
