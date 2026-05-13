@@ -335,7 +335,7 @@ function fixAiCssErrors(html: string): string {
 }
 
 // ========== Portal HTML Generator ==========
-function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string): string {
+function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, widgets?: any[]): string {
   const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
     'business-blue': { primary: '#2563eb', secondary: '#1e40af', bg: '#ffffff', text: '#1f2937', accent: '#3b82f6' },
     'tech-black': { primary: '#0f172a', secondary: '#38bdf8', bg: '#0f172a', text: '#e2e8f0', accent: '#38bdf8' },
@@ -512,6 +512,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
     <h3>最近生成的报告</h3>
     <div id="reportList"><p style="font-size:13px;color:${mutedClr}">暂无报告，开始分析后这里会显示。</p></div>
   </div>
+  ${(() => {
+    if (!widgets || widgets.length === 0) return '';
+    const monitorWidgets = widgets.filter((w: any) => w.type === 'intel-monitor');
+    if (monitorWidgets.length === 0) return '';
+    return monitorWidgets.map((w: any) => {
+      const sources = w.config?.sources || [];
+      const title = (w.title || '情报监控').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const sourcesHtml = sources.map((s: any) => {
+        const sname = (s.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const keywordsHtml = (s.keywords || []).map((k: string) => 
+          '<span style="display:inline-block;padding:2px 8px;background:' + (isDark ? '#1e293b' : '#f3f0ff') + ';color:' + (isDark ? '#a78bfa' : '#7c3aed') + ';border-radius:12px;font-size:11px;margin:2px 3px 2px 0">' + k.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'
+        ).join('');
+        const prompt = (s.customPrompt || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return '<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid ' + borderClr + '">' +
+          '<div style="font-size:14px;font-weight:600;margin-bottom:6px;color:' + textClr + '">📡 ' + sname + '</div>' +
+          '<div style="font-size:11px;color:' + mutedClr + ';margin-bottom:8px">🤖 ' + (s.aiProvider || '') + ' · ' + (s.aiModel || '默认') + ' · 更新: ' + (s.updateFrequency || 'daily') + '</div>' +
+          (s.keywords && s.keywords.length > 0 ? '<div style="margin-bottom:8px">' + keywordsHtml + '</div>' : '<div style="margin-bottom:8px"><span style="font-size:11px;color:' + mutedClr + '">暂无关键词</span></div>') +
+          (prompt ? '<div style="font-size:11px;color:' + mutedClr + ';padding:8px;background:' + (isDark ? '#1e293b' : '#f8fafc') + ';border-radius:8px;border:1px solid ' + borderClr + ';line-height:1.5">💬 ' + prompt + '</div>' : '') +
+          '</div>';
+      }).join('');
+      return '<div class="card"><h3>🛰️ ' + title + '</h3><p style="font-size:13px;color:' + mutedClr + ';margin-bottom:16px">AI 持续监控以下关键词情报，定期更新行业动态摘要。</p>' + sourcesHtml + '</div>';
+    }).join('');
+  })()}
 </div>
 <div class="footer">Powered by <strong>YooClaw AI</strong></div>
 <script>
@@ -2495,7 +2518,7 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
-    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'business-blue', apiBase);
+    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'business-blue', apiBase, req.body.widgets);
     const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal');
 
     res.status(201).json({
@@ -2534,7 +2557,7 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
-    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase);
+    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase, []);
     await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal');
 
     res.json({

@@ -418,10 +418,10 @@ export function PortalBuilderPage() {
             </p>
           </div>
 
-          {/* Main grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-7 items-start">
+          {/* Main layout: sidebar + preview */}
+          <div className="flex flex-col lg:flex-row gap-7 items-start">
             {/* LEFT: Builder */}
-            <div className="space-y-4">
+            <div className="space-y-4 lg:w-[380px] lg:min-w-[340px] lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
               {/* Basic Info */}
               <div className="border border-border rounded-2xl p-6 bg-card shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4">
@@ -933,8 +933,8 @@ export function PortalBuilderPage() {
               </div>
             </div>
 
-            {/* RIGHT: Preview */}
-            <div className="hidden lg:block sticky top-6">
+            {/* CENTER: Preview */}
+            <div className="flex-1 sticky top-6">
               <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-lg">
                 {/* Preview topbar */}
                 <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
@@ -949,7 +949,7 @@ export function PortalBuilderPage() {
                 </div>
 
                 {/* Preview body */}
-                <div className="p-4 max-h-[520px] overflow-y-auto">
+                <div className="p-4 max-h-[calc(100vh-120px)] overflow-y-auto">
                   {/* Site header */}
                   <div
                     className="rounded-xl p-5 mb-3.5 text-white"
