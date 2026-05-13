@@ -122,6 +122,7 @@ export function PortalBuilderPage() {
   const [isDeploying, setIsDeploying] = useState(false)
   const [result, setResult] = useState<DeployResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [dragIdx, setDragIdx] = useState(-1)
 
@@ -289,11 +290,14 @@ export function PortalBuilderPage() {
     const name = siteName.trim() || '情报分析门户'
     setIsDeploying(true)
     setError(null)
-    setResult(null)
+    setToastMsg(null)
     try {
       const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets)
       if (res.data) {
-        setResult({ id: res.data.id, slug: res.data.slug, title: res.data.title, url: res.data.url })
+        const portalUrl = window.location.origin + res.data.url
+        window.open(portalUrl, '_blank')
+        setToastMsg('门户部署成功！已在新标签页打开')
+        setTimeout(() => setToastMsg(null), 5000)
       } else {
         setError(res.error?.message || '部署失败')
       }
@@ -388,12 +392,19 @@ export function PortalBuilderPage() {
     return null
   })
 
-  // ========== Build Mode ==========
+  // ========== Render ==========
 
-  if (!result) {
-    return (
+  return (
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-6">
+        {/* Success Toast */}
+        {toastMsg && (
+          <div className="fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-xl shadow-lg animate-in slide-in-from-top-2">
+            <span className="text-green-600 dark:text-green-400">✅</span>
+            <span className="text-sm font-medium text-green-700 dark:text-green-300">{toastMsg}</span>
+            <button onClick={() => setToastMsg(null)} className="ml-2 text-green-500 hover:text-green-700">✕</button>
+          </div>
+        )}
+        <div className="w-full max-w-[1600px] mx-auto px-4 md:px-6 py-6">
           {/* Top bar */}
           <div className="flex items-center justify-between mb-6">
             <button
@@ -977,66 +988,6 @@ export function PortalBuilderPage() {
       </div>
     )
   }
-
-  // ========== Success Mode ==========
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-xl mx-auto px-4 md:px-6 py-6">
-        <div className="border border-border rounded-xl p-6 bg-card">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <CheckCircle2 size={20} className="text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-medium text-green-600 dark:text-green-400">门户部署成功!</h2>
-              <p className="text-xs text-muted-foreground">{result.title}</p>
-            </div>
-          </div>
-
-          <div className="bg-muted rounded-lg p-4 mb-4">
-            <p className="text-xs text-muted-foreground mb-2">访问链接</p>
-            <div className="flex items-center gap-2">
-              <a
-                href={result.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary hover:bg-primary/5 hover:border-primary/40 transition-all flex items-center gap-1.5"
-              >
-                <ExternalLink size={13} className="flex-shrink-0" />
-                <span className="truncate">{window.location.origin}{result.url}</span>
-              </a>
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
-              >
-                {copied ? '已复制' : <Copy size={14} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <a
-              href={result.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              <ExternalLink size={16} />
-              查看门户
-            </a>
-            <button
-              onClick={() => { setResult(null); setSiteName(''); setSiteDesc(''); setCopied(false) }}
-              className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-            >
-              再部署一个
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ========== Keyword Input Subcomponent ==========
 

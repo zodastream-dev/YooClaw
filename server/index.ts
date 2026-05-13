@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
-import fs from 'fs';
 import { spawn } from 'child_process';
 import {
   initDatabase,
@@ -368,6 +367,152 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
   const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const sd = siteDesc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+  // Build widget cards HTML
+  const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'report-generator', title: '行业分析报告', config: { defaultOpen: true } }];
+  let widgetCardsHtml = '';
+  const reportWidgetIndices: number[] = [];
+  const monitorWidgetIndices: number[] = [];
+
+  wlist.forEach((w: any, i: number) => {
+    if (w.type === 'report-generator') {
+      reportWidgetIndices.push(i);
+      const title = (w.title || '行业分析报告').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const subtitle = (w.config?.subtitle || '配置分析参数，AI 将自动搜索信息并生成专业的分析报告。').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const defaultOpen = w.config?.defaultOpen !== false;
+      widgetCardsHtml += `
+  <div class="portal-card${defaultOpen?' open':''}" id="portal-card-${i}">
+    <div class="card-header" onclick="toggleCard(${i})">
+      <div class="card-header-left">
+        <span class="card-icon">📊</span>
+        <div>
+          <div class="card-title">${title}</div>
+          <div class="card-subtitle">${subtitle}</div>
+        </div>
+      </div>
+      <span class="card-chevron" id="chevron-${i}">▼</span>
+    </div>
+    <div class="card-body" id="card-body-${i}">
+      <div class="card" id="step1-${i}">
+        <h3>配置分析参数</h3>
+        <div class="form-group"><label>公司 / 行业名称</label>
+        <input type="text" id="companyInput-${i}" placeholder="例如：比亚迪、特斯拉、宁德时代..."/></div>
+        <div class="form-group"><label>分析框架 <span style="font-size:11px;color:#94a3b8">（可多选）</span></label>
+        <div class="option-grid" id="optionGrid-${i}">
+          <div class="option-btn selected" data-value="SWOT"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOptCard(${i},this)"/>SWOT 分析</div><span class="desc">优势/劣势/机会/威胁</span></div>
+          <div class="option-btn selected" data-value="PEST"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOptCard(${i},this)"/>PEST 分析</div><span class="desc">政治/经济/社会/技术</span></div>
+          <div class="option-btn" data-value="PORTER"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOptCard(${i},this)"/>波特五力</div><span class="desc">供应商/买方/新进入者/替代品/竞争</span></div>
+          <div class="option-btn" data-value="3C"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOptCard(${i},this)"/>3C 分析</div><span class="desc">公司/顾客/竞争对手</span></div>
+          <div class="option-btn" data-value="STOCK"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOptCard(${i},this)"/>股价预测</div><span class="desc">年报/季报分析，预测12个月走势</span></div>
+        </div></div>
+        <div class="form-group"><label>搜索平台 <span style="font-size:11px;color:#94a3b8">（选填，留空使用默认联网搜索）</span></label>
+        <select id="searchPlatform-${i}" onchange="toggleSearchKeyCard(${i})">
+          <option value="">默认 (CodeBuddy)</option>
+          <option value="tavily">Tavily</option>
+          <option value="metaso" selected>秘塔 (Metaso)</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="custom">自定义 API</option>
+        </select>
+        <div id="searchApiKeyWrap-${i}" class="api-key-input" style="position:relative">
+        <input type="password" id="searchApiKey-${i}" placeholder="输入该平台的 API Key..." value="mk-65F31E31CBAB4DD4697CF57DA49000CB" style="width:100%;padding:10px 14px;padding-right:40px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none"/>
+        <span onclick="toggleApiKeyCard(${i})" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:${mutedClr};user-select:none;line-height:1" id="apiKeyEye-${i}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        </div>
+        <input type="text" id="searchEndpoint-${i}" class="api-key-input" placeholder="自定义 API 端点 URL..." style="margin-top:6px"/>
+        </div>
+        <div class="form-group"><label>系统提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改 AI 的角色设定）</span></label>
+        <textarea id="sysPromptInput-${i}" class="prompt-input" placeholder="例如：你是一个专业的金融分析师..." style="width:100%;min-height:60px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">你是一个行业研究分析师，输出结构化研究资料，用中文。</textarea></div>
+        <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span></label>
+        <textarea id="userPromptInput-${i}" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:120px;padding:12px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 &lt;h2&gt; 标题和 &lt;p&gt;/&lt;ul&gt;/&lt;table&gt; 等 HTML 标签）：
+
+&lt;h2&gt;公司概况&lt;/h2&gt;
+&lt;h2&gt;市场规模与趋势&lt;/h2&gt;
+&lt;h2&gt;财务与经营分析&lt;/h2&gt;
+&lt;h2&gt;竞争格局&lt;/h2&gt;
+&lt;h2&gt;近期动态&lt;/h2&gt;
+&lt;h2&gt;机遇与挑战&lt;/h2&gt;
+
+要求：
+- 每个章节用 &lt;h2&gt; 标题，内容用 &lt;p&gt; 段落和 &lt;ul&gt;/&lt;li&gt; 列表
+- 关键数字用 &lt;strong&gt;加粗&lt;/strong&gt;
+- 包含具体数据，每个章节不少于 3 个要点
+- 只输出纯 HTML 代码，不要 markdown 标记，不要额外说明文字</textarea></div>
+        <button class="btn" id="startBtn-${i}" onclick="startAnalysisCard(${i})">开始分析</button>
+      </div>
+      <div class="card" id="step2-${i}" style="display:none">
+        <h3>正在搜索行业信息</h3>
+        <p id="s2sub-${i}" style="font-size:13px;color:${mutedClr}"></p>
+        <div class="progress-section">
+          <div class="progress-label"><span>搜索进度</span><span id="sp-${i}">0%</span></div>
+          <div class="progress-bar"><div class="progress-fill" id="sbar-${i}" style="width:0%"></div></div>
+          <div class="stage-text" id="stxt-${i}" style="display:none"><div class="spinner"></div><span id="smsg-${i}"></span></div>
+        </div>
+      </div>
+      <div class="card" id="step3-${i}" style="display:none">
+        <h3>正在生成深度分析报告</h3>
+        <p id="s3sub-${i}" style="font-size:13px;color:${mutedClr}"></p>
+        <div class="progress-section">
+          <div class="progress-label"><span>报告进度</span><span id="rp-${i}">0%</span></div>
+          <div class="progress-bar"><div class="progress-fill" id="rbar-${i}" style="width:0%"></div></div>
+          <div class="stage-text" id="rtxt-${i}" style="display:none"><div class="spinner"></div><span id="rmsg-${i}"></span></div>
+        </div>
+      </div>
+      <div class="card" id="result-${i}" style="display:none">
+        <div class="result-card" id="rsucc-${i}" style="display:none">
+          <h3>报告生成成功!</h3>
+          <p id="rtitle-${i}" style="font-size:13px;color:#6b7280;margin-bottom:4px"></p>
+          <div class="url-box">
+            <a id="rlink-${i}" href="#" target="_blank" rel="noopener"></a>
+            <button onclick="copyUrlCard(${i})" style="flex-shrink:0;padding:4px 10px;font-size:12px;background:${theme.primary};color:#fff;border:none;border-radius:6px;cursor:pointer">复制</button>
+          </div>
+        </div>
+        <div class="error-box" id="rerr-${i}" style="display:none"></div>
+      </div>
+      <div class="card" id="reportListCard-${i}">
+        <h3>最近生成的报告</h3>
+        <div id="reportList-${i}"><p style="font-size:13px;color:${mutedClr}">暂无报告，开始分析后这里会显示。</p></div>
+      </div>
+    </div>
+  </div>`;
+    } else if (w.type === 'intel-monitor') {
+      monitorWidgetIndices.push(i);
+      const title = (w.title || '情报监控').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const sources = w.config?.sources || [];
+      const defaultOpen = w.config?.defaultOpen !== false;
+      const sourcesHtml = sources.length > 0 ? sources.map((s: any) => {
+        const sname = (s.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const keywordsHtml = (s.keywords || []).map((k: string) =>
+          '<span style="display:inline-block;padding:2px 8px;background:' + (isDark ? '#1e293b' : '#f3f0ff') + ';color:' + (isDark ? '#a78bfa' : '#7c3aed') + ';border-radius:12px;font-size:11px;margin:2px 3px 2px 0">' + k.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'
+        ).join('');
+        const prompt = (s.customPrompt || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return '<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid ' + borderClr + '">' +
+          '<div style="font-size:14px;font-weight:600;margin-bottom:6px;color:' + textClr + '">📡 ' + sname + '</div>' +
+          '<div style="font-size:11px;color:' + mutedClr + ';margin-bottom:8px">🤖 ' + (s.aiProvider || '') + ' · ' + (s.aiModel || '默认') + ' · 更新: ' + (s.updateFrequency || 'daily') + '</div>' +
+          (s.keywords && s.keywords.length > 0 ? '<div style="margin-bottom:8px">' + keywordsHtml + '</div>' : '<div style="margin-bottom:8px"><span style="font-size:11px;color:' + mutedClr + '">暂无关键词</span></div>') +
+          (prompt ? '<div style="font-size:11px;color:' + mutedClr + ';padding:8px;background:' + (isDark ? '#1e293b' : '#f8fafc') + ';border-radius:8px;border:1px solid ' + borderClr + ';line-height:1.5">💬 ' + prompt + '</div>' : '') +
+          '</div>';
+      }).join('') : '<p style="font-size:13px;color:' + mutedClr + '">暂无监控源配置</p>';
+
+      widgetCardsHtml += `
+  <div class="portal-card${defaultOpen?' open':''}" id="portal-card-${i}">
+    <div class="card-header" onclick="toggleCard(${i})">
+      <div class="card-header-left">
+        <span class="card-icon">🛰️</span>
+        <div>
+          <div class="card-title">${title}</div>
+          <div class="card-subtitle">AI 持续监控以下关键词情报，定期更新行业动态摘要。</div>
+        </div>
+      </div>
+      <span class="card-chevron" id="chevron-${i}">▼</span>
+    </div>
+    <div class="card-body" id="card-body-${i}">
+      ${sourcesHtml}
+    </div>
+  </div>`;
+    }
+  });
+
+  // Build JS report widget indices array
+  const reportIndicesJson = JSON.stringify(reportWidgetIndices);
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -382,11 +527,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
 .header p{font-size:15px;color:${isDark?'#94a3b8':'rgba(255,255,255,0.85)'};max-width:600px;margin:0 auto;line-height:1.5}
 .container{max-width:720px;margin:0 auto;padding:24px 16px 60px}
 .footer{text-align:center;padding:20px;font-size:12px;color:#94a3b8;border-top:1px solid ${borderClr}}
-.card{background:${cardBg};border:1px solid ${borderClr};border-radius:12px;padding:24px;margin-bottom:16px}
-.card h3{font-size:16px;font-weight:600;margin-bottom:6px}
+
+/* Portal Card */
+.portal-card{background:${cardBg};border:1px solid ${borderClr};border-radius:12px;margin-bottom:16px;overflow:hidden;transition:box-shadow .2s}
+.portal-card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.portal-card.open{box-shadow:0 2px 12px rgba(0,0,0,0.1)}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;cursor:pointer;user-select:none;transition:background .2s}
+.card-header:hover{background:${isDark?'#1e293b':'#f8fafc'}}
+.card-header-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.card-icon{font-size:24px;flex-shrink:0}
+.card-title{font-size:16px;font-weight:600;color:${textClr};line-height:1.4}
+.card-subtitle{font-size:12px;color:${mutedClr};margin-top:2px;line-height:1.4}
+.card-chevron{font-size:12px;color:${mutedClr};transition:transform .3s ease;flex-shrink:0}
+.portal-card.open .card-chevron{transform:rotate(180deg)}
+.card-body{max-height:0;overflow:hidden;transition:max-height .4s ease,opacity .3s ease;opacity:0;padding:0 24px}
+.portal-card.open .card-body{max-height:8000px;opacity:1;padding:0 24px 24px}
+.card-body .card{margin-bottom:12px}
+.card-body .card:last-child{margin-bottom:0}
+
+/* Inner card */
+.card{background:${cardBg};border:1px solid ${borderClr};border-radius:10px;padding:20px}
+.card h3{font-size:15px;font-weight:600;margin-bottom:6px;color:${textClr}}
 .card p{font-size:13px;color:${mutedClr};margin-bottom:16px;line-height:1.5}
-.form-group{margin-bottom:16px}
-.form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:${textClr}}
 .form-group input{width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none}
 .form-group input:focus{border-color:${theme.primary};box-shadow:0 0 0 3px ${theme.primary}22}
 .form-group select{width:100%;padding:10px 14px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;cursor:pointer}
@@ -433,135 +597,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
   ${sd ? '<p>'+sd+'</p>' : ''}
 </div>
 <div class="container">
-  <div class="card" id="step1">
-    <h3>行业分析报告</h3>
-    <p>配置分析参数，AI 将自动搜索信息并生成专业的分析报告。</p>
-    <div class="form-group"><label>公司 / 行业名称</label>
-    <input type="text" id="companyInput" placeholder="例如：比亚迪、特斯拉、宁德时代..."/></div>
-    <div class="form-group"><label>分析框架 <span style="font-size:11px;color:#94a3b8">（可多选）</span></label>
-    <div class="option-grid">
-      <div class="option-btn selected" data-value="SWOT"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOpt(this)"/>SWOT 分析</div><span class="desc">优势/劣势/机会/威胁</span></div>
-      <div class="option-btn selected" data-value="PEST"><div class="cb-row"><input type="checkbox" class="opt-cb" checked onchange="toggleOpt(this)"/>PEST 分析</div><span class="desc">政治/经济/社会/技术</span></div>
-      <div class="option-btn" data-value="PORTER"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOpt(this)"/>波特五力</div><span class="desc">供应商/买方/新进入者/替代品/竞争</span></div>
-      <div class="option-btn" data-value="3C"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOpt(this)"/>3C 分析</div><span class="desc">公司/顾客/竞争对手</span></div>
-      <div class="option-btn" data-value="STOCK"><div class="cb-row"><input type="checkbox" class="opt-cb" onchange="toggleOpt(this)"/>股价预测</div><span class="desc">年报/季报分析，预测12个月走势</span></div>
-    </div></div>
-    <div class="form-group"><label>搜索平台 <span style="font-size:11px;color:#94a3b8">（选填，留空使用默认联网搜索）</span></label>
-    <select id="searchPlatform" onchange="toggleSearchKey()">
-      <option value="">默认 (CodeBuddy)</option>
-      <option value="tavily">Tavily</option>
-      <option value="metaso" selected>秘塔 (Metaso)</option>
-      <option value="deepseek">DeepSeek</option>
-      <option value="custom">自定义 API</option>
-    </select>
-    <div id="searchApiKeyWrap" class="api-key-input" style="position:relative">
-    <input type="password" id="searchApiKey" placeholder="输入该平台的 API Key..." value="mk-65F31E31CBAB4DD4697CF57DA49000CB" style="width:100%;padding:10px 14px;padding-right:40px;font-size:14px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none"/>
-    <span onclick="toggleApiKey()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:${mutedClr};user-select:none;line-height:1" id="apiKeyEye"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
-    </div>
-    <input type="text" id="searchEndpoint" class="api-key-input" placeholder="自定义 API 端点 URL..." style="margin-top:6px"/>
-    </div>
-    <div class="form-group"><label>系统提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改 AI 的角色设定）</span></label>
-    <textarea id="sysPromptInput" class="prompt-input" placeholder="例如：你是一个专业的金融分析师..." style="width:100%;min-height:60px;padding:10px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">你是一个行业研究分析师，输出结构化研究资料，用中文。</textarea></div>
-    <div class="form-group"><label>用户提示词 <span style="font-size:11px;color:#94a3b8">（可选，修改分析要求）</span></label>
-    <textarea id="userPromptInput" class="prompt-input" placeholder="例如：预测股价走势（用 {company} 代替公司名）..." style="width:100%;min-height:120px;padding:12px 14px;font-size:13px;border:1px solid ${inputBorder};border-radius:8px;background:${inputBg};color:${textClr};outline:none;resize:vertical;font-family:inherit;line-height:1.5">请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 <h2> 标题和 <p>/<ul>/<table> 等 HTML 标签）：
-
-<h2>公司概况</h2>
-<h2>市场规模与趋势</h2>
-<h2>财务与经营分析</h2>
-<h2>竞争格局</h2>
-<h2>近期动态</h2>
-<h2>机遇与挑战</h2>
-
-要求：
-- 每个章节用 <h2> 标题，内容用 <p> 段落和 <ul>/<li> 列表
-- 关键数字用 <strong>加粗</strong>
-- 包含具体数据，每个章节不少于 3 个要点
-- 只输出纯 HTML 代码，不要 markdown 标记，不要额外说明文字</textarea></div>
-    <button class="btn" id="startBtn" onclick="startAnalysis()">开始分析</button>
-  </div>
-  <div class="card" id="step2" style="display:none">
-    <h3>正在搜索行业信息</h3>
-    <p id="s2sub" style="font-size:13px;color:${mutedClr}"></p>
-    <div class="progress-section">
-      <div class="progress-label"><span>搜索进度</span><span id="sp">0%</span></div>
-      <div class="progress-bar"><div class="progress-fill" id="sbar" style="width:0%"></div></div>
-      <div class="stage-text" id="stxt" style="display:none"><div class="spinner"></div><span id="smsg"></span></div>
-    </div>
-  </div>
-  <div class="card" id="step3" style="display:none">
-    <h3>正在生成深度分析报告</h3>
-    <p id="s3sub" style="font-size:13px;color:${mutedClr}"></p>
-    <div class="progress-section">
-      <div class="progress-label"><span>报告进度</span><span id="rp">0%</span></div>
-      <div class="progress-bar"><div class="progress-fill" id="rbar" style="width:0%"></div></div>
-      <div class="stage-text" id="rtxt" style="display:none"><div class="spinner"></div><span id="rmsg"></span></div>
-    </div>
-  </div>
-  <div class="card" id="result" style="display:none">
-    <div class="result-card" id="rsucc" style="display:none">
-      <h3>报告生成成功!</h3>
-      <p id="rtitle" style="font-size:13px;color:#6b7280;margin-bottom:4px"></p>
-      <div class="url-box">
-        <a id="rlink" href="#" target="_blank" rel="noopener"></a>
-        <button onclick="copyUrl()" style="flex-shrink:0;padding:4px 10px;font-size:12px;background:${theme.primary};color:#fff;border:none;border-radius:6px;cursor:pointer">复制</button>
-      </div>
-    </div>
-    <div class="error-box" id="rerr" style="display:none"></div>
-  </div>
-  <div class="card" id="reportListCard">
-    <h3>最近生成的报告</h3>
-    <div id="reportList"><p style="font-size:13px;color:${mutedClr}">暂无报告，开始分析后这里会显示。</p></div>
-  </div>
-  ${(() => {
-    if (!widgets || widgets.length === 0) return '';
-    const monitorWidgets = widgets.filter((w: any) => w.type === 'intel-monitor');
-    if (monitorWidgets.length === 0) return '';
-    return monitorWidgets.map((w: any) => {
-      const sources = w.config?.sources || [];
-      const title = (w.title || '情报监控').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-      const sourcesHtml = sources.map((s: any) => {
-        const sname = (s.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        const keywordsHtml = (s.keywords || []).map((k: string) => 
-          '<span style="display:inline-block;padding:2px 8px;background:' + (isDark ? '#1e293b' : '#f3f0ff') + ';color:' + (isDark ? '#a78bfa' : '#7c3aed') + ';border-radius:12px;font-size:11px;margin:2px 3px 2px 0">' + k.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'
-        ).join('');
-        const prompt = (s.customPrompt || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        return '<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid ' + borderClr + '">' +
-          '<div style="font-size:14px;font-weight:600;margin-bottom:6px;color:' + textClr + '">📡 ' + sname + '</div>' +
-          '<div style="font-size:11px;color:' + mutedClr + ';margin-bottom:8px">🤖 ' + (s.aiProvider || '') + ' · ' + (s.aiModel || '默认') + ' · 更新: ' + (s.updateFrequency || 'daily') + '</div>' +
-          (s.keywords && s.keywords.length > 0 ? '<div style="margin-bottom:8px">' + keywordsHtml + '</div>' : '<div style="margin-bottom:8px"><span style="font-size:11px;color:' + mutedClr + '">暂无关键词</span></div>') +
-          (prompt ? '<div style="font-size:11px;color:' + mutedClr + ';padding:8px;background:' + (isDark ? '#1e293b' : '#f8fafc') + ';border-radius:8px;border:1px solid ' + borderClr + ';line-height:1.5">💬 ' + prompt + '</div>' : '') +
-          '</div>';
-      }).join('');
-      return '<div class="card"><h3>🛰️ ' + title + '</h3><p style="font-size:13px;color:' + mutedClr + ';margin-bottom:16px">AI 持续监控以下关键词情报，定期更新行业动态摘要。</p>' + sourcesHtml + '</div>';
-    }).join('');
-  })()}
+  ${widgetCardsHtml}
 </div>
 <div class="footer">Powered by <strong>YooClaw AI</strong></div>
 <script>
 var API='${apiBase}';
+var REPORT_INDICES=${reportIndicesJson};
+
 function $(id){return document.getElementById(id)}
-function h(id){$(id).style.display='none'}
-function s(id){$(id).style.display='block'}
-function t(id,v){$(id).textContent=v}
-async function*_s(url,body){
-  var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  var rd=r.body.getReader(),dc=new TextDecoder(),buf='';
-  try{while(true){var{done,value}=await rd.read();if(done)break;buf+=dc.decode(value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch{}}}}
-  finally{rd.releaseLock()}
+function h(id){var e=$(id);if(e)e.style.display='none'}
+function s(id){var e=$(id);if(e)e.style.display='block'}
+function t(id,v){var e=$(id);if(e)e.textContent=v}
+
+function toggleCard(idx){
+  var card=$('portal-card-'+idx);
+  if(card)card.classList.toggle('open');
 }
+
 var methodNames={'SWOT':'SWOT分析','PEST':'PEST分析','PORTER':'波特五力分析','3C':'3C分析','STOCK':'股价预测'};
-function toggleOpt(cb){
+
+function toggleOptCard(idx,cb){
   var btn=cb.parentElement.parentElement;
   if(cb.checked){btn.classList.add('selected')}else{btn.classList.remove('selected')}
-  updatePromptFromOptions();
+  updatePromptCard(idx);
 }
-function updatePromptFromOptions(){
+
+function updatePromptCard(idx){
   var methods=[];
   var hasStock=false;
-  document.querySelectorAll('.option-btn.selected').forEach(function(e){
+  var grid=$('optionGrid-'+idx);
+  if(!grid)return;
+  grid.querySelectorAll('.option-btn.selected').forEach(function(e){
     var v=e.getAttribute('data-value');
-    if(v==='STOCK'){hasStock=true;}else{methods.push(v);}
+    if(v==='STOCK'){hasStock=true}else{methods.push(v)}
   });
   if(methods.length===0)methods=['SWOT','PEST'];
   var methodText='';
@@ -572,14 +640,15 @@ function updatePromptFromOptions(){
     methodText=methodText+'。\\n';
   }
   var stockText=hasStock?'\\n\\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。':'';
-  var up=$('userPromptInput');
+  var up=$('userPromptInput-'+idx);
+  if(!up)return;
   var v=up.value;
   var lines=v.split('\\n');
   var result=[];
   var skip=false;
   for(var i=0;i<lines.length;i++){
-    if(lines[i].indexOf('请使用以下分析框架进行分析：')===0){skip=true;continue;}
-    if(skip&&lines[i].trim()===''){skip=false;continue;}
+    if(lines[i].indexOf('请使用以下分析框架进行分析：')===0){skip=true;continue}
+    if(skip&&lines[i].trim()===''){skip=false;continue}
     if(skip)continue;
     if(lines[i].indexOf('结合公司最新的年报/季报')!=-1)continue;
     result.push(lines[i]);
@@ -590,16 +659,24 @@ function updatePromptFromOptions(){
   if(stockText)extra+=stockText;
   up.value=v+(extra?'\\n\\n':'')+extra.trim();
 }
-function toggleSearchKey(){
-  var p=$('searchPlatform').value;
-  $('searchApiKeyWrap').style.display=p?'block':'none';
-  $('searchEndpoint').style.display=p==='custom'?'block':'none';
-  if(p==='metaso'&&!$('searchApiKey').value){
-    $('searchApiKey').value='mk-65F31E31CBAB4DD4697CF57DA49000CB';
+
+function toggleSearchKeyCard(idx){
+  var p=$('searchPlatform-'+idx);
+  if(!p)return;
+  var v=p.value;
+  var wrap=$('searchApiKeyWrap-'+idx);
+  var ep=$('searchEndpoint-'+idx);
+  if(wrap)wrap.style.display=v?'block':'none';
+  if(ep)ep.style.display=v==='custom'?'block':'none';
+  if(v==='metaso'){
+    var key=$('searchApiKey-'+idx);
+    if(key&&!key.value)key.value='mk-65F31E31CBAB4DD4697CF57DA49000CB';
   }
 }
-function toggleApiKey(){
-  var inp=$('searchApiKey'),eye=$('apiKeyEye');
+
+function toggleApiKeyCard(idx){
+  var inp=$('searchApiKey-'+idx),eye=$('apiKeyEye-'+idx);
+  if(!inp||!eye)return;
   if(inp.type==='password'){
     inp.type='text';
     eye.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -608,51 +685,73 @@ function toggleApiKey(){
     eye.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
   }
 }
-async function startAnalysis(){
-  var n=$('companyInput').value.trim();if(!n)return;
-  var sp=$('searchPlatform').value;
-  var sak=$('searchApiKey').value.trim();
-  var se=$('searchEndpoint').value.trim();
-  var sprompt=$('sysPromptInput').value.trim();
-  var uprompt=$('userPromptInput').value.trim();
+
+async function* _s(url,body){
+  var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  var rd=r.body.getReader(),dc=new TextDecoder(),buf='';
+  try{while(true){var done,value;var nxt=await rd.read();done=nxt.done;value=nxt.value;if(done)break;buf+=dc.decode(value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch(e){}}}}
+  finally{rd.releaseLock()}
+}
+
+async function startAnalysisCard(idx){
+  var n=$('companyInput-'+idx);
+  if(!n)return;
+  n=n.value.trim();if(!n)return;
+  var sp=$('searchPlatform-'+idx);sp=sp?sp.value:'';
+  var sak=$('searchApiKey-'+idx);sak=sak?sak.value.trim():'';
+  var se=$('searchEndpoint-'+idx);se=se?se.value.trim():'';
+  var sprompt=$('sysPromptInput-'+idx);sprompt=sprompt?sprompt.value.trim():'';
+  var uprompt=$('userPromptInput-'+idx);uprompt=uprompt?uprompt.value.trim():'';
   var methods=[];
-  document.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))});
+  var grid=$('optionGrid-'+idx);
+  if(grid){grid.querySelectorAll('.option-btn.selected').forEach(function(e){methods.push(e.getAttribute('data-value'))})}
   if(methods.length===0)methods=['SWOT','PEST'];
   methods=methods.filter(function(m){return m!=='STOCK'});
   if(methods.length===0)methods=['SWOT','PEST'];
   var slug=window.location.pathname.split('/').pop();
-  h('step1');h('result');s('step2');h('step3');
-  t('s2sub',n);t('sp','0%');$('sbar').style.width='0%';t('smsg','');$('stxt').style.display='none';
+  h('step1-'+idx);h('result-'+idx);s('step2-'+idx);h('step3-'+idx);
+  t('s2sub-'+idx,n);t('sp-'+idx,'0%');var sb=$('sbar-'+idx);if(sb)sb.style.width='0%';t('smsg-'+idx,'');var st=$('stxt-'+idx);if(st)st.style.display='none';
   try{
     var rt='';
     for await(var ev of _s(API+'/api/p/research/'+slug,{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor',searchPlatform:sp,searchApiKey:sak,searchEndpoint:se,sysPrompt:sprompt,userPrompt:uprompt})){
-      if(ev.type==='progress_update'){t('sp',ev.percent+'%');$('sbar').style.width=ev.percent+'%'}
-      else if(ev.type==='stage'){$('stxt').style.display='flex';t('smsg',ev.text)}
+      if(ev.type==='progress_update'){t('sp-'+idx,ev.percent+'%');var sb=$('sbar-'+idx);if(sb)sb.style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){var st=$('stxt-'+idx);if(st)st.style.display='flex';t('smsg-'+idx,ev.text)}
       else if(ev.type==='research_complete'){rt=ev.data||''}
       else if(ev.type==='error'){throw new Error(ev.message||'搜索失败')}
     }
-    h('step2');s('step3');t('s3sub',n);t('rp','0%');$('rbar').style.width='0%';t('rmsg','');$('rtxt').style.display='none';
+    h('step2-'+idx);s('step3-'+idx);t('s3sub-'+idx,n);t('rp-'+idx,'0%');var rb=$('rbar-'+idx);if(rb)rb.style.width='0%';t('rmsg-'+idx,'');var rtx=$('rtxt-'+idx);if(rtx)rtx.style.display='none';
     var url='';
     for await(var ev of _s(API+'/api/p/report/'+slug,{formData:{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor'},researchData:rt,sysPrompt:sprompt,userPrompt:uprompt})){
-      if(ev.type==='progress_update'){t('rp',ev.percent+'%');$('rbar').style.width=ev.percent+'%'}
-      else if(ev.type==='stage'){$('rtxt').style.display='flex';t('rmsg',ev.text)}
+      if(ev.type==='progress_update'){t('rp-'+idx,ev.percent+'%');var rb=$('rbar-'+idx);if(rb)rb.style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){var rtx=$('rtxt-'+idx);if(rtx)rtx.style.display='flex';t('rmsg-'+idx,ev.text)}
       else if(ev.type==='report_complete'){url=ev.url||''}
       else if(ev.type==='error'){throw new Error(ev.message||'生成失败')}
     }
-    h('step3');s('result');
-    if(url){$('rsucc').style.display='block';t('rtitle',n+' 行业分析报告');var lu=window.location.origin+url;$('rlink').href=lu;$('rlink').textContent=lu;loadReports()}
-    else throw new Error('未获取到链接');
-  }catch(e){h('step2');h('step3');s('result');$('rsucc').style.display='none';$('rerr').style.display='block';$('rerr').textContent='错误: '+e.message}
-}
-function copyUrl(){
-  var btn=event&&event.target;
-  if(btn){
-    navigator.clipboard.writeText($('rlink').textContent);
-    btn.textContent='已复制';
-    setTimeout(function(){btn.textContent='复制'},2000);
+    h('step3-'+idx);s('result-'+idx);
+    if(url){
+      var rs=$('rsucc-'+idx);if(rs)rs.style.display='block';
+      t('rtitle-'+idx,n+' 行业分析报告');
+      var lu=window.location.origin+url;
+      var rl=$('rlink-'+idx);if(rl){rl.href=lu;rl.textContent=lu}
+      loadReportsCard(idx);
+    }else throw new Error('未获取到链接');
+  }catch(e){
+    h('step2-'+idx);h('step3-'+idx);s('result-'+idx);
+    var rs=$('rsucc-'+idx);if(rs)rs.style.display='none';
+    var re=$('rerr-'+idx);if(re){re.style.display='block';re.textContent='错误: '+e.message}
   }
 }
-async function loadReports(){
+
+function copyUrlCard(idx){
+  var rl=$('rlink-'+idx);
+  if(!rl)return;
+  navigator.clipboard.writeText(rl.textContent||'');
+  var btn=event&&event.target;
+  if(btn){btn.textContent='已复制';setTimeout(function(){btn.textContent='复制'},2000)}
+}
+
+async function loadReportsCard(idx){
   var slug=window.location.pathname.split('/').pop();
   try{
     var r=await fetch(API+'/api/p/reports/'+slug);
@@ -662,23 +761,29 @@ async function loadReports(){
     if(reports.data&&reports.data.length>0){
       reports.data.slice(0,20).forEach(function(report){
         var d=new Date(report.createdAt).toLocaleString('zh-CN');
-        html+='<div class="report-item"><div style="flex:1"><div class="rname">'+report.companyName+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="margin-right:6px">查看</a><button onclick="deleteReport(&#39;'+report.slug+'&#39;)" style="padding:4px 8px;font-size:12px;border:1px solid #e24b4a44;border-radius:6px;background:none;color:#e24b4a;cursor:pointer">删除</button></div>'
+        html+='<div class="report-item"><div style="flex:1"><div class="rname">'+report.companyName+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="margin-right:6px">查看</a><button onclick="deleteReportCard('+idx+',\''+report.slug+'\')" style="padding:4px 8px;font-size:12px;border:1px solid #e24b4a44;border-radius:6px;background:none;color:#e24b4a;cursor:pointer">删除</button></div>'
       });
     }else{html='<p style="font-size:13px;color:#94a3b8">暂无报告，开始分析后这里会显示。</p>'}
-    $('reportList').innerHTML=html;
+    var rl=$('reportList-'+idx);if(rl)rl.innerHTML=html;
   }catch(e){}
 }
-async function deleteReport(rSlug){
+
+async function deleteReportCard(idx,rSlug){
   if(!confirm('确定删除这个报告？'))return;
   var slug=window.location.pathname.split('/').pop();
   try{
     var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
     if(!r.ok){alert('删除失败');return}
-    loadReports();
+    loadReportsCard(idx);
   }catch(e){alert('删除失败')}
 }
-toggleSearchKey();updatePromptFromOptions();
-loadReports();
+
+// Init: set up search key visibility and load reports for each report widget
+REPORT_INDICES.forEach(function(idx){
+  toggleSearchKeyCard(idx);
+  updatePromptCard(idx);
+  loadReportsCard(idx);
+});
 </script>
 </body>
 </html>`;
