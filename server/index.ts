@@ -365,6 +365,11 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
   const sd = siteDesc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'report-generator', title: '行业分析报告', config: {} }];
+  // Normalize type names (JS config uses 'report'/'monitor', widget config uses 'report-generator'/'intel-monitor')
+  wlist.forEach((w: any) => {
+    if (w.type === 'report') w.type = 'report-generator';
+    else if (w.type === 'monitor') w.type = 'intel-monitor';
+  });
   const reportWidgetIndices: number[] = [];
   const monitorWidgetIndices: number[] = [];
 
