@@ -1023,24 +1023,38 @@ function makeIntelPrompt(keywords,customPrompt){
 
 async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
-  var apiUrl='https://api.deepseek.com/chat/completions';
+  var provider=src.aiProvider||'deepseek';
   var apiKey=src.apiKey||'';
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
-  var response=await fetch(apiUrl,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-    body:JSON.stringify({model:model,messages:[{role:'system',content:prompt.systemPrompt},{role:'user',content:prompt.userPrompt}],max_tokens:4096,temperature:0.7})
-  });
-  if(!response.ok){var err=await response.text();throw new Error('API错误: '+response.status)}
-  var data=await response.json();
-  var content=data.choices[0].message.content;
-  content=content.replace('\`\`\`json','').replace(/\`\`\`/g,'').trim();
-  try{return JSON.parse(content)}
-  catch(e){
-    var match=content.match(/\[[\s\S]*\]/);
-    if(match)return JSON.parse(match[0]);
-    throw new Error('无法解析AI返回数据');
+  if(provider==='metaso'){
+    var apiUrl='https://metaso.cn/api/open-search';
+    var msResponse=await fetch(apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey,'x-metaso-token':apiKey},
+      body:JSON.stringify({query:(src.keywords||[]).join(' OR '),detail:true,num:10})
+    });
+    if(!msResponse.ok){var msErr=await msResponse.text();throw new Error('秘塔API错误: '+msResponse.status+' '+msErr.substring(0,200))}
+    var msData=await msResponse.json();
+    var results=msData.results||msData.data||[];
+    return results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||'',source:r.url||r.source||'秘塔搜索',date:r.date||r.publishedAt||''};});
+  } else {
+    var apiUrl='https://api.deepseek.com/chat/completions';
+    var response=await fetch(apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({model:model,messages:[{role:'system',content:prompt.systemPrompt},{role:'user',content:prompt.userPrompt}],max_tokens:4096,temperature:0.7})
+    });
+    if(!response.ok){var err=await response.text();throw new Error('API错误: '+response.status)}
+    var data=await response.json();
+    var content=data.choices[0].message.content;
+    content=content.replace('```json','').replace(/```/g,'').trim();
+    try{return JSON.parse(content)}
+    catch(e){
+      var match=content.match(/\[[\s\S]*\]/);
+      if(match)return JSON.parse(match[0]);
+      throw new Error('无法解析AI返回数据');
+    }
   }
 }
 
