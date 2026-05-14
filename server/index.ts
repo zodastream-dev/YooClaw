@@ -1071,7 +1071,7 @@ function renderIntelItems(items){
     html+='<div class="ititle">'+(item.title||'')+'</div>';
     if(item.summary)html+='<div class="isummary">'+item.summary+'</div>';
     if(item.link){
-      html+='<a class="isource" href="'+item.link+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 '+((item.source||item.link||'').replace(/^https?:\/\//,''))+'</a>';
+      html+='<a class="isource" href="'+item.link+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 '+((item.source||item.link||'').replace(/^https?:\\/\\//,''))+'</a>';
     }else if(item.source){
       html+='<div class="isource">📎 '+item.source+'</div>';
     }
