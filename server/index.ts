@@ -1024,7 +1024,7 @@ function makeIntelPrompt(keywords,customPrompt){
 async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
   var provider=src.aiProvider||'deepseek';
-  var apiKey=src.apiKey||'';
+  var apiKey=src.apiKey||(provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
   if(provider==='metaso'){
