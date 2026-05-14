@@ -166,15 +166,30 @@ export function PortalBuilderPage() {
       sysPrompt: '你是一个行业研究分析师。',
       userPrompt: '请用 HTML 格式输出行业研究报告。',
     })
+    const existingIntelCount = widgets.filter((w) => w.type === 'intel-monitor').length
+    let defaultProvider = 'deepseek'
+    let defaultModel = 'deepseek-v3.1'
+    let defaultKeywords: string[] = []
+    if (existingIntelCount === 0) {
+      // 第一次添加情报源：deepseek搜索特朗普动态
+      defaultProvider = 'deepseek'
+      defaultModel = 'deepseek-v3.1'
+      defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系', '美国大选', '白宫']
+    } else if (existingIntelCount === 1) {
+      // 第二次添加情报源：秘塔搜索比亚迪电动汽车
+      defaultProvider = 'metaso'
+      defaultModel = 'metaso-pro'
+      defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车', '动力电池', '刀片电池']
+    }
     setAddMonitorForm({
-      title: `情报监控源 #${widgets.filter((w) => w.type === 'intel-monitor').length + 1}`,
+      title: `情报监控源 #${existingIntelCount + 1}`,
       sources: [{
         id: genId('s'),
         name: '新建监控源',
-        aiProvider: 'deepseek',
-        aiModel: 'deepseek-v3.1',
+        aiProvider: defaultProvider,
+        aiModel: defaultModel,
         apiKey: '',
-        keywords: [],
+        keywords: defaultKeywords,
         updateFrequency: 'daily',
         customPrompt: '',
       }],
@@ -669,7 +684,15 @@ export function PortalBuilderPage() {
                             onClick={() => toggleWidget(w.id)}
                           >
                             <GripVertical size={14} className="text-muted-foreground flex-shrink-0" />
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${
+                            {/* Expand/collapse toggle */}
+                            <button
+                              className={`flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center border border-border bg-card hover:bg-violet-50 hover:border-violet-300 dark:hover:bg-violet-900/20 transition-all ${w.expanded ? 'text-violet-600' : 'text-muted-foreground'}`}
+                              onClick={(e) => { e.stopPropagation(); toggleWidget(w.id) }}
+                              title={w.expanded ? '收起' : '展开'}
+                            >
+                              <ChevronDown size={16} className={`transition-transform duration-200 ${w.expanded ? 'rotate-180' : ''}`} />
+                            </button>
+                            <div className={`w-8 h-8 rounded-md flex items-center justify-center text-sm flex-shrink-0 ${
                               isReport ? 'bg-violet-100 dark:bg-violet-900/20 text-violet-600' : 'bg-amber-100 dark:bg-amber-900/20 text-amber-600'
                             }`}>
                               {isReport ? '📊' : '🛰️'}
@@ -716,9 +739,6 @@ export function PortalBuilderPage() {
                               >
                                 <Trash2 size={14} />
                               </button>
-                              <span className={`text-[10px] text-muted-foreground transition-transform ${w.expanded ? 'rotate-180' : ''}`}>
-                                <ChevronDown size={14} />
-                              </span>
                             </div>
                           </div>
 
@@ -969,8 +989,8 @@ export function PortalBuilderPage() {
                       onClick={() => openAddModal('report-generator')}
                       className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-all group"
                     >
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-500 text-white flex items-center justify-center text-[10px] font-bold leading-none shadow-sm group-hover:scale-110 transition-transform">+</span>
-                      <span className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-sm">📊</span>
+                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-violet-500 text-white flex items-center justify-center text-[10px] font-bold leading-none shadow-sm group-hover:scale-110 transition-transform">+</span>
+                      <span className="w-7 h-7 rounded-md bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-sm">📊</span>
                       <div className="text-left leading-tight">
                         <div className="font-semibold text-xs">报告生成器</div>
                         <div className="text-[10px] text-muted-foreground">AI 自动生成分析报告</div>
@@ -980,24 +1000,24 @@ export function PortalBuilderPage() {
                       onClick={() => openAddModal('intel-monitor')}
                       className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all group"
                     >
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] font-bold leading-none shadow-sm group-hover:scale-110 transition-transform">+</span>
-                      <span className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-sm">🛰️</span>
+                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-amber-500 text-white flex items-center justify-center text-[10px] font-bold leading-none shadow-sm group-hover:scale-110 transition-transform">+</span>
+                      <span className="w-7 h-7 rounded-md bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-sm">🛰️</span>
                       <div className="text-left leading-tight">
                         <div className="font-semibold text-xs">情报监控源</div>
                         <div className="text-[10px] text-muted-foreground">AI 持续监控关键词情报</div>
                       </div>
                     </button>
                     <button className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium opacity-40 cursor-not-allowed" disabled>
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 text-white flex items-center justify-center text-[10px] font-bold leading-none">+</span>
-                      <span className="w-7 h-7 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-sm">📝</span>
+                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-gray-300 dark:bg-gray-600 text-white flex items-center justify-center text-[10px] font-bold leading-none">+</span>
+                      <span className="w-7 h-7 rounded-md bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-sm">📝</span>
                       <div className="text-left leading-tight">
                         <div className="font-semibold text-xs">文本块</div>
                         <div className="text-[10px] text-muted-foreground">即将推出</div>
                       </div>
                     </button>
                     <button className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium opacity-40 cursor-not-allowed" disabled>
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 text-white flex items-center justify-center text-[10px] font-bold leading-none">+</span>
-                      <span className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center text-sm">🔗</span>
+                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-gray-300 dark:bg-gray-600 text-white flex items-center justify-center text-[10px] font-bold leading-none">+</span>
+                      <span className="w-7 h-7 rounded-md bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center text-sm">🔗</span>
                       <div className="text-left leading-tight">
                         <div className="font-semibold text-xs">快捷链接</div>
                         <div className="text-[10px] text-muted-foreground">即将推出</div>
