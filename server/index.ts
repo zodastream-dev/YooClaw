@@ -2986,7 +2986,15 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
-    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase, req.body.widgets || []);
+    // Auto-extract widgets from existing HTML if not provided (for batch redeploy)
+    let widgets: any[] = req.body.widgets || [];
+    if (widgets.length === 0) {
+      try {
+        const match = existing.html_content.match(/var WIDGETS=(\[[\s\S]*?\]);/);
+        if (match) { widgets = JSON.parse(match[1]); }
+      } catch (e) { /* keep empty */ }
+    }
+    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase, widgets);
     await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal');
 
     res.json({
