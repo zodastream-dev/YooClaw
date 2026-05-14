@@ -96,13 +96,13 @@ const initialWidgets: Widget[] = [
     config: {
       sources: [
         {
-          id: 's-1', name: '光伏产业监控', aiProvider: 'deepseek', aiModel: 'deepseek-v3.1',
-          apiKey: '', keywords: ['光伏', '太阳能', 'N型电池', 'TOPCon', 'HJT', '钙钛矿', '隆基绿能', '通威股份'],
+          id: 's-1', name: '光伏产业监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: 'sk-12a63866f37641768c375d2194edf641', keywords: ['光伏', '太阳能', 'N型电池', 'TOPCon', 'HJT', '钙钛矿', '隆基绿能', '通威股份'],
           updateFrequency: 'daily', customPrompt: '你是新能源光伏行业专家。请监控光伏产业最新动态，重点关注技术突破、产能变化、政策调整和龙头企业动向。以中文输出结构化摘要。',
         },
         {
           id: 's-2', name: '储能市场追踪', aiProvider: 'metaso', aiModel: 'metaso-pro',
-          apiKey: '', keywords: ['储能', '锂电池', '钠离子电池', '宁德时代', '比亚迪储能', '阳光电源'],
+          apiKey: 'sk-12a63866f37641768c375d2194edf641', keywords: ['储能', '锂电池', '钠离子电池', '宁德时代', '比亚迪储能', '阳光电源'],
           updateFrequency: 'daily', customPrompt: '你是储能行业分析师。请追踪储能市场最新情报，关注锂电池价格走势、钠离子电池产业化进展。以中文输出结构化摘要。',
         },
       ],
@@ -142,8 +142,8 @@ export function PortalBuilderPage() {
         title: `情报监控源 #${widgets.filter((w) => w.type === 'intel-monitor').length + 1}`,
         config: {
           sources: [{
-            id: genId('s'), name: '新建监控源', aiProvider: 'deepseek', aiModel: 'deepseek-v3.1',
-            apiKey: '', keywords: [], updateFrequency: 'daily', customPrompt: '',
+            id: genId('s'), name: '新建监控源', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+            apiKey: 'sk-12a63866f37641768c375d2194edf641', keywords: [], updateFrequency: 'daily', customPrompt: '',
           }],
         },
       },
@@ -187,7 +187,7 @@ export function PortalBuilderPage() {
       const sources = [...(w.config.sources || [])]
       sources.push({
         id: genId('s'), name: `新建监控源 #${sources.length + 1}`,
-        aiProvider: 'deepseek', aiModel: 'deepseek-v3.1', apiKey: '',
+        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: 'sk-12a63866f37641768c375d2194edf641',
         keywords: [], updateFrequency: 'daily', customPrompt: '',
       })
       return { ...w, config: { ...w.config, sources } }

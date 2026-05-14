@@ -421,6 +421,7 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
         updateFrequency: s.updateFrequency || 'daily',
         keywords: (s.keywords || []).map((k: string) => k.replace(/'/g,'\\x27')),
         customPrompt: (s.customPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'\\x27'),
+        apiKey: (s.apiKey || '').replace(/'/g,'\\x27'),
       }));
       return {
         type: 'monitor',
@@ -599,6 +600,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
   .modal-panel{max-width:95vw}
   .mb-row{grid-template-columns:1fr}
 }
+/* ===== INTEL RESULTS ===== */
+.intel-results-area{padding:0 24px 20px;max-width:1100px;margin:0 auto}
+.intel-src-group{margin-bottom:20px}
+.isg-title{font-size:14px;font-weight:600;color:${textClr};margin-bottom:14px}
+.intel-src-block{margin-bottom:18px}
+.intel-src-title{font-size:14px;font-weight:600;color:${textClr};display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid ${borderClr}}
+.intel-src-title .isdot{width:6px;height:6px;border-radius:50%;background:${monitorAccent};flex-shrink:0}
+.intel-src-title .isfreq{font-size:10px;color:${mutedClr};font-weight:400}
+.intel-items{display:flex;flex-direction:column;gap:6px}
+.intel-item{display:flex;gap:12px;padding:10px 14px;background:${cardBg};border:1px solid ${borderClr};border-radius:8px;transition:all .15s}
+.intel-item:hover{border-color:${theme.primary}33;background:${isDark?'rgba(255,255,255,.02)':'#f8fafc'}}
+.intel-item .inum{width:22px;height:22px;border-radius:50%;background:${theme.accent};color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.intel-item .ibody{flex:1}
+.intel-item .ititle{font-size:13px;font-weight:500;color:${textClr};margin-bottom:4px;line-height:1.4}
+.intel-item .isummary{font-size:11px;color:${mutedClr};line-height:1.5}
+.intel-item .isource{font-size:10px;color:${mutedClr};margin-top:4px}
+.intel-loading{text-align:center;padding:20px;color:${mutedClr};font-size:13px}
+.intel-loading .spinner{display:inline-block;width:16px;height:16px;border:2px solid ${theme.primary}33;border-top-color:${theme.primary};border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px}
+.intel-error{text-align:center;padding:16px;color:${errText};background:${errBg};border:1px solid ${errBorder};border-radius:8px;font-size:13px;margin-bottom:12px}
+.intel-empty{text-align:center;padding:20px;color:${mutedClr};font-size:13px}
+
 </style>
 </head>
 <body>
@@ -629,6 +651,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
 
 <div class="card-row-wrap">
   ${cardsHtml}
+</div>
+
+<div class="intel-results-area" id="intelResultsArea" style="display:none">
+  <div class="divider" style="margin-bottom:16px"><span class="dlabel">Intel Feed</span><span class="dline"></span></div>
+  <div class="intel-results" id="intelResults"></div>
+  <div class="intel-status" id="intelStatus"></div>
 </div>
 
 <div class="divider"><span class="dlabel">Recent Reports</span><span class="dline"></span></div>
@@ -948,6 +976,93 @@ async function deleteReport(idx,rSlug){
 REPORT_INDICES.forEach(function(idx){
   setTimeout(function(){loadReports(idx)},100);
 });
+
+/* ===== INTEL FETCH ===== */
+var INTEL_FETCHING=false;
+
+async function fetchAllIntel(){
+  if(INTEL_FETCHING)return;
+  INTEL_FETCHING=true;
+  var area=$('intelResultsArea'),results=$('intelResults'),status=$('intelStatus');
+  var monitors=WIDGETS.filter(function(w){return w.type==='monitor'});
+  if(monitors.length===0){INTEL_FETCHING=false;return}
+  area.style.display='block';
+  status.innerHTML='<div class="intel-loading"><div class="spinner"></div>正在获取情报数据...</div>';
+  var allHtml='';
+  for(var mi=0;mi<monitors.length;mi++){
+    var mw=monitors[mi];
+    if(!mw.sources||mw.sources.length===0)continue;
+    allHtml+='<div class="intel-src-group"><h3 class="isg-title">🛰️ '+mw.title+'</h3>';
+    for(var si=0;si<mw.sources.length;si++){
+      var src=mw.sources[si];
+      var fl=src.updateFrequency==='realtime'?'实时':src.updateFrequency==='daily'?'每日':'每周';
+      allHtml+='<div class="intel-src-block"><div class="intel-src-title"><span class="isdot"></span>'+src.name+'<span class="isfreq"> · '+fl+'更新 · '+(src.aiModel||'默认')+'</span></div>';
+      try{
+        var intelData=await fetchSourceIntel(src);
+        if(intelData&&intelData.length>0){allHtml+=renderIntelItems(intelData)}
+        else{allHtml+='<div class="intel-empty">暂无情报数据</div>'}
+      }catch(e){allHtml+='<div class="intel-error">获取失败: '+e.message+'</div>'}
+      allHtml+='</div>';
+    }
+    allHtml+='</div>';
+  }
+  results.innerHTML=allHtml;
+  status.innerHTML='';
+  INTEL_FETCHING=false;
+}
+
+function makeIntelPrompt(keywords,customPrompt){
+  var kw=(keywords||[]).join('、');
+  var sp=customPrompt||'你是一个专业的情报分析助手。';
+  var up='请搜索并整理关于【'+kw+'】的最新资讯，列出最重要的10条。'+
+    '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)。'+
+    '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":""}]。'+
+    '4.仅输出JSON数组，不要任何其他文字。';
+  return {systemPrompt:sp,userPrompt:up};
+}
+
+async function fetchSourceIntel(src){
+  var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
+  var apiUrl='https://api.deepseek.com/chat/completions';
+  var apiKey=src.apiKey||'';
+  var model=src.aiModel||'deepseek-v4-flash';
+  if(!apiKey)throw new Error('未配置API Key');
+  var response=await fetch(apiUrl,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+    body:JSON.stringify({model:model,messages:[{role:'system',content:prompt.systemPrompt},{role:'user',content:prompt.userPrompt}],max_tokens:4096,temperature:0.7})
+  });
+  if(!response.ok){var err=await response.text();throw new Error('API错误: '+response.status)}
+  var data=await response.json();
+  var content=data.choices[0].message.content;
+  content=content.replace('\`\`\`json','').replace(/\`\`\`/g,'').trim();
+  try{return JSON.parse(content)}
+  catch(e){
+    var match=content.match(/\[[\s\S]*\]/);
+    if(match)return JSON.parse(match[0]);
+    throw new Error('无法解析AI返回数据');
+  }
+}
+
+function renderIntelItems(items){
+  var html='<div class="intel-items">';
+  for(var i=0;i<Math.min(items.length,10);i++){
+    var item=items[i];
+    html+='<div class="intel-item"><div class="inum">'+(i+1)+'</div><div class="ibody">';
+    html+='<div class="ititle">'+(item.title||'')+'</div>';
+    if(item.summary)html+='<div class="isummary">'+item.summary+'</div>';
+    if(item.source)html+='<div class="isource">📎 '+item.source+'</div>';
+    html+='</div></div>';
+  }
+  html+='</div>';
+  return html;
+}
+
+(function(){
+  var monitors=WIDGETS.filter(function(w){return w.type==='monitor'});
+  if(monitors.length>0){setTimeout(function(){fetchAllIntel()},500)}
+})();
+
 </script>
 </body>
 </html>`;
