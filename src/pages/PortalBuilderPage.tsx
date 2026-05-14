@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { deployPortalWithWidgets } from '@/lib/api'
 import {
@@ -337,65 +337,98 @@ export function PortalBuilderPage() {
   const monitorCount = widgets.filter((w) => w.type === 'intel-monitor').length
   const template = TEMPLATES.find((t) => t.id === selectedTheme)
 
-  // ========== Preview Content ==========
+  // ========== Preview Theme Colors ==========
 
-  const previewWidgets = widgets.map((w) => {
+  const previewColors = useMemo(() => {
+    switch (selectedTheme) {
+      case 'tech-black':
+        return { primary: '#38bdf8', bg: '#020617', cardBg: '#0f172a', text: '#e2e8f0', muted: '#64748b', border: '#1e293b', reportAccent: '#818cf8', monitorAccent: '#fbbf24' }
+      case 'simple-white':
+        return { primary: '#1a1a2e', bg: '#ffffff', cardBg: '#ffffff', text: '#1a1a2e', muted: '#94a3b8', border: '#e5e7eb', reportAccent: '#6366f1', monitorAccent: '#f59e0b' }
+      default: // business-blue
+        return { primary: '#2563eb', bg: '#ffffff', cardBg: '#ffffff', text: '#1f2937', muted: '#94a3b8', border: '#e5e7eb', reportAccent: '#6366f1', monitorAccent: '#f59e0b' }
+    }
+  }, [selectedTheme])
+
+  const pc = previewColors
+
+  // ========== Preview Cards (matching portal card style) ==========
+
+  const previewCards = widgets.length > 0 ? widgets.map((w, i) => {
     if (w.type === 'report-generator') {
+      const methods = w.config.analysisMethods || []
       return (
-        <div key={w.id} className="bg-muted/50 border border-border rounded-lg p-4 mb-2.5">
-          <div className="flex items-center gap-2 text-sm font-semibold mb-2.5">
-            <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+        <div
+          key={w.id}
+          className="relative flex flex-col items-center justify-center gap-2 rounded-xl border cursor-pointer transition-all select-none overflow-hidden"
+          style={{
+            width: 200, height: 126,
+            background: pc.cardBg,
+            borderColor: pc.border,
+            boxShadow: `0 1px 3px rgba(0,0,0,${pc.bg === '#020617' ? '.20' : '.04'})`,
+            animation: `cardIn .5s cubic-bezier(.4,0,.2,1) backwards`,
+            animationDelay: `${i * 0.06}s`,
+          }}
+          title={w.title}
+        >
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
+            style={{ background: `linear-gradient(135deg,rgba(99,102,241,.12),rgba(129,140,248,.08))`, color: pc.reportAccent }}>
+            📊
+          </div>
+          <div className="text-xs font-bold text-center px-2 leading-tight" style={{ color: pc.text }}>
             {w.title}
           </div>
-          <input
-            className="w-full px-3 py-2 bg-background border border-border rounded-md text-xs"
-            placeholder="输入公司/行业名称…"
-            readOnly
-          />
-          <div className="flex flex-wrap gap-1 mt-2">
-            {(w.config.analysisMethods || []).map((m) => (
-              <span key={m} className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[10px] font-medium">
-                {m}
-              </span>
+          <div className="flex items-center gap-1.5 text-[9px] font-medium" style={{ color: pc.muted }}>
+            {methods.slice(0, 3).map((m, j) => (
+              <span key={m}>{m}{j < Math.min(methods.length, 3) - 1 ? ' · ' : ''}</span>
             ))}
+            {methods.length > 3 && <span> +{methods.length - 3}</span>}
+            {methods.length === 0 && <span>未选框架</span>}
           </div>
         </div>
       )
     }
     if (w.type === 'intel-monitor') {
       const sources = w.config.sources || []
+      const kwCount = sources.reduce((sum, s) => sum + (s.keywords || []).length, 0)
+      const freq = sources[0]?.updateFrequency || 'daily'
+      const freqLabel = freq === 'realtime' ? '实时' : freq === 'daily' ? '每日' : '每周'
       return (
-        <div key={w.id} className="bg-muted/50 border border-border rounded-lg p-4 mb-2.5">
-          <div className="flex items-center gap-2 text-sm font-semibold mb-2.5">
-            <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+        <div
+          key={w.id}
+          className="relative flex flex-col items-center justify-center gap-2 rounded-xl border cursor-pointer transition-all select-none overflow-hidden"
+          style={{
+            width: 200, height: 126,
+            background: pc.cardBg,
+            borderColor: pc.border,
+            boxShadow: `0 1px 3px rgba(0,0,0,${pc.bg === '#020617' ? '.20' : '.04'})`,
+            animation: `cardIn .5s cubic-bezier(.4,0,.2,1) backwards`,
+            animationDelay: `${i * 0.06}s`,
+          }}
+          title={w.title}
+        >
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
+            style={{ background: `linear-gradient(135deg,rgba(245,158,11,.12),rgba(251,191,36,.08))`, color: pc.monitorAccent }}>
+            🛰️
+          </div>
+          <div className="text-xs font-bold text-center px-2 leading-tight" style={{ color: pc.text }}>
             {w.title}
           </div>
-          {sources.map((s) => (
-            <div key={s.id} className="mb-2.5 pb-2.5 border-b border-border last:mb-0 last:pb-0 last:border-b-0">
-              <div className="text-xs font-semibold mb-1">📡 {s.name}</div>
-              <div className="text-[10px] text-muted-foreground mb-1">
-                🤖 {s.aiProvider} · {s.aiModel || '默认'} · 更新: {s.updateFrequency}
-              </div>
-              <div className="flex flex-wrap gap-1 mb-1">
-                {(s.keywords || []).map((k) => (
-                  <span key={k} className="px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[10px] font-medium">{k}</span>
-                ))}
-                {(!s.keywords || s.keywords.length === 0) && (
-                  <span className="px-2 py-0.5 bg-muted text-muted-foreground rounded-full text-[10px]">暂无关键词</span>
-                )}
-              </div>
-              {s.customPrompt && (
-                <div className="text-[10px] text-muted-foreground mt-1.5 p-2 bg-background rounded border border-border leading-relaxed">
-                  💬 {s.customPrompt.substring(0, 80)}{s.customPrompt.length > 80 ? '…' : ''}
-                </div>
-              )}
-            </div>
-          ))}
+          <div className="flex items-center gap-1.5 text-[9px] font-medium" style={{ color: pc.muted }}>
+            <span>{kwCount} 关键词</span>
+            <span className="w-1 h-1 rounded-full inline-block" style={{ background: pc.border }} />
+            <span>{freqLabel}</span>
+          </div>
         </div>
       )
     }
     return null
-  })
+  }) : (
+    <div className="text-center py-10" style={{ color: pc.muted }}>
+      <div className="text-3xl mb-2 opacity-30">🧩</div>
+      <p className="text-xs">在左侧添加 Widget 模块来构建你的门户</p>
+    </div>
+  )
 
   // ========== Render ==========
 
@@ -437,7 +470,7 @@ export function PortalBuilderPage() {
           {/* Main layout: sidebar + preview */}
           <div className="flex flex-col lg:flex-row gap-7 items-start">
             {/* LEFT: Builder */}
-            <div className="space-y-4 lg:w-[380px] lg:min-w-[340px] lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
+            <div className="space-y-4 lg:w-1/2 lg:min-w-0 lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
               {/* Basic Info */}
               <div className="border border-border rounded-2xl p-6 bg-card shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4">
@@ -949,8 +982,9 @@ export function PortalBuilderPage() {
               </div>
             </div>
 
-            {/* CENTER: Preview */}
-            <div className="flex-1 sticky top-6">
+            {/* RIGHT: Preview */}
+            <div className="lg:w-1/2 sticky top-6">
+              <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
               <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-lg">
                 {/* Preview topbar */}
                 <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
@@ -965,24 +999,50 @@ export function PortalBuilderPage() {
                 </div>
 
                 {/* Preview body */}
-                <div className="p-4 max-h-[calc(100vh-120px)] overflow-y-auto">
+                <div className="max-h-[calc(100vh-120px)] overflow-y-auto" style={{ background: pc.bg }}>
                   {/* Site header */}
                   <div
-                    className="rounded-xl p-5 mb-3.5 text-white"
+                    className="p-5 text-center relative overflow-hidden"
                     style={{
-                      background: template?.preview || 'linear-gradient(135deg, #7c3aed, #6d28d9)',
-                      ...(selectedTheme === 'simple-white' ? { color: '#1a1a2e', border: '1px solid #e5e7eb' } : {}),
+                      background: selectedTheme === 'tech-black'
+                        ? 'linear-gradient(135deg, #0f172a, #1e293b)'
+                        : selectedTheme === 'simple-white'
+                          ? pc.bg
+                          : template?.preview || 'linear-gradient(135deg, #2563eb, #1e40af)',
+                      color: selectedTheme === 'simple-white' ? '#1a1a2e' : '#ffffff',
+                      borderBottom: selectedTheme === 'simple-white' ? '2px solid #e5e7eb' : selectedTheme === 'tech-black' ? '2px solid #38bdf8' : 'none',
                     }}
                   >
-                    <h3 className="text-base font-bold">{siteName || '情报分析门户'}</h3>
-                    {siteDesc && <p className={`text-xs mt-1.5 opacity-80 leading-relaxed`}>{siteDesc}</p>}
+                    <h3 className="text-lg font-extrabold tracking-tight">{siteName || '情报分析门户'}</h3>
+                    {siteDesc && <p className="text-xs mt-1.5 opacity-75 max-w-lg mx-auto leading-relaxed">{siteDesc}</p>}
                   </div>
 
-                  {/* Preview widgets */}
-                  {previewWidgets}
+                  {/* Card row — centered, matches portal .card-row-wrap */}
+                  <div className="flex justify-center gap-3 flex-wrap px-5 py-5">
+                    {previewCards}
+                  </div>
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-3 px-5 pb-3">
+                    <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: pc.muted }}>报告输出</span>
+                    <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${pc.border}, transparent)` }} />
+                  </div>
+
+                  {/* Content area placeholder */}
+                  <div className="px-5 pb-8">
+                    <div className="text-center py-12 rounded-xl border border-dashed mx-auto" style={{ borderColor: pc.border, background: pc.cardBg }}>
+                      <div className="text-3xl mb-3 opacity-20" style={{ filter: 'grayscale(0.5)' }}>📄</div>
+                      <p className="text-xs leading-relaxed" style={{ color: pc.muted }}>
+                        选择一个 Widget 卡片开始分析
+                      </p>
+                      <p className="text-[10px] mt-1 opacity-50" style={{ color: pc.muted }}>
+                        报告生成后将在此区域展示
+                      </p>
+                    </div>
+                  </div>
 
                   {/* Footer */}
-                  <div className="text-center py-2.5 text-[10px] text-muted-foreground">
+                  <div className="text-center py-4 text-[10px]" style={{ color: pc.muted, borderTop: `1px solid ${pc.border}` }}>
                     Powered by YooClaw AI
                   </div>
                 </div>
