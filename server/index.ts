@@ -1048,7 +1048,7 @@ async function fetchSourceIntel(src){
     if(!response.ok){var err=await response.text();throw new Error('API错误: '+response.status)}
     var data=await response.json();
     var content=data.choices[0].message.content;
-    content=content.replace('```json','').replace(/```/g,'').trim();
+    content=content.replace('\`\`\`json','').replace(/\`\`\`/g,'').trim();
     try{return JSON.parse(content)}
     catch(e){
       var match=content.match(/\[[\s\S]*\]/);
