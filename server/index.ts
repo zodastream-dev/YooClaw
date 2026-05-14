@@ -2986,7 +2986,7 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
-    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase, []);
+    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase, req.body.widgets || []);
     await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal');
 
     res.json({
