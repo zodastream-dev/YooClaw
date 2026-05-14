@@ -1038,8 +1038,8 @@ async function fetchSourceIntel(src){
     });
     if(!msResponse.ok){var msErr=await msResponse.text();throw new Error('秘塔API错误: '+msResponse.status+' '+msErr.substring(0,200))}
     var msData=await msResponse.json();
-    var rawData=msData.data||msData.results||msData.items||[];
-    var results=Array.isArray(rawData)?rawData:(rawData.results||rawData.items||[rawData]);
+    var rawData=(msData.data&&msData.data.references)?msData.data.references:(msData.data||msData.results||msData.items||[]);
+    var results=Array.isArray(rawData)?rawData:(rawData.results||rawData.items||rawData.references||[rawData]);
     return results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||r.aiSummary||'',source:r.url||r.link||r.source||'秘塔搜索',date:r.date||r.publishedAt||r.publishTime||'',link:r.url||r.link||''};});
   } else {
     var apiUrl='https://api.deepseek.com/chat/completions';
@@ -1066,7 +1066,7 @@ function renderIntelItems(items){
   for(var i=0;i<Math.min(items.length,10);i++){
     var item=items[i];
     var itemId='intel-'+i+'-'+Date.now();
-    html+='<div class="intel-item" onclick="toggleIntelDetail(this,\\'+itemId+\\')" style="cursor:pointer">';
+    html+='<div class="intel-item" onclick="toggleIntelDetail(this,\\x27'+itemId+'\\x27)" style="cursor:pointer">';
     html+='<div class="inum">'+(i+1)+'</div><div class="ibody">';
     html+='<div class="ititle">'+(item.title||'')+'</div>';
     if(item.summary)html+='<div class="isummary">'+item.summary+'</div>';
