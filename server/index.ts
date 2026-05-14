@@ -674,6 +674,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;b
 <script>
 var API='${apiBase}';
 var REPORT_INDICES=${reportIndicesJson};
+var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
+var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
 var WIDGETS=${widgetConfigsJs};
 var METHOD_NAMES={SWOT:'SWOT分析',PEST:'PEST分析',PORTER:'波特五力分析','3C':'3C分析',STOCK:'股价预测'};
 
@@ -1024,7 +1026,7 @@ function makeIntelPrompt(keywords,customPrompt){
 async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
   var provider=src.aiProvider||'deepseek';
-  var apiKey=src.apiKey||(provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
+  var apiKey=src.apiKey||(provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
   if(provider==='metaso'){
