@@ -1066,7 +1066,7 @@ function renderIntelItems(items){
   for(var i=0;i<Math.min(items.length,10);i++){
     var item=items[i];
     var itemId='intel-'+i+'-'+Date.now();
-    html+='<div class="intel-item" onclick="toggleIntelDetail(this,\''+itemId+'\')" style="cursor:pointer">';
+    html+='<div class="intel-item" onclick="toggleIntelDetail(this,\\'+itemId+\\')" style="cursor:pointer">';
     html+='<div class="inum">'+(i+1)+'</div><div class="ibody">';
     html+='<div class="ititle">'+(item.title||'')+'</div>';
     if(item.summary)html+='<div class="isummary">'+item.summary+'</div>';
