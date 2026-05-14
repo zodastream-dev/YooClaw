@@ -541,9 +541,9 @@ export function PortalBuilderPage() {
           </div>
 
           {/* Main grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-7 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-7 items-start">
             {/* LEFT: Builder */}
-            <div className="space-y-4 lg:w-1/2 lg:min-w-0 lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
+            <div className="space-y-4 lg:min-w-0 lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
               {/* Basic Info */}
               <div className="border border-border rounded-2xl p-6 bg-card shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4">
@@ -1059,7 +1059,7 @@ export function PortalBuilderPage() {
             </div>
 
             {/* RIGHT: Preview */}
-            <div className="lg:w-1/2 sticky top-6">
+            <div className="sticky top-6">
               <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
               <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-lg">
                 {/* Preview topbar */}
