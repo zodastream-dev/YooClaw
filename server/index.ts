@@ -1030,16 +1030,17 @@ async function fetchSourceIntel(src){
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
   if(provider==='metaso'){
-    var apiUrl='https://metaso.cn/api/open-search';
+    var apiUrl='https://metaso.cn/api/open/search/v2';
     var msResponse=await fetch(apiUrl,{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey,'x-metaso-token':apiKey},
-      body:JSON.stringify({query:(src.keywords||[]).join(' OR '),detail:true,num:10})
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({question:(src.keywords||[]).join(' OR '),lang:'zh'})
     });
     if(!msResponse.ok){var msErr=await msResponse.text();throw new Error('秘塔API错误: '+msResponse.status+' '+msErr.substring(0,200))}
     var msData=await msResponse.json();
-    var results=msData.results||msData.data||[];
-    return results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||'',source:r.url||r.source||'秘塔搜索',date:r.date||r.publishedAt||''};});
+    var rawData=msData.data||msData.results||msData.items||[];
+    var results=Array.isArray(rawData)?rawData:(rawData.results||rawData.items||[rawData]);
+    return results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||r.aiSummary||'',source:r.url||r.link||r.source||'秘塔搜索',date:r.date||r.publishedAt||r.publishTime||'',link:r.url||r.link||''};});
   } else {
     var apiUrl='https://api.deepseek.com/chat/completions';
     var response=await fetch(apiUrl,{
@@ -1064,14 +1065,41 @@ function renderIntelItems(items){
   var html='<div class="intel-items">';
   for(var i=0;i<Math.min(items.length,10);i++){
     var item=items[i];
-    html+='<div class="intel-item"><div class="inum">'+(i+1)+'</div><div class="ibody">';
+    var itemId='intel-'+i+'-'+Date.now();
+    html+='<div class="intel-item" onclick="toggleIntelDetail(this,\''+itemId+'\')" style="cursor:pointer">';
+    html+='<div class="inum">'+(i+1)+'</div><div class="ibody">';
     html+='<div class="ititle">'+(item.title||'')+'</div>';
     if(item.summary)html+='<div class="isummary">'+item.summary+'</div>';
-    if(item.source)html+='<div class="isource">📎 '+item.source+'</div>';
+    if(item.link){
+      html+='<a class="isource" href="'+item.link+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 '+((item.source||item.link||'').replace(/^https?:\/\//,''))+'</a>';
+    }else if(item.source){
+      html+='<div class="isource">📎 '+item.source+'</div>';
+    }
+    if(item.date)html+='<div class="idate" style="font-size:10px;color:#888;margin-top:2px">🕐 '+item.date+'</div>';
+    if(item.summary){
+      html+='<div class="intel-detail" id="'+itemId+'" style="display:none;margin-top:6px;padding:10px;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb">';
+      html+='<div style="font-size:12px;line-height:1.7">'+item.summary+'</div>';
+      html+='</div>';
+    }
     html+='</div></div>';
   }
   html+='</div>';
   return html;
+}
+
+function toggleIntelDetail(el,detailId){
+  var detail=document.getElementById(detailId);
+  if(!detail)return;
+  var numEl=el.querySelector(".inum");
+  if(detail.style.display==="none"||!detail.style.display){
+    detail.style.display="block";
+    if(numEl)numEl.textContent="▼";
+    el.style.borderColor="var(--primary,#2563eb)";
+  } else {
+    detail.style.display="none";
+    if(numEl)numEl.textContent=numEl.textContent==="▼"?"▶":numEl.textContent;
+    el.style.borderColor="";
+  }
 }
 
 (function(){
