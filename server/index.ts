@@ -470,14 +470,22 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--card-radius:14px;--transition-smooth:cubic-bezier(.4,0,.2,1)}
+html{scroll-behavior:smooth}
 body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC",sans-serif;background:${pageBg};color:${textClr};min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+::selection{background:${theme.primary}22;color:${textClr}}
+body::-webkit-scrollbar{width:6px}
+body::-webkit-scrollbar-track{background:transparent}
+body::-webkit-scrollbar-thumb{background:${isDark?'#334155':'#cbd5e1'};border-radius:10px}
+body::-webkit-scrollbar-thumb:hover{background:${isDark?'#475569':'#94a3b8'}}
 
 /* ===== HEADER ===== */
 .header{${headerBg};padding:52px 20px 44px;text-align:center;position:relative;overflow:hidden}
-.header::before{content:'';position:absolute;top:-60%;left:-30%;width:160%;height:200%;background:radial-gradient(ellipse at 35% 50%,rgba(255,255,255,0.07) 0%,transparent 60%);pointer-events:none}
+.header::before{content:'';position:absolute;top:-60%;left:-30%;width:160%;height:200%;background:radial-gradient(ellipse at 35% 50%,rgba(255,255,255,0.07) 0%,transparent 60%);pointer-events:none;animation:headerGlow 8s ease-in-out infinite alternate}
 .header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:${isDark?'rgba(255,255,255,.06)':'rgba(255,255,255,.12)'};pointer-events:none}
-.header h1{font-size:30px;font-weight:800;color:${isDark?'#f1f5f9':'#ffffff'};margin-bottom:10px;letter-spacing:-.3px;position:relative}
-.header p{font-size:15px;color:${isDark?'#94a3b8':'rgba(255,255,255,0.78)'};max-width:600px;margin:0 auto;line-height:1.6;position:relative}
+@keyframes headerGlow{0%{opacity:.6;transform:scale(1)}100%{opacity:1;transform:scale(1.08)}}
+.header h1{font-size:30px;font-weight:800;color:${isDark?'#f1f5f9':'#ffffff'};margin-bottom:10px;letter-spacing:-.3px;position:relative;animation:fadeSlideDown .6s var(--transition-smooth)}
+.header p{font-size:15px;color:${isDark?'#94a3b8':'rgba(255,255,255,0.78)'};max-width:600px;margin:0 auto;line-height:1.6;position:relative;animation:fadeSlideDown .6s var(--transition-smooth) .1s backwards}
+@keyframes fadeSlideDown{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
 
 /* ===== CARD ROW ===== */
 .card-row-wrap{display:flex;justify-content:center;gap:16px;padding:24px 24px 14px;flex-wrap:wrap;max-width:1100px;margin:0 auto}
@@ -523,7 +531,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 /* ===== CONTENT AREA ===== */
 .content-area{flex:1;max-width:1100px;margin:0 auto;padding:12px 24px 48px;width:100%}
 .placeholder{text-align:center;padding:60px 20px}
-.placeholder .ph-icon{font-size:40px;margin-bottom:14px;opacity:.25;transition:opacity .3s}
+.placeholder .ph-icon{font-size:40px;margin-bottom:14px;opacity:.25;transition:opacity .3s;animation:phPulse 3s ease-in-out infinite}
+@keyframes phPulse{0%,100%{opacity:.2}50%{opacity:.35}}
 .placeholder .ph-text{font-size:13px;color:${mutedClr};line-height:1.6}
 
 /* ===== REPORT LIST ===== */
@@ -615,7 +624,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 .btn:hover:not(:disabled){opacity:.92;transform:translateY(-1px);box-shadow:0 4px 16px ${theme.primary}44}
 
 /* ===== FOOTER ===== */
-.footer{text-align:center;padding:24px;font-size:12px;color:${mutedClr};border-top:1px solid ${borderClr};letter-spacing:.3px}
+.footer{text-align:center;padding:28px 24px;font-size:12px;color:${mutedClr};border-top:1px solid ${borderClr};letter-spacing:.3px;position:relative}
+.footer::before{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:120px;height:2px;background:linear-gradient(90deg,transparent,${theme.accent}66,transparent)}
 
 /* ===== INTEL RESULTS ===== */
 .intel-results-area{padding:0 24px 24px;max-width:1100px;margin:0 auto}
@@ -659,6 +669,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
   .cc-icon{width:32px;height:32px;font-size:16px;border-radius:10px}
   .intel-item{padding:10px 12px;gap:10px}
 }
+
+/* ===== ACCESSIBILITY ===== */
+:focus-visible{outline:2px solid ${theme.accent};outline-offset:2px;border-radius:4px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid ${theme.accent};outline-offset:2px}
 
 </style>
 </head>
@@ -1158,72 +1172,156 @@ function escapeHtml(s: string): string {
 }
 
 async function generateReportHtml(companyName: string): Promise<string> {
-  const prompt = `你是一个专业的行业分析报告生成器。
+  const prompt = `你是一位顶级的行业研究分析师兼网页设计师。你精通财务建模、数据可视化和现代 CSS 设计。
 
 用户输入的公司名是: "${companyName}"
 
-请生成一份完整的、可直接打开的 HTML 页面，作为该公司的行业分析报告。
+请生成一份精美专业的 HTML 行业分析报告页面。风格参考麦肯锡/高盛出品的研究报告。
 
-## 要求
-1. 输出格式: 仅输出 HTML 代码，不要用 markdown 包裹，不要有任何额外说明
-2. 所有样式内嵌在 <style> 标签中，不依赖外部 CSS 或 JS
-3. 中文字体使用系统字体栈 (font-family: -apple-system, "Microsoft YaHei", sans-serif)
-4. 页面结构:
-   - 顶部: 蓝色 header 区域，显示报告标题、公司名、生成日期
-   - 公司概览 (Company Overview) — 公司简介、主营业务、行业地位
-   - 市场规模与趋势 (Market Size & Trends) — 行业规模、增长率、发展趋势
-   - 财务分析 (Financial Analysis) — 营收、利润、关键财务指标（可用合理估算数据）
-   - 竞争格局 (Competitive Landscape) — 主要竞争对手、市场份额
-   - SWOT 分析 — 用卡片式布局呈现，四个象限(S/优势、W/劣势、O/机会、T/威胁)用2x2网格排列，每个卡片有圆角边框和阴影效果
-   - PEST 分析 — 同样用卡片式布局，四个维度(P/政治、E/经济、S/社会、T/技术)用2x2网格排列
-   - 行业展望与建议 (Outlook & Recommendations) — 未来发展预测
-   - 底部: "由 YooClaw AI 生成" 版权信息，以及 YooClaw 品牌标识
-5. 设计风格: 专业、清晰、现代，使用蓝色(#2563eb)/灰色为主色调
-6. 尽量包含具体的行业数据和分析，不要泛泛而谈
-7. 页面要适合打印 (A4 布局)
+## ⚠️ 输出铁律（最高优先级，违反即失败）
+1. 只输出纯 HTML 代码。禁止 \`\`\`html 或任何 markdown 包裹
+2. 第一个字符必须是 <，最后一个字符必须是 >
+3. 不输出任何解释、描述、文件路径、摘要
+4. 所有 CSS 必须内嵌在单个 <style> 标签中
+5. 零外部依赖（CDN/字体/图片/JS库）
 
-## 表格样式规范（非常重要）
-- 所有表格必须使用统一的样式：
-  - 表头行：背景色 #2563eb（蓝色），文字白色，字体加粗
-  - 数据行：背景色白色，文字 #1f2937
-  - 奇偶行交替：偶数行背景色 #f8fafc
-  - 表格边框：1px solid #e5e7eb
-  - 单元格内边距：padding: 12px 16px
-  - 表格宽度：width: 100%
-  - 字体大小：14px
-  - 文字对齐：数字右对齐，文本左对齐
-  - 表格必须包含 thead 和 tbody 标签
-- 财务数据表格示例：
-  <table class=data-table>
-    <thead>
-      <tr><th>指标</th><th>2023年</th><th>2024年</th><th>2025年</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>营业收入（亿元）</td><td>16.45</td><td>19.29</td><td>22.60</td></tr>
-    </tbody>
-  </table>
+## 🎨 设计系统
 
-## 卡片样式规范（SWOT/PEST）
-- 使用 CSS Grid 布局：grid-template-columns: 1fr 1fr; gap: 16px
-- 每个卡片：
-  - 背景色：白色
-  - 边框：1px solid #e5e7eb
-  - 圆角：border-radius: 12px
-  - 阴影：box-shadow: 0 1px 3px rgba(0,0,0,0.1)
-  - 内边距：padding: 20px
-  - 标题：字体加粗，颜色 #2563eb，字号 16px
-  - 内容：颜色 #374151，字号 14px，行高 1.6
+### 色彩
+- 主渐变: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #6366f1 100%)
+- 主色: #2563eb | 强调紫: #7c3aed | 成功绿: #059669 | 警示红: #dc2626 | 警告橙: #d97706
+- 页面背景: #f1f5f9 | 卡片背景: #ffffff | 正文: #1e293b | 辅助文: #64748b
+- 浅色边框: #e2e8f0
 
-## HTML 质量检查 — 生成前务必逐条确认
-8. HTML 必须以 <!DOCTYPE html> 开头，不能省略
-9. CSS 语法必须正确：每条规则用 \`属性名: 值;\` 格式，冒号和分号不可省略
-10. HTML 标签必须正确闭合，例如 \`</h1>\` 而不是 \`h1>\`，\`</div>\` 而不是 \`div>\`
-11. 容器宽度设置必须合理，\`max-width\` 不能设置为 \`0px\`
-12. \`box-sizing\` 的值必须是 \`border-box\`，不能写成 \`-box\` 或 \`:box\`
-13. 行高 \`line-height\` 必须用无单位数值（如 \`1.6\`），不能用 \`16\`
-14. \`<meta charset="UTF-8">\` 必须包含 \`charset=\` 属性名
+### 排版
+- 字体栈: font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif
+- h1: 32px / 800 / letter-spacing:-0.5px / 渐变色 background-clip:text
+- h2: 22px / 700 / color:#0f172a / 左侧蓝色竖线装饰 (border-left:4px solid #2563eb; padding-left:16px)
+- h3: 17px / 600 / color:#1e293b
+- 正文: 15px / line-height:1.8 / color:#334155
+- 小字: 13px / color:#64748b
 
-请直接输出完整的 HTML 代码。`;
+### 全局 CSS（必须包含）
+\`\`\`css
+* { margin:0; padding:0; box-sizing:border-box }
+html { scroll-behavior:smooth }
+body { font-family: -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif; background:#f1f5f9; color:#334155; line-height:1.8; -webkit-font-smoothing:antialiased }
+.container { max-width:960px; margin:0 auto; padding:0 24px }
+\`\`\`
+
+---
+
+## 📐 页面结构（按以下顺序，每个 section 用白色卡片包裹）
+
+### ① Header — 顶部横幅
+- 背景: linear-gradient(135deg, #1e40af 0%, #3b82f6 40%, #6366f1 100%)
+- 叠加光晕: radial-gradient(ellipse at 30% 50%, rgba(255,255,255,0.08) 0%, transparent 60%)
+- padding: 64px 24px 56px; text-align:center; position:relative; overflow:hidden
+- h1: 颜色 #ffffff; 字号 34px; font-weight:800; text-shadow:0 2px 8px rgba(0,0,0,0.15)
+- 副标题行: 公司名称 · 生成日期, color:rgba(255,255,255,0.85), 字号 16px
+- 底部装饰: 使用 border-bottom 或伪元素分割线
+
+### ② Section 卡片容器
+每个分析区块包裹在 .section-card 中：
+\`\`\`css
+.section-card { background:#fff; border-radius:16px; padding:36px 32px; margin-bottom:32px; box-shadow:0 1px 3px rgba(0,0,0,0.04),0 6px 20px rgba(0,0,0,0.03); border:1px solid #f1f5f9 }
+\`\`\`
+
+### ③ 公司概览
+- h2 标题 + 2-3段分析文字
+- 关键数据用 <strong> 加粗高亮
+
+### ④ 市场规模与趋势
+- 行业规模描述 + 增长率数据
+- 如有数据对比，使用表格
+
+### ⑤ 财务分析
+- 必须包含至少 1 个 data-table（财务指标表格，3 年以上数据）
+- 关键指标分析文字
+
+### ⑥ 竞争格局
+- 主要竞争对手表格（公司/市场份额/优势）
+- 竞争态势文字总结
+
+### ⑦ SWOT 分析 — 2x2 彩色卡片网格
+\`\`\`css
+.cards-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0 }
+.swot-card { border-radius:14px; padding:24px; transition:transform .2s,box-shadow .2s }
+.swot-card:hover { transform:translateY(-3px); box-shadow:0 12px 28px rgba(0,0,0,0.1) }
+.swot-card h4 { font-size:16px; font-weight:700; margin-bottom:14px; padding-bottom:10px; border-bottom:2px solid rgba(0,0,0,0.06) }
+.swot-card ul { padding-left:18px; margin:0 }
+.swot-card li { margin-bottom:8px; line-height:1.7; font-size:14px; color:#475569 }
+/* S-优势 */ .card-s { border-top:4px solid #059669; background:#ecfdf5 }
+.card-s h4 { color:#059669 }
+/* W-劣势 */ .card-w { border-top:4px solid #dc2626; background:#fef2f2 }
+.card-w h4 { color:#dc2626 }
+/* O-机会 */ .card-o { border-top:4px solid #2563eb; background:#eff6ff }
+.card-o h4 { color:#2563eb }
+/* T-威胁 */ .card-t { border-top:4px solid #d97706; background:#fffbeb }
+.card-t h4 { color:#d97706 }
+\`\`\`
+
+### ⑧ PEST 分析 — 2x2 彩色卡片网格
+样式同 SWOT，四个维度各不同顶部 accent 色：
+- P-政治: #7c3aed(紫) | E-经济: #2563eb(蓝) | S-社会: #059669(绿) | T-技术: #d97706(橙)
+- 每个对应的浅色背景
+
+### ⑨ 行业展望与建议
+- 3-5 条编号要点，每条带 emoji 图标前缀
+- 未来趋势预测 + 投资建议
+
+### ⑩ Footer
+- 深色背景 (#0f172a)，白色文字
+- padding:32px 24px; text-align:center; font-size:13px; color:#94a3b8
+- 内容: "由 YooClaw AI 生成 · {日期}" + 品牌标识
+
+---
+
+## 📊 表格样式规范（必须严格遵守）
+
+\`\`\`css
+.data-table { width:100%; border-collapse:separate; border-spacing:0; border-radius:12px; overflow:hidden; border:1px solid #e2e8f0; font-size:14px; margin:20px 0; box-shadow:0 1px 2px rgba(0,0,0,0.04) }
+.data-table thead th { background:linear-gradient(180deg, #1e40af, #2563eb); color:#fff; font-weight:700; padding:14px 18px; text-align:left; font-size:13px; letter-spacing:0.5px }
+.data-table thead th:first-child { border-radius:12px 0 0 0 }
+.data-table thead th:last-child { border-radius:0 12px 0 0 }
+.data-table tbody td { padding:13px 18px; border-bottom:1px solid #f1f5f9; color:#334155 }
+.data-table tbody tr:last-child td { border-bottom:none }
+.data-table tbody tr:nth-child(even) td { background:#f8fafc }
+.data-table tbody tr:hover td { background:#eff6ff; transition:background .2s }
+.data-table .num { text-align:right; font-variant-numeric:tabular-nums; font-weight:600 }
+\`\`\`
+
+---
+
+## 📱 响应式
+@media (max-width: 768px) {
+  .cards-grid { grid-template-columns: 1fr }
+  .section-card { padding: 24px 20px; border-radius: 12px }
+  h1 { font-size: 24px }
+  .data-table { font-size: 13px }
+}
+
+## 🖨️ 打印
+@media print {
+  body { background:#fff }
+  .section-card { box-shadow:none; break-inside:avoid; border:1px solid #e2e8f0 }
+  .header { background:#2563eb !important }
+}
+
+---
+
+## ✅ HTML 质量自检清单（生成前逐条确认）
+1. □ <!DOCTYPE html> 开头
+2. □ <meta charset="UTF-8"> 含 charset= 属性
+3. □ 所有标签正确闭合（</h2> 不是 h2>）
+4. □ CSS 属性格式: 属性名: 值; （冒号+分号完整）
+5. □ line-height 无单位（1.6 不是 16px 或 16）
+6. □ box-sizing: border-box（不是 -box 或 :box）
+7. □ max-width 不使用 0px
+8. □ 表格含 thead + tbody
+9. □ 无 markdown 包裹（无 \`\`\` 符号）
+
+请直接输出完整的 HTML 代码。记住：你输出的第一个字符必须是 <。`;
 
   const response = await fetch(`${CODEBUDDY_API_ENDPOINT}/v2/chat/completions`, {
     method: 'POST',
