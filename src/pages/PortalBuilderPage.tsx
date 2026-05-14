@@ -105,6 +105,11 @@ const initialWidgets: Widget[] = [
           apiKey: '', keywords: ['储能', '锂电池', '钠离子电池', '宁德时代', '比亚迪储能', '阳光电源'],
           updateFrequency: 'daily', customPrompt: '你是储能行业分析师。请追踪储能市场最新情报，关注锂电池价格走势、钠离子电池产业化进展。以中文输出结构化摘要。',
         },
+        {
+          id: 's-3', name: '特朗普动态', aiProvider: 'metaso', aiModel: 'metaso-pro',
+          apiKey: '', keywords: ['特朗普', 'Trump', '关税', '贸易战', '中美关系', '美国大选', '白宫'],
+          updateFrequency: 'daily', customPrompt: '你是国际政治经济分析师。请监控特朗普最新动态，重点关注关税政策、中美贸易关系、外交动向及其对全球金融市场的影响。以中文输出结构化摘要。',
+        },
       ],
     },
   },
