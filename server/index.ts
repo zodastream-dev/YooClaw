@@ -3436,6 +3436,13 @@ app.post('/v2/chat/completions', async (req, res) => {
 
 const DREAMINA_BIN = '/root/.local/bin/dreamina';
 const execAsync = promisify(exec);
+const VIDEO_DIR = process.env.VIDEO_DIR || path.join(__dirname, '..', 'public', 'videos');
+
+// Ensure videos directory exists on startup
+if (!fs.existsSync(VIDEO_DIR)) {
+  fs.mkdirSync(VIDEO_DIR, { recursive: true });
+  console.log('[VideoGen] Created video directory:', VIDEO_DIR);
+}
 
 
 // Check login status — admin token always active, no OAuth needed
@@ -3491,11 +3498,36 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     }
     
     if (videoUrl) {
+      const videoId = submitId || crypto.randomUUID();
+      const extMatch = videoUrl.match(/\.(mp4|webm|mov)/i);
+      const ext = extMatch ? extMatch[1] : 'mp4';
+      const localFilename = `${videoId}.${ext}`;
+      const localPath = path.join(VIDEO_DIR, localFilename);
+      
+      // Download video from Jimeng CDN to local server
+      let localUrl = videoUrl; // fallback to Jimeng URL
+      try {
+        console.log(`[VideoGen] Downloading video from Jimeng CDN...`);
+        const downloadRes = await fetch(videoUrl);
+        if (downloadRes.ok) {
+          const buffer = Buffer.from(await downloadRes.arrayBuffer());
+          fs.writeFileSync(localPath, buffer);
+          const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+          console.log(`[VideoGen] Downloaded: ${localFilename} (${fileSizeMB} MB)`);
+          localUrl = `${process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com'}/videos/${localFilename}`;
+        } else {
+          console.error(`[VideoGen] Download failed: HTTP ${downloadRes.status}`);
+        }
+      } catch (downloadErr: any) {
+        console.error('[VideoGen] Download error:', downloadErr.message);
+        // Fall through — use Jimeng URL as fallback
+      }
+      
       res.json({
         data: {
-          id: submitId || crypto.randomUUID(),
+          id: videoId,
           title: prompt.trim().slice(0, 30),
-          url: videoUrl,
+          url: localUrl,
           status: 'completed',
         },
       });
@@ -3516,6 +3548,19 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
   }
 });
+
+// ========== Serve generated videos as static files ==========
+app.use('/videos', express.static(VIDEO_DIR, {
+  maxAge: '7d',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.mp4')) {
+      res.setHeader('Content-Type', 'video/mp4');
+    } else if (filePath.endsWith('.webm')) {
+      res.setHeader('Content-Type', 'video/webm');
+    }
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+  }
+}));
 
 // ========== Serve Frontend (only in local dev mode) ==========
 if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'true') {
