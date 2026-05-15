@@ -1302,6 +1302,7 @@ async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
   var provider=src.aiProvider||'deepseek';
   var apiKey=src.apiKey||(provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
+  var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?(src.keywords as string).split(/[,，、]/).map(function(s:string){return s.trim()}).filter(Boolean):[]);
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
   if(provider==='metaso'){
@@ -1309,7 +1310,7 @@ async function fetchSourceIntel(src){
     var msResponse=await fetch(apiUrl,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-      body:JSON.stringify({question:(src.keywords||[]).join(' OR '),lang:'zh'})
+      body:JSON.stringify({question:_kwArr.join(' OR '),lang:'zh'})
     });
     if(!msResponse.ok){var msErr=await msResponse.text();throw new Error('秘塔API错误: '+msResponse.status+' '+msErr.substring(0,200))}
     var msData=await msResponse.json();
@@ -3829,7 +3830,7 @@ app.post('/api/portal-intel', async (req, res) => {
         var _results;
         if(_provider==='metaso'){
           var _apiUrl='https://metaso.cn/api/open/search/v2';
-          var _msResponse=await fetch(_apiUrl,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_apiKey},body:JSON.stringify({question:(src.keywords||[]).join(' OR '),lang:'zh'})});
+          var _msResponse=await fetch(_apiUrl,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_apiKey},body:JSON.stringify({question:_kwArr.join(' OR '),lang:'zh'})});
           if(!_msResponse.ok){var _msErr=await _msResponse.text();throw new Error('秘塔API错误: '+_msResponse.status+' '+_msErr.substring(0,200))}
           var _msData=await _msResponse.json();
           var _rawData=(_msData.data&&_msData.data.references)?_msData.data.references:(_msData.data||_msData.results||_msData.items||[]);
@@ -4413,7 +4414,7 @@ function renderSourceFilters(monitors){
   var groups={news:[],social:[],financial:[]};
   monitors.forEach(function(mw){
     (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
-      var keywords=(src.keywords||[]).join('');
+      var keywords=_kwArr.join('');
       if(keywords.indexOf('股价')!=-1||keywords.indexOf('财报')!=-1)groups.financial.push(src);
       else if(keywords.indexOf('Twitter')!=-1||keywords.indexOf('微博')!=-1)groups.social.push(src);
       else groups.news.push(src);
