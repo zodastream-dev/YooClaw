@@ -398,6 +398,9 @@ export function PortalBuilderPage() {
       const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets)
       if (res.data) {
         setResult({ id: res.data.id, slug: res.data.slug, title: res.data.title, url: res.data.url })
+        // 直接在新窗口打开部署后的门户页面
+        const portalFullUrl = window.location.origin + res.data.url
+        window.open(portalFullUrl, '_blank')
       } else {
         setError(res.error?.message || '部署失败')
       }

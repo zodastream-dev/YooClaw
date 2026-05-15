@@ -402,6 +402,14 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
     }
   });
 
+  // 我的报告卡片
+  cardsHtml += \`
+  <div class="c-card type-reports" onclick="openReportList()" title="查看所有报告">
+    <div class="cc-icon">📋</div>
+    <div class="cc-title">我的报告</div>
+    <div class="cc-meta"><span id="reportCardCount">0 份</span></div>
+  </div>\`;
+
   // Build widget configs for JS (modal content data)
   const widgetConfigsJs = JSON.stringify(wlist.map((w: any, i: number) => {
     if (w.type === 'report-generator') {
@@ -572,6 +580,25 @@ body::-webkit-scrollbar-thumb:hover{background:${isDark?'#475569':'#94a3b8'}}
 .btn-save{color:#fff}
 .modal-panel.type-report .btn-save{background:linear-gradient(135deg,${reportAccent},${reportAccentLight})}
 .modal-panel.type-monitor .btn-save{background:linear-gradient(135deg,${monitorAccent},${monitorAccentLight})}
+/* ===== REPORTS CARD & MODAL ===== */
+.type-reports{background:linear-gradient(135deg,rgba(16,185,129,.05),rgba(52,211,153,.02))}
+.type-reports::before{background:radial-gradient(circle at 50% 0%,rgba(16,185,129,.08) 0%,transparent 70%)}
+.type-reports::after{background:linear-gradient(90deg,#10b981,#34d399)}
+.type-reports .cc-icon{background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(52,211,153,.08));color:#34d399}
+.modal-panel.type-reports{border-top:4px solid #10b981}
+.modal-panel.type-reports .mh-icon{background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(52,211,153,.06));color:#34d399}
+.rpt-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding:0}
+.rpt-card{position:relative;background:${modalInputBg};border:1px solid ${modalBorder};border-radius:12px;padding:18px 20px;cursor:pointer;transition:all .25s;overflow:hidden}
+.rpt-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,${isDark?'.3':'.08'});border-color:#10b98155}
+.rpt-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#10b981,#34d399);opacity:0;transition:opacity .25s}
+.rpt-card:hover::before{opacity:1}
+.rpt-card .rpt-company{font-size:15px;font-weight:700;color:${textClr};margin-bottom:6px}
+.rpt-card .rpt-date{font-size:11px;color:${mutedClr};margin-bottom:12px}
+.rpt-card .rpt-actions{display:flex;gap:10px;align-items:center}
+.rpt-card .rpt-view{font-size:12px;font-weight:600;color:#10b981;text-decoration:none;border:1px solid #10b98144;padding:6px 14px;border-radius:7px;transition:all .2s}
+.rpt-card .rpt-view:hover{background:#10b98115;color:#059669}
+.rpt-card .rpt-delete{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:${mutedClr};cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.rpt-card .rpt-delete:hover{background:rgba(226,75,74,.1);color:#e24b4a}
 .btn-save:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,${isDark?'.3':'.1'})}
 .btn-cancel{background:${isDark?'rgba(255,255,255,.03)':'#f3f4f6'};color:${mutedClr};border:1px solid ${modalBorder}}
 .btn-cancel:hover{background:${isDark?'rgba(255,255,255,.06)':'#e5e7eb'};color:${textClr}}
@@ -717,15 +744,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   <div class="intel-status" id="intelStatus"></div>
 </div>
 
-<div class="divider"><span class="dlabel">Recent Reports</span><span class="dline"></span></div>
-
-<div class="content-area">
-  <div class="placeholder" id="globalPlaceholder">
-    <div class="ph-icon">📋</div>
-    <p class="ph-text">点击上方卡片开始分析或查看监控配置。</p>
-  </div>
-  <div id="globalReports" style="display:none"></div>
-</div>
+<div id="globalPlaceholder" style="display:none"></div>
+<div id="globalReports" style="display:none"></div>
 
 <div class="footer">Powered by <strong>YooClaw AI</strong></div>
 
@@ -1008,17 +1028,9 @@ function renderReportList(idx,reports){
   }
   var container=$('modalReportList_'+idx);
   if(container)container.innerHTML=html;
-  // Update global list
-  var global=$('globalReports');
-  if(global&&reports.length>0){
-    var gh='<h3 style="font-size:15px;font-weight:600;margin-bottom:12px;color:${textClr}">最近报告 ('+reports.length+')</h3>';
-    reports.slice(0,5).forEach(function(report){
-      var d=new Date(report.createdAt).toLocaleString('zh-CN');
-      gh+='<div class="report-item" style="margin-bottom:8px"><div style="flex:1"><div class="rname">'+(report.companyName||'未知')+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="color:${reportAccent};border:1px solid ${reportAccent}33">查看</a></div>';
-    });
-    $('globalPlaceholder').style.display='none';
-    global.innerHTML=gh;
-    global.style.display='block';
+  // Update main card count
+  var cnt=$('reportCardCount');
+  if(cnt)cnt.textContent=reports.length+' 份';
   }
 }
 
@@ -1036,6 +1048,80 @@ async function deleteReport(idx,rSlug){
 REPORT_INDICES.forEach(function(idx){
   setTimeout(function(){loadReports(idx)},100);
 });
+// Load report count for my reports card
+setTimeout(function(){loadRecentReportCount()},200);
+
+/* ===== REPORT LIST MODAL ===== */
+var CURRENT_REPORTS=[];
+
+function openReportList(){
+  var overlay=$('modalOverlay'),panel=$('modalPanel');
+  overlay.classList.add('open');
+  panel.className='modal-panel type-reports';
+  $('modalIcon').innerHTML='📋';
+  $('modalTitle').textContent='我的报告';
+  $('modalSub').textContent='查看和管理所有生成的行业分析报告';
+  $('modalFooter').innerHTML='<button class="btn-cancel" onclick="closeModalDirect()">关闭</button>';
+  $('modalBody').innerHTML='<p style="font-size:13px;text-align:center;color:${mutedClr}">加载报告列表中...</p>';
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/reports/'+slug).then(function(r){
+    if(!r.ok){renderReportCards([]);return}
+    return r.json();
+  }).then(function(data){
+    renderReportCards(data.data||[]);
+  }).catch(function(e){
+    renderReportCards([]);
+  });
+}
+
+function renderReportCards(reports){
+  CURRENT_REPORTS=reports;
+  if(reports.length===0){
+    $('modalBody').innerHTML='<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">📭</div><p style="font-size:14px;color:${mutedClr}">暂无报告，开始行业分析后这里会显示。</p></div>';
+    var cnt=$('reportCardCount');
+    if(cnt)cnt.textContent='0 份';
+    return;
+  }
+  var html='<div class="rpt-cards-grid">';
+  reports.forEach(function(report){
+    var d=new Date(report.createdAt).toLocaleString('zh-CN');
+    var company=(report.companyName||'未知').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var rSlug=(report.slug||'').replace(/'/g,'\x27');
+    html+='<div class="rpt-card" onclick="window.open(\''+report.url+'\',\'_blank\')">'+
+      '<button class="rpt-delete" onclick="event.stopPropagation();deleteReportCard(\''+rSlug+'\')" title="删除报告">&times;</button>'+
+      '<div class="rpt-company">'+company+'</div>'+
+      '<div class="rpt-date">'+d+'</div>'+
+      '<div class="rpt-actions"><span class="rpt-view">查看报告 →</span></div>'+
+      '</div>';
+  });
+  html+='</div>';
+  $('modalBody').innerHTML=html;
+  var cnt=$('reportCardCount');
+  if(cnt)cnt.textContent=reports.length+' 份';
+}
+
+async function deleteReportCard(rSlug){
+  if(!confirm('确定删除这个报告？'))return;
+  var slug=window.location.pathname.split('/').pop();
+  try{
+    var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
+    if(!r.ok){alert('删除失败');return}
+    var r2=await fetch(API+'/api/p/reports/'+slug);
+    var data=await r2.json();
+    renderReportCards(data.data||[]);
+  }catch(e){alert('删除失败')}
+}
+
+function loadRecentReportCount(){
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/reports/'+slug).then(function(r){
+    if(!r.ok)return;
+    return r.json();
+  }).then(function(data){
+    var cnt=$('reportCardCount');
+    if(cnt)cnt.textContent=(data.data||[]).length+' 份';
+  }).catch(function(){});
+}
 
 /* ===== INTEL FETCH ===== */
 var INTEL_FETCHING=false;
