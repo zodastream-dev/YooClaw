@@ -3795,7 +3795,6 @@ const PORTAL_INTEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 app.post('/api/portal-intel', async (req, res) => {
   try {
-    console.log('[PortalIntel Debug] typeof fetchSourceIntel:', typeof fetchSourceIntel);
     const { sources } = req.body || {};
     if (!Array.isArray(sources) || sources.length === 0) {
       return res.status(400).json({ error: 'sources array is required' });
@@ -3813,9 +3812,32 @@ app.post('/api/portal-intel', async (req, res) => {
       }
 
       try {
-        const data = await fetchSourceIntel(src);
-        portalIntelCache.set(cacheKey, { data, expiry: now + PORTAL_INTEL_CACHE_TTL });
-        return { sourceIdx: idx, data, fromCache: false };
+        // Inlined fetchSourceIntel logic (avoids runtime scope issue)
+        var _prompt=makeIntelPrompt(src.keywords,src.customPrompt);
+        var _provider=src.aiProvider||'deepseek';
+        var _apiKey=src.apiKey||(_provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
+        var _model=src.aiModel||'deepseek-v4-flash';
+        if(!_apiKey)throw new Error('未配置API Key');
+        var _results;
+        if(_provider==='metaso'){
+          var _apiUrl='https://metaso.cn/api/open/search/v2';
+          var _msResponse=await fetch(_apiUrl,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_apiKey},body:JSON.stringify({question:(src.keywords||[]).join(' OR '),lang:'zh'})});
+          if(!_msResponse.ok){var _msErr=await _msResponse.text();throw new Error('秘塔API错误: '+_msResponse.status+' '+_msErr.substring(0,200))}
+          var _msData=await _msResponse.json();
+          var _rawData=(_msData.data&&_msData.data.references)?_msData.data.references:(_msData.data||_msData.results||_msData.items||[]);
+          _results=Array.isArray(_rawData)?_rawData:(_rawData.results||_rawData.items||_rawData.references||[_rawData]);
+          _results=_results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||r.aiSummary||'',source:r.url||r.link||r.source||'秘塔搜索',date:r.date||r.publishedAt||r.publishTime||'',link:r.url||r.link||''};});
+        } else {
+          var _apiUrl2='https://api.deepseek.com/chat/completions';
+          var _response=await fetch(_apiUrl2,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_apiKey},body:JSON.stringify({model:_model,messages:[{role:'system',content:_prompt.systemPrompt},{role:'user',content:_prompt.userPrompt}],max_tokens:4096,temperature:0.7})});
+          if(!_response.ok){var _err=await _response.text();throw new Error('API错误: '+_response.status)}
+          var _data=await _response.json();
+          var _content=_data.choices[0].message.content;
+          _content=_content.replace('```json','').replace(/```/g,'').trim();
+          try{_results=JSON.parse(_content)}catch(e){var _match=_content.match(/\[[\s\S]*\]/);if(_match)_results=JSON.parse(_match[0]);else throw new Error('无法解析AI返回数据')}
+        }
+        portalIntelCache.set(cacheKey, { data: _results, expiry: now + PORTAL_INTEL_CACHE_TTL });
+        return { sourceIdx: idx, data: _results, fromCache: false };
       } catch (err: any) {
         return { sourceIdx: idx, error: err.message, data: [] };
       }
