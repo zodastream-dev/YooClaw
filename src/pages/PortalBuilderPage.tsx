@@ -166,30 +166,15 @@ export function PortalBuilderPage() {
       sysPrompt: '你是一个行业研究分析师。',
       userPrompt: '请用 HTML 格式输出行业研究报告。',
     })
-    const existingIntelCount = widgets.filter((w) => w.type === 'intel-monitor').length
-    let defaultProvider = 'deepseek'
-    let defaultModel = 'deepseek-v3.1'
-    let defaultKeywords: string[] = []
-    if (existingIntelCount === 0) {
-      // 第一次添加情报源：deepseek搜索特朗普动态
-      defaultProvider = 'deepseek'
-      defaultModel = 'deepseek-v3.1'
-      defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系', '美国大选', '白宫']
-    } else if (existingIntelCount === 1) {
-      // 第二次添加情报源：秘塔搜索比亚迪电动汽车
-      defaultProvider = 'metaso'
-      defaultModel = 'metaso-pro'
-      defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车', '动力电池', '刀片电池']
-    }
     setAddMonitorForm({
-      title: `情报监控源 #${existingIntelCount + 1}`,
+      title: `情报监控源 #${widgets.filter((w) => w.type === 'intel-monitor').length + 1}`,
       sources: [{
         id: genId('s'),
         name: '新建监控源',
-        aiProvider: defaultProvider,
-        aiModel: defaultModel,
+        aiProvider: 'deepseek',
+        aiModel: 'deepseek-v3.1',
         apiKey: '',
-        keywords: defaultKeywords,
+        keywords: [],
         updateFrequency: 'daily',
         customPrompt: '',
       }],
@@ -559,1001 +544,513 @@ export function PortalBuilderPage() {
           </div>
 
           {/* Main grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-7 items-start">
-            {/* LEFT: Builder */}
-            <div className="space-y-4 lg:min-w-0 lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
-              {/* Basic Info */}
-              <div className="border border-border rounded-2xl p-6 bg-card shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
-                    <FileText size={16} className="text-violet-600" />
-                  </div>
-                  <span className="text-sm font-semibold">门户基本信息</span>
-                </div>
-                <div className="flex gap-3 mb-3">
-                  <div className="flex-[2]">
-                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">网站名称</label>
-                    <input
-                      type="text" value={siteName}
-                      onChange={(e) => setSiteName(e.target.value)}
-                      placeholder="给你的门户起个名字"
-                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                      自定义链接 <span className="font-normal text-muted-foreground/60">选填</span>
-                    </label>
-                    <input
-                      type="text" placeholder="例如：my-portal"
-                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">留空则自动生成</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">网站描述</label>
-                  <input
-                    type="text" value={siteDesc}
-                    onChange={(e) => setSiteDesc(e.target.value)}
-                    placeholder="一句话介绍你的门户"
-                    className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
-                  />
-                </div>
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
+            
+      {/* LEFT: Preview (40%) */}
+      <div className="xl:col-span-2 sticky top-6">
+        <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-lg">
+          {/* Preview topbar */}
+          <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
+            <div className="flex gap-1">
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="w-2 h-2 rounded-full bg-green-400" />
+            </div>
+            <div className="flex-1 ml-2.5 text-[10px] text-muted-foreground bg-background px-3 py-1 rounded-md border border-border truncate">
+              🔒 yooclaw.yookeer.com/p/...
+            </div>
+          </div>
+
+          {/* Preview body */}
+          <div className="max-h-[calc(100vh-120px)] overflow-y-auto" style={{ background: pc.bg }}>
+            {/* Site header */}
+            <div
+              className="p-5 text-center relative overflow-hidden"
+              style={{
+                background: selectedTheme === 'tech-black'
+                  ? 'linear-gradient(135deg, #0f172a, #1e293b)'
+                  : selectedTheme === 'simple-white'
+                    ? pc.bg
+                    : template?.preview || 'linear-gradient(135deg, #2563eb, #1e40af)',
+                color: selectedTheme === 'simple-white' ? '#1a1a2e' : '#ffffff',
+                borderBottom: selectedTheme === 'simple-white' ? '2px solid #e5e7eb' : selectedTheme === 'tech-black' ? '2px solid #38bdf8' : 'none',
+              }}
+            >
+              <h3 className="text-lg font-extrabold tracking-tight">{siteName || '情报分析门户'}</h3>
+              {siteDesc && <p className="text-xs mt-1.5 opacity-75 max-w-lg mx-auto leading-relaxed">{siteDesc}</p>}
+            </div>
+
+            {/* Card row */}
+            <div className="flex justify-center gap-3 flex-wrap px-5 py-5">
+              {previewCards}
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 px-5 pb-3">
+              <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: pc.muted }}>报告输出</span>
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${pc.border}, transparent)` }} />
+            </div>
+
+            {/* Content area placeholder */}
+            <div className="px-5 pb-8">
+              <div className="text-center py-12 rounded-xl border border-dashed mx-auto" style={{ borderColor: pc.border, background: pc.cardBg }}>
+                <div className="text-3xl mb-3 opacity-20" style={{ filter: 'grayscale(0.5)' }}>📄</div>
+                <p className="text-xs leading-relaxed" style={{ color: pc.muted }}>
+                  选择一个 Widget 卡片开始分析
+                </p>
+                <p className="text-[10px] mt-1 opacity-50" style={{ color: pc.muted }}>
+                  报告生成后将在此区域展示
+                </p>
               </div>
+            </div>
 
-              {/* Theme */}
-              <div className="border border-border rounded-2xl p-6 bg-card shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
-                    <Palette size={16} className="text-violet-600" />
-                  </div>
-                  <span className="text-sm font-semibold">视觉主题</span>
-                  <span className="text-[11px] text-muted-foreground ml-1">选择门户的整体风格</span>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  {TEMPLATES.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setSelectedTheme(t.id)}
-                      className={`overflow-hidden rounded-xl border-2 text-left transition-all ${
-                        selectedTheme === t.id
-                          ? 'border-violet-500 ring-2 ring-violet-500/20'
-                          : 'border-border hover:border-violet-500/40'
-                      }`}
-                    >
-                      <div className="h-14 flex items-end p-3" style={{ background: t.preview }}>
-                        <div className="flex gap-1">
-                          <div className="w-4 h-1 rounded-full bg-white/30" />
-                          <div className="w-2.5 h-1 rounded-full bg-white/20" />
-                        </div>
-                      </div>
-                      <div className="p-3">
-                        <div className="text-xs font-semibold">{t.name}</div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">{t.desc}</div>
-                      </div>
-                      {selectedTheme === t.id && (
-                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
-                          ✓
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
+            {/* Footer */}
+            <div className="text-center py-4 text-[10px]" style={{ color: pc.muted, borderTop: `1px solid ${pc.border}` }}>
+              Powered by YooClaw AI
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* RIGHT: Builder (60%) */}
+      <div className="xl:col-span-3 space-y-4 lg:min-w-0 lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
+        {/* Site Settings Card */}
+        <div className="border border-border rounded-2xl p-5 bg-card shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
+              <FileText size={16} className="text-violet-600" />
+            </div>
+            <span className="text-sm font-semibold">网站设置</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">网站名称</label>
+              <input
+                type="text" value={siteName}
+                onChange={(e) => setSiteName(e.target.value)}
+                placeholder="给你的门户起个名字"
+                className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+                自定义链接 <span className="font-normal text-muted-foreground/60">选填</span>
+              </label>
+              <input
+                type="text" placeholder="例如：my-portal"
+                className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">网站描述</label>
+            <input
+              type="text" value={siteDesc}
+              onChange={(e) => setSiteDesc(e.target.value)}
+              placeholder="一句话介绍你的门户"
+              className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+            />
+          </div>
+
+          {/* Theme Selection */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
+                <Palette size={14} className="text-violet-600" />
               </div>
-
-              {/* Widgets */}
-              <div className="border border-border rounded-2xl p-6 bg-card shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
-                    <BarChart3 size={16} className="text-violet-600" />
-                  </div>
-                  <span className="text-sm font-semibold">Widget 模块</span>
-                  <span className="text-[11px] text-muted-foreground ml-1">拖拽排序 · 点击展开配置</span>
-                </div>
-
-                {/* Widget list */}
-                <div className="space-y-2.5 mb-4">
-                  {widgets.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground">
-                      <div className="text-3xl mb-2 opacity-40">🧩</div>
-                      <p className="text-sm font-medium">还没有添加 Widget</p>
-                      <p className="text-[11px] opacity-60 mt-1">点击下方按钮开始构建你的情报门户</p>
+              <span className="text-xs font-semibold">视觉主题</span>
+              <span className="text-[11px] text-muted-foreground ml-1">{template?.name || '默认'}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedTheme(t.id)}
+                  className={`overflow-hidden rounded-xl border-2 text-left transition-all ${
+                    selectedTheme === t.id
+                      ? 'border-violet-500 ring-2 ring-violet-500/20'
+                      : 'border-border hover:border-violet-500/40'
+                  }`}
+                >
+                  <div className="h-10 flex items-end p-2" style={{ background: t.preview }}>
+                    <div className="flex gap-1">
+                      <div className="w-3 h-1 rounded-full bg-white/30" />
+                      <div className="w-2 h-1 rounded-full bg-white/20" />
                     </div>
-                  ) : (
-                    widgets.map((w, i) => {
-                      const isReport = w.type === 'report-generator'
-                      const isMonitor = w.type === 'intel-monitor'
-                      const sources = isMonitor ? (w.config.sources || []) : []
-                      const methodCount = isReport ? (w.config.analysisMethods || []).length : 0
-                      const kwCount = isMonitor ? sources.reduce((sum, s) => sum + (s.keywords || []).length, 0) : 0
+                  </div>
+                  <div className="p-2">
+                    <div className="text-[11px] font-semibold">{t.name}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
-                      return (
-                        <div
-                          key={w.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, i)}
-                          onDragOver={handleDragOver}
-                          onDrop={(e) => handleDrop(e, i)}
-                          className={`border rounded-xl overflow-hidden transition-all ${
-                            dragIdx === i
-                              ? 'opacity-50 scale-[0.97] border-dashed border-violet-400'
-                              : 'border-border hover:border-violet-300 bg-card'
-                          }`}
+        {/* Widget Modules */}
+        <div className="border border-border rounded-2xl p-5 bg-card shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
+                <BarChart3 size={16} className="text-violet-600" />
+              </div>
+              <span className="text-sm font-semibold">Widget 模块</span>
+              <span className="text-[11px] text-muted-foreground ml-1">{widgets.length} 个</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <GripVertical size={12} /> 拖拽排序
+            </div>
+          </div>
+
+          {/* Widget list */}
+          <div className="space-y-2.5 mb-4">
+            {widgets.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <div className="text-3xl mb-2 opacity-40">🧩</div>
+                <p className="text-sm font-medium">还没有添加 Widget</p>
+                <p className="text-[11px] opacity-60 mt-1">点击下方按钮开始构建你的情报门户</p>
+              </div>
+            ) : (
+              widgets.map((w, i) => {
+                const isReport = w.type === 'report-generator'
+                const isMonitor = w.type === 'intel-monitor'
+                const sources = isMonitor ? (w.config.sources || []) : []
+                const methodCount = isReport ? (w.config.analysisMethods || []).length : 0
+                const kwCount = isMonitor ? sources.reduce((sum, s) => sum + (s.keywords || []).length, 0) : 0
+
+                return (
+                  <div
+                    key={w.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, i)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, i)}
+                    className={`border rounded-xl overflow-hidden transition-all ${
+                      dragIdx === i
+                        ? 'opacity-50 scale-[0.97] border-dashed border-violet-400'
+                        : 'border-border hover:border-violet-300 bg-card'
+                    }`}
+                  >
+                    {/* Widget header */}
+                    <div
+                      className="flex items-center gap-2.5 px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors select-none"
+                      onClick={() => toggleWidget(w.id)}
+                    >
+                      <GripVertical size={14} className="text-muted-foreground flex-shrink-0" />
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${
+                        isReport ? 'bg-violet-100 dark:bg-violet-900/20 text-violet-600' : 'bg-amber-100 dark:bg-amber-900/20 text-amber-600'
+                      }`}>
+                        {isReport ? '📊' : '🛰️'}
+                      </div>
+                      <input
+                        className="flex-1 bg-transparent border-none text-sm font-semibold outline-none min-w-0 hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-violet-500/30 rounded px-1 py-0.5 transition-all"
+                        value={w.title}
+                        onChange={(e) => updateWidgetTitle(w.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        title="点击编辑标题"
+                      />
+                      <div className="flex gap-1 flex-shrink-0 items-center">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-600 rounded-full">
+                          {isReport ? '报告' : '监控'}
+                        </span>
+                        {isReport && methodCount > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">{methodCount} 框架</span>
+                        )}
+                        {isMonitor && kwCount > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">{kwCount} 关键词</span>
+                        )}
+                      </div>
+                      <div className="flex gap-0.5 flex-shrink-0">
+                        <button
+                          className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+                          disabled={i === 0}
+                          onClick={(e) => { e.stopPropagation(); moveWidget(i, i - 1) }}
                         >
-                          {/* Widget header */}
-                          <div
-                            className="flex items-center gap-2.5 px-4 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors select-none"
-                            onClick={() => toggleWidget(w.id)}
-                          >
-                            <GripVertical size={14} className="text-muted-foreground flex-shrink-0" />
-                            {/* Expand/collapse toggle */}
-                            <button
-                              className={`flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center border border-border bg-card hover:bg-violet-50 hover:border-violet-300 dark:hover:bg-violet-900/20 transition-all ${w.expanded ? 'text-violet-600' : 'text-muted-foreground'}`}
-                              onClick={(e) => { e.stopPropagation(); toggleWidget(w.id) }}
-                              title={w.expanded ? '收起' : '展开'}
-                            >
-                              <ChevronDown size={16} className={`transition-transform duration-200 ${w.expanded ? 'rotate-180' : ''}`} />
-                            </button>
-                            <div className={`w-8 h-8 rounded-md flex items-center justify-center text-sm flex-shrink-0 ${
-                              isReport ? 'bg-violet-100 dark:bg-violet-900/20 text-violet-600' : 'bg-amber-100 dark:bg-amber-900/20 text-amber-600'
-                            }`}>
-                              {isReport ? '📊' : '🛰️'}
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+                          disabled={i === widgets.length - 1}
+                          onClick={(e) => { e.stopPropagation(); moveWidget(i, i + 1) }}
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                        <button
+                          className="p-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-600 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <span className={`text-[10px] text-muted-foreground transition-transform ${w.expanded ? 'rotate-180' : ''}`}>
+                          <ChevronDown size={14} />
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Widget body */}
+                    {w.expanded && (
+                      <div className="border-t border-border px-4 py-4 bg-muted/10" onClick={(e) => e.stopPropagation()}>
+                        {isReport && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Widget 标题</label>
+                                <input
+                                  type="text" value={w.title}
+                                  onChange={(e) => updateWidgetTitle(w.id, e.target.value)}
+                                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">默认公司名</label>
+                                <input
+                                  type="text" value={w.config.defaultCompany || ''}
+                                  placeholder="例如：宁德时代"
+                                  onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, defaultCompany: e.target.value } }))}
+                                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
+                                />
+                              </div>
                             </div>
-                            <input
-                              className="flex-1 bg-transparent border-none text-sm font-semibold outline-none min-w-0 hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-violet-500/30 rounded px-1 py-0.5 transition-all"
-                              value={w.title}
-                              onChange={(e) => updateWidgetTitle(w.id, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              title="点击编辑标题"
-                            />
-                            <div className="flex gap-1.5 flex-shrink-0 items-center">
-                              <span className="text-[10px] font-semibold px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-600 rounded-full">
-                                {isReport ? '报告生成器' : '情报监控源'}
-                              </span>
-                              {isReport && methodCount > 0 && (
-                                <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">{methodCount} 框架</span>
-                              )}
-                              {isMonitor && (
-                                <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">{sources.length} 源</span>
-                              )}
-                              {kwCount > 0 && (
-                                <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">{kwCount} 关键词</span>
-                              )}
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">分析框架</label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {ANALYSIS_METHODS.map((m) => {
+                                  const checked = (w.config.analysisMethods || []).includes(m)
+                                  return (
+                                    <button
+                                      key={m}
+                                      onClick={() => toggleMethod(w.id, m)}
+                                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
+                                        checked
+                                          ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 font-semibold'
+                                          : 'border-border hover:border-violet-300 text-muted-foreground'
+                                      }`}
+                                    >
+                                      {m}
+                                    </button>
+                                  )
+                                })}
+                              </div>
                             </div>
-                            <div className="flex gap-0.5 flex-shrink-0">
-                              <button
-                                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
-                                disabled={i === 0}
-                                onClick={(e) => { e.stopPropagation(); moveWidget(i, i - 1) }}
-                              >
-                                <ChevronUp size={14} />
-                              </button>
-                              <button
-                                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
-                                disabled={i === widgets.length - 1}
-                                onClick={(e) => { e.stopPropagation(); moveWidget(i, i + 1) }}
-                              >
-                                <ChevronDown size={14} />
-                              </button>
-                              <button
-                                className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-600 transition-colors"
-                                onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">搜索平台</label>
+                                <select
+                                  value={w.config.searchPlatform || ''}
+                                  onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, searchPlatform: e.target.value } }))}
+                                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
+                                >
+                                  {SEARCH_PLATFORMS.map((p) => (
+                                    <option key={p.value} value={p.value}>{p.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key</label>
+                                <input
+                                  type="password" value={w.config.searchApiKey || ''}
+                                  placeholder="输入 API Key"
+                                  onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, searchApiKey: e.target.value } }))}
+                                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
+                              <textarea
+                                value={w.config.sysPrompt || ''}
+                                onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, sysPrompt: e.target.value } }))}
+                                rows={2}
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30 resize-y"
+                              />
                             </div>
                           </div>
+                        )}
 
-                          {/* Widget body */}
-                          {w.expanded && (
-                            <div className="border-t border-border px-4 py-4 bg-muted/10" onClick={(e) => e.stopPropagation()}>
-                              {isReport && (
-                                <div className="space-y-3">
-                                  <div className="flex gap-3">
-                                    <div className="flex-[2]">
-                                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Widget 标题</label>
-                                      <input
-                                        type="text" value={w.title}
-                                        onChange={(e) => updateWidgetTitle(w.id, e.target.value)}
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                      />
-                                    </div>
-                                    <div className="flex-1">
-                                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                                        默认公司名 <span className="font-normal text-muted-foreground/60">选填</span>
-                                      </label>
-                                      <input
-                                        type="text" value={w.config.defaultCompany || ''}
-                                        placeholder="例如：宁德时代"
-                                        onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, defaultCompany: e.target.value } }))}
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                                      分析框架 <span className="font-normal text-muted-foreground/60">可多选</span>
-                                    </label>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {ANALYSIS_METHODS.map((m) => {
-                                        const checked = (w.config.analysisMethods || []).includes(m)
-                                        return (
-                                          <button
-                                            key={m}
-                                            onClick={() => toggleMethod(w.id, m)}
-                                            className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                                              checked
-                                                ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 font-semibold'
-                                                : 'border-border hover:border-violet-300 text-muted-foreground'
-                                            }`}
-                                          >
-                                            {m} 分析
-                                          </button>
-                                        )
-                                      })}
+                        {isMonitor && (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Widget 标题</label>
+                              <input
+                                type="text" value={w.title}
+                                onChange={(e) => updateWidgetTitle(w.id, e.target.value)}
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
+                              />
+                            </div>
+                            <div className="space-y-3">
+                              {sources.map((s) => (
+                                <div key={s.id} className="bg-muted/50 border border-border rounded-xl p-3 space-y-2">
+                                  <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <span className="text-sm font-semibold flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                      {s.name}
+                                    </span>
+                                    <div className="flex gap-1">
+                                      <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-full">
+                                        🤖 {s.aiProvider}
+                                      </span>
+                                      {s.keywords.length > 0 && (
+                                        <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">
+                                          🔑 {s.keywords.length}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
-                                  <div className="flex gap-3">
-                                    <div className="flex-1">
-                                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">搜索平台</label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">名称</label>
+                                      <input
+                                        type="text" value={s.name}
+                                        onChange={(e) => updateSourceField(w.id, s.id, 'name', e.target.value)}
+                                        className="w-full px-2 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-violet-500/30"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">更新频率</label>
                                       <select
-                                        value={w.config.searchPlatform || ''}
-                                        onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, searchPlatform: e.target.value } }))}
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
+                                        value={s.updateFrequency}
+                                        onChange={(e) => updateSourceField(w.id, s.id, 'updateFrequency', e.target.value)}
+                                        className="w-full px-2 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-violet-500/30"
                                       >
-                                        {SEARCH_PLATFORMS.map((p) => (
+                                        <option value="realtime">实时</option>
+                                        <option value="hourly">每小时</option>
+                                        <option value="daily">每天</option>
+                                        <option value="weekly">每周</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">AI 接口</label>
+                                      <select
+                                        value={s.aiProvider}
+                                        onChange={(e) => updateSourceField(w.id, s.id, 'aiProvider', e.target.value)}
+                                        className="w-full px-2 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-violet-500/30"
+                                      >
+                                        {AI_PROVIDERS.map((p) => (
                                           <option key={p.value} value={p.value}>{p.label}</option>
                                         ))}
                                       </select>
                                     </div>
-                                    <div className="flex-1">
-                                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key</label>
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">AI 模型</label>
                                       <input
-                                        type="password" value={w.config.searchApiKey || ''}
-                                        placeholder="输入该平台的 API Key"
-                                        onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, searchApiKey: e.target.value } }))}
-                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
+                                        type="text" value={s.aiModel || ''}
+                                        placeholder="deepseek-v3.1"
+                                        onChange={(e) => updateSourceField(w.id, s.id, 'aiModel', e.target.value)}
+                                        className="w-full px-2 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-violet-500/30"
                                       />
                                     </div>
                                   </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                                      系统提示词 <span className="font-normal text-muted-foreground/60">选填</span>
-                                    </label>
-                                    <textarea
-                                      value={w.config.sysPrompt || ''}
-                                      onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, sysPrompt: e.target.value } }))}
-                                      rows={2}
-                                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30 resize-y"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                                      用户提示词 <span className="font-normal text-muted-foreground/60">选填</span>
-                                    </label>
-                                    <textarea
-                                      value={w.config.userPrompt || ''}
-                                      onChange={(e) => updateWidget(w.id, (w) => ({ ...w, config: { ...w.config, userPrompt: e.target.value } }))}
-                                      rows={2}
-                                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30 resize-y"
-                                    />
+                                  <KeywordInput
+                                    keywords={s.keywords}
+                                    sourceId={s.id}
+                                    widgetId={w.id}
+                                    onAdd={addKeyword}
+                                    onRemove={removeKeyword}
+                                  />
+                                  <div className="flex justify-end">
+                                    <button
+                                      onClick={() => deleteMonitorSource(w.id, s.id)}
+                                      className="px-2 py-1 text-[10px] font-medium text-red-600 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30 rounded hover:bg-red-100 transition-colors"
+                                    >
+                                      🗑 删除
+                                    </button>
                                   </div>
                                 </div>
-                              )}
-
-                              {isMonitor && (
-                                <div className="space-y-3">
-                                  <div>
-                                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Widget 标题</label>
-                                    <input
-                                      type="text" value={w.title}
-                                      onChange={(e) => updateWidgetTitle(w.id, e.target.value)}
-                                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                    />
-                                  </div>
-                                  <div className="space-y-4">
-                                    <label className="block text-xs font-semibold text-muted-foreground">
-                                      📡 监控源 <span className="font-normal text-muted-foreground/60">每个源独立配置 AI 接口与监控关键词</span>
-                                    </label>
-                                    {sources.map((s) => (
-                                      <div key={s.id} className="bg-muted/50 border border-border rounded-xl p-4 space-y-3">
-                                        {/* Source header */}
-                                        <div className="flex items-center justify-between flex-wrap gap-2">
-                                          <span className="text-sm font-semibold flex items-center gap-1.5">
-                                            <span className="w-2 h-2 rounded-full bg-amber-500" />
-                                            {s.name}
-                                          </span>
-                                          <div className="flex gap-1">
-                                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-full">
-                                              🤖 {s.aiProvider}
-                                            </span>
-                                            {s.keywords.length > 0 && (
-                                              <span className="text-[10px] px-2 py-0.5 bg-muted rounded-full text-muted-foreground">
-                                                🔑 {s.keywords.length} 关键词
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        {/* Source fields */}
-                                        <div className="flex gap-3">
-                                          <div className="flex-1">
-                                            <label className="block text-[11px] font-semibold text-muted-foreground mb-1">监控源名称</label>
-                                            <input
-                                              type="text" value={s.name}
-                                              onChange={(e) => updateSourceField(w.id, s.id, 'name', e.target.value)}
-                                              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                            />
-                                          </div>
-                                          <div className="flex-1">
-                                            <label className="block text-[11px] font-semibold text-muted-foreground mb-1">更新频率</label>
-                                            <select
-                                              value={s.updateFrequency}
-                                              onChange={(e) => updateSourceField(w.id, s.id, 'updateFrequency', e.target.value)}
-                                              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                            >
-                                              <option value="realtime">实时</option>
-                                              <option value="hourly">每小时</option>
-                                              <option value="daily">每天</option>
-                                              <option value="weekly">每周</option>
-                                            </select>
-                                          </div>
-                                        </div>
-
-                                        <div className="flex gap-3">
-                                          <div className="flex-1">
-                                            <label className="block text-[11px] font-semibold text-muted-foreground mb-1">AI 接口</label>
-                                            <select
-                                              value={s.aiProvider}
-                                              onChange={(e) => updateSourceField(w.id, s.id, 'aiProvider', e.target.value)}
-                                              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                            >
-                                              {AI_PROVIDERS.map((p) => (
-                                                <option key={p.value} value={p.value}>{p.label}</option>
-                                              ))}
-                                            </select>
-                                          </div>
-                                          <div className="flex-1">
-                                            <label className="block text-[11px] font-semibold text-muted-foreground mb-1">AI 模型</label>
-                                            <input
-                                              type="text" value={s.aiModel || ''}
-                                              placeholder="例如：deepseek-v3.1"
-                                              onChange={(e) => updateSourceField(w.id, s.id, 'aiModel', e.target.value)}
-                                              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                            />
-                                          </div>
-                                        </div>
-
-                                        <div>
-                                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">API Key</label>
-                                          <input
-                                            type="password" value={s.apiKey || ''}
-                                            placeholder="输入 API Key"
-                                            onChange={(e) => updateSourceField(w.id, s.id, 'apiKey', e.target.value)}
-                                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30"
-                                          />
-                                        </div>
-
-                                        {/* Keywords */}
-                                        <KeywordInput
-                                          keywords={s.keywords}
-                                          sourceId={s.id}
-                                          widgetId={w.id}
-                                          onAdd={addKeyword}
-                                          onRemove={removeKeyword}
-                                        />
-
-                                        {/* Custom prompt */}
-                                        <div>
-                                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                                            自定义 AI 提示词 <span className="font-normal text-muted-foreground/60">针对此监控源的 AI 行为指令</span>
-                                          </label>
-                                          <textarea
-                                            value={s.customPrompt || ''}
-                                            onChange={(e) => updateSourceField(w.id, s.id, 'customPrompt', e.target.value)}
-                                            placeholder="例如：你是新能源行业专家，请监控最新动态并输出结构化摘要…"
-                                            rows={3}
-                                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-violet-500/30 resize-y"
-                                          />
-                                        </div>
-
-                                        <div className="text-right">
-                                          <button
-                                            onClick={() => deleteMonitorSource(w.id, s.id)}
-                                            className="px-3 py-1.5 text-[11px] font-medium text-red-600 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
-                                          >
-                                            🗑 删除此监控源
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <button
-                                    onClick={() => addMonitorSource(w.id)}
-                                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 border border-dashed border-border rounded-lg text-sm text-muted-foreground hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-all"
-                                  >
-                                    <Plus size={14} /> 添加监控源
-                                  </button>
-                                </div>
-                              )}
+                              ))}
                             </div>
-                          )}
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-
-                {/* Add widget buttons */}
-                <div className="border-2 border-dashed border-border rounded-xl p-5 text-center bg-muted/30 hover:border-violet-400 hover:bg-violet-50/30 dark:hover:bg-violet-900/5 transition-all">
-                  <div className="flex gap-2.5 justify-center flex-wrap">
-                    <button
-                      onClick={() => openAddModal('report-generator')}
-                      className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-all group"
-                    >
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-violet-500 text-white flex items-center justify-center text-[10px] font-bold leading-none shadow-sm group-hover:scale-110 transition-transform">+</span>
-                      <span className="w-7 h-7 rounded-md bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-sm">📊</span>
-                      <div className="text-left leading-tight">
-                        <div className="font-semibold text-xs">报告生成器</div>
-                        <div className="text-[10px] text-muted-foreground">AI 自动生成分析报告</div>
+                            <button
+                              onClick={() => addMonitorSource(w.id)}
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50/30 transition-all"
+                            >
+                              <Plus size={12} /> 添加监控源
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </button>
-                    <button
-                      onClick={() => openAddModal('intel-monitor')}
-                      className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all group"
-                    >
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-amber-500 text-white flex items-center justify-center text-[10px] font-bold leading-none shadow-sm group-hover:scale-110 transition-transform">+</span>
-                      <span className="w-7 h-7 rounded-md bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-sm">🛰️</span>
-                      <div className="text-left leading-tight">
-                        <div className="font-semibold text-xs">情报监控源</div>
-                        <div className="text-[10px] text-muted-foreground">AI 持续监控关键词情报</div>
-                      </div>
-                    </button>
-                    <button className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium opacity-40 cursor-not-allowed" disabled>
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-gray-300 dark:bg-gray-600 text-white flex items-center justify-center text-[10px] font-bold leading-none">+</span>
-                      <span className="w-7 h-7 rounded-md bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-sm">📝</span>
-                      <div className="text-left leading-tight">
-                        <div className="font-semibold text-xs">文本块</div>
-                        <div className="text-[10px] text-muted-foreground">即将推出</div>
-                      </div>
-                    </button>
-                    <button className="relative flex items-center gap-2.5 px-4 py-3 bg-card border border-border rounded-xl text-sm font-medium opacity-40 cursor-not-allowed" disabled>
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-md bg-gray-300 dark:bg-gray-600 text-white flex items-center justify-center text-[10px] font-bold leading-none">+</span>
-                      <span className="w-7 h-7 rounded-md bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center text-sm">🔗</span>
-                      <div className="text-left leading-tight">
-                        <div className="font-semibold text-xs">快捷链接</div>
-                        <div className="text-[10px] text-muted-foreground">即将推出</div>
-                      </div>
-                    </button>
+                    )}
                   </div>
-                </div>
-              </div>
-
-              {/* Deploy */}
-              <div className="border-2 border-violet-300 dark:border-violet-800 rounded-2xl p-6 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
-                    <Globe size={16} className="text-violet-600" />
-                  </div>
-                  <span className="text-sm font-semibold">确认并部署</span>
-                </div>
-                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-                  检查配置无误后，一键生成完整的情报分析门户网站，部署到可公开访问的链接。
-                </p>
-                <div className="flex gap-4 mb-4 flex-wrap text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                    {reportCount} 个报告生成器
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    {monitorCount} 个情报监控源
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                    {template?.name || '默认'} 主题
-                  </span>
-                </div>
-                <button
-                  onClick={handleDeploy}
-                  disabled={isDeploying}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-violet-500/20"
-                >
-                  {isDeploying ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      正在部署门户网站...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={16} />
-                      一键部署情报分析门户
-                    </>
-                  )}
-                </button>
-
-                {error && (
-                  <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-xl text-xs text-red-600 dark:text-red-400">
-                    {error}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* RIGHT: Preview */}
-            <div className="sticky top-6">
-              <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
-              <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-lg">
-                {/* Preview topbar */}
-                <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-400" />
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="w-2 h-2 rounded-full bg-green-400" />
-                  </div>
-                  <div className="flex-1 ml-2.5 text-[10px] text-muted-foreground bg-background px-3 py-1 rounded-md border border-border truncate">
-                    🔒 yooclaw.yookeer.com/p/...
-                  </div>
-                </div>
-
-                {/* Preview body */}
-                <div className="max-h-[calc(100vh-120px)] overflow-y-auto" style={{ background: pc.bg }}>
-                  {/* Site header */}
-                  <div
-                    className="p-5 text-center relative overflow-hidden"
-                    style={{
-                      background: selectedTheme === 'tech-black'
-                        ? 'linear-gradient(135deg, #0f172a, #1e293b)'
-                        : selectedTheme === 'simple-white'
-                          ? pc.bg
-                          : template?.preview || 'linear-gradient(135deg, #2563eb, #1e40af)',
-                      color: selectedTheme === 'simple-white' ? '#1a1a2e' : '#ffffff',
-                      borderBottom: selectedTheme === 'simple-white' ? '2px solid #e5e7eb' : selectedTheme === 'tech-black' ? '2px solid #38bdf8' : 'none',
-                    }}
-                  >
-                    <h3 className="text-lg font-extrabold tracking-tight">{siteName || '情报分析门户'}</h3>
-                    {siteDesc && <p className="text-xs mt-1.5 opacity-75 max-w-lg mx-auto leading-relaxed">{siteDesc}</p>}
-                  </div>
-
-                  {/* Card row — centered, matches portal .card-row-wrap */}
-                  <div className="flex justify-center gap-3 flex-wrap px-5 py-5">
-                    {previewCards}
-                  </div>
-
-                  {/* Divider */}
-                  <div className="flex items-center gap-3 px-5 pb-3">
-                    <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: pc.muted }}>报告输出</span>
-                    <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${pc.border}, transparent)` }} />
-                  </div>
-
-                  {/* Content area placeholder */}
-                  <div className="px-5 pb-8">
-                    <div className="text-center py-12 rounded-xl border border-dashed mx-auto" style={{ borderColor: pc.border, background: pc.cardBg }}>
-                      <div className="text-3xl mb-3 opacity-20" style={{ filter: 'grayscale(0.5)' }}>📄</div>
-                      <p className="text-xs leading-relaxed" style={{ color: pc.muted }}>
-                        选择一个 Widget 卡片开始分析
-                      </p>
-                      <p className="text-[10px] mt-1 opacity-50" style={{ color: pc.muted }}>
-                        报告生成后将在此区域展示
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="text-center py-4 text-[10px]" style={{ color: pc.muted, borderTop: `1px solid ${pc.border}` }}>
-                    Powered by YooClaw AI
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ========== Add Widget Modal ========== */}
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddModal(false); setAddModalType(null) }}>
-            {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-
-            {/* Modal */}
-            <div
-              className="relative bg-card border border-border rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto w-full mx-4"
-              style={{ maxWidth: addModalType === 'intel-monitor' ? 560 : 520 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-sm">
-                    {addModalType === 'report-generator' ? '📊' : '🛰️'}
-                  </span>
-                  <div>
-                    <h3 className="text-sm font-semibold">
-                      添加{addModalType === 'report-generator' ? '报告生成器' : '情报监控源'}
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground">
-                      {addModalType === 'report-generator' ? '配置 AI 自动生成分析报告' : '配置 AI 持续监控关键词情报'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => { setShowAddModal(false); setAddModalType(null) }}
-                  className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="px-6 py-5 space-y-4">
-                {addModalType === 'report-generator' && (
-                  <>
-                    {/* Title */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">报告标题</label>
-                      <input
-                        type="text"
-                        value={addReportForm.title}
-                        onChange={(e) => setAddReportForm((f) => ({ ...f, title: e.target.value }))}
-                        placeholder="行业分析报告"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
-                    </div>
-
-                    {/* Default Company */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">默认分析标的 (可选)</label>
-                      <input
-                        type="text"
-                        value={addReportForm.defaultCompany}
-                        onChange={(e) => setAddReportForm((f) => ({ ...f, defaultCompany: e.target.value }))}
-                        placeholder="如：阳光电源、宁德时代"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
-                    </div>
-
-                    {/* Analysis Methods */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">分析框架</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {ANALYSIS_METHODS.map((m) => (
-                          <button
-                            key={m}
-                            onClick={() => setAddReportForm((f) => {
-                              const methods = f.analysisMethods.includes(m)
-                                ? f.analysisMethods.filter((x) => x !== m)
-                                : [...f.analysisMethods, m]
-                              return { ...f, analysisMethods: methods }
-                            })}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                              addReportForm.analysisMethods.includes(m)
-                                ? 'bg-violet-100 dark:bg-violet-900/30 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
-                                : 'bg-background border-border text-muted-foreground hover:border-violet-300'
-                            }`}
-                          >
-                            {m}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Search Platform */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">搜索平台</label>
-                      <select
-                        value={addReportForm.searchPlatform}
-                        onChange={(e) => setAddReportForm((f) => ({ ...f, searchPlatform: e.target.value }))}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      >
-                        {SEARCH_PLATFORMS.map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* API Key */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key (可选)</label>
-                      <input
-                        type="text"
-                        value={addReportForm.searchApiKey}
-                        onChange={(e) => setAddReportForm((f) => ({ ...f, searchApiKey: e.target.value }))}
-                        placeholder="输入自定义 API Key…"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
-                    </div>
-
-                    {/* System Prompt */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
-                      <textarea
-                        value={addReportForm.sysPrompt}
-                        onChange={(e) => setAddReportForm((f) => ({ ...f, sysPrompt: e.target.value }))}
-                        rows={3}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none"
-                      />
-                    </div>
-
-                    {/* User Prompt */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">用户提示词</label>
-                      <textarea
-                        value={addReportForm.userPrompt}
-                        onChange={(e) => setAddReportForm((f) => ({ ...f, userPrompt: e.target.value }))}
-                        rows={3}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {addModalType === 'intel-monitor' && (
-                  <>
-                    {/* Title */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控源标题</label>
-                      <input
-                        type="text"
-                        value={addMonitorForm.title}
-                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, title: e.target.value }))}
-                        placeholder="情报监控源"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
-                    </div>
-
-                    {/* Source Name */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控源名称</label>
-                      <input
-                        type="text"
-                        value={addMonitorForm.sources[0]?.name || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], name: e.target.value }],
-                        }))}
-                        placeholder="如：光伏产业监控"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
-                    </div>
-
-                    {/* AI Provider & Model */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 提供商</label>
-                        <select
-                          value={addMonitorForm.sources[0]?.aiProvider || 'deepseek'}
-                          onChange={(e) => setAddMonitorForm((f) => ({
-                            ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }],
-                          }))}
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                        >
-                          {AI_PROVIDERS.map((p) => (
-                            <option key={p.value} value={p.value}>{p.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
-                        <input
-                          type="text"
-                          value={addMonitorForm.sources[0]?.aiModel || ''}
-                          onChange={(e) => setAddMonitorForm((f) => ({
-                            ...f, sources: [{ ...f.sources[0], aiModel: e.target.value }],
-                          }))}
-                          placeholder="如：deepseek-v3.1"
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    {/* API Key */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key (可选)</label>
-                      <input
-                        type="text"
-                        value={addMonitorForm.sources[0]?.apiKey || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], apiKey: e.target.value }],
-                        }))}
-                        placeholder="输入自定义 API Key…"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
-                    </div>
-
-                    {/* Keywords */}
-                    <KeywordInput
-                      keywords={addMonitorForm.sources[0]?.keywords || []}
-                      sourceId={addMonitorForm.sources[0]?.id || 'modal'}
-                      widgetId="modal"
-                      onAdd={(_, __, keyword) => {
-                        setAddMonitorForm((f) => {
-                          const s = f.sources[0]
-                          if (s.keywords.includes(keyword)) return f
-                          return { ...f, sources: [{ ...s, keywords: [...s.keywords, keyword] }] }
-                        })
-                      }}
-                      onRemove={(_, __, keyword) => {
-                        setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], keywords: f.sources[0].keywords.filter((k) => k !== keyword) }],
-                        }))
-                      }}
-                    />
-
-                    {/* Update Frequency */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
-                      <select
-                        value={addMonitorForm.sources[0]?.updateFrequency || 'daily'}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], updateFrequency: e.target.value }],
-                        }))}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      >
-                        <option value="hourly">每小时</option>
-                        <option value="daily">每天</option>
-                        <option value="weekly">每周</option>
-                        <option value="monthly">每月</option>
-                      </select>
-                    </div>
-
-                    {/* Custom Prompt */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
-                      <textarea
-                        value={addMonitorForm.sources[0]?.customPrompt || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }],
-                        }))}
-                        rows={3}
-                        placeholder="描述情报监控的具体要求…"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="sticky bottom-0 flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-card/95 backdrop-blur-sm rounded-b-2xl">
-                <button
-                  onClick={() => { setShowAddModal(false); setAddModalType(null) }}
-                  className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmAddWidget}
-                  className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-                >
-                  确认添加
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </div>
-    )
-  }
-
-  // ========== Success Mode ==========
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-xl mx-auto px-4 md:px-6 py-6">
-        <div className="border border-border rounded-xl p-6 bg-card">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <CheckCircle2 size={20} className="text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-medium text-green-600 dark:text-green-400">门户部署成功!</h2>
-              <p className="text-xs text-muted-foreground">{result.title}</p>
-            </div>
+                )
+              })
+            )}
           </div>
 
-          <div className="bg-muted rounded-lg p-4 mb-4">
-            <p className="text-xs text-muted-foreground mb-2">访问链接</p>
-            <div className="flex items-center gap-2">
-              <a
-                href={result.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary hover:bg-primary/5 hover:border-primary/40 transition-all flex items-center gap-1.5"
-              >
-                <ExternalLink size={13} className="flex-shrink-0" />
-                <span className="truncate">{window.location.origin}{result.url}</span>
-              </a>
+          {/* Add widget buttons */}
+          <div className="border-2 border-dashed border-border rounded-xl p-4 text-center bg-muted/30 hover:border-violet-400 hover:bg-violet-50/30 transition-all">
+            <div className="flex gap-2 justify-center flex-wrap">
               <button
-                onClick={handleCopy}
-                className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
+                onClick={() => openAddModal('report-generator')}
+                className="relative flex items-center gap-2 px-3 py-2.5 bg-card border border-border rounded-xl text-xs font-medium hover:border-violet-400 hover:text-violet-600 hover:bg-violet-50 transition-all group"
               >
-                {copied ? '已复制' : <Copy size={14} />}
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-violet-500 text-white flex items-center justify-center text-[9px] font-bold shadow-sm group-hover:scale-110 transition-transform">+</span>
+                <span className="w-6 h-6 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-xs">📊</span>
+                <div className="text-left leading-tight">
+                  <div className="font-semibold">报告生成器</div>
+                </div>
+              </button>
+              <button
+                onClick={() => openAddModal('intel-monitor')}
+                className="relative flex items-center gap-2 px-3 py-2.5 bg-card border border-border rounded-xl text-xs font-medium hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-all group"
+              >
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center text-[9px] font-bold shadow-sm group-hover:scale-110 transition-transform">+</span>
+                <span className="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-xs">🛰️</span>
+                <div className="text-left leading-tight">
+                  <div className="font-semibold">情报监控源</div>
+                </div>
               </button>
             </div>
           </div>
+        </div>
 
-          <div className="flex gap-3">
-            <a
-              href={result.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              <ExternalLink size={16} />
-              查看门户
-            </a>
-            <button
-              onClick={() => { setResult(null); setSiteName(''); setSiteDesc(''); setCopied(false) }}
-              className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-            >
-              再部署一个
-            </button>
+        {/* Deploy Card */}
+        <div className="border-2 border-violet-300 dark:border-violet-800 rounded-2xl p-5 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
+              <Globe size={16} className="text-violet-600" />
+            </div>
+            <span className="text-sm font-semibold">确认并部署</span>
           </div>
+          <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+            一键生成完整的情报分析门户网站，部署到可公开访问的链接。
+          </p>
+          <div className="flex gap-3 mb-4 flex-wrap text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              {reportCount} 个报告
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              {monitorCount} 个监控
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+              {template?.name}
+            </span>
+          </div>
+          <button
+            onClick={handleDeploy}
+            disabled={isDeploying}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md shadow-violet-500/20"
+          >
+            {isDeploying ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                正在部署...
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} />
+                一键部署情报分析门户
+              </>
+            )}
+          </button>
+          {error && (
+            <div className="mt-3 p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg text-xs text-red-600">
+              {error}
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  )
-}
-
-// ========== Keyword Input Subcomponent ==========
-
-function KeywordInput({
-  keywords, sourceId, widgetId,
-  onAdd, onRemove,
-}: {
-  keywords: string[]
-  sourceId: string
-  widgetId: string
-  onAdd: (widgetId: string, sourceId: string, keyword: string) => void
-  onRemove: (widgetId: string, sourceId: string, keyword: string) => void
-}) {
-  const [input, setInput] = useState('')
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (input.trim()) {
-        onAdd(widgetId, sourceId, input)
-        setInput('')
-      }
-    }
-  }
-
-  return (
-    <div>
-      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-        监控关键词 <span className="font-normal text-muted-foreground/60">按 Enter 添加</span>
-      </label>
-      <div className="flex flex-wrap gap-1 mb-2">
-        {keywords.map((k) => (
-          <span key={k} className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[11px] font-medium">
-            {k}
-            <button
-              onClick={() => onRemove(widgetId, sourceId, k)}
-              className="ml-0.5 text-violet-400 hover:text-red-500 transition-colors"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-1.5">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="输入关键词，按 Enter 添加…"
-          className="flex-1 px-3 py-2 bg-background border border-dashed border-border rounded-lg text-sm outline-none focus:border-violet-400 focus:border-solid transition-all"
-        />
-        <button
-          onClick={() => { if (input.trim()) { onAdd(widgetId, sourceId, input); setInput('') } }}
-          className="px-3 py-2 border border-border rounded-lg text-xs font-medium hover:border-violet-400 hover:text-violet-600 transition-all"
-        >
-          + 添加
-        </button>
-      </div>
-    </div>
-  )
-}
