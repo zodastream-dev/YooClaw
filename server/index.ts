@@ -403,12 +403,12 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
   });
 
   // 我的报告卡片
-  cardsHtml += \`
+  cardsHtml += `
   <div class="c-card type-reports" onclick="openReportList()" title="查看所有报告">
     <div class="cc-icon">📋</div>
     <div class="cc-title">我的报告</div>
     <div class="cc-meta"><span id="reportCardCount">0 份</span></div>
-  </div>\`;
+  </div>`;
 
   // Build widget configs for JS (modal content data)
   const widgetConfigsJs = JSON.stringify(wlist.map((w: any, i: number) => {
