@@ -1031,7 +1031,6 @@ function renderReportList(idx,reports){
   // Update main card count
   var cnt=$('reportCardCount');
   if(cnt)cnt.textContent=reports.length+' 份';
-  }
 }
 
 async function deleteReport(idx,rSlug){
@@ -1086,7 +1085,7 @@ function renderReportCards(reports){
   reports.forEach(function(report){
     var d=new Date(report.createdAt).toLocaleString('zh-CN');
     var company=(report.companyName||'未知').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    var rSlug=(report.slug||'').replace(/'/g,'\x27');
+    var rSlug=(report.slug||'').replace(/'/g,'\\x27');
     html+='<div class="rpt-card" onclick="window.open(\''+report.url+'\',\'_blank\')">'+
       '<button class="rpt-delete" onclick="event.stopPropagation();deleteReportCard(\''+rSlug+'\')" title="删除报告">&times;</button>'+
       '<div class="rpt-company">'+company+'</div>'+
