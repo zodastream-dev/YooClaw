@@ -3795,6 +3795,7 @@ const PORTAL_INTEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 app.post('/api/portal-intel', async (req, res) => {
   try {
+    console.log('[PortalIntel Debug] typeof fetchSourceIntel:', typeof fetchSourceIntel);
     const { sources } = req.body || {};
     if (!Array.isArray(sources) || sources.length === 0) {
       return res.status(400).json({ error: 'sources array is required' });
