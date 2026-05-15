@@ -3812,8 +3812,14 @@ app.post('/api/portal-intel', async (req, res) => {
       }
 
       try {
-        // Inlined fetchSourceIntel logic (avoids runtime scope issue)
-        var _prompt=makeIntelPrompt(src.keywords,src.customPrompt);
+        // Fully inlined: no dependency on top-level helper functions
+        var _kw=(src.keywords||[]).join('、');
+        var _sp=src.customPrompt||'你是一个专业的情报分析助手。';
+        var _up='请搜索并整理关于【'+_kw+'】的最新资讯，列出最重要的10条。'+
+          '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)。'+
+          '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":""}]。'+
+          '4.仅输出JSON数组，不要任何其他文字。';
+        var _prompt={systemPrompt:_sp,userPrompt:_up};
         var _provider=src.aiProvider||'deepseek';
         var _apiKey=src.apiKey||(_provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
         var _model=src.aiModel||'deepseek-v4-flash';
