@@ -941,7 +941,6 @@ export function PortalBuilderPage() {
           </div>
         )}
 
-      </div>
     )
   }
 
