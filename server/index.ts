@@ -638,6 +638,19 @@ body::-webkit-scrollbar-thumb:hover{background:${isDark?'#475569':'#94a3b8'}}
 .src-top .st-name::before{content:'';width:5px;height:5px;border-radius:50%;background:${monitorAccent};flex-shrink:0;box-shadow:0 0 6px ${monitorAccent}44}
 .src-top .st-model{font-size:10px;padding:3px 10px;border-radius:10px;border:1px solid rgba(251,191,36,.2);color:#fbbf24;background:rgba(251,191,36,.06);font-weight:600}
 
+/* 监控源可编辑样式 */
+.st-name-input { font-size: 14px; font-weight: 700; border: 1px solid transparent; background: transparent; padding: 4px 8px; border-radius: 6px; width: 100%; transition: all .2s }
+.st-name-input:focus { border-color: #f59e0b33; background: #fff; outline: none; box-shadow: 0 0 0 3px rgba(245,158,11,.1) }
+.src-del { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #94a3b8; font-size: 14px; transition: all .2s; flex-shrink: 0 }
+.src-del:hover { background: #fef2f2; color: #ef4444 }
+.kw-x { margin-left: 4px; background: none; border: none; color: inherit; cursor: pointer; font-size: 12px; opacity: .5; padding: 0; line-height: 1 }
+.kw-x:hover { opacity: 1 }
+.kw-add-row { display: flex; gap: 8px; margin-top: 8px }
+.kw-add-input { flex: 1; padding: 6px 10px; font-size: 12px; border: 1px solid #e5e7eb; border-radius: 6px }
+.kw-add-input:focus { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.08) }
+.kw-add-btn { padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600 }
+.btn-add-src:hover { background: #f8f4ff !important; border-color: #6366f1 !important }
+
 /* ===== PROGRESS ===== */
 .progress-section{margin-top:18px}
 .progress-label{display:flex;justify-content:space-between;font-size:12px;color:${mutedClr};margin-bottom:8px;font-weight:500}
@@ -777,10 +790,10 @@ function openModal(idx){
     $('modalFooter').style.display='flex';
     $('btnSave').style.display='none';
   }else{
-    renderMonitorView(idx,w);
+    renderMonitorForm(idx,w);
     $('modalFooter').style.display='flex';
     $('btnSave').style.display='inline-flex';
-    $('btnSave').onclick=function(){closeModalDirect()};
+    $('btnSave').onclick=function(){saveMonitorConfig(idx)};
   }
   overlay.classList.add('open');
   document.body.style.overflow='hidden';
@@ -837,29 +850,143 @@ function renderReportForm(idx,w){
 }
 
 /* ===== MONITOR VIEW ===== */
-function renderMonitorView(idx,w){
+function renderMonitorForm(idx,w){
   var s='';
-  if(w.sources&&w.sources.length>0){
-    w.sources.forEach(function(src){
-      s+='<div class="src-mini">';
-      s+='<div class="src-top"><span class="st-name">'+src.name+'</span><span class="st-model">'+(src.aiModel||'默认')+'</span></div>';
-      s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label><select class="mb-select"><option>'+(src.aiProvider||'默认')+'</option></select></div>';
-      s+='<div class="mb-group"><label class="mb-label">更新频率</label><select class="mb-select"><option>'+(src.updateFrequency||'daily')+'</option></select></div></div>';
-      if(src.keywords&&src.keywords.length>0){
-        s+='<div class="mb-group"><label class="mb-label">监控关键词</label><div class="kw-tags">';
-        src.keywords.forEach(function(k){s+='<span class="kw-t">'+k+'</span>'});
-        s+='</div></div>';
-      }
-      if(src.customPrompt){
-        s+='<div class="mb-group"><label class="mb-label">自定义提示词</label><textarea class="mb-area" style="min-height:40px" readonly>'+src.customPrompt+'</textarea></div>';
-      }
+  var sources=w.sources||[];
+  if(sources.length>0){
+    sources.forEach(function(src,si){
+      s+='<div class="src-mini" id="srcBlock_'+idx+'_'+si+'">';
+      s+='<div class="src-top"><input class="st-name-input" id="srcName_'+idx+'_'+si+'" value="'+escHtml(src.name)+'" placeholder="监控源名称">';
+      s+='<span class="src-del" onclick="deleteSource('+idx+','+si+')" title="删除此监控源">\u2715</span></div>';
+      s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
+      s+='<select class="mb-select" id="srcProvider_'+idx+'_'+si+'">';
+      ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
+        s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
+      });
+      s+='</select></div>';
+      s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
+      s+='<input class="mb-input" id="srcModel_'+idx+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v3.1">';
+      s+='</div></div>';
+      s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
+      s+='<input class="mb-input" type="password" id="srcApiKey_'+idx+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
+      s+='</div><div class="mb-group"><label class="mb-label">更新频率</label>';
+      s+='<select class="mb-select" id="srcFreq_'+idx+'_'+si+'">';
+      ['hourly','daily','weekly','monthly'].forEach(function(f){
+        var labels={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'};
+        s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+labels[f]+'</option>';
+      });
+      s+='</select></div></div>';
+      var kws=src.keywords||[];
+      s+='<div class="mb-group"><label class="mb-label">监控关键词</label>';
+      s+='<div class="kw-tags" id="kwTags_'+idx+'_'+si+'">';
+      kws.forEach(function(k){
+        s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+idx+','+si+',this.parentElement)" title="移除">&times;</button></span>';
+      });
+      s+='</div>';
+      s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+idx+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+idx+','+si+')}">';
+      s+='<button class="kw-add-btn" onclick="addKeyword('+idx+','+si+')">+</button></div>';
+      s+='</div>';
+      s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
+      s+='<textarea class="mb-area" id="srcPrompt_'+idx+'_'+si+'" style="min-height:60px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
+      s+='</div>';
       s+='</div>';
     });
+    s+='<button class="btn-add-src" onclick="addSource('+idx+')" style="width:100%;margin-top:8px;padding:10px;border:1px dashed #d1d5db;border-radius:9px;background:none;color:#6366f1;cursor:pointer;font-size:13px;font-weight:600">+ 添加监控源</button>';
   }else{
-    s='<div class="placeholder"><div class="ph-icon">🛰️</div><p class="ph-text">暂无监控源配置。<br>请在 Portal Builder 中添加监控源。</p></div>';
+    s='<div class="placeholder"><div class="ph-icon">\U0001f6f0\ufe0f</div><p class="ph-text">暂无监控源配置。<br>点击下方按钮添加监控源。</p></div>';
+    s+='<button class="btn-add-src" onclick="addSource('+idx+')" style="width:100%;margin-top:16px;padding:10px;border:1px dashed #d1d5db;border-radius:9px;background:none;color:#6366f1;cursor:pointer;font-size:13px;font-weight:600">+ 添加监控源</button>';
   }
   $('modalBody').innerHTML=s;
   $('modalBody').scrollTop=0;
+}
+
+
+/* ===== MONITOR HELPERS ===== */
+function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function addSource(idx){
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  if(!w.sources)w.sources=[];
+  w.sources.push({name:'',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],updateFrequency:'daily',customPrompt:''});
+  renderMonitorForm(idx,w);
+}
+
+function deleteSource(idx,si){
+  if(!confirm('确定删除这个监控源？'))return;
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  w.sources.splice(si,1);
+  renderMonitorForm(idx,w);
+}
+
+function addKeyword(idx,si){
+  var inp=$('kwInput_'+idx+'_'+si);
+  if(!inp)return;
+  var kw=inp.value.trim();
+  if(!kw)return;
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  if(!w.sources[si].keywords)w.sources[si].keywords=[];
+  if(w.sources[si].keywords.indexOf(kw)===-1){
+    w.sources[si].keywords.push(kw);
+  }
+  renderMonitorForm(idx,w);
+}
+
+function removeKeyword(idx,si,el){
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  var kwText=el.childNodes[0]?el.childNodes[0].textContent.replace('×','').trim():'';
+  var kws=w.sources[si].keywords||[];
+  var ki=kws.indexOf(kwText);
+  if(ki!==-1)kws.splice(ki,1);
+  renderMonitorForm(idx,w);
+}
+
+function saveMonitorConfig(idx){
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  var sources=[];
+  var srcIndices=[];
+  document.querySelectorAll('[id^="srcName_'+idx+'_"]').forEach(function(el){
+    var idParts=el.id.split('_');
+    srcIndices.push(parseInt(idParts[idParts.length-1]));
+  });
+  srcIndices.forEach(function(si){
+    var name=($('srcName_'+idx+'_'+si)||{}).value||'';
+    var provider=($('srcProvider_'+idx+'_'+si)||{}).value||'deepseek';
+    var model=($('srcModel_'+idx+'_'+si)||{}).value||'';
+    var apiKey=($('srcApiKey_'+idx+'_'+si)||{}).value||'';
+    var freq=($('srcFreq_'+idx+'_'+si)||{}).value||'daily';
+    var prompt=($('srcPrompt_'+idx+'_'+si)||{}).value||'';
+    var keywords=[];
+    var kwContainer=$('kwTags_'+idx+'_'+si);
+    if(kwContainer){
+      kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
+        var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('×','').trim():'';
+        if(kwText)keywords.push(kwText);
+      });
+    }
+    if(name){
+      sources.push({name:name,aiProvider:provider,aiModel:model,apiKey:apiKey,keywords:keywords,updateFrequency:freq,customPrompt:prompt});
+    }
+  });
+  var freq=(sources[0]||{}).updateFrequency||'daily';
+  var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[freq]||'每日';
+  var updatedWidget={type:'monitor',idx:idx,title:w.title,subtitle:sources.length>0?'追踪配置的关键词情报':'暂无监控源配置',sources:sources};
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:idx,widget:updatedWidget})}).then(function(r){
+    if(r.ok){
+      WIDGETS[idx]=updatedWidget;
+      var card=document.querySelectorAll('.c-card')[idx];
+      if(card){
+        var meta=card.querySelector('.cc-meta');
+        if(meta)meta.textContent=(sources.length||0)+' 个监控源 · '+freqLabel;
+      }
+      closeModalDirect();
+    }else{alert('保存失败，请稍后重试');}
+  }).catch(function(){alert('网络错误，请稍后重试');});
 }
 
 /* ===== FRAMEWORK & PLATFORM ===== */
@@ -3653,6 +3780,45 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
   } catch (err: any) {
     console.error('[PubDeleteReport Error]', err.message);
     res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+
+// Save widget config from live portal (public, no auth)
+app.post('/api/p/config/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { widgetIdx, widget } = req.body || {};
+
+    if (typeof widgetIdx !== 'number' || !widget) {
+      return res.status(400).json({ error: 'widgetIdx and widget are required' });
+    }
+
+    const site = await getReportSiteBySlug(slug, 'portal');
+    if (!site) {
+      return res.status(404).json({ error: 'Portal not found' });
+    }
+
+    let widgets: any[] = [];
+    try {
+      const match = site.html_content.match(/var WIDGETS=(\[[\s\S]*?\]);/);
+      if (match) { widgets = JSON.parse(match[1]); }
+    } catch (e) { /* keep empty */ }
+
+    if (widgetIdx >= 0 && widgetIdx < widgets.length) {
+      widgets[widgetIdx] = { ...widgets[widgetIdx], ...widget };
+    } else {
+      return res.status(400).json({ error: 'Invalid widgetIdx' });
+    }
+
+    const apiBase = process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
+    const htmlContent = generatePortalHtml(site.title, '', 'business-blue', apiBase, widgets);
+    await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
+
+    res.json({ data: { success: true, slug } });
+  } catch (err: any) {
+    console.error('[Portal Config Save Error]', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
