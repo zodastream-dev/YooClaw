@@ -3812,6 +3812,7 @@ app.post('/api/portal-intel', async (req, res) => {
       }
 
       try {
+        console.log('[PortalIntel] V2 DEBUG keywords raw:', typeof src.keywords, JSON.stringify(src.keywords).substring(0,100));
         // Fully inlined: no dependency on top-level helper functions
         var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?(src.keywords as string).split(/[,，、]/).map(function(s:string){return s.trim()}).filter(Boolean):[]);
         var _kw=_kwArr.join('、');
