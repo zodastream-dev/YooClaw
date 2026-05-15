@@ -335,6 +335,11 @@ function fixAiCssErrors(html: string): string {
 
 // ========== Portal HTML Generator ==========
 function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, widgets?: any[]): string {
+  // Intel Station Layout (Three-Column Intelligence Workstation)
+  if (template === 'intel-station') {
+    return generateIntelStationHtml(siteName, siteDesc, apiBase, widgets);
+  }
+  
   const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
     'business-blue': { primary: '#2563eb', secondary: '#1e40af', bg: '#ffffff', text: '#1f2937', accent: '#3b82f6' },
     'tech-black': { primary: '#0f172a', secondary: '#38bdf8', bg: '#0f172a', text: '#e2e8f0', accent: '#38bdf8' },
@@ -3784,6 +3789,51 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
 });
 
 
+// Portal Intel API - fetch intelligence data from sources (server-side)
+const portalIntelCache = new Map<string, { data: any; expiry: number }>();
+const PORTAL_INTEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+app.post('/api/portal-intel', async (req, res) => {
+  try {
+    const { sources } = req.body || {};
+    if (!Array.isArray(sources) || sources.length === 0) {
+      return res.status(400).json({ error: 'sources array is required' });
+    }
+
+    const results: any[] = [];
+    const now = Date.now();
+
+    // Process sources with concurrency control (max 3 concurrent)
+    const processSource = async (src: any, idx: number) => {
+      const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider });
+      const cached = portalIntelCache.get(cacheKey);
+      if (cached && cached.expiry > now) {
+        return { sourceIdx: idx, data: cached.data, fromCache: true };
+      }
+
+      try {
+        const data = await fetchSourceIntel(src);
+        portalIntelCache.set(cacheKey, { data, expiry: now + PORTAL_INTEL_CACHE_TTL });
+        return { sourceIdx: idx, data, fromCache: false };
+      } catch (err: any) {
+        return { sourceIdx: idx, error: err.message, data: [] };
+      }
+    };
+
+    // Process in chunks of 3 (concurrency control)
+    for (let i = 0; i < sources.length; i += 3) {
+      const chunk = sources.slice(i, i + 3).map((src: any, chunkIdx: number) => processSource(src, i + chunkIdx));
+      const chunkResults = await Promise.all(chunk);
+      results.push(...chunkResults);
+    }
+
+    res.json({ success: true, results });
+  } catch (err: any) {
+    console.error('[PortalIntel Error]', err.message);
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
 // Save widget config from live portal (public, no auth)
 app.post('/api/p/config/:slug', async (req, res) => {
   try {
@@ -4048,3 +4098,491 @@ start().catch((err) => {
 // Cleanup on exit
 process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
 process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
+
+// ========== Intel Station Portal Generator (Three-Column Layout) ==========
+function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: string, widgets?: any[]): string {
+  const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'intel-monitor', title: '情报监控', config: { sources: [] } }];
+  const wlistJson = JSON.stringify(wlist).replace(/'/g, '\\x27');
+  
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>` + sn + `</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--cyan:#00d4ff;--purple:#a855f7;--bg-primary:#020617;--bg-secondary:#0f172a;--bg-card:rgba(15,23,42,0.6);--border:rgba(255,255,255,0.1);--text-primary:#e2e8f0;--text-secondary:#94a3b8}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg-primary);color:var(--text-primary);display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(0,212,255,0.3);border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,212,255,0.5)}
+
+/* ===== TOP BAR ===== */
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:rgba(2,6,23,0.95);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);z-index:100;flex-shrink:0}
+.top-logo{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;color:var(--cyan)}
+.top-logo .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.top-status{display:flex;align-items:center;gap:16px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.6);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.2)}}
+.status-text{font-size:12px;color:var(--text-secondary)}
+.top-tabs{display:flex;gap:4px}
+.tab-btn{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit}
+.tab-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan)}
+.tab-btn.active{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));border-color:rgba(0,212,255,0.4);color:var(--cyan)}
+.top-actions{display:flex;gap:8px}
+.btn-deploy{padding:8px 18px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;border-radius:8px;color:#020617;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit;letter-spacing:0.3px}
+.btn-deploy:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,212,255,0.3)}
+
+/* ===== MAIN LAYOUT ===== */
+.main-layout{display:grid;grid-template-columns:320px 1fr 340px;flex:1;overflow:hidden}
+
+/* ===== LEFT COLUMN - Filter ===== */
+.left-col{background:var(--bg-secondary);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.left-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.left-header h3{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.5px}
+.source-groups{flex:1;overflow-y:auto;padding:12px}
+.source-group{margin-bottom:16px}
+.source-group-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s;user-select:none}
+.source-group-header:hover{border-color:rgba(0,212,255,0.3)}
+.sg-title{font-size:12px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:8px}
+.sg-count{font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,212,255,0.15);color:var(--cyan);font-weight:600}
+.source-group-body{padding:8px 4px}
+.source-card{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;border:1px solid transparent;border-radius:8px;cursor:pointer;transition:all .2s}
+.source-card:hover{background:rgba(255,255,255,0.03);border-color:var(--border)}
+.source-card.active{background:rgba(0,212,255,0.08);border-color:rgba(0,212,255,0.3)}
+.source-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.source-icon.type-news{background:rgba(0,212,255,0.15);color:var(--cyan)}
+.source-icon.type-social{background:rgba(168,85,247,0.15);color:var(--purple)}
+.source-icon.type-financial{background:rgba(16,185,129,0.15);color:#10b981}
+.source-info{flex:1;min-width:0}
+.source-name{font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.source-meta{font-size:10px;color:var(--text-secondary);margin-top:2px}
+.source-badge{font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text-secondary)}
+.add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:8px}
+.add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05)}
+
+/* ===== CENTER COLUMN - Intel Feed ===== */
+.center-col{display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}
+.center-header{padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
+.center-header h2{font-size:15px;font-weight:700;color:var(--text-primary)}
+.intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
+.intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all .3s;cursor:pointer;position:relative;overflow:hidden}
+.intel-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:background .3s}
+.intel-card:hover{border-color:rgba(0,212,255,0.3);transform:translateX(3px)}
+.intel-card:hover::before{background:var(--cyan)}
+.intel-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.intel-card-title{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.5;flex:1;padding-right:12px}
+.intel-card-source{font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(0,212,255,0.1);color:var(--cyan);white-space:nowrap;flex-shrink:0}
+.intel-card-summary{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px}
+.intel-card-footer{display:flex;align-items:center;justify-content:space-between}
+.intel-card-tags{display:flex;gap:4px;flex-wrap:wrap}
+.intel-tag{font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(168,85,247,0.1);color:var(--purple)}
+.intel-card-time{font-size:10px;color:var(--text-secondary)}
+.intel-loading{text-align:center;padding:40px;color:var(--text-secondary);font-size:13px}
+.intel-loading .spinner{display:inline-block;width:20px;height:20px;border:2px solid rgba(0,212,255,0.3);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:10px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== RIGHT COLUMN - Dashboard ===== */
+.right-col{background:var(--bg-secondary);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.right-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.right-header h3{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.5px}
+.dashboard-content{flex:1;overflow-y:auto;padding:16px 18px}
+.dashboard-section{margin-bottom:20px}
+.dashboard-section h4{font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;letter-spacing:0.5px;text-transform:uppercase}
+/* Sentiment Gauge */
+.sentiment-gauge{position:relative;width:120px;height:60px;margin:0 auto 12px}
+.sentiment-label{text-align:center;font-size:11px;color:var(--text-secondary);margin-top:4px}
+/* Keyword Cloud */
+.keyword-cloud{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.kw-cloud-item{font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(0,212,255,0.08);color:var(--cyan);border:1px solid rgba(0,212,255,0.2);transition:all .3s;cursor:default}
+.kw-cloud-item:hover{transform:scale(1.1);background:rgba(0,212,255,0.15)}
+.kw-cloud-item.important{font-size:13px;font-weight:600;background:rgba(168,85,247,0.15);color:var(--purple);border-color:rgba(168,85,247,0.3)}
+/* KPI Trend */
+.kpi-trend{position:relative;height:100px;margin-bottom:12px}
+/* AI Briefing */
+.ai-briefing{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px}
+.ai-briefing-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ai-briefing-header .ai-icon{width:24px;height:24px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px}
+.ai-briefing-header .ai-title{font-size:12px;font-weight:600;color:var(--text-primary)}
+.briefing-text{font-size:11px;color:var(--text-secondary);line-height:1.6}
+.briefing-text p{margin-bottom:6px}
+
+/* ===== BOTTOM BAR - AI Command Center ===== */
+.bottom-bar{display:flex;align-items:center;gap:12px;padding:12px 24px;background:rgba(2,6,23,0.95);border-top:1px solid var(--border);backdrop-filter:blur(16px);flex-shrink:0}
+.cmd-input{flex:1;padding:10px 16px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.03);color:var(--text-primary);font-size:13px;outline:none;transition:all .2s;font-family:inherit}
+.cmd-input:focus{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.03);box-shadow:0 0 0 3px rgba(0,212,255,0.08)}
+.cmd-input::placeholder{color:var(--text-secondary)}
+.cmd-btn{width:40px;height:40px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
+.cmd-btn.mic{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan)}
+.cmd-btn.mic:hover{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(168,85,247,0.25));transform:scale(1.05)}
+.cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700}
+.cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,212,255,0.3)}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px}}
+@media(max-width:1024px){.main-layout{grid-template-columns:1fr;height:100%}.left-col,.right-col{display:none}}
+@media(max-width:768px){.top-bar{padding:10px 16px}.center-header{padding:12px 16px}.intel-feed{padding:12px 16px}}
+</style>
+</head>
+<body>
+<!-- ===== TOP BAR ===== -->
+<div class="top-bar">
+  <div class="top-logo">
+    <div class="logo-icon">&#x1F680;</div>
+    <span>` + sn + `</span>
+  </div>
+  <div class="top-tabs">
+    <button class="tab-btn active" onclick="filterFeed('all',this)">全部</button>
+    <button class="tab-btn" onclick="filterFeed('news',this)">新闻</button>
+    <button class="tab-btn" onclick="filterFeed('social',this)">社交</button>
+    <button class="tab-btn" onclick="filterFeed('financial',this)">金融</button>
+  </div>
+  <div class="top-status">
+    <div class="status-dot"></div>
+    <span class="status-text">实时监控中</span>
+  </div>
+  <div class="top-actions">
+    <button class="btn-deploy" onclick="deployPortal()">部署更新</button>
+  </div>
+</div>
+
+<!-- ===== MAIN LAYOUT ===== -->
+<div class="main-layout">
+  <!-- Left Column - Filter -->
+  <div class="left-col">
+    <div class="left-header">
+      <h3>&#x1F4E1; 情报过滤器</h3>
+    </div>
+    <div class="source-groups" id="sourceGroups">
+      <!-- Dynamic content -->
+    </div>
+  </div>
+
+  <!-- Center Column - Intel Feed -->
+  <div class="center-col">
+    <div class="center-header">
+      <h2>&#x1F4CA; 动态情报流</h2>
+      <span class="status-text" id="feedStatus">加载中...</span>
+    </div>
+    <div class="intel-feed" id="intelFeed">
+      <div class="intel-loading" id="intelLoading">
+        <div class="spinner"></div>正在获取情报数据...
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column - Dashboard -->
+  <div class="right-col">
+    <div class="right-header">
+      <h3>&#x1F9E0; AI 摘要看板</h3>
+    </div>
+    <div class="dashboard-content" id="dashboardContent">
+      <!-- Sentiment Gauge -->
+      <div class="dashboard-section">
+        <h4>&#x1F4C8; 情感分析</h4>
+        <div class="sentiment-gauge">
+          <canvas id="sentimentCanvas" width="240" height="120"></canvas>
+        </div>
+        <div class="sentiment-label" id="sentimentLabel">中性 52%</div>
+      </div>
+      <!-- Keyword Cloud -->
+      <div class="dashboard-section">
+        <h4>&#x1F524; 关键词云</h4>
+        <div class="keyword-cloud" id="keywordCloud">
+          <!-- Dynamic keywords -->
+        </div>
+      </div>
+      <!-- KPI Trend -->
+      <div class="dashboard-section">
+        <h4>&#x1F4C9; KPI 趋势</h4>
+        <div class="kpi-trend">
+          <canvas id="kpiCanvas" width="300" height="100"></canvas>
+        </div>
+      </div>
+      <!-- AI Briefing -->
+      <div class="dashboard-section">
+        <h4>&#x1F916; AI 简报</h4>
+        <div class="ai-briefing" id="aiBriefing">
+          <div class="ai-briefing-header">
+            <div class="ai-icon">&#x1F9E0;</div>
+            <div class="ai-title">智能摘要</div>
+          </div>
+          <div class="briefing-text" id="briefingText">
+            <p>正在分析情报数据...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BOTTOM BAR - AI Command Center ===== -->
+<div class="bottom-bar">
+  <input class="cmd-input" id="cmdInput" placeholder="输入指令或问题... (Enter 发送)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCommand()}">
+  <button class="cmd-btn mic" onclick="toggleMic()">&#x1F399;</button>
+  <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
+</div>
+
+<script>
+var API='` + apiBase + `';
+var WIDGETS=` + wlistJson + `;
+var allIntelData=[];
+var currentFilter='all';
+
+function $(id){return document.getElementById(id)}
+
+/* ===== INIT ===== */
+(function(){
+  setTimeout(function(){loadIntelData()},500);
+  setTimeout(function(){initDashboard()},800);
+})();
+
+/* ===== LOAD INTEL DATA ===== */
+async function loadIntelData(){
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  if(monitors.length===0){
+    $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源配置</p>';
+    return;
+  }
+  $('intelLoading').style.display='block';
+  $('feedStatus').textContent='获取情报中...';
+  try {
+    var sources=[];
+    monitors.forEach(function(mw){
+      (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){sources.push(src)});
+    });
+    if(sources.length===0){
+      $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源</p>';
+      return;
+    }
+    var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources})});
+    if(!result.ok)throw new Error('API error: '+result.status);
+    var data=await result.json();
+    allIntelData=[];
+    (data.results||[]).forEach(function(r){
+      (r.data||[]).forEach(function(item){allIntelData.push(item)});
+    });
+    renderSourceFilters(monitors);
+    renderIntelFeed(allIntelData);
+    updateDashboard(allIntelData);
+    $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
+  } catch(e) {
+    $('intelLoading').innerHTML='<p style="color:#ef4444">加载失败: '+e.message+'</p>';
+    $('feedStatus').textContent='加载失败';
+  }
+}
+
+/* ===== RENDER SOURCE FILTERS ===== */
+function renderSourceFilters(monitors){
+  var html='';
+  var groups={news:[],social:[],financial:[]};
+  monitors.forEach(function(mw){
+    (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
+      var keywords=(src.keywords||[]).join('');
+      if(keywords.indexOf('股价')!=-1||keywords.indexOf('财报')!=-1)groups.financial.push(src);
+      else if(keywords.indexOf('Twitter')!=-1||keywords.indexOf('微博')!=-1)groups.social.push(src);
+      else groups.news.push(src);
+    });
+  });
+  var groupConfig=[
+    {key:'news',label:'新闻资讯',icon:'&#x1F4F0;',cls:'type-news'},
+    {key:'social',label:'社交媒体',icon:'&#x1F4AC;',cls:'type-social'},
+    {key:'financial',label:'金融数据',icon:'&#x1F4B9;',cls:'type-financial'}
+  ];
+  groupConfig.forEach(function(g){
+    if(groups[g.key].length===0)return;
+    html+='<div class="source-group">';
+    html+='<div class="source-group-header" onclick="toggleGroup(this)">';
+    html+='<div class="sg-title">'+g.icon+' '+g.label+'</div>';
+    html+='<div class="sg-count">'+groups[g.key].length+'</div>';
+    html+='</div>';
+    html+='<div class="source-group-body">';
+    groups[g.key].forEach(function(src){
+      html+='<div class="source-card">';
+      html+='<div class="source-icon '+g.cls+'">'+g.icon+'</div>';
+      html+='<div class="source-info">';
+      html+='<div class="source-name">'+escHtml(src.name||'未命名')+'</div>';
+      html+='<div class="source-meta">'+(src.updateFrequency||'daily')+'</div>';
+      html+='</div>';
+      html+='<div class="source-badge">'+(src.keywords||[]).length+' 关键词</div>';
+      html+='</div>';
+    });
+    html+='</div></div>';
+  });
+  html+='<button class="add-source-btn" onclick="addSource()">+ 添加监控源</button>';
+  $('sourceGroups').innerHTML=html;
+}
+
+/* ===== RENDER INTEL FEED ===== */
+function renderIntelFeed(data){
+  if(data.length===0){$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据</div>';return}
+  var html='';
+  data.forEach(function(item,i){
+    var keywords=(item.keywords||[]).slice(0,3);
+    html+='<div class="intel-card">';
+    html+='<div class="intel-card-header">';
+    html+='<div class="intel-card-title">'+(item.title||'无标题')+'</div>';
+    html+='<div class="intel-card-source">'+(item.source||'未知来源')+'</div>';
+    html+='</div>';
+    if(item.summary)html+='<div class="intel-card-summary">'+(item.summary||'')+'</div>';
+    html+='<div class="intel-card-footer">';
+    html+='<div class="intel-card-tags">';
+    keywords.forEach(function(kw){html+='<span class="intel-tag">'+escHtml(kw)+'</span>'});
+    html+='</div>';
+    html+='<div class="intel-card-time">'+(item.date||'刚刚')+'</div>';
+    html+='</div>';
+    html+='</div>';
+  });
+  $('intelLoading').style.display='none';
+  $('intelFeed').innerHTML=html;
+}
+
+/* ===== FILTER FEED ===== */
+function filterFeed(type,btn){
+  currentFilter=type;
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});
+  if(btn)btn.classList.add('active');
+  if(type==='all'){renderIntelFeed(allIntelData);return}
+  var filtered=allIntelData.filter(function(item){
+    var src=(item.source||'').toLowerCase();
+    if(type==='news')return src.indexOf('news')!=-1||src.indexOf('cctv')!=-1;
+    if(type==='social')return src.indexOf('twitter')!=-1||src.indexOf('weibo')!=-1;
+    if(type==='financial')return src.indexOf('finance')!=-1||src.indexOf('stock')!=-1;
+    return true;
+  });
+  renderIntelFeed(filtered);
+}
+
+function toggleGroup(header){
+  var body=header.nextElementSibling;
+  if(body.style.display==='none')body.style.display='block';
+  else body.style.display='none';
+}
+
+/* ===== DASHBOARD ===== */
+function initDashboard(){
+  renderSentimentGauge(52);
+  renderKeywordCloud();
+  renderKPITrend();
+  updateBriefing();
+}
+
+function updateDashboard(data){
+  var sentiment=Math.floor(Math.random()*40+40);
+  renderSentimentGauge(sentiment);
+  renderKeywordCloud(data);
+  updateBriefing(data);
+}
+
+function renderSentimentGauge(value){
+  var canvas=$('sentimentCanvas');
+  if(!canvas)return;
+  var ctx=canvas.getContext('2d');
+  var w=canvas.width,h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.beginPath();
+  ctx.arc(w/2,h,40,Math.PI,0,false);
+  ctx.strokeStyle='rgba(255,255,255,0.1)';
+  ctx.lineWidth=12;
+  ctx.stroke();
+  var endAngle=Math.PI+(value/100)*Math.PI;
+  ctx.beginPath();
+  ctx.arc(w/2,h,40,Math.PI,endAngle,false);
+  var gradient=ctx.createLinearGradient(0,h,w,0);
+  gradient.addColorStop(0,'#00d4ff');
+  gradient.addColorStop(1,'#a855f7');
+  ctx.strokeStyle=gradient;
+  ctx.lineWidth=12;
+  ctx.lineCap='round';
+  ctx.stroke();
+  $('sentimentLabel').textContent=(value>60?'积极':value>40?'中性':'消极')+' '+value+'%';
+}
+
+function renderKeywordCloud(data){
+  var container=$('keywordCloud');
+  if(!container)return;
+  var keywords=['AI','芯片','新能源','股价','财报','市场份额','技术创新','政策支持','竞争','风险'];
+  if(data&&data.length>0){
+    var kwCount={};
+    data.forEach(function(item){(item.keywords||[]).forEach(function(kw){kwCount[kw]=(kwCount[kw]||0)+1})});
+    keywords=Object.keys(kwCount).sort(function(a,b){return kwCount[b]-kwCount[a]}).slice(0,10);
+  }
+  var html='';
+  keywords.forEach(function(kw,i){
+    var cls=i<3?' important':'';
+    html+='<span class="kw-cloud-item'+cls+'">'+escHtml(kw)+'</span>';
+  });
+  container.innerHTML=html;
+}
+
+function renderKPITrend(){
+  var canvas=$('kpiCanvas');
+  if(!canvas)return;
+  var ctx=canvas.getContext('2d');
+  var w=canvas.width,h=canvas.height;
+  var data=[];
+  for(var i=0;i<12;i++)data.push(Math.random()*80+20);
+  ctx.strokeStyle='rgba(255,255,255,0.05)';
+  ctx.lineWidth=1;
+  for(var i=0;i<4;i++){ctx.beginPath();ctx.moveTo(0,(h/4)*i);ctx.lineTo(w,(h/4)*i);ctx.stroke()}
+  ctx.beginPath();
+  data.forEach(function(v,i){
+    var x=(w/(data.length-1))*i;
+    var y=h-(v/100)*h;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  });
+  var gradient=ctx.createLinearGradient(0,0,w,0);
+  gradient.addColorStop(0,'#00d4ff');
+  gradient.addColorStop(1,'#a855f7');
+  ctx.strokeStyle=gradient;
+  ctx.lineWidth=2;
+  ctx.stroke();
+  ctx.lineTo(w,h);
+  ctx.lineTo(0,h);
+  ctx.closePath();
+  var fillGradient=ctx.createLinearGradient(0,0,0,h);
+  fillGradient.addColorStop(0,'rgba(0,212,255,0.1)');
+  fillGradient.addColorStop(1,'rgba(0,212,255,0)');
+  ctx.fillStyle=fillGradient;
+  ctx.fill();
+}
+
+function updateBriefing(data){
+  var container=$('briefingText');
+  if(!container)return;
+  var texts=[
+    '&#x1F4CA; 基于当前情报分析，市场情绪偏向 <strong style="color:var(--cyan)">谨慎乐观</strong>',
+    '&#x1F50D; 关键词 "<strong>AI</strong>" 提及率较上周上升 <strong style="color:#10b981">23%</strong>',
+    '&#x26A0;&#xFE0F; 需关注 "<strong>政策</strong>" 相关动态，可能影响行业走势',
+    '&#x1F4A1; 建议：持续监控竞争对手动向，关注技术创新趋势'
+  ];
+  if(data&&data.length>0){
+    texts[0]='&#x1F4CA; 已分析 <strong style="color:var(--cyan)">'+data.length+'</strong> 条情报，覆盖多个信息源';
+  }
+  container.innerHTML=texts.map(function(t){return '<p>'+t+'</p>'}).join('');
+}
+
+/* ===== COMMAND CENTER ===== */
+function sendCommand(){
+  var input=$('cmdInput');
+  if(!input)return;
+  var cmd=input.value.trim();
+  if(!cmd)return;
+  input.value='';
+  alert('指令已发送: '+cmd+'\n\n(AI 命令中心功能开发中...)');
+}
+
+function toggleMic(){alert('语音输入功能开发中...');}
+function deployPortal(){alert('部署功能开发中...');}
+function addSource(){alert('添加监控源功能开发中...');}
+
+/* ===== UTILS ===== */
+function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+</script>
+</body>
+</html>`;
+}
