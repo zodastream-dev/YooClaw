@@ -1301,7 +1301,7 @@ function makeIntelPrompt(keywords,customPrompt){
 async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
   var provider=src.aiProvider||'deepseek';
-  var apiKey=src.apiKey||(provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
+  var apiKey=src.apiKey||(provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
   if(provider==='metaso'){
@@ -3822,7 +3822,7 @@ app.post('/api/portal-intel', async (req, res) => {
           '4.仅输出JSON数组，不要任何其他文字。';
         var _prompt={systemPrompt:_sp,userPrompt:_up};
         var _provider=src.aiProvider||'deepseek';
-        var _apiKey=src.apiKey||(_provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
+        var _apiKey=src.apiKey||(_provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
         var _model=src.aiModel||'deepseek-v4-flash';
         if(!_apiKey)throw new Error('未配置API Key');
         var _results;
