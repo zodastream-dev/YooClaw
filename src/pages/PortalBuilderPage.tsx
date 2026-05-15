@@ -1,11 +1,10 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { deployPortalWithWidgets } from '@/lib/api'
 import {
-  ArrowLeft, Globe, Sparkles, ExternalLink, Copy, Loader2,
-  Palette, CheckCircle2, GripVertical, Plus, Trash2, ChevronUp,
-  ChevronDown, X, Monitor, Search, Wand2, BarChart3, Satellite,
-  FileText
+  ArrowLeft, Globe, ExternalLink, Copy, Loader2,
+  Plus, Trash2, ChevronUp, ChevronDown, X,
+  Satellite, FileText, Settings, LayoutGrid, GripVertical
 } from 'lucide-react'
 
 // ========== Types ==========
@@ -49,9 +48,9 @@ interface DeployResult {
 // ========== Templates ==========
 
 const TEMPLATES = [
-  { id: 'business-blue', name: '商务蓝', desc: '简洁专业，适合金融企业', primary: '#2563eb', preview: 'linear-gradient(135deg, #2563eb, #1e40af)' },
-  { id: 'tech-black', name: '科技黑', desc: '深色炫酷，适合科技互联网', primary: '#0f172a', preview: 'linear-gradient(135deg, #0f172a, #1e293b)' },
-  { id: 'simple-white', name: '简约白', desc: '极简留白，适合个人分析师', primary: '#1a1a2e', preview: '#ffffff' },
+  { id: 'business-blue', name: '商务蓝', desc: '简洁专业，适合金融企业', primary: '#2563eb', preview: 'linear-gradient(135deg, #2563eb, #1e40af)', textColor: '#ffffff', bg: '#f8fafc', cardBg: '#ffffff', muted: '#64748b', border: '#e2e8f0', reportAccent: '#6366f1', monitorAccent: '#f59e0b', navBg: '#1e3a8a', heroBg: 'linear-gradient(135deg, #2563eb, #1e40af)' },
+  { id: 'tech-black', name: '科技黑', desc: '深色炫酷，适合科技互联网', primary: '#38bdf8', preview: 'linear-gradient(135deg, #0f172a, #1e293b)', textColor: '#e2e8f0', bg: '#020617', cardBg: '#0f172a', muted: '#64748b', border: '#1e293b', reportAccent: '#818cf8', monitorAccent: '#fbbf24', navBg: '#020617', heroBg: 'linear-gradient(135deg, #0f172a, #1e293b)' },
+  { id: 'simple-white', name: '简约白', desc: '极简留白，适合个人分析师', primary: '#1a1a2e', preview: '#ffffff', textColor: '#1a1a2e', bg: '#ffffff', cardBg: '#ffffff', muted: '#94a3b8', border: '#e5e7eb', reportAccent: '#6366f1', monitorAccent: '#f59e0b', navBg: '#f8fafc', heroBg: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)' },
 ]
 
 const AI_PROVIDERS = [
@@ -84,11 +83,11 @@ const initialWidgets: Widget[] = [
     id: 'w-1', type: 'report-generator', title: '行业分析报告', expanded: false,
     config: {
       defaultCompany: '',
-      analysisMethods: ['SWOT', 'PEST', 'PORTER', '3C'],
+      analysisMethods: ['SWOT', 'PEST'],
       searchPlatform: 'metaso',
       searchApiKey: '',
-      sysPrompt: '你是一个行业研究分析师，输出结构化研究资料，用中文。',
-      userPrompt: '请用完整的 HTML 格式输出行业研究报告…',
+      sysPrompt: '你是一个行业研究分析师。',
+      userPrompt: '请用 HTML 格式输出行业研究报告。',
     },
   },
   {
@@ -97,25 +96,56 @@ const initialWidgets: Widget[] = [
       sources: [
         {
           id: 's-1', name: '光伏产业监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-          apiKey: '', keywords: ['光伏', '太阳能', 'N型电池', 'TOPCon', 'HJT', '钙钛矿', '隆基绿能', '通威股份'],
-          updateFrequency: 'daily', customPrompt: '你是新能源光伏行业专家。请监控光伏产业最新动态，重点关注技术突破、产能变化、政策调整和龙头企业动向。以中文输出结构化摘要。',
+          apiKey: '', keywords: ['光伏', '太阳能', 'N型电池', 'TOPCon', 'HJT'],
+          updateFrequency: 'daily', customPrompt: '你是新能源光伏行业专家。',
         },
         {
           id: 's-2', name: '储能市场追踪', aiProvider: 'metaso', aiModel: 'metaso-pro',
-          apiKey: '', keywords: ['储能', '锂电池', '钠离子电池', '宁德时代', '比亚迪储能', '阳光电源'],
-          updateFrequency: 'daily', customPrompt: '你是储能行业分析师。请追踪储能市场最新情报，关注锂电池价格走势、钠离子电池产业化进展。以中文输出结构化摘要。',
-        },
-        {
-          id: 's-3', name: '特朗普动态', aiProvider: 'metaso', aiModel: 'metaso-pro',
-          apiKey: '', keywords: ['特朗普', 'Trump', '关税', '贸易战', '中美关系', '美国大选', '白宫'],
-          updateFrequency: 'daily', customPrompt: '你是国际政治经济分析师。请监控特朗普最新动态，重点关注关税政策、中美贸易关系、外交动向及其对全球金融市场的影响。以中文输出结构化摘要。',
+          apiKey: '', keywords: ['储能', '锂电池', '钠离子电池', '宁德时代'],
+          updateFrequency: 'daily', customPrompt: '你是储能行业分析师。',
         },
       ],
     },
   },
 ]
 
-// ========== Component ==========
+// ========== KeywordInput Subcomponent ==========
+
+function KeywordInput({
+  keywords, sourceId, widgetId,
+  onAdd, onRemove,
+}: {
+  keywords: string[]
+  sourceId: string
+  widgetId: string
+  onAdd: (widgetId: string, sourceId: string, keyword: string) => void
+  onRemove: (widgetId: string, sourceId: string, keyword: string) => void
+}) {
+  const [input, setInput] = useState('')
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); if (input.trim()) { onAdd(widgetId, sourceId, input); setInput('') } }
+  }
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">监控关键词 <span className="font-normal opacity-60">按 Enter 添加</span></label>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {keywords.map((k) => (
+          <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[11px] font-medium">
+            {k}<button onClick={() => onRemove(widgetId, sourceId, k)} className="ml-0.5 text-violet-400 hover:text-red-500">×</button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1.5">
+        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+          placeholder="输入关键词…" className="flex-1 px-3 py-1.5 bg-background border border-dashed border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+        <button onClick={() => { if (input.trim()) { onAdd(widgetId, sourceId, input); setInput('') } }}
+          className="px-2 py-1.5 border border-border rounded-lg text-[11px] font-medium hover:border-violet-400 transition-all">+</button>
+      </div>
+    </div>
+  )
+}
+
+// ========== Main Component ==========
 
 export function PortalBuilderPage() {
   const navigate = useNavigate()
@@ -130,143 +160,57 @@ export function PortalBuilderPage() {
   const [copied, setCopied] = useState(false)
   const [dragIdx, setDragIdx] = useState(-1)
 
+  // 三栏布局新增状态
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
+  const [rightTab, setRightTab] = useState<'site' | 'widget'>('site')
+
   // ========== Add Widget Modal ==========
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalType, setAddModalType] = useState<'report-generator' | 'intel-monitor' | null>(null)
   const [addReportForm, setAddReportForm] = useState({
-    title: '行业分析报告',
-    defaultCompany: '',
+    title: '行业分析报告', defaultCompany: '',
     analysisMethods: ['SWOT', 'PEST'] as string[],
-    searchPlatform: 'metaso',
-    searchApiKey: '',
-    sysPrompt: '你是一个行业研究分析师。',
-    userPrompt: '请用 HTML 格式输出行业研究报告。',
+    searchPlatform: 'metaso', searchApiKey: '',
+    sysPrompt: '你是一个行业研究分析师。', userPrompt: '请用 HTML 格式输出行业研究报告。',
   })
   const [addMonitorForm, setAddMonitorForm] = useState({
-    title: '',
-    sources: [{
-      id: '',
-      name: '新建监控源',
-      aiProvider: 'deepseek',
-      aiModel: 'deepseek-v3.1',
-      apiKey: '',
-      keywords: [] as string[],
-      updateFrequency: 'daily',
-      customPrompt: '',
+    title: '', sources: [{
+      id: '', name: '新建监控源', aiProvider: 'deepseek', aiModel: 'deepseek-v3.1',
+      apiKey: '', keywords: [] as string[], updateFrequency: 'daily', customPrompt: '',
     }],
   })
 
   const openAddModal = useCallback((type: 'report-generator' | 'intel-monitor') => {
-    setAddReportForm({
-      title: '行业分析报告',
-      defaultCompany: '',
-      analysisMethods: ['SWOT', 'PEST'],
-      searchPlatform: 'metaso',
-      searchApiKey: '',
-      sysPrompt: '你是一个行业研究分析师。',
-      userPrompt: '请用 HTML 格式输出行业研究报告。',
-    })
+    setAddReportForm({ title: '行业分析报告', defaultCompany: '', analysisMethods: ['SWOT', 'PEST'], searchPlatform: 'metaso', searchApiKey: '', sysPrompt: '你是一个行业研究分析师。', userPrompt: '请用 HTML 格式输出行业研究报告。' })
     const existingIntelCount = widgets.filter((w) => w.type === 'intel-monitor').length
-    let defaultProvider = 'deepseek'
-    let defaultModel = 'deepseek-v3.1'
-    let defaultKeywords: string[] = []
-    if (existingIntelCount === 0) {
-      // 第一次添加情报源：deepseek搜索特朗普动态
-      defaultProvider = 'deepseek'
-      defaultModel = 'deepseek-v3.1'
-      defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系', '美国大选', '白宫']
-    } else if (existingIntelCount === 1) {
-      // 第二次添加情报源：秘塔搜索比亚迪电动汽车
-      defaultProvider = 'metaso'
-      defaultModel = 'metaso-pro'
-      defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车', '动力电池', '刀片电池']
-    }
-    setAddMonitorForm({
-      title: `情报监控源 #${existingIntelCount + 1}`,
-      sources: [{
-        id: genId('s'),
-        name: '新建监控源',
-        aiProvider: defaultProvider,
-        aiModel: defaultModel,
-        apiKey: '',
-        keywords: defaultKeywords,
-        updateFrequency: 'daily',
-        customPrompt: '',
-      }],
-    })
+    let defaultProvider = 'deepseek', defaultModel = 'deepseek-v3.1', defaultKeywords: string[] = []
+    if (existingIntelCount === 0) { defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系'] }
+    else if (existingIntelCount === 1) { defaultProvider = 'metaso'; defaultModel = 'metaso-pro'; defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车'] }
+    setAddMonitorForm({ title: `情报监控源 #${existingIntelCount + 1}`, sources: [{ id: genId('s'), name: '新建监控源', aiProvider: defaultProvider, aiModel: defaultModel, apiKey: '', keywords: defaultKeywords, updateFrequency: 'daily', customPrompt: '' }] })
     setAddModalType(type)
     setShowAddModal(true)
   }, [widgets])
 
   const confirmAddWidget = useCallback(() => {
     if (addModalType === 'report-generator') {
-      setWidgets((prev) => [...prev, {
-        id: genId(),
-        type: 'report-generator',
-        title: addReportForm.title || '行业分析报告',
-        expanded: true,
-        config: {
-          defaultCompany: addReportForm.defaultCompany,
-          analysisMethods: addReportForm.analysisMethods,
-          searchPlatform: addReportForm.searchPlatform,
-          searchApiKey: addReportForm.searchApiKey,
-          sysPrompt: addReportForm.sysPrompt,
-          userPrompt: addReportForm.userPrompt,
-        },
-      }])
+      setWidgets((prev) => [...prev, { id: genId(), type: 'report-generator', title: addReportForm.title || '行业分析报告', expanded: false, config: { defaultCompany: addReportForm.defaultCompany, analysisMethods: addReportForm.analysisMethods, searchPlatform: addReportForm.searchPlatform, searchApiKey: addReportForm.searchApiKey, sysPrompt: addReportForm.sysPrompt, userPrompt: addReportForm.userPrompt } }])
     } else if (addModalType === 'intel-monitor') {
-      setWidgets((prev) => [...prev, {
-        id: genId(),
-        type: 'intel-monitor',
-        title: addMonitorForm.title || `情报监控源 #${widgets.filter((w) => w.type === 'intel-monitor').length + 1}`,
-        expanded: true,
-        config: {
-          sources: addMonitorForm.sources.map((s) => ({ ...s, id: s.id || genId('s') })),
-        },
-      }])
+      setWidgets((prev) => [...prev, { id: genId(), type: 'intel-monitor', title: addMonitorForm.title || `情报监控源 #${widgets.filter((w) => w.type === 'intel-monitor').length + 1}`, expanded: false, config: { sources: addMonitorForm.sources.map((s) => ({ ...s, id: s.id || genId('s') })) } }])
     }
     setShowAddModal(false)
     setAddModalType(null)
   }, [addModalType, addReportForm, addMonitorForm, widgets])
 
   // ========== Widget Operations ==========
-
-  const addWidget = useCallback((type: 'report-generator' | 'intel-monitor') => {
-    const defaults: Record<string, { title: string; config: WidgetConfig }> = {
-      'report-generator': {
-        title: '行业分析报告',
-        config: {
-          defaultCompany: '', analysisMethods: ['SWOT', 'PEST'],
-          searchPlatform: 'metaso', searchApiKey: '',
-          sysPrompt: '你是一个行业研究分析师。', userPrompt: '请用 HTML 格式输出行业研究报告。',
-        },
-      },
-      'intel-monitor': {
-        title: `情报监控源 #${widgets.filter((w) => w.type === 'intel-monitor').length + 1}`,
-        config: {
-          sources: [{
-            id: genId('s'), name: '新建监控源', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-            apiKey: '', keywords: [], updateFrequency: 'daily', customPrompt: '',
-          }],
-        },
-      },
-    }
-    const def = defaults[type]
-    setWidgets((prev) => [...prev, { id: genId(), type, title: def.title, expanded: true, config: JSON.parse(JSON.stringify(def.config)) }])
-  }, [widgets])
-
   const deleteWidget = useCallback((id: string) => {
     const w = widgets.find((w) => w.id === id)
     if (!w || !window.confirm(`确定删除「${w.title}」？此操作不可撤销。`)) return
     setWidgets((prev) => prev.filter((w) => w.id !== id))
-  }, [widgets])
+    if (selectedWidgetId === id) { setSelectedWidgetId(null); setRightTab('site') }
+  }, [widgets, selectedWidgetId])
 
   const toggleWidget = useCallback((id: string) => {
     setWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, expanded: !w.expanded } : w)))
-  }, [])
-
-  const updateWidgetTitle = useCallback((id: string, title: string) => {
-    setWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, title } : w)))
   }, [])
 
   const updateWidget = useCallback((id: string, updater: (w: Widget) => Widget) => {
@@ -274,25 +218,26 @@ export function PortalBuilderPage() {
   }, [])
 
   const moveWidget = useCallback((fromIdx: number, toIdx: number) => {
-    setWidgets((prev) => {
-      const arr = [...prev]
-      const [moved] = arr.splice(fromIdx, 1)
-      arr.splice(toIdx, 0, moved)
-      return arr
-    })
+    setWidgets((prev) => { const arr = [...prev]; const [moved] = arr.splice(fromIdx, 1); arr.splice(toIdx, 0, moved); return arr })
   }, [])
 
-  // ========== Monitor Source Operations ==========
+  const handleDragStart = (e: React.DragEvent, idx: number) => { setDragIdx(idx); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(idx)) }
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }
+  const handleDrop = (e: React.DragEvent, idx: number) => { e.preventDefault(); if (dragIdx !== -1 && dragIdx !== idx) moveWidget(dragIdx, idx); setDragIdx(-1) }
 
+  const handleWidgetClick = useCallback((id: string) => {
+    setSelectedWidgetId(id)
+    setRightTab('widget')
+  }, [])
+
+  const selectedWidget = useMemo(() => widgets.find((w) => w.id === selectedWidgetId) || null, [widgets, selectedWidgetId])
+
+  // ========== Source Operations ==========
   const addMonitorSource = useCallback((widgetId: string) => {
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
       const sources = [...(w.config.sources || [])]
-      sources.push({
-        id: genId('s'), name: `新建监控源 #${sources.length + 1}`,
-        aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '',
-        keywords: [], updateFrequency: 'daily', customPrompt: '',
-      })
+      sources.push({ id: genId('s'), name: `监控源 #${sources.length + 1}`, aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], updateFrequency: 'daily', customPrompt: '' })
       return { ...w, config: { ...w.config, sources } }
     })
   }, [updateWidget])
@@ -300,8 +245,6 @@ export function PortalBuilderPage() {
   const deleteMonitorSource = useCallback((widgetId: string, sourceId: string) => {
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
-      const s = w.config.sources?.find((s) => s.id === sourceId)
-      if (!window.confirm(`确定删除监控源「${s?.name || sourceId}」？`)) return w
       return { ...w, config: { ...w.config, sources: (w.config.sources || []).filter((s) => s.id !== sourceId) } }
     })
   }, [updateWidget])
@@ -309,15 +252,7 @@ export function PortalBuilderPage() {
   const updateSourceField = useCallback((widgetId: string, sourceId: string, field: keyof WidgetSource, value: string) => {
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
-      return {
-        ...w,
-        config: {
-          ...w.config,
-          sources: (w.config.sources || []).map((s) =>
-            s.id === sourceId ? { ...s, [field]: value } : s
-          ),
-        },
-      }
+      return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? { ...s, [field]: value } : s) } }
     })
   }, [updateWidget])
 
@@ -326,32 +261,14 @@ export function PortalBuilderPage() {
     if (!kw) return
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
-      return {
-        ...w,
-        config: {
-          ...w.config,
-          sources: (w.config.sources || []).map((s) => {
-            if (s.id !== sourceId) return s
-            if (s.keywords.includes(kw)) return s
-            return { ...s, keywords: [...s.keywords, kw] }
-          }),
-        },
-      }
+      return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? (s.keywords.includes(kw) ? s : { ...s, keywords: [...s.keywords, kw] }) : s) } }
     })
   }, [updateWidget])
 
   const removeKeyword = useCallback((widgetId: string, sourceId: string, keyword: string) => {
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
-      return {
-        ...w,
-        config: {
-          ...w.config,
-          sources: (w.config.sources || []).map((s) =>
-            s.id === sourceId ? { ...s, keywords: s.keywords.filter((k) => k !== keyword) } : s
-          ),
-        },
-      }
+      return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? { ...s, keywords: s.keywords.filter((k) => k !== keyword) } : s) } }
     })
   }, [updateWidget])
 
@@ -360,321 +277,440 @@ export function PortalBuilderPage() {
       if (w.type !== 'report-generator') return w
       const methods = [...(w.config.analysisMethods || [])]
       const idx = methods.indexOf(method)
-      if (idx > -1) methods.splice(idx, 1)
-      else methods.push(method)
+      if (idx > -1) methods.splice(idx, 1); else methods.push(method)
       return { ...w, config: { ...w.config, analysisMethods: methods } }
     })
   }, [updateWidget])
 
-  // ========== Drag & Drop ==========
-
-  const handleDragStart = (e: React.DragEvent, idx: number) => {
-    setDragIdx(idx)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(idx))
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
-
-  const handleDrop = (e: React.DragEvent, idx: number) => {
-    e.preventDefault()
-    if (dragIdx !== -1 && dragIdx !== idx) {
-      moveWidget(dragIdx, idx)
-    }
-    setDragIdx(-1)
-  }
-
   // ========== Deploy ==========
-
   const handleDeploy = async () => {
     const name = siteName.trim() || '情报分析门户'
-    setIsDeploying(true)
-    setError(null)
-    setResult(null)
+    setIsDeploying(true); setError(null); setResult(null)
     try {
       const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets)
       if (res.data) {
         setResult({ id: res.data.id, slug: res.data.slug, title: res.data.title, url: res.data.url })
-        // 直接在新窗口打开部署后的门户页面
-        const portalFullUrl = window.location.origin + res.data.url
-        window.open(portalFullUrl, '_blank')
-      } else {
-        setError(res.error?.message || '部署失败')
-      }
-    } catch (e: any) {
-      setError(e.message || '部署失败，请稍后重试')
-    } finally {
-      setIsDeploying(false)
-    }
+        window.open(window.location.origin + res.data.url, '_blank')
+      } else { setError(res.error?.message || '部署失败') }
+    } catch (e: any) { setError(e.message || '部署失败') } finally { setIsDeploying(false) }
   }
 
   const handleCopy = async () => {
     if (!result) return
-    try {
-      await navigator.clipboard.writeText(window.location.origin + result.url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      const input = document.createElement('input')
-      input.value = window.location.origin + result.url
-      document.body.appendChild(input)
-      input.select()
-      document.execCommand('copy')
-      document.body.removeChild(input)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+    const url = window.location.origin + result.url
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch {
+      const input = document.createElement('input'); input.value = url; document.body.appendChild(input); input.select(); document.execCommand('copy'); document.body.removeChild(input)
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
     }
   }
 
-  // ========== Stats ==========
-
-  const reportCount = widgets.filter((w) => w.type === 'report-generator').length
-  const monitorCount = widgets.filter((w) => w.type === 'intel-monitor').length
-  const template = TEMPLATES.find((t) => t.id === selectedTheme)
-
-  // ========== Preview Theme Colors ==========
-
-  const previewColors = useMemo(() => {
-    switch (selectedTheme) {
-      case 'tech-black':
-        return { primary: '#38bdf8', bg: '#020617', cardBg: '#0f172a', text: '#e2e8f0', muted: '#64748b', border: '#1e293b', reportAccent: '#818cf8', monitorAccent: '#fbbf24' }
-      case 'simple-white':
-        return { primary: '#1a1a2e', bg: '#ffffff', cardBg: '#ffffff', text: '#1a1a2e', muted: '#94a3b8', border: '#e5e7eb', reportAccent: '#6366f1', monitorAccent: '#f59e0b' }
-      default: // business-blue
-        return { primary: '#2563eb', bg: '#ffffff', cardBg: '#ffffff', text: '#1f2937', muted: '#94a3b8', border: '#e5e7eb', reportAccent: '#6366f1', monitorAccent: '#f59e0b' }
-    }
-  }, [selectedTheme])
-
-  const pc = previewColors
-
-  // ========== Preview Cards (matching portal card style) ==========
-
-  const previewCards = widgets.length > 0 ? widgets.map((w, i) => {
-    if (w.type === 'report-generator') {
-      const methods = w.config.analysisMethods || []
-      return (
-        <div
-          key={w.id}
-          className="relative flex flex-col items-center justify-center gap-2 rounded-xl border cursor-pointer transition-all select-none overflow-hidden"
-          style={{
-            width: 200, height: 126,
-            background: pc.cardBg,
-            borderColor: pc.border,
-            boxShadow: `0 1px 3px rgba(0,0,0,${pc.bg === '#020617' ? '.20' : '.04'})`,
-            animation: `cardIn .5s cubic-bezier(.4,0,.2,1) backwards`,
-            animationDelay: `${i * 0.06}s`,
-          }}
-          title={w.title}
-        >
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
-            style={{ background: `linear-gradient(135deg,rgba(99,102,241,.12),rgba(129,140,248,.08))`, color: pc.reportAccent }}>
-            📊
-          </div>
-          <div className="text-xs font-bold text-center px-2 leading-tight" style={{ color: pc.text }}>
-            {w.title}
-          </div>
-          <div className="flex items-center gap-1.5 text-[9px] font-medium" style={{ color: pc.muted }}>
-            {methods.slice(0, 3).map((m, j) => (
-              <span key={m}>{m}{j < Math.min(methods.length, 3) - 1 ? ' · ' : ''}</span>
-            ))}
-            {methods.length > 3 && <span> +{methods.length - 3}</span>}
-            {methods.length === 0 && <span>未选框架</span>}
-          </div>
-        </div>
-      )
-    }
-    if (w.type === 'intel-monitor') {
-      const sources = w.config.sources || []
-      const kwCount = sources.reduce((sum, s) => sum + (s.keywords || []).length, 0)
-      const freq = sources[0]?.updateFrequency || 'daily'
-      const freqLabel = freq === 'realtime' ? '实时' : freq === 'daily' ? '每日' : '每周'
-      return (
-        <div
-          key={w.id}
-          className="relative flex flex-col items-center justify-center gap-2 rounded-xl border cursor-pointer transition-all select-none overflow-hidden"
-          style={{
-            width: 200, height: 126,
-            background: pc.cardBg,
-            borderColor: pc.border,
-            boxShadow: `0 1px 3px rgba(0,0,0,${pc.bg === '#020617' ? '.20' : '.04'})`,
-            animation: `cardIn .5s cubic-bezier(.4,0,.2,1) backwards`,
-            animationDelay: `${i * 0.06}s`,
-          }}
-          title={w.title}
-        >
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
-            style={{ background: `linear-gradient(135deg,rgba(245,158,11,.12),rgba(251,191,36,.08))`, color: pc.monitorAccent }}>
-            🛰️
-          </div>
-          <div className="text-xs font-bold text-center px-2 leading-tight" style={{ color: pc.text }}>
-            {w.title}
-          </div>
-          <div className="flex items-center gap-1.5 text-[9px] font-medium" style={{ color: pc.muted }}>
-            <span>{kwCount} 关键词</span>
-            <span className="w-1 h-1 rounded-full inline-block" style={{ background: pc.border }} />
-            <span>{freqLabel}</span>
-          </div>
-        </div>
-      )
-    }
-    return null
-  }) : (
-    <div className="text-center py-10" style={{ color: pc.muted }}>
-      <div className="text-3xl mb-2 opacity-30">🧩</div>
-      <p className="text-xs">在左侧添加 Widget 模块来构建你的门户</p>
-    </div>
-  )
+  // ========== Theme ==========
+  const theme = useMemo(() => TEMPLATES.find((t) => t.id === selectedTheme) || TEMPLATES[0], [selectedTheme])
 
   // ========== Build Mode ==========
-
   if (!result) {
     return (
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-6">
-          {/* Top bar */}
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => navigate('/sites')}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft size={16} /> 返回列表
+      <div className="flex flex-col h-full overflow-hidden">
+
+        {/* ========== Top Bar ========== */}
+        <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/sites')} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft size={14} /> 返回
             </button>
-            <span className="px-3 py-1 bg-violet-100 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 text-[11px] font-semibold rounded-full">
-              🧪 建站工具 Beta
-            </span>
+            <div className="w-px h-4 bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-xs">🏗️</span>
+              <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
+                className="bg-transparent text-sm font-semibold border-none outline-none hover:bg-muted px-2 py-1 rounded-md transition-colors w-48"
+                placeholder="站点名称" />
+            </div>
           </div>
-
-          {/* Header */}
-          <div className="mb-7">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <span className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-lg">🏗️</span>
-              创建情报分析门户
-            </h1>
-            <p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-relaxed">
-              拖拽排列、自由组合 Widget 模块，打造专属的 AI 驱动情报收集与分析网站。配置完成后一键部署到公开链接。
-            </p>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 mr-2">
+              {TEMPLATES.map((t) => (
+                <button key={t.id} onClick={() => setSelectedTheme(t.id)}
+                  className={`w-5 h-5 rounded-full border-2 transition-all ${selectedTheme === t.id ? 'border-foreground scale-110' : 'border-transparent opacity-50 hover:opacity-80'}`}
+                  style={{ background: t.primary }} title={t.name} />
+              ))}
+            </div>
+            <button onClick={handleDeploy} disabled={isDeploying}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-lg text-xs font-semibold transition-colors">
+              {isDeploying ? <><Loader2 size={13} className="animate-spin" /> 部署中…</> : <><Globe size={13} /> 部署门户</>}
+            </button>
           </div>
+        </div>
 
-          {/* Main grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-7 items-start">
-            {/* LEFT: Preview */}
-              <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
-              <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-lg">
-                {/* Preview topbar */}
-                <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
+        {/* ========== Three Column Layout ========== */}
+        <div className="flex flex-1 overflow-hidden">
+
+          {/* ========== LEFT: Component Library + Widget List ========== */}
+          <aside className="w-[280px] flex-shrink-0 flex flex-col border-r border-border bg-card overflow-hidden">
+
+            {/* Component Library */}
+            <div className="flex-shrink-0 p-4 border-b border-border">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">组件库</p>
+              <div className="space-y-2">
+                <button onClick={() => openAddModal('report-generator')}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-left group">
+                  <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center text-base flex-shrink-0">📊</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-foreground group-hover:text-indigo-700 dark:group-hover:text-indigo-300">报告生成器</div>
+                    <div className="text-[10px] text-muted-foreground truncate">AI 自动生成分析报告</div>
+                  </div>
+                  <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs font-bold flex-shrink-0">+</div>
+                </button>
+                <button onClick={() => openAddModal('intel-monitor')}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-left group">
+                  <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-base flex-shrink-0">🛰️</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
+                    <div className="text-[10px] text-muted-foreground truncate">AI 持续监控关键词情报</div>
+                  </div>
+                  <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xs font-bold flex-shrink-0">+</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Widget List */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">我的组件</p>
+              {widgets.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-2xl mb-2 opacity-30">🧩</div>
+                  <p className="text-[11px]">从上方添加组件</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {widgets.map((w, i) => (
+                    <div key={w.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, i)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, i)}
+                      className={`group rounded-xl border transition-all cursor-pointer ${
+                        selectedWidgetId === w.id
+                          ? w.type === 'report-generator' ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20' : 'border-amber-400 bg-amber-50 dark:bg-amber-950/20'
+                          : 'border-border hover:border-muted-foreground/40 bg-background hover:bg-muted/50'
+                      }`}
+                      onClick={() => handleWidgetClick(w.id)}
+                    >
+                      <div className="flex items-center gap-2 px-3 py-2.5">
+                        <div className="text-muted-foreground/40 cursor-grab active:cursor-grabbing flex-shrink-0">
+                          <GripVertical size={12} />
+                        </div>
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${
+                          w.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'
+                        }`}>
+                          {w.type === 'report-generator' ? '📊' : '🛰️'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium truncate">{w.title}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {w.type === 'report-generator' ? `报告 · ${(w.config.analysisMethods || []).slice(0, 2).join(', ')}` : `监控 · ${(w.config.sources || []).length}个源`}
+                          </div>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); toggleWidget(w.id) }}
+                          className="p-0.5 rounded hover:bg-muted text-muted-foreground flex-shrink-0">
+                          {w.expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        </button>
+                      </div>
+                      {w.expanded && (
+                        <div className="px-3 pb-2.5">
+                          <div className="text-[10px] text-muted-foreground bg-muted/50 rounded-lg p-2 space-y-1">
+                            {w.type === 'report-generator' ? (
+                              <>
+                                <div>框架: {(w.config.analysisMethods || []).join(', ') || '未选'}</div>
+                                <div>平台: {SEARCH_PLATFORMS.find((p) => p.value === w.config.searchPlatform)?.label || '默认'}</div>
+                              </>
+                            ) : (
+                              <>
+                                {w.config.sources?.map((s) => (
+                                  <div key={s.id}>• {s.name} · {s.keywords.length}关键词</div>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
+                            className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors">
+                            <Trash2 size={10} /> 删除
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+
+          {/* ========== CENTER: Portal Preview ========== */}
+          <main className="flex-1 overflow-auto bg-muted/30" style={{ minWidth: 0 }}>
+            <div className="min-h-full flex items-start justify-center py-6 px-8">
+              <div className="w-full" style={{ maxWidth: 960 }}>
+                {/* Browser chrome */}
+                <div className="rounded-t-xl border border-b-0 border-border bg-muted/80 px-4 py-2 flex items-center gap-2">
                   <div className="flex gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-400" />
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="w-2 h-2 rounded-full bg-green-400" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
                   </div>
-            {/* LEFT: Builder */}
-            <div className="space-y-4 lg:min-w-0 lg:sticky lg:top-6 lg:max-h-screen lg:overflow-y-auto lg:pr-2">
-              {/* Basic Info */}
-              <div className="border border-border rounded-2xl p-6 bg-card shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center">
-                    <FileText size={16} className="text-violet-600" />
-                  </div>
-                  <span className="text-sm font-semibold">门户基本信息</span>
-                </div>
-                <div className="flex gap-3 mb-3">
-                  <div className="flex-[2]">
-                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">网站名称</label>
-                    <input
-                      type="text" value={siteName}
-                      onChange={(e) => setSiteName(e.target.value)}
-                      placeholder="给你的门户起个名字"
-                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                      自定义链接 <span className="font-normal text-muted-foreground/60">选填</span>
-                    </label>
-                    <input
-                      type="text" placeholder="例如：my-portal"
-                      className="w-full px-3.5 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">留空则自动生成</p>
+                  <div className="flex-1 h-5 bg-background/60 rounded-md border border-border flex items-center px-2">
+                    <span className="text-[10px] text-muted-foreground truncate">yooclaw.yookeer.com/p/preview</span>
                   </div>
                 </div>
-                  <div className="flex-1 ml-2.5 text-[10px] text-muted-foreground bg-background px-3 py-1 rounded-md border border-border truncate">
-                    🔒 yooclaw.yookeer.com/p/...
+                {/* Portal content */}
+                <div className="border border-border rounded-b-xl overflow-hidden shadow-xl" style={{ background: theme.bg, color: theme.textColor }}>
+                  {/* Nav Bar */}
+                  <nav className="h-11 flex items-center px-6 gap-6" style={{ background: theme.navBg }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold" style={{ color: theme.textColor }}>🏢 {siteName}</span>
+                    </div>
+                    <div className="flex-1" />
+                    {widgets.map((w) => (
+                      <button key={w.id} className="text-[11px] font-medium opacity-60 hover:opacity-100 transition-opacity" style={{ color: theme.textColor }}>
+                        {w.title}
+                      </button>
+                    ))}
+                  </nav>
+                  {/* Hero */}
+                  <div className="px-8 py-10 text-center relative overflow-hidden" style={{ background: theme.heroBg }}>
+                    <h1 className="text-2xl font-extrabold tracking-tight mb-2" style={{ color: theme.textColor }}>{siteName || '情报分析门户'}</h1>
+                    {siteDesc && <p className="text-sm opacity-75 max-w-xl mx-auto leading-relaxed" style={{ color: theme.textColor }}>{siteDesc}</p>}
+                    <div className="absolute bottom-0 left-0 right-0 h-px opacity-20" style={{ background: theme.textColor }} />
                   </div>
-                </div>
-
-                {/* Preview body */}
-                <div className="max-h-[calc(100vh-120px)] overflow-y-auto" style={{ background: pc.bg }}>
-                  {/* Site header */}
-                  <div
-                    className="p-5 text-center relative overflow-hidden"
-                    style={{
-                      background: selectedTheme === 'tech-black'
-                        ? 'linear-gradient(135deg, #0f172a, #1e293b)'
-                        : selectedTheme === 'simple-white'
-                          ? pc.bg
-                          : template?.preview || 'linear-gradient(135deg, #2563eb, #1e40af)',
-                      color: selectedTheme === 'simple-white' ? '#1a1a2e' : '#ffffff',
-                      borderBottom: selectedTheme === 'simple-white' ? '2px solid #e5e7eb' : selectedTheme === 'tech-black' ? '2px solid #38bdf8' : 'none',
-                    }}
-                  >
-                    <h3 className="text-lg font-extrabold tracking-tight">{siteName || '情报分析门户'}</h3>
-                    {siteDesc && <p className="text-xs mt-1.5 opacity-75 max-w-lg mx-auto leading-relaxed">{siteDesc}</p>}
+                  {/* Widget Cards */}
+                  <div className="px-8 py-8">
+                    {widgets.length > 0 ? (
+                      <div className="flex flex-wrap gap-4 justify-center">
+                        {widgets.map((w) => (
+                          <div key={w.id} className="flex flex-col items-center gap-2 rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all"
+                            style={{ width: 200, background: theme.cardBg, borderColor: theme.border }}>
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base"
+                              style={{ background: w.type === 'report-generator' ? `linear-gradient(135deg, rgba(99,102,241,0.12), rgba(129,140,248,0.08))` : `linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.08))`, color: w.type === 'report-generator' ? theme.reportAccent : theme.monitorAccent }}>
+                              {w.type === 'report-generator' ? '📊' : '🛰️'}
+                            </div>
+                            <div className="text-xs font-bold text-center" style={{ color: theme.textColor }}>{w.title}</div>
+                            <div className="text-[10px] text-center" style={{ color: theme.muted }}>
+                              {w.type === 'report-generator'
+                                ? (w.config.analysisMethods || []).slice(0, 2).join(' · ')
+                                : `${(w.config.sources || []).reduce((s, src) => s + src.keywords.length, 0)} 关键词 · ${(w.config.sources || [])[0]?.updateFrequency === 'daily' ? '每日' : (w.config.sources || [])[0]?.updateFrequency === 'realtime' ? '实时' : '每周'}更新`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 rounded-xl border border-dashed" style={{ borderColor: theme.border }}>
+                        <div className="text-3xl mb-2 opacity-30">🧩</div>
+                        <p className="text-xs" style={{ color: theme.muted }}>从左侧添加组件开始构建</p>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Card row — centered, matches portal .card-row-wrap */}
-                  <div className="flex justify-center gap-3 flex-wrap px-5 py-5">
-                    {previewCards}
-                  </div>
-
-                  {/* Divider */}
-                  <div className="flex items-center gap-3 px-5 pb-3">
-                    <span className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: pc.muted }}>报告输出</span>
-                    <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${pc.border}, transparent)` }} />
-                  </div>
-
-                  {/* Content area placeholder */}
-                  <div className="px-5 pb-8">
-                    <div className="text-center py-12 rounded-xl border border-dashed mx-auto" style={{ borderColor: pc.border, background: pc.cardBg }}>
-                      <div className="text-3xl mb-3 opacity-20" style={{ filter: 'grayscale(0.5)' }}>📄</div>
-                      <p className="text-xs leading-relaxed" style={{ color: pc.muted }}>
-                        选择一个 Widget 卡片开始分析
-                      </p>
-                      <p className="text-[10px] mt-1 opacity-50" style={{ color: pc.muted }}>
-                        报告生成后将在此区域展示
-                      </p>
+                  {/* Report output area */}
+                  <div className="px-8 pb-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: theme.muted }}>报告输出</span>
+                      <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${theme.border}, transparent)` }} />
+                    </div>
+                    <div className="rounded-xl border border-dashed text-center py-12" style={{ borderColor: theme.border, background: theme.cardBg }}>
+                      <div className="text-2xl mb-2 opacity-20">📄</div>
+                      <p className="text-xs" style={{ color: theme.muted }}>点击上方组件开始分析</p>
                     </div>
                   </div>
-
                   {/* Footer */}
-                  <div className="text-center py-4 text-[10px]" style={{ color: pc.muted, borderTop: `1px solid ${pc.border}` }}>
-                    Powered by YooClaw AI
+                  <div className="text-center py-4 text-[10px] border-t" style={{ color: theme.muted, borderColor: theme.border }}>
+                    Powered by YooClaw AI · {new Date().getFullYear()}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </main>
+
+          {/* ========== RIGHT: Configuration Panel ========== */}
+          <aside className="w-[300px] flex-shrink-0 flex flex-col border-l border-border bg-card overflow-hidden">
+
+            {/* Tab Bar */}
+            <div className="flex-shrink-0 flex border-b border-border">
+              <button onClick={() => setRightTab('site')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-semibold border-b-2 transition-colors ${rightTab === 'site' ? 'border-violet-500 text-violet-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+                <Settings size={13} /> 站点配置
+              </button>
+              <button onClick={() => setRightTab('widget')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-semibold border-b-2 transition-colors ${rightTab === 'widget' ? 'border-violet-500 text-violet-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+                <LayoutGrid size={13} /> 组件属性
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+
+              {/* ===== SITE CONFIG TAB ===== */}
+              {rightTab === 'site' && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">网站标题</label>
+                    <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
+                      placeholder="情报分析门户"
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">网站描述</label>
+                    <textarea value={siteDesc} onChange={(e) => setSiteDesc(e.target.value)} rows={2}
+                      placeholder="描述你的门户…"
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-2">主题色</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {TEMPLATES.map((t) => (
+                        <button key={t.id} onClick={() => setSelectedTheme(t.id)}
+                          className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${selectedTheme === t.id ? 'border-violet-500' : 'border-border hover:border-muted-foreground/40'}`}>
+                          <div className="w-8 h-8 rounded-full border border-black/10" style={{ background: t.preview }} />
+                          <span className="text-[10px] font-medium">{t.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={handleDeploy} disabled={isDeploying}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors">
+                    {isDeploying ? <><Loader2 size={13} className="animate-spin" /> 部署中…</> : <><Globe size={13} /> 一键部署</>}
+                  </button>
+                  {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">{error}</p>}
+                </div>
+              )}
+
+              {/* ===== WIDGET CONFIG TAB ===== */}
+              {rightTab === 'widget' && (
+                !selectedWidget ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <LayoutGrid size={32} className="mx-auto mb-3 opacity-20" />
+                    <p className="text-xs">从左侧选择一个组件</p>
+                    <p className="text-[11px] mt-1 opacity-60">点击组件列表中的任意项进行配置</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Widget header */}
+                    <div className="flex items-center gap-2 pb-3 border-b border-border">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${selectedWidget.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                        {selectedWidget.type === 'report-generator' ? '📊' : '🛰️'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold truncate">{selectedWidget.title}</div>
+                        <div className="text-[10px] text-muted-foreground">{selectedWidget.type === 'report-generator' ? '报告生成器' : '情报监控源'}</div>
+                      </div>
+                      <button onClick={() => deleteWidget(selectedWidget.id)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    {/* Widget Title */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">组件标题</label>
+                      <input type="text" value={selectedWidget.title}
+                        onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, title: e.target.value }))}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+                    </div>
+
+                    {/* Report Generator Config */}
+                    {selectedWidget.type === 'report-generator' && (
+                      <>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">默认分析标的</label>
+                          <input type="text" value={selectedWidget.config.defaultCompany || ''}
+                            onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, config: { ...w.config, defaultCompany: e.target.value } }))}
+                            placeholder="如：阳光电源"
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">分析框架</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {ANALYSIS_METHODS.map((m) => (
+                              <button key={m}
+                                onClick={() => toggleMethod(selectedWidget.id, m)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${(selectedWidget.config.analysisMethods || []).includes(m) ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-background border-border text-muted-foreground hover:border-indigo-300'}`}>{m}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">搜索平台</label>
+                          <select value={selectedWidget.config.searchPlatform || ''}
+                            onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, config: { ...w.config, searchPlatform: e.target.value } }))}
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all">
+                            {SEARCH_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">系统提示词</label>
+                          <textarea value={selectedWidget.config.sysPrompt || ''}
+                            onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, config: { ...w.config, sysPrompt: e.target.value } }))}
+                            rows={3} placeholder="AI 系统指令…"
+                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Intel Monitor Config */}
+                    {selectedWidget.type === 'intel-monitor' && (
+                      <div className="space-y-4">
+                        {(selectedWidget.config.sources || []).map((s) => (
+                          <div key={s.id} className="rounded-xl border border-border p-3 space-y-3 bg-background/50">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-muted-foreground">{s.name}</span>
+                              <button onClick={() => deleteMonitorSource(selectedWidget.id, s.id)}
+                                className="text-[10px] text-red-500 hover:text-red-600">删除</button>
+                            </div>
+                            <input type="text" value={s.name}
+                              onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'name', e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all" />
+                            <div className="grid grid-cols-2 gap-2">
+                              <select value={s.aiProvider}
+                                onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'aiProvider', e.target.value)}
+                                className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all">
+                                {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                              </select>
+                              <input type="text" value={s.aiModel}
+                                onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'aiModel', e.target.value)}
+                                placeholder="模型"
+                                className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all" />
+                            </div>
+                            <KeywordInput
+                              keywords={s.keywords} sourceId={s.id} widgetId={selectedWidget.id}
+                              onAdd={addKeyword} onRemove={removeKeyword} />
+                            <select value={s.updateFrequency}
+                              onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'updateFrequency', e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all">
+                              <option value="hourly">每小时</option>
+                              <option value="daily">每天</option>
+                              <option value="weekly">每周</option>
+                              <option value="monthly">每月</option>
+                            </select>
+                          </div>
+                        ))}
+                        <button onClick={() => addMonitorSource(selectedWidget.id)}
+                          className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-border rounded-xl text-[11px] text-muted-foreground hover:border-violet-400 hover:text-violet-600 transition-all">
+                          <Plus size={12} /> 添加监控源
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          </aside>
         </div>
 
         {/* ========== Add Widget Modal ========== */}
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddModal(false); setAddModalType(null) }}>
-            {/* Backdrop */}
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-
-            {/* Modal */}
-            <div
-              className="relative bg-card border border-border rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto w-full mx-4"
+            <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto w-full mx-4"
               style={{ maxWidth: addModalType === 'intel-monitor' ? 560 : 520 }}
-              onClick={(e) => e.stopPropagation()}
-            >
+              onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl">
                 <div className="flex items-center gap-2.5">
-                  <span className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/20 flex items-center justify-center text-sm">
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${addModalType === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
                     {addModalType === 'report-generator' ? '📊' : '🛰️'}
                   </span>
                   <div>
@@ -686,190 +722,111 @@ export function PortalBuilderPage() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => { setShowAddModal(false); setAddModalType(null) }}
-                  className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-                >
+                <button onClick={() => { setShowAddModal(false); setAddModalType(null) }} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
                   <X size={18} />
                 </button>
               </div>
-
               {/* Body */}
               <div className="px-6 py-5 space-y-4">
                 {addModalType === 'report-generator' && (
                   <>
-                    {/* Title */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">报告标题</label>
-                      <input
-                        type="text"
-                        value={addReportForm.title}
+                      <input type="text" value={addReportForm.title}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, title: e.target.value }))}
                         placeholder="行业分析报告"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
-
-                    {/* Default Company */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">默认分析标的 (可选)</label>
-                      <input
-                        type="text"
-                        value={addReportForm.defaultCompany}
+                      <input type="text" value={addReportForm.defaultCompany}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, defaultCompany: e.target.value }))}
                         placeholder="如：阳光电源、宁德时代"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
-
-                    {/* Analysis Methods */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">分析框架</label>
                       <div className="flex flex-wrap gap-1.5">
                         {ANALYSIS_METHODS.map((m) => (
-                          <button
-                            key={m}
-                            onClick={() => setAddReportForm((f) => {
-                              const methods = f.analysisMethods.includes(m)
-                                ? f.analysisMethods.filter((x) => x !== m)
-                                : [...f.analysisMethods, m]
-                              return { ...f, analysisMethods: methods }
-                            })}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                              addReportForm.analysisMethods.includes(m)
-                                ? 'bg-violet-100 dark:bg-violet-900/30 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300'
-                                : 'bg-background border-border text-muted-foreground hover:border-violet-300'
-                            }`}
-                          >
-                            {m}
-                          </button>
+                          <button key={m} onClick={() => setAddReportForm((f) => {
+                            const methods = f.analysisMethods.includes(m) ? f.analysisMethods.filter((x) => x !== m) : [...f.analysisMethods, m]
+                            return { ...f, analysisMethods: methods }
+                          })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${addReportForm.analysisMethods.includes(m) ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-background border-border text-muted-foreground hover:border-indigo-300'}`}>{m}</button>
                         ))}
                       </div>
                     </div>
-
-                    {/* Search Platform */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">搜索平台</label>
-                      <select
-                        value={addReportForm.searchPlatform}
+                      <select value={addReportForm.searchPlatform}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, searchPlatform: e.target.value }))}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      >
-                        {SEARCH_PLATFORMS.map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                        {SEARCH_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                       </select>
                     </div>
-
-                    {/* API Key */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key (可选)</label>
-                      <input
-                        type="text"
-                        value={addReportForm.searchApiKey}
+                      <input type="text" value={addReportForm.searchApiKey}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, searchApiKey: e.target.value }))}
                         placeholder="输入自定义 API Key…"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
-
-                    {/* System Prompt */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
-                      <textarea
-                        value={addReportForm.sysPrompt}
+                      <textarea value={addReportForm.sysPrompt}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, sysPrompt: e.target.value }))}
                         rows={3}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
-
-                    {/* User Prompt */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">用户提示词</label>
-                      <textarea
-                        value={addReportForm.userPrompt}
+                      <textarea value={addReportForm.userPrompt}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, userPrompt: e.target.value }))}
                         rows={3}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                   </>
                 )}
-
                 {addModalType === 'intel-monitor' && (
                   <>
-                    {/* Title */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控源标题</label>
-                      <input
-                        type="text"
-                        value={addMonitorForm.title}
+                      <input type="text" value={addMonitorForm.title}
                         onChange={(e) => setAddMonitorForm((f) => ({ ...f, title: e.target.value }))}
                         placeholder="情报监控源"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
-
-                    {/* Source Name */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控源名称</label>
-                      <input
-                        type="text"
-                        value={addMonitorForm.sources[0]?.name || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], name: e.target.value }],
-                        }))}
+                      <input type="text" value={addMonitorForm.sources[0]?.name || ''}
+                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], name: e.target.value }] }))}
                         placeholder="如：光伏产业监控"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
-
-                    {/* AI Provider & Model */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 提供商</label>
-                        <select
-                          value={addMonitorForm.sources[0]?.aiProvider || 'deepseek'}
-                          onChange={(e) => setAddMonitorForm((f) => ({
-                            ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }],
-                          }))}
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                        >
-                          {AI_PROVIDERS.map((p) => (
-                            <option key={p.value} value={p.value}>{p.label}</option>
-                          ))}
+                        <select value={addMonitorForm.sources[0]?.aiProvider || 'deepseek'}
+                          onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }] }))}
+                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                          {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
-                        <input
-                          type="text"
-                          value={addMonitorForm.sources[0]?.aiModel || ''}
-                          onChange={(e) => setAddMonitorForm((f) => ({
-                            ...f, sources: [{ ...f.sources[0], aiModel: e.target.value }],
-                          }))}
+                        <input type="text" value={addMonitorForm.sources[0]?.aiModel || ''}
+                          onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiModel: e.target.value }] }))}
                           placeholder="如：deepseek-v3.1"
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                        />
+                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                       </div>
                     </div>
-
-                    {/* API Key */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key (可选)</label>
-                      <input
-                        type="text"
-                        value={addMonitorForm.sources[0]?.apiKey || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], apiKey: e.target.value }],
-                        }))}
+                      <input type="text" value={addMonitorForm.sources[0]?.apiKey || ''}
+                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], apiKey: e.target.value }] }))}
                         placeholder="输入自定义 API Key…"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      />
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
-
-                    {/* Keywords */}
                     <KeywordInput
                       keywords={addMonitorForm.sources[0]?.keywords || []}
                       sourceId={addMonitorForm.sources[0]?.id || 'modal'}
@@ -887,182 +844,84 @@ export function PortalBuilderPage() {
                         }))
                       }}
                     />
-
-                    {/* Update Frequency */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
-                      <select
-                        value={addMonitorForm.sources[0]?.updateFrequency || 'daily'}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], updateFrequency: e.target.value }],
-                        }))}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all"
-                      >
+                      <select value={addMonitorForm.sources[0]?.updateFrequency || 'daily'}
+                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], updateFrequency: e.target.value }] }))}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
                         <option value="hourly">每小时</option>
                         <option value="daily">每天</option>
                         <option value="weekly">每周</option>
                         <option value="monthly">每月</option>
                       </select>
                     </div>
-
-                    {/* Custom Prompt */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
-                      <textarea
-                        value={addMonitorForm.sources[0]?.customPrompt || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }],
-                        }))}
-                        rows={3}
-                        placeholder="描述情报监控的具体要求…"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none"
-                      />
+                      <textarea value={addMonitorForm.sources[0]?.customPrompt || ''}
+                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }] }))}
+                        rows={3} placeholder="描述情报监控的具体要求…"
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                   </>
                 )}
               </div>
-
               {/* Footer */}
               <div className="sticky bottom-0 flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-card/95 backdrop-blur-sm rounded-b-2xl">
-                <button
-                  onClick={() => { setShowAddModal(false); setAddModalType(null) }}
-                  className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
-                >
+                <button onClick={() => { setShowAddModal(false); setAddModalType(null) }}
+                  className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
                   取消
                 </button>
-                <button
-                  onClick={confirmAddWidget}
-                  className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
-                >
+                <button onClick={confirmAddWidget}
+                  className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
                   确认添加
                 </button>
               </div>
             </div>
           </div>
         )}
-
-        </div>
       </div>
     )
   }
 
   // ========== Success Mode ==========
-
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-xl mx-auto px-4 md:px-6 py-6">
         <div className="border border-border rounded-xl p-6 bg-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <CheckCircle2 size={20} className="text-green-600 dark:text-green-400" />
+              <Globe size={20} className="text-green-600 dark:text-green-400" />
             </div>
             <div>
               <h2 className="text-sm font-medium text-green-600 dark:text-green-400">门户部署成功!</h2>
               <p className="text-xs text-muted-foreground">{result.title}</p>
             </div>
           </div>
-
           <div className="bg-muted rounded-lg p-4 mb-4">
             <p className="text-xs text-muted-foreground mb-2">访问链接</p>
             <div className="flex items-center gap-2">
-              <a
-                href={result.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary hover:bg-primary/5 hover:border-primary/40 transition-all flex items-center gap-1.5"
-              >
+              <a href={result.url} target="_blank" rel="noopener noreferrer"
+                className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary hover:bg-primary/5 hover:border-primary/40 transition-all flex items-center gap-1.5">
                 <ExternalLink size={13} className="flex-shrink-0" />
                 <span className="truncate">{window.location.origin}{result.url}</span>
               </a>
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
-              >
+              <button onClick={handleCopy}
+                className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity">
                 {copied ? '已复制' : <Copy size={14} />}
               </button>
             </div>
           </div>
-
           <div className="flex gap-3">
-            <a
-              href={result.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              <ExternalLink size={16} />
-              查看门户
+            <a href={result.url} target="_blank" rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
+              <ExternalLink size={16} /> 查看门户
             </a>
-            <button
-              onClick={() => { setResult(null); setSiteName(''); setSiteDesc(''); setCopied(false) }}
-              className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-            >
+            <button onClick={() => { setResult(null); setSiteName(''); setSiteDesc(''); setCopied(false) }}
+              className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors">
               再部署一个
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-// ========== Keyword Input Subcomponent ==========
-
-function KeywordInput({
-  keywords, sourceId, widgetId,
-  onAdd, onRemove,
-}: {
-  keywords: string[]
-  sourceId: string
-  widgetId: string
-  onAdd: (widgetId: string, sourceId: string, keyword: string) => void
-  onRemove: (widgetId: string, sourceId: string, keyword: string) => void
-}) {
-  const [input, setInput] = useState('')
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (input.trim()) {
-        onAdd(widgetId, sourceId, input)
-        setInput('')
-      }
-    }
-  }
-
-  return (
-    <div>
-      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-        监控关键词 <span className="font-normal text-muted-foreground/60">按 Enter 添加</span>
-      </label>
-      <div className="flex flex-wrap gap-1 mb-2">
-        {keywords.map((k) => (
-          <span key={k} className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[11px] font-medium">
-            {k}
-            <button
-              onClick={() => onRemove(widgetId, sourceId, k)}
-              className="ml-0.5 text-violet-400 hover:text-red-500 transition-colors"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-1.5">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="输入关键词，按 Enter 添加…"
-          className="flex-1 px-3 py-2 bg-background border border-dashed border-border rounded-lg text-sm outline-none focus:border-violet-400 focus:border-solid transition-all"
-        />
-        <button
-          onClick={() => { if (input.trim()) { onAdd(widgetId, sourceId, input); setInput('') } }}
-          className="px-3 py-2 border border-border rounded-lg text-xs font-medium hover:border-violet-400 hover:text-violet-600 transition-all"
-        >
-          + 添加
-        </button>
       </div>
     </div>
   )
