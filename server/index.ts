@@ -1302,7 +1302,7 @@ async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
   var provider=src.aiProvider||'deepseek';
   var apiKey=src.apiKey||(provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
-  var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?(src.keywords as string).split(/[,，、]/).map(function(s:string){return s.trim()}).filter(Boolean):[]);
+  var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?src.keywords.split(/[,，、]/).map(function(s){return s.trim()}).filter(Boolean):[]);
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
   if(provider==='metaso'){
@@ -3815,7 +3815,7 @@ app.post('/api/portal-intel', async (req, res) => {
       try {
         console.log('[PortalIntel] V2 DEBUG keywords raw:', typeof src.keywords, JSON.stringify(src.keywords).substring(0,100));
         // Fully inlined: no dependency on top-level helper functions
-        var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?(src.keywords as string).split(/[,，、]/).map(function(s:string){return s.trim()}).filter(Boolean):[]);
+        var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?src.keywords.split(/[,，、]/).map(function(s){return s.trim()}).filter(Boolean):[]);
         var _kw=_kwArr.join('、');
         var _sp=src.customPrompt||'你是一个专业的情报分析助手。';
         var _up='请搜索并整理关于【'+_kw+'】的最新资讯，列出最重要的10条。'+
