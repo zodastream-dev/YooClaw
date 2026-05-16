@@ -359,24 +359,24 @@ export function PortalBuilderPage() {
             {/* Component Library */}
             <div className="flex-shrink-0 p-4 border-b border-border">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">组件库</p>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <button onClick={() => openAddModal('report-generator')}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-left group">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center text-base flex-shrink-0">📊</div>
+                  className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-left group">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center text-lg flex-shrink-0">📊</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-foreground group-hover:text-indigo-700 dark:group-hover:text-indigo-300">报告生成器</div>
                     <div className="text-[10px] text-muted-foreground truncate">AI 自动生成分析报告</div>
                   </div>
-                  <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xs font-bold flex-shrink-0">+</div>
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm font-bold flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform">+</div>
                 </button>
                 <button onClick={() => openAddModal('intel-monitor')}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-left group">
-                  <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-base flex-shrink-0">🛰️</div>
+                  className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-left group">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-lg flex-shrink-0">🛰️</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
                     <div className="text-[10px] text-muted-foreground truncate">AI 持续监控关键词情报</div>
                   </div>
-                  <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xs font-bold flex-shrink-0">+</div>
+                  <div className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 text-sm font-bold flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform">+</div>
                 </button>
               </div>
             </div>
@@ -390,7 +390,7 @@ export function PortalBuilderPage() {
                   <p className="text-[11px]">从上方添加组件</p>
                 </div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-2.5">
                   {widgets.map((w, i) => (
                     <div key={w.id}
                       draggable
@@ -488,43 +488,115 @@ export function PortalBuilderPage() {
                     {siteDesc && <p className="text-sm opacity-75 max-w-xl mx-auto leading-relaxed" style={{ color: theme.textColor }}>{siteDesc}</p>}
                     <div className="absolute bottom-0 left-0 right-0 h-px opacity-20" style={{ background: theme.textColor }} />
                   </div>
-                  {/* Widget Cards */}
+                  {/* Widget Cards / Layout Preview */}
                   <div className="px-8 py-8">
-                    {widgets.length > 0 ? (
-                      <div className="flex flex-wrap gap-4 justify-center">
-                        {widgets.map((w) => (
-                          <div key={w.id} className="flex flex-col items-center gap-2 rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all"
-                            style={{ width: 200, background: theme.cardBg, borderColor: theme.border }}>
-                            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base"
-                              style={{ background: w.type === 'report-generator' ? `linear-gradient(135deg, rgba(99,102,241,0.12), rgba(129,140,248,0.08))` : `linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.08))`, color: w.type === 'report-generator' ? theme.reportAccent : theme.monitorAccent }}>
-                              {w.type === 'report-generator' ? '📊' : '🛰️'}
-                            </div>
-                            <div className="text-xs font-bold text-center" style={{ color: theme.textColor }}>{w.title}</div>
-                            <div className="text-[10px] text-center" style={{ color: theme.muted }}>
-                              {w.type === 'report-generator'
-                                ? (w.config.analysisMethods || []).slice(0, 2).join(' · ')
-                                : `${(w.config.sources || []).reduce((s, src) => s + src.keywords.length, 0)} 关键词 · ${(w.config.sources || [])[0]?.updateFrequency === 'daily' ? '每日' : (w.config.sources || [])[0]?.updateFrequency === 'realtime' ? '实时' : '每周'}更新`}
+                    {selectedTheme === 'intel-station' ? (
+                      /* 酷炫风三段式预览 */
+                      <div className="rounded-xl border overflow-hidden" style={{ borderColor: theme.border, background: theme.bg, minHeight: 280 }}>
+                        {/* Mock top bar */}
+                        <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: theme.border, background: theme.navBg }}>
+                          <span className="text-[11px] font-bold" style={{ color: theme.primary }}>🚀 {siteName || '情报站'}</span>
+                          <div className="flex gap-2">
+                            <span className="text-[9px] px-2 py-0.5 rounded" style={{ background: 'rgba(0,212,255,0.1)', color: theme.primary }}>全部</span>
+                            <span className="text-[9px] px-2 py-0.5 rounded opacity-40" style={{ color: theme.textColor }}>新闻</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#10b981' }} />
+                            <span className="text-[9px] opacity-60" style={{ color: theme.textColor }}>实时监控</span>
+                          </div>
+                        </div>
+                        {/* Mock 3-col layout */}
+                        <div className="flex" style={{ minHeight: 220 }}>
+                          {/* Left col */}
+                          <div className="w-[28%] border-r p-3" style={{ borderColor: theme.border }}>
+                            <div className="text-[9px] font-bold mb-2 uppercase tracking-wider opacity-60" style={{ color: theme.textColor }}>📡 情报过滤器</div>
+                            <div className="space-y-1.5">
+                              <div className="text-[9px] px-2 py-1 rounded border" style={{ borderColor: theme.border, background: 'rgba(255,255,255,0.03)' }}>
+                                <span style={{ color: theme.primary }}>📰</span> <span style={{ color: theme.textColor }}>新闻资讯</span>
+                              </div>
+                              <div className="text-[9px] px-2 py-1 rounded border" style={{ borderColor: theme.border, background: 'rgba(255,255,255,0.03)' }}>
+                                <span style={{ color: theme.primary }}>💬</span> <span style={{ color: theme.textColor }}>社交媒体</span>
+                              </div>
                             </div>
                           </div>
-                        ))}
+                          {/* Center col */}
+                          <div className="flex-1 p-3">
+                            <div className="text-[9px] font-bold mb-2 uppercase tracking-wider opacity-60" style={{ color: theme.textColor }}>📊 动态情报流</div>
+                            <div className="space-y-2">
+                              <div className="text-[9px] p-2 rounded border" style={{ borderColor: theme.border, background: 'rgba(15,23,42,0.4)' }}>
+                                <div className="flex justify-between mb-1"><span className="font-semibold" style={{ color: theme.textColor }}>光伏产业政策更新</span><span style={{ color: theme.primary }}>新闻</span></div>
+                                <div className="opacity-60" style={{ color: theme.textColor }}>工信部发布最新光伏产业政策...</div>
+                              </div>
+                              <div className="text-[9px] p-2 rounded border" style={{ borderColor: theme.border, background: 'rgba(15,23,42,0.4)' }}>
+                                <div className="flex justify-between mb-1"><span className="font-semibold" style={{ color: theme.textColor }}>储能技术突破</span><span style={{ color: theme.primary }}>新闻</span></div>
+                                <div className="opacity-60" style={{ color: theme.textColor }}>新型钠离子电池能量密度提升...</div>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Right col */}
+                          <div className="w-[28%] border-l p-3" style={{ borderColor: theme.border }}>
+                            <div className="text-[9px] font-bold mb-2 uppercase tracking-wider opacity-60" style={{ color: theme.textColor }}>🧠 AI 摘要看板</div>
+                            <div className="space-y-2">
+                              <div className="text-[9px] p-2 rounded border" style={{ borderColor: theme.border, background: 'rgba(0,212,255,0.03)' }}>
+                                <div className="font-semibold mb-0.5" style={{ color: theme.primary }}>📈 情感分析</div>
+                                <div className="opacity-60" style={{ color: theme.textColor }}>中性 52%</div>
+                              </div>
+                              <div className="text-[9px] p-2 rounded border" style={{ borderColor: theme.border, background: 'rgba(0,212,255,0.03)' }}>
+                                <div className="font-semibold mb-0.5" style={{ color: theme.primary }}>🤖 AI 简报</div>
+                                <div className="opacity-60" style={{ color: theme.textColor }}>正在分析情报数据...</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Mock bottom bar */}
+                        <div className="px-4 py-2 border-t flex items-center justify-center" style={{ borderColor: theme.border, background: 'rgba(2,6,23,0.98)' }}>
+                          <div className="flex items-center gap-2 px-3 py-1 rounded-full text-[9px] w-full max-w-[280px]" style={{ border: `1px solid ${theme.primary}`, background: 'rgba(0,212,255,0.05)' }}>
+                            <span className="opacity-40" style={{ color: theme.textColor }}>请在这里提问...</span>
+                            <div className="flex-1" />
+                            <span style={{ color: theme.primary }}>➤</span>
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <div className="text-center py-12 rounded-xl border border-dashed" style={{ borderColor: theme.border }}>
-                        <div className="text-3xl mb-2 opacity-30">🧩</div>
-                        <p className="text-xs" style={{ color: theme.muted }}>从左侧添加组件开始构建</p>
-                      </div>
+                      /* 其他风格通用卡片预览 */
+                      <>
+                        {widgets.length > 0 ? (
+                          <div className="flex flex-wrap gap-4 justify-center">
+                            {widgets.map((w) => (
+                              <div key={w.id} className="flex flex-col items-center gap-2 rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all"
+                                style={{ width: 200, background: theme.cardBg, borderColor: theme.border }}>
+                                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base"
+                                  style={{ background: w.type === 'report-generator' ? `linear-gradient(135deg, rgba(99,102,241,0.12), rgba(129,140,248,0.08))` : `linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.08))`, color: w.type === 'report-generator' ? theme.reportAccent : theme.monitorAccent }}>
+                                  {w.type === 'report-generator' ? '📊' : '🛰️'}
+                                </div>
+                                <div className="text-xs font-bold text-center" style={{ color: theme.textColor }}>{w.title}</div>
+                                <div className="text-[10px] text-center" style={{ color: theme.muted }}>
+                                  {w.type === 'report-generator'
+                                    ? (w.config.analysisMethods || []).slice(0, 2).join(' · ')
+                                    : `${(w.config.sources || []).reduce((s, src) => s + src.keywords.length, 0)} 关键词 · ${(w.config.sources || [])[0]?.updateFrequency === 'daily' ? '每日' : (w.config.sources || [])[0]?.updateFrequency === 'realtime' ? '实时' : '每周'}更新`}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12 rounded-xl border border-dashed" style={{ borderColor: theme.border }}>
+                            <div className="text-3xl mb-2 opacity-30">🧩</div>
+                            <p className="text-xs" style={{ color: theme.muted }}>从左侧添加组件开始构建</p>
+                          </div>
+                        )}
+                        {/* Report output area */}
+                        <div className="mt-8">
+                          <div className="flex items-center gap-3 mb-4">
+                            <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: theme.muted }}>报告输出</span>
+                            <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${theme.border}, transparent)` }} />
+                          </div>
+                          <div className="rounded-xl border border-dashed text-center py-12" style={{ borderColor: theme.border, background: theme.cardBg }}>
+                            <div className="text-2xl mb-2 opacity-20">📄</div>
+                            <p className="text-xs" style={{ color: theme.muted }}>点击上方组件开始分析</p>
+                          </div>
+                        </div>
+                      </>
                     )}
-                  </div>
-                  {/* Report output area */}
-                  <div className="px-8 pb-8">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: theme.muted }}>报告输出</span>
-                      <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${theme.border}, transparent)` }} />
-                    </div>
-                    <div className="rounded-xl border border-dashed text-center py-12" style={{ borderColor: theme.border, background: theme.cardBg }}>
-                      <div className="text-2xl mb-2 opacity-20">📄</div>
-                      <p className="text-xs" style={{ color: theme.muted }}>点击上方组件开始分析</p>
-                    </div>
                   </div>
                   {/* Footer */}
                   <div className="text-center py-4 text-[10px] border-t" style={{ color: theme.muted, borderColor: theme.border }}>
