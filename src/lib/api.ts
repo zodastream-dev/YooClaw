@@ -345,10 +345,11 @@ export async function deployPortalWithWidgets(
   siteDesc: string,
   template: string,
   widgets: WidgetConfig[],
-  slug?: string
+  slug?: string,
+  customDomain?: string
 ) {
   return apiRequest<{ id: string; slug: string; title: string; url: string; createdAt: number }>(
-    'POST', '/api/v1/sites/portal/deploy', { siteName, siteDesc, template, widgets, slug }
+    'POST', '/api/v1/sites/portal/deploy', { siteName, siteDesc, template, widgets, slug, customDomain }
   )
 }
 

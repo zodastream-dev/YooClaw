@@ -41,6 +41,7 @@ export interface DbReportSite {
   type: string;
   is_published: boolean;
   view_count: number;
+  custom_domain?: string;
   created_at: string;
   updated_at: string;
 }
@@ -168,6 +169,18 @@ export async function initDatabase(): Promise<void> {
       ALTER TABLE report_sites ADD CONSTRAINT report_sites_type_check CHECK (type IN ('report', 'game', 'portal'));
     EXCEPTION WHEN OTHERS THEN
       -- Ignore errors (e.g. Pooler doesn't support DDL)
+    END $$;
+  `;
+
+  // Add custom_domain column if not exists (migration)
+  await sql`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='report_sites' AND column_name='custom_domain'
+      ) THEN
+        ALTER TABLE report_sites ADD COLUMN custom_domain TEXT DEFAULT '';
+      END IF;
     END $$;
   `;
 
@@ -377,16 +390,18 @@ export async function createReportSite(
   title: string,
   companyName: string,
   htmlContent: string,
-  type: string = 'report'
+  type: string = 'report',
+  customDomain?: string
 ): Promise<DbReportSite> {
   const rows = await sql`
-    INSERT INTO report_sites (user_id, slug, title, company_name, html_content, type)
-    VALUES (${userId}, ${slug}, ${title}, ${companyName}, ${htmlContent}, ${type})
+    INSERT INTO report_sites (user_id, slug, title, company_name, html_content, type, custom_domain)
+    VALUES (${userId}, ${slug}, ${title}, ${companyName}, ${htmlContent}, ${type}, ${customDomain || ''})
     ON CONFLICT (slug) DO UPDATE SET
       title = EXCLUDED.title,
       company_name = EXCLUDED.company_name,
       html_content = EXCLUDED.html_content,
       type = EXCLUDED.type,
+      custom_domain = EXCLUDED.custom_domain,
       updated_at = now()
     RETURNING *
   `;

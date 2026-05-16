@@ -288,6 +288,64 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title>${styleBlock}</head><body>${bodyContent}</body></html>`;
 }
 
+/** Convert markdown-like AI output to HTML (used when AI returns non-HTML content) */
+function markdownToHtml(markdown: string, title: string): string {
+  if (!markdown || !markdown.trim()) return '';
+  let text = mark
+down
+    .replace(/^### (.*$)/gm, '</section><section class="sub-section"><h3>$1</h3>')
+    .replace(/^## (.*$)/gm, '</section><section class="report-section"><h2>$1</h2>')
+    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+    .replace(/^\|(.+)\|$/gm, function(m: string) {
+      if (m.match(/^\|[-:\s|]+\|$/)) return '';
+      const cells = m.split('|').filter((c: string) => c.trim()).map((c: string) => `<td>${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .replace(/((?:<tr>.*<\/tr>\n?)+)/g, '<table>$1</table>')
+    .replace(/^---\s*$/gm, '<hr>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.*)/gm, '<li>$1</li>');
+
+  text = text.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="report-list">$1</ul>');
+  text = text.replace(/<\/section>\s*<section class="report-section">/g, '');
+  text = text.replace(/<\/section>\s*<section class="sub-section">/g, '');
+  const parts = text.split(/\n{2,}/);
+  text = parts.map((p: string) => {
+    p = p.trim();
+    if (!p) return '';
+    if (p.startsWith('<') && !p.startsWith('<br')) return p;
+    return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+  text = text.replace(/<\/?section[^>]*>/g, '');
+  text = text.replace(/(<table>.*?<\/table>)/gs, '$1');
+
+  return `<!DOCTYPE html><html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${title} - 行业分析报告</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Microsoft YaHei",sans-serif;background:#f8fafc;color:#333;line-height:1.8}
+.header{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;padding:40px 20px;text-align:center}
+.header h1{font-size:26px;font-weight:700;margin-bottom:6px}
+.content{max-width:900px;margin:0 auto;padding:24px 16px}
+.report-section{background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px}
+.report-section h2{font-size:20px;color:#1e40af;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #2563eb}
+.sub-section h3{font-size:16px;color:#2563eb;margin:16px 0 8px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e5e7eb}
+th{background:#f1f5f9;color:#1e40af;font-weight:600}
+tr:hover{background:#f8fafc}
+ul{margin:8px 0;padding-left:20px}
+li{margin:4px 0}
+p{margin:8px 0}
+</style>
+</head><body>
+<div class="header"><h1>${title}</h1><p>AI 生成行业分析报告</p></div>
+<div class="content">${text}</div>
+<div style="text-align:center;padding:20px;color:#888;font-size:13px">由 YooClaw AI 生成 · 不构成投资建议 | ${new Date().toISOString().slice(0,10)}</div>
+</body></html>`;
+}
+
 /** Clean up common CSS/HTML syntax mistakes that AI models tend to make */
 function fixAiCssErrors(html: string): string {
   let s = html;
@@ -3292,7 +3350,7 @@ app.post('/api/v1/runs/:runId/cancel', authMiddleware, async (req, res) => {
 app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
-    const { siteName, siteDesc, template, slug: customSlug } = req.body || {};
+    const { siteName, siteDesc, template, slug: customSlug, customDomain } = req.body || {};
 
     if (!siteName || typeof siteName !== 'string' || !siteName.trim()) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Site name is required' } });
@@ -3308,7 +3366,7 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
       || `http://localhost:${APP_PORT}`;
 
     const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'intel-station', apiBase, req.body.widgets);
-    const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal');
+    const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal', customDomain || '');
 
     res.status(201).json({
       data: {
@@ -3329,7 +3387,7 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
 app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
-    const { slug } = req.body || {};
+    const { slug, customDomain } = req.body || {};
 
     if (!slug || typeof slug !== 'string') {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Slug is required' } });
@@ -3355,7 +3413,8 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
       } catch (e) { /* keep empty */ }
     }
     const htmlContent = generatePortalHtml(existing.title, '', 'intel-station', apiBase, widgets);
-    await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal');
+    const cd = customDomain || (existing as any).custom_domain || '';
+    await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal', cd);
 
     res.json({
       data: {
@@ -3653,9 +3712,16 @@ Remember: You are a code generator, not a chat assistant. Output ONLY HTML code.
 
     res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
 
-    const finalHtml = cleanAiHtml(fullHtml, `${name} - 行业分析报告`);
+    // 如果 AI 返回了非 HTML 内容（markdown/纯文本），先转换为 HTML 再交给 cleanAiHtml
+    let preProcessed = fullHtml;
+    if (fullHtml.length > 0 && !/<[a-zA-Z]/.test(fullHtml)) {
+      console.log(`[PubReport] 未检测到 HTML 标签，先将 markdown 转为 HTML...`);
+      preProcessed = markdownToHtml(fullHtml, name);
+    }
+
+    const finalHtml = cleanAiHtml(preProcessed, `${name} - 行业分析报告`);
     
-    // If AI returned text/markdown instead of HTML, wrap in a professional page
+    // 如果 AI 返回 text/markdown instead of HTML, wrap in a professional page
     let displayHtml = finalHtml;
     if (!finalHtml.includes('<div') && !finalHtml.includes('<h1') && !finalHtml.includes('<p>') && !finalHtml.includes('<table')) {
       // Improved markdown-to-HTML conversion

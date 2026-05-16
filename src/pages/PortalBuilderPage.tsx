@@ -153,6 +153,7 @@ export function PortalBuilderPage() {
 
   const [siteName, setSiteName] = useState('情报分析站')
   const [siteDesc, setSiteDesc] = useState('专注行业研究的AI驱动情报分析平台')
+  const [customDomain, setCustomDomain] = useState('')
   const [selectedTheme, setSelectedTheme] = useState('intel-station')
   const [widgets, setWidgets] = useState<Widget[]>(initialWidgets)
   const [isDeploying, setIsDeploying] = useState(false)
@@ -285,7 +286,7 @@ export function PortalBuilderPage() {
     const name = siteName.trim() || '情报分析门户'
     setIsDeploying(true); setError(null); setResult(null)
     try {
-      const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets)
+      const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets, deploySuccess?.slug || undefined, customDomain)
       if (res.data) {
         const portalUrl = window.location.origin + res.data.url
         window.open(portalUrl, '_blank')
@@ -609,6 +610,12 @@ export function PortalBuilderPage() {
                     <textarea value={siteDesc} onChange={(e) => setSiteDesc(e.target.value)} rows={2}
                       placeholder="描述你的门户…"
                       className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">自定义域名 <span className="text-[9px] text-muted-foreground font-normal">(选填)</span></label>
+                    <input type="text" value={customDomain} onChange={(e) => setCustomDomain(e.target.value)}
+                      placeholder="如：portal.example.com"
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-muted-foreground mb-2">主题色</label>
