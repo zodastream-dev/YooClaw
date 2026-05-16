@@ -726,7 +726,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 </style>
 </head>
-<body>
+<body data-template="business-blue">
 <!-- ===== MODAL OVERLAY ===== -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
   <div class="modal-bg"></div>
@@ -3894,7 +3894,9 @@ app.post('/api/p/config/:slug', async (req, res) => {
     }
 
     const apiBase = process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
-    const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, widgets);
+    const templateMatch = site.html_content.match(/<body[^>]*data-template="([^"]+)"/);
+    const template = templateMatch ? templateMatch[1] : 'intel-station';
+    const htmlContent = generatePortalHtml(site.title, '', template, apiBase, widgets);
     await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
 
     res.json({ data: { success: true, slug } });
@@ -4182,17 +4184,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 .source-group-header:hover{border-color:rgba(0,212,255,0.3)}
 .sg-title{font-size:12px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:8px}
 .sg-count{font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,212,255,0.15);color:var(--cyan);font-weight:600}
-.source-group-body{padding:8px 4px}
-.source-card{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;border:1px solid transparent;border-radius:8px;cursor:pointer;transition:all .2s}
-.source-card:hover{background:rgba(255,255,255,0.03);border-color:var(--border)}
-.source-card.active{background:rgba(0,212,255,0.08);border-color:rgba(0,212,255,0.3)}
-.source-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.source-icon.type-news{background:rgba(0,212,255,0.15);color:var(--cyan)}
-.source-icon.type-social{background:rgba(168,85,247,0.15);color:var(--purple)}
-.source-icon.type-financial{background:rgba(16,185,129,0.15);color:#10b981}
-.source-info{flex:1;min-width:0}
-.source-name{font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.source-meta{font-size:10px;color:var(--text-secondary);margin-top:2px}
+.source-group-body{padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.source-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:all .3s;background:var(--bg-card);aspect-ratio:1/0.85;text-align:center;gap:6px;box-shadow:0 0 12px rgba(0,212,255,0.04),0 2px 8px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.04)}
+.source-card:hover{border-color:rgba(0,212,255,0.35);box-shadow:0 0 20px rgba(0,212,255,0.1),0 0 35px rgba(168,85,247,0.06),0 6px 20px rgba(0,0,0,0.25);transform:translateY(-2px)}
+.source-card.active{background:rgba(0,212,255,0.1);border-color:rgba(0,212,255,0.4);box-shadow:0 0 20px rgba(0,212,255,0.12)}
+.source-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-bottom:2px}
+.source-icon.type-news{background:rgba(0,212,255,0.15);color:var(--cyan);box-shadow:0 0 8px rgba(0,212,255,0.15)}
+.source-icon.type-social{background:rgba(168,85,247,0.15);color:var(--purple);box-shadow:0 0 8px rgba(168,85,247,0.15)}
+.source-icon.type-financial{background:rgba(16,185,129,0.15);color:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.15)}
+.source-info{display:flex;flex-direction:column;align-items:center;gap:2px}
+.source-name{font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sc-big-num{font-size:26px;font-weight:800;color:var(--cyan);line-height:1;text-shadow:0 0 12px rgba(0,212,255,0.25)}
+.source-meta{font-size:9px;color:var(--text-secondary)}
 .source-badge{font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text-secondary)}
 .add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:8px}
 .add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05)}
@@ -4202,9 +4205,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 .center-header{padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
 .center-header h2{font-size:15px;font-weight:700;color:var(--text-primary)}
 .intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
-.intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all .3s;cursor:pointer;position:relative;overflow:hidden}
+.intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all .3s;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 0 15px rgba(0,212,255,0.05),0 4px 12px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.04)}
 .intel-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:background .3s}
-.intel-card:hover{border-color:rgba(0,212,255,0.3);transform:translateX(3px)}
+.intel-card:hover{border-color:rgba(0,212,255,0.35);transform:translateX(3px);box-shadow:0 0 25px rgba(0,212,255,0.1),0 0 40px rgba(168,85,247,0.06),0 8px 24px rgba(0,0,0,0.25)}
 .intel-card:hover::before{background:var(--cyan)}
 .intel-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
 .intel-card-title{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.5;flex:1;padding-right:12px}
@@ -4236,7 +4239,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 /* KPI Trend */
 .kpi-trend{position:relative;height:100px;margin-bottom:12px}
 /* AI Briefing */
-.ai-briefing{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px}
+.ai-briefing{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;box-shadow:0 0 15px rgba(0,212,255,0.06),0 4px 12px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.04);transition:all .3s}
+.ai-briefing:hover{box-shadow:0 0 25px rgba(0,212,255,0.1),0 0 40px rgba(168,85,247,0.06),0 8px 24px rgba(0,0,0,0.2)}
 .ai-briefing-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .ai-briefing-header .ai-icon{width:24px;height:24px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px}
 .ai-briefing-header .ai-title{font-size:12px;font-weight:600;color:var(--text-primary)}
@@ -4244,15 +4248,81 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 .briefing-text p{margin-bottom:6px}
 
 /* ===== BOTTOM BAR - AI Command Center ===== */
-.bottom-bar{display:flex;align-items:center;gap:12px;padding:12px 24px;background:rgba(2,6,23,0.95);border-top:1px solid var(--border);backdrop-filter:blur(16px);flex-shrink:0}
-.cmd-input{flex:1;padding:10px 16px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.03);color:var(--text-primary);font-size:13px;outline:none;transition:all .2s;font-family:inherit}
-.cmd-input:focus{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.03);box-shadow:0 0 0 3px rgba(0,212,255,0.08)}
+.bottom-bar{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 24px;background:rgba(2,6,23,0.95);border-top:1px solid var(--border);backdrop-filter:blur(16px);flex-shrink:0;position:relative}
+.bottom-bar::before{content:'';position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.3),rgba(168,85,247,0.3),transparent)}
+.cmd-wrapper{display:flex;align-items:center;gap:12px;width:100%;max-width:900px;margin:0 auto}
+.cmd-input{flex:1;padding:10px 16px;border:1px solid rgba(0,212,255,0.25);border-radius:10px;background:rgba(255,255,255,0.03);color:var(--text-primary);font-size:13px;outline:none;transition:all .2s;font-family:inherit;box-shadow:0 0 15px rgba(0,212,255,0.08),inset 0 1px 0 rgba(255,255,255,0.05)}
+.cmd-input:focus{border-color:rgba(0,212,255,0.5);background:rgba(0,212,255,0.04);box-shadow:0 0 25px rgba(0,212,255,0.15),0 0 50px rgba(168,85,247,0.08)}
 .cmd-input::placeholder{color:var(--text-secondary)}
 .cmd-btn{width:40px;height:40px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
-.cmd-btn.mic{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan)}
-.cmd-btn.mic:hover{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(168,85,247,0.25));transform:scale(1.05)}
-.cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700}
-.cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,212,255,0.3)}
+.cmd-btn.mic{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan);box-shadow:0 0 10px rgba(0,212,255,0.1)}
+.cmd-btn.mic:hover{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(168,85,247,0.25));transform:scale(1.05);box-shadow:0 0 18px rgba(0,212,255,0.2)}
+.cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700;box-shadow:0 0 12px rgba(0,212,255,0.2)}
+.cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 16px rgba(0,212,255,0.4),0 0 25px rgba(0,212,255,0.2)}
+
+/* ===== MODAL (Dark Theme) ===== */
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px)}
+.modal-panel{position:relative;width:100%;max-width:600px;max-height:88vh;background:#0f172a;border:1px solid rgba(0,212,255,0.2);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,.5),0 0 40px rgba(0,212,255,0.08)}
+.modal-overlay.open .modal-panel{transform:scale(1) translateY(0)}
+.modal-hd{display:flex;align-items:center;gap:14px;padding:20px 22px;border-bottom:1px solid var(--border);flex-shrink:0}
+.modal-hd .mh-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:linear-gradient(135deg,rgba(0,212,255,.14),rgba(168,85,247,.06));color:var(--cyan)}
+.modal-hd .mh-info{flex:1;min-width:0}
+.modal-hd .mh-title{font-size:16px;font-weight:700;color:var(--text-primary);letter-spacing:-.2px}
+.modal-hd .mh-sub{font-size:11px;color:var(--text-secondary);margin-top:3px}
+.modal-close{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-size:17px;line-height:1}
+.modal-close:hover{background:rgba(255,255,255,.08);color:var(--text-primary);border-color:rgba(255,255,255,.15);transform:rotate(90deg)}
+.modal-bd{flex:1;overflow-y:auto;padding:20px 22px 22px;scroll-behavior:smooth}
+.modal-bd::-webkit-scrollbar{width:5px}
+.modal-bd::-webkit-scrollbar-thumb{background:rgba(0,212,255,0.3);border-radius:10px}
+.modal-ft{padding:16px 22px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:10px}
+.modal-ft button{flex:1;padding:11px 16px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;letter-spacing:0}
+.btn-save{color:#fff;background:linear-gradient(135deg,var(--cyan),var(--purple))}
+.btn-save:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,212,255,0.3)}
+.btn-cancel{background:rgba(255,255,255,.03);color:var(--text-secondary);border:1px solid var(--border)}
+.btn-cancel:hover{background:rgba(255,255,255,.06);color:var(--text-primary)}
+/* Modal form elements (dark) */
+.mb-group{margin-bottom:18px}
+.mb-group:last-child{margin-bottom:0}
+.mb-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:7px;letter-spacing:.3px}
+.mb-input,.mb-select{width:100%;padding:10px 14px;font-size:13px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.03);color:var(--text-primary);outline:none;transition:all .25s;font-family:inherit}
+.mb-input:focus,.mb-select:focus{border-color:rgba(0,212,255,0.4);box-shadow:0 0 0 3px rgba(0,212,255,0.1)}
+.mb-area{width:100%;padding:10px 14px;font-size:12px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.03);color:var(--text-primary);outline:none;transition:all .25s;resize:vertical;font-family:inherit;min-height:60px;line-height:1.7}
+.mb-area:focus{border-color:rgba(0,212,255,0.4);box-shadow:0 0 0 3px rgba(0,212,255,0.1)}
+.mb-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.src-mini{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .2s}
+.src-mini:hover{border-color:rgba(0,212,255,0.2)}
+.src-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.st-name-input{font-size:14px;font-weight:700;border:1px solid transparent;background:transparent;padding:4px 8px;border-radius:6px;width:100%;transition:all .2s;color:var(--text-primary)}
+.st-name-input:focus{border-color:rgba(0,212,255,0.3);background:rgba(255,255,255,0.05);outline:none;box-shadow:0 0 0 3px rgba(0,212,255,0.08)}
+.src-del{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;font-size:14px;transition:all .2s;flex-shrink:0}
+.src-del:hover{background:rgba(226,75,74,.1);color:#e24b4a}
+.kw-tags{display:flex;flex-wrap:wrap;gap:5px}
+.kw-t{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(0,212,255,.08);color:var(--cyan);border:1px solid rgba(0,212,255,.15);transition:all .2s}
+.kw-t:hover{background:rgba(0,212,255,.15);transform:translateY(-1px)}
+.kw-x{width:14px;height:14px;border-radius:50%;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;margin-left:2px}
+.kw-x:hover{background:rgba(226,75,74,.15);color:#e24b4a}
+.kw-add-row{display:flex;gap:6px;margin-top:8px}
+.kw-add-input{flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.03);color:var(--text-primary);font-size:12px;outline:none;font-family:inherit}
+.kw-add-input:focus{border-color:rgba(0,212,255,0.3);box-shadow:0 0 0 3px rgba(0,212,255,0.08)}
+.kw-add-btn{padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.03);color:var(--cyan);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s}
+.kw-add-btn:hover{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,0.3)}
+.btn-add-src{width:100%;margin-top:8px;padding:10px;border:1px dashed var(--border);border-radius:9px;background:none;color:var(--cyan);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}
+.btn-add-src:hover{border-color:rgba(0,212,255,0.3);background:rgba(0,212,255,.05)}
+/* Report cards in modal */
+.rpt-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;padding:0}
+.rpt-card{position:relative;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:12px;padding:18px 20px;cursor:pointer;transition:all .25s;overflow:hidden}
+.rpt-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);border-color:rgba(16,185,129,0.4)}
+.rpt-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#10b981,#34d399);opacity:0;transition:opacity .25s}
+.rpt-card:hover::before{opacity:1}
+.rpt-card .rpt-company{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px}
+.rpt-card .rpt-date{font-size:11px;color:var(--text-secondary);margin-bottom:12px}
+.rpt-card .rpt-actions{display:flex;gap:10px;align-items:center}
+.rpt-card .rpt-view{font-size:12px;font-weight:600;color:#10b981;text-decoration:none;border:1px solid rgba(16,185,129,0.3);padding:6px 14px;border-radius:7px;transition:all .2s}
+.rpt-card .rpt-view:hover{background:rgba(16,185,129,0.1);color:#34d399}
+.rpt-card .rpt-delete{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.rpt-card .rpt-delete:hover{background:rgba(226,75,74,.1);color:#e24b4a}
 
 /* ===== RESPONSIVE ===== */
 @media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px}}
@@ -4260,7 +4330,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 @media(max-width:768px){.top-bar{padding:10px 16px}.center-header{padding:12px 16px}.intel-feed{padding:12px 16px}}
 </style>
 </head>
-<body>
+<body data-template="intel-station">
+<!-- ===== MODAL OVERLAY ===== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal-bg"></div>
+  <div class="modal-panel" id="modalPanel" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <div class="mh-icon" id="modalIcon"></div>
+      <div class="mh-info">
+        <div class="mh-title" id="modalTitle"></div>
+        <div class="mh-sub" id="modalSub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()">&times;</button>
+    </div>
+    <div class="modal-bd" id="modalBody"></div>
+    <div class="modal-ft" id="modalFooter">
+      <button class="btn-cancel" onclick="closeModalDirect()">取消</button>
+      <button class="btn-save" id="btnSave" onclick="closeModalDirect()">保存配置</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== TOP BAR ===== -->
 <div class="top-bar">
   <div class="top-logo">
@@ -4291,6 +4381,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
     </div>
     <div class="source-groups" id="sourceGroups">
       <!-- Dynamic content -->
+    </div>
+    <!-- My Reports Card -->
+    <div style="padding:12px;border-top:1px solid var(--border)">
+      <div class="source-card my-reports-card" onclick="openReportList()">
+        <div class="source-icon" style="background:rgba(16,185,129,0.15);color:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.15)">&#x1F4CB;</div>
+        <div class="sc-big-num" id="myReportsCount" style="color:#10b981;text-shadow:0 0 12px rgba(16,185,129,0.25)">-</div>
+        <div class="source-name">我的报告</div>
+        <div class="source-meta">查看分析报告</div>
+      </div>
     </div>
   </div>
 
@@ -4354,9 +4453,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 
 <!-- ===== BOTTOM BAR - AI Command Center ===== -->
 <div class="bottom-bar">
-  <input class="cmd-input" id="cmdInput" placeholder="输入指令或问题... (Enter 发送)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCommand()}">
-  <button class="cmd-btn mic" onclick="toggleMic()">&#x1F399;</button>
-  <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
+  <div class="cmd-wrapper">
+    <input class="cmd-input" id="cmdInput" placeholder="输入指令或问题... (Enter 发送)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCommand()}">
+    <button class="cmd-btn mic" onclick="toggleMic()">&#x1F399;</button>
+    <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
+  </div>
 </div>
 
 <script>
@@ -4371,6 +4472,7 @@ function $(id){return document.getElementById(id)}
 (function(){
   setTimeout(function(){loadIntelData()},500);
   setTimeout(function(){initDashboard()},800);
+  setTimeout(function(){loadRecentReportCount()},1000);
 })();
 
 /* ===== LOAD INTEL DATA ===== */
@@ -4412,12 +4514,14 @@ async function loadIntelData(){
 function renderSourceFilters(monitors){
   var html='';
   var groups={news:[],social:[],financial:[]};
-  monitors.forEach(function(mw){
-    (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
+  monitors.forEach(function(mw,mwIdx){
+    var srcList=mw.config&&mw.config.sources||mw.sources||[];
+    srcList.forEach(function(src,si){
       var keywords=(src.keywords||[]).join('');
-      if(keywords.indexOf('股价')!=-1||keywords.indexOf('财报')!=-1)groups.financial.push(src);
-      else if(keywords.indexOf('Twitter')!=-1||keywords.indexOf('微博')!=-1)groups.social.push(src);
-      else groups.news.push(src);
+      var item={src:src,mwIdx:mwIdx,si:si};
+      if(keywords.indexOf('股价')!=-1||keywords.indexOf('财报')!=-1)groups.financial.push(item);
+      else if(keywords.indexOf('Twitter')!=-1||keywords.indexOf('微博')!=-1)groups.social.push(item);
+      else groups.news.push(item);
     });
   });
   var groupConfig=[
@@ -4433,14 +4537,14 @@ function renderSourceFilters(monitors){
     html+='<div class="sg-count">'+groups[g.key].length+'</div>';
     html+='</div>';
     html+='<div class="source-group-body">';
-    groups[g.key].forEach(function(src){
-      html+='<div class="source-card">';
+    groups[g.key].forEach(function(item){
+      var src=item.src;
+      var kwCount=(src.keywords||[]).length;
+      html+='<div class="source-card" onclick="openSourceEditor('+item.mwIdx+','+item.si+')">';
       html+='<div class="source-icon '+g.cls+'">'+g.icon+'</div>';
-      html+='<div class="source-info">';
+      html+='<div class="sc-big-num">'+kwCount+'</div>';
       html+='<div class="source-name">'+escHtml(src.name||'未命名')+'</div>';
       html+='<div class="source-meta">'+(src.updateFrequency||'daily')+'</div>';
-      html+='</div>';
-      html+='<div class="source-badge">'+(src.keywords||[]).length+' 关键词</div>';
       html+='</div>';
     });
     html+='</div></div>';
@@ -4455,7 +4559,9 @@ function renderIntelFeed(data){
   var html='';
   data.forEach(function(item,i){
     var keywords=(item.keywords||[]).slice(0,3);
-    html+='<div class="intel-card">';
+    var link=item.link||item.url||'';
+    var clickAttr=link?' onclick="window.open(\''+link.replace(/'/g,'\\x27')+'\',\'_blank\')"':'';
+    html+='<div class="intel-card"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
     html+='<div class="intel-card-title">'+(item.title||'无标题')+'</div>';
     html+='<div class="intel-card-source">'+(item.source||'未知来源')+'</div>';
@@ -4465,7 +4571,7 @@ function renderIntelFeed(data){
     html+='<div class="intel-card-tags">';
     keywords.forEach(function(kw){html+='<span class="intel-tag">'+escHtml(kw)+'</span>'});
     html+='</div>';
-    html+='<div class="intel-card-time">'+(item.date||'刚刚')+'</div>';
+    html+='<div class="intel-card-time">'+(item.date||'刚刚')+(link?' <span style="color:var(--cyan)">&#x2197;</span>':'')+'</div>';
     html+='</div>';
     html+='</div>';
   });
@@ -4610,7 +4716,315 @@ function sendCommand(){
 
 function toggleMic(){alert('语音输入功能开发中...');}
 function deployPortal(){alert('部署功能开发中...');}
-function addSource(){alert('添加监控源功能开发中...');}
+
+/* ===== MODAL ===== */
+var _activeIdx=-1;
+
+function openModal(idx){
+  _activeIdx=idx;
+  var w=WIDGETS[idx];
+  if(!w)return;
+  var overlay=$('modalOverlay');
+  var panel=$('modalPanel');
+  panel.className='modal-panel';
+  $('modalIcon').textContent='\u270F\uFE0F';
+  $('modalTitle').textContent=w.title||'配置';
+  $('modalSub').textContent='编辑情报监控配置';
+  renderMonitorForm(idx,w);
+  $('modalFooter').style.display='flex';
+  $('btnSave').style.display='inline-flex';
+  $('btnSave').textContent='保存配置';
+  $('btnSave').onclick=function(){saveMonitorConfig(idx)};
+  overlay.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function openSourceEditor(mwIdx,si){
+  var w=WIDGETS[mwIdx];
+  if(!w)return;
+  var overlay=$('modalOverlay');
+  var panel=$('modalPanel');
+  panel.className='modal-panel';
+  $('modalIcon').textContent='\u270F\uFE0F';
+  $('modalTitle').textContent='编辑情报源';
+  $('modalSub').textContent=(w.config&&w.config.sources&&w.config.sources[si]&&w.config.sources[si].name)||'未命名';
+  renderSourceEditForm(mwIdx,si,w);
+  $('modalFooter').style.display='flex';
+  $('btnSave').style.display='inline-flex';
+  $('btnSave').textContent='保存';
+  $('btnSave').onclick=function(){saveSourceEdit(mwIdx,si)};
+  overlay.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeModal(e){
+  if(e&&e.target!==$('modalOverlay'))return;
+  closeModalDirect();
+}
+
+function closeModalDirect(){
+  $('modalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  _activeIdx=-1;
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape')closeModalDirect();
+});
+
+/* ===== MONITOR FORM (for full widget) ===== */
+function renderMonitorForm(idx,w){
+  var s='';
+  var sources=w.config&&w.config.sources||w.sources||[];
+  if(sources.length>0){
+    sources.forEach(function(src,si){
+      s+=renderSourceBlock(idx,si,src);
+    });
+    s+='<button class="btn-add-src" onclick="addSource('+idx+')">+ 添加监控源</button>';
+  }else{
+    s='<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">\u1F6F0\uFE0F</div><p style="font-size:14px;color:var(--text-secondary)">暂无监控源配置。<br>点击下方按钮添加监控源。</p></div>';
+    s+='<button class="btn-add-src" onclick="addSource('+idx+')">+ 添加监控源</button>';
+  }
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+function renderSourceEditForm(mwIdx,si,w){
+  var src=(w.config&&w.config.sources&&w.config.sources[si])||{};
+  var s=renderSourceBlock(mwIdx,si,src,true);
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+function renderSourceBlock(idx,si,src,hideDelete){
+  var s='<div class="src-mini" id="srcBlock_'+idx+'_'+si+'">';
+  s+='<div class="src-top"><input class="st-name-input" id="srcName_'+idx+'_'+si+'" value="'+escHtml(src.name)+'" placeholder="监控源名称">';
+  if(!hideDelete)s+='<span class="src-del" onclick="deleteSource('+idx+','+si+')" title="删除此监控源">\u2715</span>';
+  s+='</div>';
+  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
+  s+='<select class="mb-select" id="srcProvider_'+idx+'_'+si+'">';
+  ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
+    s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
+  });
+  s+='</select></div>';
+  s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
+  s+='<input class="mb-input" id="srcModel_'+idx+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v3.1">';
+  s+='</div></div>';
+  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
+  s+='<input class="mb-input" type="password" id="srcApiKey_'+idx+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
+  s+='</div><div class="mb-group"><label class="mb-label">更新频率</label>';
+  s+='<select class="mb-select" id="srcFreq_'+idx+'_'+si+'">';
+  ['hourly','daily','weekly','monthly'].forEach(function(f){
+    var labels={hourly:'\u6bcf\u5c0f\u65f6',daily:'\u6bcf\u65e5',weekly:'\u6bcf\u5468',monthly:'\u6bcf\u6708'};
+    s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+labels[f]+'</option>';
+  });
+  s+='</select></div></div>';
+  var kws=src.keywords||[];
+  s+='<div class="mb-group"><label class="mb-label">\u76d1\u63a7\u5173\u952e\u8bcd</label>';
+  s+='<div class="kw-tags" id="kwTags_'+idx+'_'+si+'">';
+  kws.forEach(function(k){
+    s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+idx+','+si+',this.parentElement)" title="\u79fb\u9664">&times;</button></span>';
+  });
+  s+='</div>';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+idx+'_'+si+'" placeholder="\u8f93\u5165\u5173\u952e\u8bcd\u540e\u56de\u8f66\u6dfb\u52a0..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addKeyword('+idx+','+si+')}">';
+  s+='<button class="kw-add-btn" onclick="addKeyword('+idx+','+si+')">+</button></div>';
+  s+='</div>';
+  s+='<div class="mb-group"><label class="mb-label">\u81ea\u5b9a\u4e49\u63d0\u793a\u8bcd <span style="font-weight:400;color:var(--text-secondary)">（可选）</span></label>';
+  s+='<textarea class="mb-area" id="srcPrompt_'+idx+'_'+si+'" style="min-height:60px" placeholder="\u81ea\u5b9a\u4e49\u6b64\u76d1\u63a7\u6e90\u7684\u5206\u6790\u63d0\u793a\u8bcd...">'+escHtml(src.customPrompt||'')+'</textarea>';
+  s+='</div>';
+  s+='</div>';
+  return s;
+}
+
+function addSource(idx){
+  var w=WIDGETS[idx];
+  if(!w||(w.type!=='monitor'&&w.type!=='intel-monitor'))return;
+  var cfg=w.config||{};
+  if(!cfg.sources)cfg.sources=[];
+  cfg.sources.push({name:'',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],updateFrequency:'daily',customPrompt:''});
+  w.config=cfg;
+  renderMonitorForm(idx,w);
+}
+
+function deleteSource(idx,si){
+  if(!confirm('\u786e\u5b9a\u5220\u9664\u8fd9\u4e2a\u76d1\u63a7\u6e90\uff1f'))return;
+  var w=WIDGETS[idx];
+  if(!w)return;
+  var cfg=w.config||{};
+  var sources=cfg.sources||[];
+  sources.splice(si,1);
+  cfg.sources=sources;
+  w.config=cfg;
+  renderMonitorForm(idx,w);
+}
+
+function addKeyword(idx,si){
+  var inp=$('kwInput_'+idx+'_'+si);
+  if(!inp)return;
+  var kw=inp.value.trim();
+  if(!kw)return;
+  var w=WIDGETS[idx];
+  if(!w)return;
+  var cfg=w.config||{};
+  var sources=cfg.sources||[];
+  if(!sources[si])return;
+  if(!sources[si].keywords)sources[si].keywords=[];
+  if(sources[si].keywords.indexOf(kw)===-1){sources[si].keywords.push(kw);}
+  renderMonitorForm(idx,w);
+}
+
+function removeKeyword(idx,si,el){
+  var w=WIDGETS[idx];
+  if(!w)return;
+  var cfg=w.config||{};
+  var sources=cfg.sources||[];
+  if(!sources[si])return;
+  var kwText=el.childNodes[0]?el.childNodes[0].textContent.replace('\u00D7','').trim():'';
+  var kws=sources[si].keywords||[];
+  var ki=kws.indexOf(kwText);
+  if(ki!==-1)kws.splice(ki,1);
+  renderMonitorForm(idx,w);
+}
+
+function saveMonitorConfig(idx){
+  var w=WIDGETS[idx];
+  if(!w)return;
+  var cfg=w.config||{};
+  var sources=[];
+  var srcIndices=[];
+  document.querySelectorAll('[id^="srcName_'+idx+'_"]').forEach(function(el){
+    var idParts=el.id.split('_');
+    srcIndices.push(parseInt(idParts[idParts.length-1]));
+  });
+  srcIndices.forEach(function(si){
+    var name=($('srcName_'+idx+'_'+si)||{}).value||'';
+    var provider=($('srcProvider_'+idx+'_'+si)||{}).value||'deepseek';
+    var model=($('srcModel_'+idx+'_'+si)||{}).value||'';
+    var apiKey=($('srcApiKey_'+idx+'_'+si)||{}).value||'';
+    var freq=($('srcFreq_'+idx+'_'+si)||{}).value||'daily';
+    var prompt=($('srcPrompt_'+idx+'_'+si)||{}).value||'';
+    var keywords=[];
+    var kwContainer=$('kwTags_'+idx+'_'+si);
+    if(kwContainer){
+      kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
+        var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('\u00D7','').trim():'';
+        if(kwText)keywords.push(kwText);
+      });
+    }
+    if(name){
+      sources.push({name:name,aiProvider:provider,aiModel:model,apiKey:apiKey,keywords:keywords,updateFrequency:freq,customPrompt:prompt});
+    }
+  });
+  cfg.sources=sources;
+  w.config=cfg;
+  var updatedWidget={type:w.type,title:w.title,config:cfg};
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:idx,widget:updatedWidget})}).then(function(r){
+    if(r.ok){WIDGETS[idx]=updatedWidget;closeModalDirect();loadIntelData();}
+    else{alert('\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');}
+  }).catch(function(){alert('\u7f51\u7edc\u9519\u8bef\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');});
+}
+
+function saveSourceEdit(mwIdx,si){
+  var w=WIDGETS[mwIdx];
+  if(!w)return;
+  var cfg=w.config||{};
+  var sources=cfg.sources||[];
+  if(!sources[si])return;
+  sources[si].name=($('srcName_'+mwIdx+'_'+si)||{}).value||'';
+  sources[si].aiProvider=($('srcProvider_'+mwIdx+'_'+si)||{}).value||'deepseek';
+  sources[si].aiModel=($('srcModel_'+mwIdx+'_'+si)||{}).value||'';
+  sources[si].apiKey=($('srcApiKey_'+mwIdx+'_'+si)||{}).value||'';
+  sources[si].updateFrequency=($('srcFreq_'+mwIdx+'_'+si)||{}).value||'daily';
+  sources[si].customPrompt=($('srcPrompt_'+mwIdx+'_'+si)||{}).value||'';
+  var keywords=[];
+  var kwContainer=$('kwTags_'+mwIdx+'_'+si);
+  if(kwContainer){
+    kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
+      var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('\u00D7','').trim():'';
+      if(kwText)keywords.push(kwText);
+    });
+  }
+  sources[si].keywords=keywords;
+  cfg.sources=sources;
+  w.config=cfg;
+  var updatedWidget={type:w.type,title:w.title,config:cfg};
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:mwIdx,widget:updatedWidget})}).then(function(r){
+    if(r.ok){WIDGETS[mwIdx]=updatedWidget;closeModalDirect();loadIntelData();}
+    else{alert('\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');}
+  }).catch(function(){alert('\u7f51\u7edc\u9519\u8bef\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');});
+}
+
+/* ===== MY REPORTS ===== */
+function openReportList(){
+  var overlay=$('modalOverlay'),panel=$('modalPanel');
+  overlay.classList.add('open');
+  panel.className='modal-panel';
+  $('modalIcon').textContent='\u1F4CB';
+  $('modalTitle').textContent='\u6211\u7684\u62a5\u544a';
+  $('modalSub').textContent='\u67e5\u770b\u548c\u7ba1\u7406\u6240\u6709\u751f\u6210\u7684\u884c\u4e1a\u5206\u6790\u62a5\u544a';
+  $('modalFooter').innerHTML='<button class="btn-cancel" onclick="closeModalDirect()">\u5173\u95ed</button>';
+  $('btnSave').style.display='none';
+  $('modalBody').innerHTML='<p style="font-size:13px;text-align:center;color:var(--text-secondary)">\u52a0\u8f7d\u62a5\u544a\u5217\u8868\u4e2d...</p>';
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/reports/'+slug).then(function(r){
+    if(!r.ok){renderReportCards([]);return}
+    return r.json();
+  }).then(function(data){
+    renderReportCards(data.data||[]);
+  }).catch(function(e){
+    renderReportCards([]);
+  });
+}
+
+function renderReportCards(reports){
+  if(reports.length===0){
+    $('modalBody').innerHTML='<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">\u1F4ED</div><p style="font-size:14px;color:var(--text-secondary)">\u6682\u65e0\u62a5\u544a\uff0c\u5f00\u59cb\u884c\u4e1a\u5206\u6790\u540e\u8fd9\u91cc\u4f1a\u663e\u793a\u3002</p></div>';
+    var cnt=$('myReportsCount');
+    if(cnt)cnt.textContent='0';
+    return;
+  }
+  var html='<div class="rpt-cards-grid">';
+  reports.forEach(function(report){
+    var d=new Date(report.createdAt).toLocaleString('zh-CN');
+    var company=(report.companyName||'\u672a\u77e5').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var rSlug=(report.slug||'').replace(/'/g,'\\x27');
+    html+='<div class="rpt-card" onclick="window.open(\''+report.url+'\',\'_blank\')">'+
+      '<button class="rpt-delete" onclick="event.stopPropagation();deleteReportCard(\''+rSlug+'\')" title="\u5220\u9664\u62a5\u544a">&times;</button>'+
+      '<div class="rpt-company">'+company+'</div>'+
+      '<div class="rpt-date">'+d+'</div>'+
+      '<div class="rpt-actions"><span class="rpt-view">\u67e5\u770b\u62a5\u544a \u2192</span></div>'+
+      '</div>';
+  });
+  html+='</div>';
+  $('modalBody').innerHTML=html;
+  var cnt=$('myReportsCount');
+  if(cnt)cnt.textContent=reports.length;
+}
+
+async function deleteReportCard(rSlug){
+  if(!confirm('\u786e\u5b9a\u5220\u9664\u8fd9\u4e2a\u62a5\u544a\uff1f'))return;
+  var slug=window.location.pathname.split('/').pop();
+  try{
+    var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
+    if(!r.ok){alert('\u5220\u9664\u5931\u8d25');return}
+    var r2=await fetch(API+'/api/p/reports/'+slug);
+    var data=await r2.json();
+    renderReportCards(data.data||[]);
+  }catch(e){alert('\u5220\u9664\u5931\u8d25')}
+}
+
+function loadRecentReportCount(){
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/reports/'+slug).then(function(r){
+    if(!r.ok)return;
+    return r.json();
+  }).then(function(data){
+    var cnt=$('myReportsCount');
+    if(cnt)cnt.textContent=(data.data||[]).length;
+  }).catch(function(){});
+}
 
 /* ===== UTILS ===== */
 function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
