@@ -4203,19 +4203,6 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:8px}
 .add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.05)}
 
-/* Report Summary Card */
-.report-summary-card{display:flex;align-items:center;gap:12px;margin:12px 14px;padding:14px 16px;background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(129,140,248,0.04));border:1px solid rgba(99,102,241,0.2);border-radius:12px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
-.report-summary-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#6366f1,#818cf8);opacity:0;transition:opacity .3s}
-.report-summary-card:hover{border-color:rgba(99,102,241,0.4);transform:translateX(3px);box-shadow:0 4px 20px rgba(99,102,241,0.12)}
-.report-summary-card:hover::before{opacity:1}
-.rsc-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(129,140,248,0.1));display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.rsc-info{flex:1;min-width:0}
-.rsc-title{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.3px}
-.rsc-count{font-size:11px;color:var(--text-secondary);margin-top:3px}
-.rsc-count span{font-weight:700;color:#818cf8}
-.rsc-arrow{font-size:12px;color:#818cf8;opacity:.6;transition:all .2s;transform:rotate(-45deg)}
-.report-summary-card:hover .rsc-arrow{opacity:1;transform:rotate(-45deg) translateX(2px)}
-
 /* ===== CENTER COLUMN - Intel Feed ===== */
 .center-col{grid-area:center;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}
 .center-header{padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
@@ -4315,15 +4302,6 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
     <div class="left-header">
       <h3>&#x1F4E1; 情报过滤器</h3>
     </div>
-    <!-- Report Summary Card -->
-    <div class="report-summary-card" onclick="openReportList()">
-      <div class="rsc-icon">&#x1F4CA;</div>
-      <div class="rsc-info">
-        <div class="rsc-title">分析报告</div>
-        <div class="rsc-count">共 <span id="reportCount">0</span> 份报告</div>
-      </div>
-      <div class="rsc-arrow">&#x2197;</div>
-    </div>
     <div class="source-groups" id="sourceGroups">
       <!-- Dynamic content -->
     </div>
@@ -4408,7 +4386,6 @@ function $(id){return document.getElementById(id)}
 (function(){
   setTimeout(function(){loadIntelData()},500);
   setTimeout(function(){initDashboard()},800);
-  setTimeout(function(){loadReportCount()},1000);
 })();
 
 /* ===== LOAD INTEL DATA ===== */
@@ -4650,23 +4627,6 @@ function sendCommand(){
 function toggleMic(){alert('语音输入功能开发中...');}
 function deployPortal(){alert('部署功能开发中...');}
 function addSource(){alert('添加监控源功能开发中...');}
-
-/* ===== REPORT FUNCTIONS ===== */
-async function loadReportCount(){
-  try {
-    var result=await fetch(API+'/api/reports?count=true');
-    if(!result.ok)return;
-    var data=await result.json();
-    var countEl=$('reportCount');
-    if(countEl)countEl.textContent=data.count||0;
-  } catch(e) {
-    console.error('Failed to load report count:',e);
-  }
-}
-
-function openReportList(){
-  window.open(API+'/reports','_blank','noopener,noreferrer');
-}
 
 /* ===== UTILS ===== */
 function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
