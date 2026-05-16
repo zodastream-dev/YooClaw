@@ -4605,7 +4605,7 @@ function sendCommand(){
   var cmd=input.value.trim();
   if(!cmd)return;
   input.value='';
-  alert('指令已发送: '+cmd+'\n\n(AI 命令中心功能开发中...)');
+  alert('指令已发送: '+cmd+'\\n\\n(AI 命令中心功能开发中...)');
 }
 
 function toggleMic(){alert('语音输入功能开发中...');}
