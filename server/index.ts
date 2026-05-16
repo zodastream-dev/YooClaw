@@ -4203,6 +4203,19 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:8px}
 .add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.05)}
 
+/* Report Summary Card */
+.report-summary-card{display:flex;align-items:center;gap:12px;margin:12px 14px;padding:14px 16px;background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(129,140,248,0.04));border:1px solid rgba(99,102,241,0.2);border-radius:12px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+.report-summary-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#6366f1,#818cf8);opacity:0;transition:opacity .3s}
+.report-summary-card:hover{border-color:rgba(99,102,241,0.4);transform:translateX(3px);box-shadow:0 4px 20px rgba(99,102,241,0.12)}
+.report-summary-card:hover::before{opacity:1}
+.rsc-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(129,140,248,0.1));display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.rsc-info{flex:1;min-width:0}
+.rsc-title{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.3px}
+.rsc-count{font-size:11px;color:var(--text-secondary);margin-top:3px}
+.rsc-count span{font-weight:700;color:#818cf8}
+.rsc-arrow{font-size:12px;color:#818cf8;opacity:.6;transition:all .2s;transform:rotate(-45deg)}
+.report-summary-card:hover .rsc-arrow{opacity:1;transform:rotate(-45deg) translateX(2px)}
+
 /* ===== CENTER COLUMN - Intel Feed ===== */
 .center-col{grid-area:center;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}
 .center-header{padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
@@ -4215,7 +4228,8 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .intel-card:hover::before{background:var(--cyan)}
 .intel-card:hover::after{opacity:1}
 .intel-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
-.intel-card-title{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.5;flex:1;padding-right:12px}
+.intel-card-title{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.5;flex:1;padding-right:12px;text-decoration:none;transition:color .2s}
+.intel-card-title:hover{color:var(--cyan);text-decoration:none}
 .intel-card-source{font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(0,212,255,0.1);color:var(--cyan);white-space:nowrap;flex-shrink:0}
 .intel-card-summary{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px}
 .intel-card-footer{display:flex;align-items:center;justify-content:space-between}
@@ -4252,20 +4266,19 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .briefing-text p{margin-bottom:6px}
 
 /* ===== BOTTOM BAR - AI Command Center ===== */
-.bottom-bar{grid-area:bottom;display:flex;align-items:center;gap:12px;padding:14px 24px;background:rgba(2,6,23,0.95);border-top:1px solid var(--border);backdrop-filter:blur(16px);flex-shrink:0;position:relative;overflow:hidden;box-shadow:0 -4px 30px rgba(0,212,255,0.05),0 -1px 0 rgba(0,212,255,0.1)}
-.bottom-bar::before{content:'';position:absolute;top:0;left:-100%;right:-100%;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),var(--purple),var(--neon-pink),var(--cyan),transparent);background-size:50% 100%;animation:borderGlow 3s linear infinite}
-.bottom-bar::after{content:'';position:absolute;bottom:0;left:10%;right:10%;height:60%;background:radial-gradient(ellipse at center bottom,rgba(0,212,255,0.08) 0%,transparent 70%);pointer-events:none;z-index:-1}
-.cmd-label{display:flex;flex-direction:column;gap:2px;padding-right:10px;border-right:1px solid rgba(0,212,255,0.15);margin-right:4px;flex-shrink:0}
-.cmd-label-title{font-size:12px;font-weight:700;color:var(--cyan);letter-spacing:0.5px;text-shadow:0 0 8px rgba(0,212,255,0.3)}
-.cmd-label-sub{font-size:10px;color:var(--text-secondary)}
-.cmd-input{flex:1;padding:10px 16px;border:1px solid rgba(0,212,255,0.2);border-radius:10px;background:rgba(0,212,255,0.03);color:var(--text-primary);font-size:13px;outline:none;transition:all .3s;font-family:inherit;box-shadow:0 0 8px rgba(0,212,255,0.05),inset 0 1px 2px rgba(0,0,0,0.2)}
-.cmd-input:focus{border-color:rgba(0,212,255,0.5);background:rgba(0,212,255,0.06);box-shadow:0 0 20px rgba(0,212,255,0.1),0 0 40px rgba(168,85,247,0.08),inset 0 0 8px rgba(0,212,255,0.03)}
-.cmd-input::placeholder{color:var(--text-secondary)}
-.cmd-btn{width:40px;height:40px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
-.cmd-btn.mic{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan);box-shadow:0 0 8px rgba(0,212,255,0.1)}
-.cmd-btn.mic:hover{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(168,85,247,0.25));transform:scale(1.05);box-shadow:0 0 16px rgba(0,212,255,0.2)}
-.cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700;box-shadow:0 0 12px rgba(0,212,255,0.25)}
-.cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 20px rgba(0,212,255,0.35),0 0 30px rgba(168,85,247,0.2)}
+.bottom-bar{grid-area:bottom;display:flex;align-items:center;justify-content:center;gap:0;padding:16px 24px;background:rgba(2,6,23,0.98);border-top:1px solid var(--border);backdrop-filter:blur(20px);flex-shrink:0;position:relative;overflow:hidden}
+.bottom-bar::before{content:'';position:absolute;inset:0;border-radius:0;background:linear-gradient(135deg,rgba(0,212,255,0.05),rgba(168,85,247,0.05));pointer-events:none;z-index:0}
+.cmd-wrapper{display:flex;align-items:center;gap:8px;width:100%;max-width:900px;padding:6px 8px 6px 20px;background:linear-gradient(135deg,rgba(0,212,255,0.08),rgba(168,85,247,0.08));border:1px solid rgba(0,212,255,0.25);border-radius:28px;box-shadow:0 4px 24px rgba(0,212,255,0.1),0 0 40px rgba(168,85,247,0.06),inset 0 1px 0 rgba(255,255,255,0.05);position:relative;z-index:1;transition:all .3s}
+.cmd-wrapper:focus-within{border-color:rgba(0,212,255,0.5);box-shadow:0 4px 32px rgba(0,212,255,0.18),0 0 60px rgba(168,85,247,0.1),inset 0 1px 0 rgba(255,255,255,0.08)}
+.cmd-label{display:none}
+.cmd-input{flex:1;padding:10px 16px;border:none;background:transparent;color:var(--text-primary);font-size:14px;outline:none;font-family:inherit;min-width:0}
+.cmd-input::placeholder{color:var(--text-secondary);font-size:13px}
+.cmd-input:focus{outline:none}
+.cmd-btn{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
+.cmd-btn.mic{background:rgba(255,255,255,0.05);color:var(--text-secondary)}
+.cmd-btn.mic:hover{background:rgba(0,212,255,0.15);color:var(--cyan)}
+.cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700;box-shadow:0 2px 12px rgba(0,212,255,0.3)}
+.cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 20px rgba(0,212,255,0.4),0 0 30px rgba(168,85,247,0.25)}
 
 /* ===== RESPONSIVE ===== */
 @media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right"}}
@@ -4301,6 +4314,15 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
   <div class="left-col">
     <div class="left-header">
       <h3>&#x1F4E1; 情报过滤器</h3>
+    </div>
+    <!-- Report Summary Card -->
+    <div class="report-summary-card" onclick="openReportList()">
+      <div class="rsc-icon">&#x1F4CA;</div>
+      <div class="rsc-info">
+        <div class="rsc-title">分析报告</div>
+        <div class="rsc-count">共 <span id="reportCount">0</span> 份报告</div>
+      </div>
+      <div class="rsc-arrow">&#x2197;</div>
     </div>
     <div class="source-groups" id="sourceGroups">
       <!-- Dynamic content -->
@@ -4366,13 +4388,11 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 
   <!-- ===== BOTTOM BAR - AI Command Center ===== -->
   <div class="bottom-bar">
-    <div class="cmd-label">
-      <div class="cmd-label-title">AI 命令中心</div>
-      <div class="cmd-label-sub">命令中心底部</div>
+    <div class="cmd-wrapper">
+      <input class="cmd-input" id="cmdInput" placeholder="请在这里提问或给我指令" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCommand()}">
+      <button class="cmd-btn mic" onclick="toggleMic()">&#x1F399;</button>
+      <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
     </div>
-    <input class="cmd-input" id="cmdInput" placeholder="输入指令或问题... (Enter 发送)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCommand()}">
-    <button class="cmd-btn mic" onclick="toggleMic()">&#x1F399;</button>
-    <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
   </div>
 </div>
 
@@ -4388,6 +4408,7 @@ function $(id){return document.getElementById(id)}
 (function(){
   setTimeout(function(){loadIntelData()},500);
   setTimeout(function(){initDashboard()},800);
+  setTimeout(function(){loadReportCount()},1000);
 })();
 
 /* ===== LOAD INTEL DATA ===== */
@@ -4472,9 +4493,10 @@ function renderIntelFeed(data){
   var html='';
   data.forEach(function(item,i){
     var keywords=(item.keywords||[]).slice(0,3);
+    var url=item.url||item.link||'#';
     html+='<div class="intel-card">';
     html+='<div class="intel-card-header">';
-    html+='<div class="intel-card-title">'+(item.title||'无标题')+'</div>';
+    html+='<a class="intel-card-title" href="'+escHtml(url)+'" target="_blank" rel="noopener">'+(item.title||'无标题')+'</a>';
     html+='<div class="intel-card-source">'+(item.source||'未知来源')+'</div>';
     html+='</div>';
     if(item.summary)html+='<div class="intel-card-summary">'+(item.summary||'')+'</div>';
@@ -4628,6 +4650,23 @@ function sendCommand(){
 function toggleMic(){alert('语音输入功能开发中...');}
 function deployPortal(){alert('部署功能开发中...');}
 function addSource(){alert('添加监控源功能开发中...');}
+
+/* ===== REPORT FUNCTIONS ===== */
+async function loadReportCount(){
+  try {
+    var result=await fetch(API+'/api/reports?count=true');
+    if(!result.ok)return;
+    var data=await result.json();
+    var countEl=$('reportCount');
+    if(countEl)countEl.textContent=data.count||0;
+  } catch(e) {
+    console.error('Failed to load report count:',e);
+  }
+}
+
+function openReportList(){
+  window.open(API+'/reports','_blank','noopener,noreferrer');
+}
 
 /* ===== UTILS ===== */
 function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
