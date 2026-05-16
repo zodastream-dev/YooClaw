@@ -4414,7 +4414,7 @@ function renderSourceFilters(monitors){
   var groups={news:[],social:[],financial:[]};
   monitors.forEach(function(mw){
     (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
-      var keywords=_kwArr.join('');
+      var keywords=(src.keywords||[]).join('');
       if(keywords.indexOf('股价')!=-1||keywords.indexOf('财报')!=-1)groups.financial.push(src);
       else if(keywords.indexOf('Twitter')!=-1||keywords.indexOf('微博')!=-1)groups.social.push(src);
       else groups.news.push(src);
