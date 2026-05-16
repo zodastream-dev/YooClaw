@@ -158,6 +158,7 @@ export function PortalBuilderPage() {
   const [result, setResult] = useState<DeployResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [deploySuccess, setDeploySuccess] = useState<{slug:string;url:string} | null>(null)
   const [dragIdx, setDragIdx] = useState(-1)
 
   // 三栏布局新增状态
@@ -289,8 +290,15 @@ export function PortalBuilderPage() {
     try {
       const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets)
       if (res.data) {
-        setResult({ id: res.data.id, slug: res.data.slug, title: res.data.title, url: res.data.url })
-        window.open(window.location.origin + res.data.url, '_blank')
+        const portalUrl = window.location.origin + res.data.url
+        window.open(portalUrl, '_blank')
+        // 重置表单回初始建站页，显示成功横幅
+        setSiteName('')
+        setSiteDesc('')
+        setCopied(false)
+        setResult(null)
+        setDeploySuccess({ slug: res.data.slug, url: res.data.url })
+        setTimeout(() => setDeploySuccess(null), 5000)
       } else { setError(res.error?.message || '部署失败') }
     } catch (e: any) { setError(e.message || '部署失败') } finally { setIsDeploying(false) }
   }
@@ -576,6 +584,12 @@ export function PortalBuilderPage() {
                     {isDeploying ? <><Loader2 size={13} className="animate-spin" /> 部署中…</> : <><Globe size={13} /> 一键部署</>}
                   </button>
                   {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">{error}</p>}
+                  {deploySuccess && (
+                    <div className="flex items-center justify-between gap-2 text-xs bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg px-3 py-2">
+                      <span>✅ 门户已成功部署！</span>
+                      <a href={deploySuccess.url} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:opacity-80">查看</a>
+                    </div>
+                  )}
                 </div>
               )}
 

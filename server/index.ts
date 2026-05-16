@@ -1301,7 +1301,7 @@ function makeIntelPrompt(keywords,customPrompt){
 async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
   var provider=src.aiProvider||'deepseek';
-  var apiKey=src.apiKey||(provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
+  var apiKey=src.apiKey||(provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
   var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?(src.keywords as string).split(/[,，、]/).map(function(s:string){return s.trim()}).filter(Boolean):[]);
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
@@ -3307,7 +3307,7 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
-    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'business-blue', apiBase, req.body.widgets);
+    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'intel-station', apiBase, req.body.widgets);
     const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal');
 
     res.status(201).json({
@@ -3354,7 +3354,7 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
         if (match) { widgets = JSON.parse(match[1]); }
       } catch (e) { /* keep empty */ }
     }
-    const htmlContent = generatePortalHtml(existing.title, '', 'business-blue', apiBase, widgets);
+    const htmlContent = generatePortalHtml(existing.title, '', 'intel-station', apiBase, widgets);
     await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal');
 
     res.json({
@@ -3894,7 +3894,7 @@ app.post('/api/p/config/:slug', async (req, res) => {
     }
 
     const apiBase = process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
-    const htmlContent = generatePortalHtml(site.title, '', 'business-blue', apiBase, widgets);
+    const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, widgets);
     await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
 
     res.json({ data: { success: true, slug } });
