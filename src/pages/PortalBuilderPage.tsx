@@ -357,7 +357,8 @@ export function PortalBuilderPage() {
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">组件库</p>
               <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => openAddModal('report-generator')}
-                  className="aspect-square flex flex-col items-center justify-center gap-2 p-2.5 rounded-2xl border-2 border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-center group">
+                  className="relative aspect-square flex flex-col items-center justify-center gap-2 p-2.5 rounded-2xl border-2 border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-center group">
+                  <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
                   <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-110 transition-transform">📊</div>
                   <div>
                     <div className="text-[11px] font-semibold text-foreground group-hover:text-indigo-700 dark:group-hover:text-indigo-300">报告生成器</div>
@@ -365,7 +366,8 @@ export function PortalBuilderPage() {
                   </div>
                 </button>
                 <button onClick={() => openAddModal('intel-monitor')}
-                  className="aspect-square flex flex-col items-center justify-center gap-2 p-2.5 rounded-2xl border-2 border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-center group">
+                  className="relative aspect-square flex flex-col items-center justify-center gap-2 p-2.5 rounded-2xl border-2 border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-center group">
+                  <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-sm font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
                   <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-110 transition-transform">🛰️</div>
                   <div>
                     <div className="text-[11px] font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
