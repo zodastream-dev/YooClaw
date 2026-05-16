@@ -48,6 +48,7 @@ interface DeployResult {
 // ========== Templates ==========
 
 const TEMPLATES = [
+  { id: 'intel-station', name: '酷炫风', desc: '暗色情报站，三段式布局', primary: '#00d4ff', preview: 'linear-gradient(135deg, #00d4ff, #a855f7)', textColor: '#e2e8f0', bg: '#020617', cardBg: '#0f172a', muted: '#94a3b8', border: 'rgba(255,255,255,0.1)', reportAccent: '#818cf8', monitorAccent: '#fbbf24', navBg: '#020617', heroBg: 'linear-gradient(135deg, #0f172a, #1e293b)' },
   { id: 'business-blue', name: '商务蓝', desc: '简洁专业，适合金融企业', primary: '#2563eb', preview: 'linear-gradient(135deg, #2563eb, #1e40af)', textColor: '#ffffff', bg: '#f8fafc', cardBg: '#ffffff', muted: '#64748b', border: '#e2e8f0', reportAccent: '#6366f1', monitorAccent: '#f59e0b', navBg: '#1e3a8a', heroBg: 'linear-gradient(135deg, #2563eb, #1e40af)' },
   { id: 'tech-black', name: '科技黑', desc: '深色炫酷，适合科技互联网', primary: '#38bdf8', preview: 'linear-gradient(135deg, #0f172a, #1e293b)', textColor: '#e2e8f0', bg: '#020617', cardBg: '#0f172a', muted: '#64748b', border: '#1e293b', reportAccent: '#818cf8', monitorAccent: '#fbbf24', navBg: '#020617', heroBg: 'linear-gradient(135deg, #0f172a, #1e293b)' },
   { id: 'simple-white', name: '简约白', desc: '极简留白，适合个人分析师', primary: '#1a1a2e', preview: '#ffffff', textColor: '#1a1a2e', bg: '#ffffff', cardBg: '#ffffff', muted: '#94a3b8', border: '#e5e7eb', reportAccent: '#6366f1', monitorAccent: '#f59e0b', navBg: '#f8fafc', heroBg: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)' },
@@ -152,7 +153,7 @@ export function PortalBuilderPage() {
 
   const [siteName, setSiteName] = useState('情报分析站')
   const [siteDesc, setSiteDesc] = useState('专注行业研究的AI驱动情报分析平台')
-  const [selectedTheme, setSelectedTheme] = useState('business-blue')
+  const [selectedTheme, setSelectedTheme] = useState('intel-station')
   const [widgets, setWidgets] = useState<Widget[]>(initialWidgets)
   const [isDeploying, setIsDeploying] = useState(false)
   const [result, setResult] = useState<DeployResult | null>(null)
