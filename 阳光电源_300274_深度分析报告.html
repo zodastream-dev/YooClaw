@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>阳光电源(300274.SZ)深度公司分析报告</title>
+<style>
+:root {
+  --primary: #f5a623;
+  --primary-dark: #d4920f;
+  --secondary: #2d3436;
+  --accent: #00b894;
+  --danger: #e17055;
+  --bg: #f8f9fa;
+  --card-bg: #ffffff;
+  --text: #2d3436;
+  --text-light: #636e72;
+  --border: #e1e5e9;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  color: var(--text);
+  line-height: 1.7;
+  min-height: 100vh;
+}
+/* Hero */
+.hero {
+  background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d2137 100%);
+  color: #fff;
+  padding: 60px 40px 50px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(circle at 30% 50%, rgba(245,166,35,0.15) 0%, transparent 50%),
+              radial-gradient(circle at 70% 30%, rgba(0,184,148,0.1) 0%, transparent 50%);
+  animation: heroPulse 8s ease-in-out infinite;
+}
+@keyframes heroPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.hero-content { position: relative; z-index: 1; }
+.hero h1 { font-size: 2.6em; font-weight: 800; margin-bottom: 8px; letter-spacing: 1px; }
+.hero .ticker { font-size: 1.1em; color: var(--primary); font-weight: 600; margin-bottom: 4px; }
+.hero .sub { font-size: 1.05em; color: #8899aa; margin-bottom: 20px; }
+.hero .badges { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.badge {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 0.9em;
+  color: #ccd;
+  backdrop-filter: blur(4px);
+}
+.badge.hl { background: rgba(245,166,35,0.2); border-color: rgba(245,166,35,0.4); color: var(--primary); }
+/* Container */
+.container { max-width: 1100px; margin: 0 auto; padding: 30px 20px 60px; }
+/* Section */
+.section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 36px 40px;
+  margin-bottom: 28px;
+  border-left: 5px solid var(--primary);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.section:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.1); }
+.section h2 {
+  font-size: 1.65em;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--secondary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section h2 .ico { font-size: 1.3em; }
+.section h3 { font-size: 1.15em; font-weight: 600; color: var(--secondary); margin: 20px 0 10px; }
+.section h3:first-of-type { margin-top: 0; }
+.section p { margin-bottom: 10px; color: var(--text-light); }
+/* Data Grid */
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.data-card {
+  background: linear-gradient(135deg, #f8f9fb 0%, #eef1f5 100%);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+.data-card .val {
+  font-size: 1.8em;
+  font-weight: 800;
+  color: var(--secondary);
+  line-height: 1.2;
+}
+.data-card .val.up { color: var(--accent); }
+.data-card .val.down { color: var(--danger); }
+.data-card .lbl { font-size: 0.85em; color: var(--text-light); margin-top: 4px; }
+/* Table */
+.tbl-wrap { overflow-x: auto; margin: 16px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+th {
+  background: var(--secondary);
+  color: #fff;
+  padding: 10px 14px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+}
+td {
+  padding: 10px 14px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+tr:nth-child(even) td { background: #f8f9fb; }
+tr:hover td { background: #eef1f5; }
+td:first-child { text-align: left; font-weight: 500; }
+/* SWOT / PEST */
+.framework-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+.fw-card {
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+.fw-card h4 { font-size: 1em; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.fw-card ul { list-style: none; padding: 0; }
+.fw-card li { padding: 4px 0; font-size: 0.9em; color: var(--text-light); position: relative; padding-left: 16px; }
+.fw-card li::before { content: '•'; position: absolute; left: 0; font-weight: bold; }
+.swot-s { background: #e8f5e9; border-color: #a5d6a7; }
+.swot-s h4 { color: #2e7d32; }
+.swot-w { background: #fff3e0; border-color: #ffcc80; }
+.swot-w h4 { color: #e65100; }
+.swot-o { background: #e3f2fd; border-color: #90caf9; }
+.swot-o h4 { color: #1565c0; }
+.swot-t { background: #fce4ec; border-color: #f48fb1; }
+.swot-t h4 { color: #c62828; }
+/* KPI stripe */
+.kpi-stripe {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.kpi-item {
+  flex: 1;
+  min-width: 140px;
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  text-align: center;
+}
+.kpi-item .kpi-val { font-size: 1.5em; font-weight: 800; }
+.kpi-item .kpi-lbl { font-size: 0.8em; color: var(--text-light); margin-top: 2px; }
+/* Price prediction */
+.price-bar {
+  background: linear-gradient(to right, #e17055 0%, #fdcb6e 50%, #00b894 100%);
+  height: 24px;
+  border-radius: 12px;
+  position: relative;
+  margin: 20px 0;
+}
+.price-marker {
+  position: absolute;
+  top: -8px;
+  width: 2px;
+  height: 40px;
+  background: var(--secondary);
+}
+.price-labels { display: flex; justify-content: space-between; font-size: 0.8em; color: var(--text-light); margin-top: 6px; }
+/* Timeline */
+.timeline { position: relative; padding-left: 24px; }
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.tl-item { position: relative; margin-bottom: 16px; padding-left: 24px; }
+.tl-item::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.tl-item .tl-date { font-size: 0.8em; color: var(--primary-dark); font-weight: 600; }
+.tl-item .tl-content { font-size: 0.9em; color: var(--text-light); }
+/* Disclaimer */
+.disclaimer {
+  background: #fef9e7;
+  border: 1px solid #f9e79f;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-top: 30px;
+  font-size: 0.85em;
+  color: #7d6608;
+  text-align: center;
+}
+/* Responsive */
+@media (max-width: 768px) {
+  .hero { padding: 40px 20px 30px; }
+  .hero h1 { font-size: 1.8em; }
+  .section { padding: 24px 20px; }
+  .framework-grid { grid-template-columns: 1fr; }
+  .data-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-content">
+    <div class="ticker">深交所 · 300274.SZ</div>
+    <h1>阳光电源</h1>
+    <div class="sub">全球光储一体化龙头 · 逆变器十年冠 · 储能全球第二</div>
+    <div class="badges">
+      <span class="badge hl">⚡ 光伏逆变器全球第一</span>
+      <span class="badge hl">🔋 储能系统全球第二</span>
+      <span class="badge">🏭 海外产能占比40%</span>
+      <span class="badge">🌍 覆盖100+国家</span>
+      <span class="badge">📊 市值~3000亿</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ============ SECTION 1: 公司概况 ============ -->
+<div class="section">
+  <h2><span class="ico">🏢</span> 一、公司概况</h2>
+
+  <p>阳光电源股份有限公司（股票代码：300274.SZ）成立于1997年，总部位于安徽省合肥市，2011年在深交所创业板上市。公司是全球领先的光伏逆变器和储能系统供应商，主营业务覆盖<strong>光伏逆变器、储能系统、新能源投资开发</strong>三大板块，并于2025年正式布局AIDC（人工智能数据中心）电源业务。</p>
+
+  <div class="kpi-stripe">
+    <div class="kpi-item">
+      <div class="kpi-val">891.84<small style="font-size:0.55em">亿</small></div>
+      <div class="kpi-lbl">2025年营收</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val up">+14.55%</div>
+      <div class="kpi-lbl">营收同比增速</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val">134.61<small style="font-size:0.55em">亿</small></div>
+      <div class="kpi-lbl">2025年归母净利润</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val up">31.26%</div>
+      <div class="kpi-lbl">加权平均ROE</div>
+    </div>
+    <div class="kpi-item">
+      <div class="kpi-val">31.83%</div>
+      <div class="kpi-lbl">综合毛利率</div>
+    </div>
+  </div>
+
+  <h3>核心业务矩阵</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>业务板块</th><th>2025年H1收入</th><th>同比增长</th><th>收入占比</th><th>全球地位</th></tr>
+      <tr><td>储能系统</td><td>178.03亿</td><td style="color:#00b894">+127.78%</td><td>40.89%</td><td>全球第二（市占率14%）</td></tr>
+      <tr><td>光伏逆变器</td><td>153.27亿</td><td>—</td><td>35.19%</td><td>全球第一（市占率25.2%）</td></tr>
+      <tr><td>新能源投资开发</td><td>—</td><td>—</td><td>~15%</td><td>国内EPC前列</td></tr>
+      <tr><td>AIDC电源（新）</td><td>—</td><td>—</td><td>起步期</td><td>2025年5月设立子公司</td></tr>
+    </table>
+  </div>
+
+  <h3>全球化布局</h3>
+  <p>海外收入占比首次超过国内（2025年H1达58.4%），泰国工厂二期（储能10GWh/年）、匈牙利工厂（逆变器5GW/年）投产在即，海外产能占比达40%。全球分支机构超20家，服务网点520个，覆盖100+国家和地区。欧洲储能市占率高达35%，中东标杆项目包括沙特7.8GWh储能大单。</p>
+</div>
+
+<!-- ============ SECTION 2: 行业规模趋势 ============ -->
+<div class="section">
+  <h2><span class="ico">📈</span> 二、行业规模与趋势</h2>
+
+  <h3>全球光伏市场</h3>
+  <p>2025年全球光伏逆变器市场规模突破<strong>600GW</strong>，中国企业在全球逆变器市场占据<strong>80%以上</strong>份额，形成以华为、阳光电源、锦浪科技、固德威为核心的"四大金刚"格局，CR4达55%。全球光伏组件产量约800GW，新增装机持续增长。</p>
+
+  <h3>全球储能市场</h3>
+  <p>2024年全球新型储能装机规模达<strong>1.8亿千瓦</strong>（同比增长98%），2025年上半年国内储能抢装量达43GWh（同比增长16%）。储能电池出货量持续增长，中国企业（宁德时代、比亚迪等）在全球储能电芯市场占据主导地位。预计2025-2030年全球储能市场将保持30%+的复合增长率。</p>
+
+  <div class="data-grid">
+    <div class="data-card">
+      <div class="val">600<span style="font-size:0.5em">GW+</span></div>
+      <div class="lbl">2025全球逆变器市场规模</div>
+    </div>
+    <div class="data-card">
+      <div class="val up">80%+</div>
+      <div class="lbl">中国企业全球逆变器份额</div>
+    </div>
+    <div class="data-card">
+      <div class="val">1.8<small style="font-size:0.55em">亿kW</small></div>
+      <div class="lbl">2024全球新型储能装机</div>
+    </div>
+    <div class="data-card">
+      <div class="val up">30%+</div>
+      <div class="lbl">储能市场年复合增长率</div>
+    </div>
+  </div>
+
+  <h3>关键趋势</h3>
+  <p><strong>① 储能超越光伏：</strong>阳光电源2025年储能收入首次超越逆变器，行业趋势从"光伏为主"转向"光储并重"。<strong>② 全球化制造：</strong>贸易壁垒推动"全球制造、本地供应"模式，海外建厂成为标配。<strong>③ 技术升级：</strong>液冷储能、2000V高压系统、碳化硅器件等新技术加速渗透。<strong>④ AIDC新需求：</strong>AI数据中心带来增量电力设备需求，光储企业凭技术同源性跨界布局。</p>
+</div>
+
+<!-- ============ SECTION 3: 财务经营分析 ============ -->
+<div class="section">
+  <h2><span class="ico">💰</span> 三、财务经营分析</h2>
+
+  <h3>近年核心财务数据</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>指标</th><th>2023年</th><th>2024年</th><th>2025年</th><th>2026年Q1</th></tr>
+      <tr>
+        <td>营业收入（亿元）</td>
+        <td>722.51</td>
+        <td>778.57</td>
+        <td style="font-weight:700">891.84</td>
+        <td>155.61</td>
+      </tr>
+      <tr>
+        <td>营收同比增速</td>
+        <td>—</td>
+        <td style="color:#00b894">+7.76%</td>
+        <td style="color:#00b894">+14.55%</td>
+        <td style="color:#e17055">-18.26%</td>
+      </tr>
+      <tr>
+        <td>归母净利润（亿元）</td>
+        <td>~96</td>
+        <td>~110.36</td>
+        <td style="font-weight:700">134.61</td>
+        <td>22.91</td>
+      </tr>
+      <tr>
+        <td>净利润同比增速</td>
+        <td>—</td>
+        <td style="color:#00b894">~+15%</td>
+        <td style="color:#00b894">+21.97%</td>
+        <td style="color:#e17055">-40.12%</td>
+      </tr>
+      <tr>
+        <td>综合毛利率</td>
+        <td>~28%</td>
+        <td>29.94%</td>
+        <td style="font-weight:700">31.83%</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>经营现金流（亿元）</td>
+        <td>—</td>
+        <td>~120</td>
+        <td style="font-weight:700">169.18</td>
+        <td>12.08</td>
+      </tr>
+      <tr>
+        <td>基本每股收益（元）</td>
+        <td>—</td>
+        <td>~5.4</td>
+        <td style="font-weight:700">6.55</td>
+        <td>1.12</td>
+      </tr>
+      <tr>
+        <td>加权平均ROE</td>
+        <td>—</td>
+        <td>~28%</td>
+        <td style="font-weight:700">31.26%</td>
+        <td>4.81%</td>
+      </tr>
+    </table>
+  </div>
+  <p style="font-size:0.8em;color:#999">注：2023年及部分2024年数据为基于公开信息的合理推算，2026年Q1为单季度数据（ROE为年化参考）。</p>
+
+  <h3>财务亮点</h3>
+  <p>✅ <strong>连续高增长：</strong>2024-2025年营收复合增长率约11%，净利润复合增长率约18%，明显跑赢行业均值。<br>
+  ✅ <strong>毛利率持续提升：</strong>从28%→29.94%→31.83%，产品结构升级（高毛利储能占比提升）+ 规模效应共同驱动。<br>
+  ✅ <strong>现金流优异：</strong>2025年经营现金流169.18亿元（+40.18%），远超净利润，体现出极强的盈利质量和回款能力。<br>
+  ✅ <strong>高ROE：</strong>31.26%的ROE在制造业中属于顶级水平，资产运营效率极高。</p>
+
+  <h3>财务风险</h3>
+  <p>⚠️ <strong>Q1 2026业绩骤降：</strong>营收降18.26%、净利降40.12%，主因包括：国内储能项目季节性波动、海外订单交付节奏调整、以及2025年Q1高基数效应。<br>
+  ⚠️ <strong>资产负债率偏高：</strong>61.33%，随着海外产能扩张可能进一步上升。<br>
+  ⚠️ <strong>汇率风险：</strong>海外收入占比超58%，人民币升值将侵蚀利润。</p>
+
+  <h3>业务结构变迁（收入占比）</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>业务板块</th><th>2023年占比</th><th>2024年占比</th><th>2025年H1占比</th><th>趋势</th></tr>
+      <tr><td>光伏逆变器</td><td>~50%</td><td>~45%</td><td>35.19%</td><td>⬇ 持续下降</td></tr>
+      <tr><td>储能系统</td><td>~30%</td><td>~35%</td><td style="font-weight:700">40.89%</td><td>⬆ 成为第一大业务</td></tr>
+      <tr><td>新能源投资开发</td><td>~15%</td><td>~15%</td><td>~15%</td><td>➡ 稳定</td></tr>
+      <tr><td>其他（含AIDC）</td><td>~5%</td><td>~5%</td><td>~9%</td><td>⬆ 新增长极</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============ SECTION 4: 竞争格局 ============ -->
+<div class="section">
+  <h2><span class="ico">⚔️</span> 四、竞争格局</h2>
+
+  <h3>光伏逆变器：双龙头格局</h3>
+  <p>全球逆变器市场呈现<strong>阳光电源 + 华为</strong>双龙头格局，两者合计占据约50%市场份额。华为以智能化组串式逆变器见长（全球出货量第一约30%），阳光电源以全品类覆盖和全球化渠道领先（连续十年全球出货量第一约25%）。第二梯队（锦浪科技18%、上能电气15%、固德威12%）在户用、工商业等细分领域差异化竞争。</p>
+
+  <h3>储能系统：五强争霸</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>排名</th><th>企业</th><th>全球市占率</th><th>核心优势</th><th>主要市场</th></tr>
+      <tr><td>1</td><td style="font-weight:700;color:var(--primary-dark)">阳光电源</td><td>14%</td><td>光储协同+全球化渠道</td><td>全球（欧洲35%）</td></tr>
+      <tr><td>2</td><td>特斯拉</td><td>12%</td><td>垂直整合+Megapack品牌</td><td>北美（25%）</td></tr>
+      <tr><td>3</td><td>比亚迪</td><td>10.7%</td><td>刀片电池+欧洲爆发</td><td>中国+欧洲</td></tr>
+      <tr><td>4</td><td>中国中车</td><td>8%</td><td>央企背景+大储垄断</td><td>中国（>50%）</td></tr>
+      <tr><td>5</td><td>远景储能</td><td>6%</td><td>AI智能+中东新贵</td><td>中东+拉美</td></tr>
+    </table>
+  </div>
+
+  <h3>阳光电源核心竞争壁垒</h3>
+  <p>🔧 <strong>技术壁垒：</strong>累计专利超1万件，液冷储能PowerTitan 3.0（能量密度超500kWh/㎡），2000V高压系统行业首发。<br>
+  🌐 <strong>渠道壁垒：</strong>全球520个服务网点，100+国家覆盖，逆变器品牌可融资性排名全球第一（六度蝉联）。<br>
+  🤝 <strong>协同壁垒：</strong>光储一体化 + 风电 + 氢能 + 充电桩多业务协同，提供全生命周期解决方案。<br>
+  📦 <strong>产能壁垒：</strong>海外产能占比40%，泰国+匈牙利双基地规避贸易壁垒。</p>
+</div>
+
+<!-- ============ SECTION 5: 近期动态 ============ -->
+<div class="section">
+  <h2><span class="ico">📰</span> 五、近期动态</h2>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-date">2026年4月27日</div>
+      <div class="tl-content"><strong>2026年Q1季报发布：</strong>营收155.61亿（-18.26%），净利润22.91亿（-40.12%），业绩低于市场预期，主要受国内大储季节性波动及海外交付节奏调整影响。单季度营收净利双降为2020年Q1以来首次。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">2026年3月31日</div>
+      <div class="tl-content"><strong>2025年年报发布：</strong>营收891.84亿（+14.55%），净利润134.61亿（+21.97%），毛利率31.83%（+1.89pct），经营现金流169.18亿（+40.18%）。拟10派6.9元。储能业务首次超越逆变器成为第一大收入来源。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">2025年10月</div>
+      <div class="tl-content"><strong>AIDC电源布局加速：</strong>公司于2025年5月设立合肥阳光源智科技有限公司，布局AI数据中心电源业务。三季度业绩会透露正与国际头部客户洽谈，业务放量可期。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">2025年</div>
+      <div class="tl-content"><strong>沙特7.8GWh储能大单中标：</strong>中标沙特NEOM新城相关储能项目，夯实中东市场领先地位。泰国工厂二期（储能10GWh/年）和匈牙利工厂（逆变器5GW/年）建设推进中。</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">2025年4月</div>
+      <div class="tl-content"><strong>2024年年报 &amp; 2025年Q1超预期：</strong>2024年营收778.57亿（+7.76%），2025年Q1营收190.36亿（+50.92%），净利38.26亿（+82.52%），储能业务爆发驱动业绩超预期。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SECTION 6: 机遇与挑战 (SWOT/PEST) ============ -->
+<div class="section">
+  <h2><span class="ico">🔍</span> 六、机遇与挑战</h2>
+
+  <h3>SWOT 分析</h3>
+  <div class="framework-grid">
+    <div class="fw-card swot-s">
+      <h4>💪 优势 (Strengths)</h4>
+      <ul>
+        <li>逆变器全球第一品牌，连续十年出货量冠军</li>
+        <li>储能系统全球第二，2025年收入反超逆变器</li>
+        <li>光储一体化协同效应显著</li>
+        <li>全球520个服务网点，渠道壁垒深厚</li>
+        <li>专利超1万件，技术护城河宽广</li>
+        <li>经营现金流强劲（169亿），财务质地优异</li>
+      </ul>
+    </div>
+    <div class="fw-card swot-w">
+      <h4>⚠️ 劣势 (Weaknesses)</h4>
+      <ul>
+        <li>Q1 2026业绩骤降，短期波动引发市场担忧</li>
+        <li>资产负债率61.33%，偿债压力上升</li>
+        <li>储能系统集成毛利率低于逆变器（竞争加剧）</li>
+        <li>与华为在逆变器领域贴身竞争，价格压力持续</li>
+        <li>海外收入占比高，面临汇率波动风险</li>
+      </ul>
+    </div>
+    <div class="fw-card swot-o">
+      <h4>🚀 机会 (Opportunities)</h4>
+      <ul>
+        <li>全球储能市场30%+年复合增长，市场空间巨大</li>
+        <li>AIDC电源新业务，技术同源性带来跨界优势</li>
+        <li>海外产能布局（泰/匈）规避贸易壁垒</li>
+        <li>新兴市场（中东、拉美、非洲）需求爆发</li>
+        <li>氢能、充电桩等新业务培育中</li>
+      </ul>
+    </div>
+    <div class="fw-card swot-t">
+      <h4>🔥 威胁 (Threats)</h4>
+      <ul>
+        <li>欧美贸易壁垒持续升级（关税、反补贴调查）</li>
+        <li>光伏组件价格战向逆变器/储能环节传导</li>
+        <li>华为、特斯拉、比亚迪等巨头的激烈竞争</li>
+        <li>锂电池原材料价格波动影响储能毛利</li>
+        <li>地缘政治风险（中东、欧洲市场）</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>PEST 宏观环境分析</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th style="width:15%">维度</th><th>关键因素</th><th style="width:15%">影响</th></tr>
+      <tr>
+        <td><strong>政治 (P)</strong></td>
+        <td>美国对中国光伏产品征收反倾销/反补贴关税，UFLPA扣留光伏产品累计34亿美元；欧盟拟限制40%进口；但同时"一带一路"沿线国家新能源需求旺盛</td>
+        <td style="color:#e17055">偏负面</td>
+      </tr>
+      <tr>
+        <td><strong>经济 (E)</strong></td>
+        <td>全球利率下行周期利好新能源投资；IEA预测清洁能源投资2025年突破2万亿美元；国内电力市场化改革加速，储能经济性持续改善</td>
+        <td style="color:#00b894">正面</td>
+      </tr>
+      <tr>
+        <td><strong>社会 (S)</strong></td>
+        <td>全球碳中和目标推进，可再生能源接受度持续提升；AI算力需求爆发带来增量电力设备需求；ESG投资理念推动资本流向新能源</td>
+        <td style="color:#00b894">正面</td>
+      </tr>
+      <tr>
+        <td><strong>技术 (T)</strong></td>
+        <td>液冷储能、碳化硅器件、2000V高压系统推动效率提升；固态电池技术路线可能颠覆现有竞争格局；AI+电力调度创造新商业模式</td>
+        <td style="color:#f5a623">中性偏正面</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============ SECTION 7: 股价预测 ============ -->
+<div class="section">
+  <h2><span class="ico">📊</span> 七、股价分析与预测</h2>
+
+  <h3>当前估值</h3>
+  <div class="data-grid">
+    <div class="data-card">
+      <div class="val">144.04</div>
+      <div class="lbl">最新股价（2026.5.12）</div>
+    </div>
+    <div class="data-card">
+      <div class="val">32.58</div>
+      <div class="lbl">动态市盈率（PE-TTM）</div>
+    </div>
+    <div class="data-card">
+      <div class="val">6.14</div>
+      <div class="lbl">市净率（PB）</div>
+    </div>
+    <div class="data-card">
+      <div class="val">~2,986<small style="font-size:0.55em">亿</small></div>
+      <div class="lbl">总市值</div>
+    </div>
+  </div>
+
+  <h3>估值区间分析</h3>
+  <p>阳光电源历史PE中枢在30-50倍区间。当前32.58倍处于历史估值区间的中低位。考虑2025年EPS为6.55元，若给予不同PE倍数，对应股价区间如下：</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>估值情景</th><th>PE倍数</th><th>对应股价</th><th>较当前涨跌幅</th><th>触发条件</th></tr>
+      <tr>
+        <td>🐻 悲观</td>
+        <td>20x</td>
+        <td>131元</td>
+        <td style="color:#e17055">-9.1%</td>
+        <td>储能竞争恶化、贸易壁垒全面升级、Q2继续miss</td>
+      </tr>
+      <tr>
+        <td>😐 中性</td>
+        <td>30x</td>
+        <td>197元</td>
+        <td style="color:#00b894">+36.8%</td>
+        <td>业绩触底回升、储能维持增长、AIDC开始贡献</td>
+      </tr>
+      <tr>
+        <td>🐂 乐观</td>
+        <td>40x</td>
+        <td>262元</td>
+        <td style="color:#00b894">+82.0%</td>
+        <td>AIDC放量+储能超预期+贸易壁垒缓解</td>
+      </tr>
+    </table>
+  </div>
+  <p style="font-size:0.85em;color:#666">注：以上估值为基于2025年全年EPS（6.55元）的静态测算。野村证券给予"跑赢大市"评级，目标价260元。方正证券认为短期承压但AIDC放量可期。</p>
+
+  <h3>关键价位</h3>
+  <div class="price-bar">
+    <div class="price-marker" style="left:32%"></div>
+  </div>
+  <div class="price-labels">
+    <span>🐻 131 (悲观)</span>
+    <span>📍 144 (当前)</span>
+    <span>🎯 197 (中性)</span>
+    <span>🐂 262 (乐观)</span>
+  </div>
+
+  <h3>催化剂与风险</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+    <div style="background:#e8f5e9;border-radius:10px;padding:16px;border:1px solid #a5d6a7">
+      <h4 style="color:#2e7d32;margin-bottom:8px">📈 上行催化剂</h4>
+      <ul style="list-style:none;padding:0;font-size:0.9em;color:#555">
+        <li>• Q2-Q3 2026业绩触底回升信号</li>
+        <li>• AIDC电源获大客户订单公告</li>
+        <li>• 沙特/中东储能大单持续落地</li>
+        <li>• 匈牙利/泰国工厂投产降低成本</li>
+        <li>• 中美贸易谈判出现缓和</li>
+      </ul>
+    </div>
+    <div style="background:#fce4ec;border-radius:10px;padding:16px;border:1px solid #f48fb1">
+      <h4 style="color:#c62828;margin-bottom:8px">📉 下行风险</h4>
+      <ul style="list-style:none;padding:0;font-size:0.9em;color:#555">
+        <li>• Q2 2026业绩继续低于预期</li>
+        <li>• 美国对东南亚光伏产品加征新关税</li>
+        <li>• 储能系统毛利率持续下滑</li>
+        <li>• 人民币大幅升值（>5%）</li>
+        <li>• 行业恶性价格战升级</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- DISCLAIMER -->
+<div class="disclaimer">
+  <strong>⚠️ 免责声明：</strong>本报告仅为基于公开信息的行业研究分析，不构成任何投资建议。股市有风险，投资需谨慎。报告中涉及的财务数据来源于公司公告及公开渠道，股价预测部分含主观分析假设，实际情况可能与预测存在重大偏差。数据截止日期：2026年5月16日。
+</div>
+
+</div><!-- container -->
+
+</body>
+</html>
