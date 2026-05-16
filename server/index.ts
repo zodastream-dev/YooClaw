@@ -1330,7 +1330,7 @@ async function fetchSourceIntel(src){
     content=content.replace('\`\`\`json','').replace(/\`\`\`/g,'').trim();
     try{return JSON.parse(content)}
     catch(e){
-      var match=content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);
+      var match=content.match(/\\[\\s*(?:\\{[\\s\\S]*?\\}|\\[[\\s\\S]*?\\])+\\s*\\]/);
       if(match)return JSON.parse(match[0]);
       throw new Error('无法解析AI返回数据');
     }
