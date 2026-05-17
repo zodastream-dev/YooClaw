@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { deployPortalWithWidgets } from '@/lib/api'
 import {
   ArrowLeft, Globe, ExternalLink, Copy, Loader2,
-  Plus, Trash2, ChevronUp, ChevronDown, X,
-  Satellite, FileText, Settings, LayoutGrid, GripVertical
+  Plus, Trash2, X,
+  Settings, LayoutGrid, GripVertical
 } from 'lucide-react'
 
 // ========== Types ==========
@@ -92,18 +92,28 @@ const initialWidgets: Widget[] = [
     },
   },
   {
-    id: 'w-2', type: 'intel-monitor', title: '行业情报监控', expanded: false,
+    id: 'w-2', type: 'intel-monitor', title: '情报监控', expanded: false,
     config: {
       sources: [
         {
-          id: 's-1', name: '光伏产业监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-          apiKey: '', keywords: ['光伏', '太阳能', 'N型电池', 'TOPCon', 'HJT'],
-          updateFrequency: 'daily', customPrompt: '你是新能源光伏行业专家。',
+          id: 's-1', name: '行业信号', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['行业趋势', '政策法规', '技术突破', '市场规模', '产业动态'],
+          updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。',
         },
         {
-          id: 's-2', name: '储能市场追踪', aiProvider: 'metaso', aiModel: 'metaso-pro',
-          apiKey: '', keywords: ['储能', '锂电池', '钠离子电池', '宁德时代'],
-          updateFrequency: 'daily', customPrompt: '你是储能行业分析师。',
+          id: 's-2', name: '目标客户情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'],
+          updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。',
+        },
+        {
+          id: 's-3', name: '竞争对手情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'],
+          updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。',
+        },
+        {
+          id: 's-4', name: '自身舆情监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'],
+          updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。',
         },
       ],
     },
@@ -153,6 +163,7 @@ export function PortalBuilderPage() {
 
   const [siteName, setSiteName] = useState('情报分析站')
   const [siteDesc, setSiteDesc] = useState('专注行业研究的AI驱动情报分析平台')
+  const [customDomain, setCustomDomain] = useState('')
   const [selectedTheme, setSelectedTheme] = useState('intel-station')
   const [widgets, setWidgets] = useState<Widget[]>(initialWidgets)
   const [isDeploying, setIsDeploying] = useState(false)
@@ -210,10 +221,6 @@ export function PortalBuilderPage() {
     setWidgets((prev) => prev.filter((w) => w.id !== id))
     if (selectedWidgetId === id) { setSelectedWidgetId(null); setRightTab('site') }
   }, [widgets, selectedWidgetId])
-
-  const toggleWidget = useCallback((id: string) => {
-    setWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, expanded: !w.expanded } : w)))
-  }, [])
 
   const updateWidget = useCallback((id: string, updater: (w: Widget) => Widget) => {
     setWidgets((prev) => prev.map((w) => (w.id === id ? updater(w) : w)))
@@ -289,7 +296,7 @@ export function PortalBuilderPage() {
     const name = siteName.trim() || '情报分析门户'
     setIsDeploying(true); setError(null); setResult(null)
     try {
-      const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets)
+      const res = await deployPortalWithWidgets(name, siteDesc.trim(), selectedTheme, widgets, deploySuccess?.slug || undefined, customDomain)
       if (res.data) {
         const portalUrl = window.location.origin + res.data.url
         window.open(portalUrl, '_blank')
@@ -358,94 +365,66 @@ export function PortalBuilderPage() {
 
             {/* Component Library */}
             <div className="flex-shrink-0 p-4 border-b border-border">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">组件库</p>
-              <div className="space-y-3">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">组件库</p>
+              <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => openAddModal('report-generator')}
-                  className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-left group">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center text-lg flex-shrink-0">📊</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-foreground group-hover:text-indigo-700 dark:group-hover:text-indigo-300">报告生成器</div>
-                    <div className="text-[10px] text-muted-foreground truncate">AI 自动生成分析报告</div>
+                  className="relative aspect-square flex flex-col items-end justify-end p-3 rounded-2xl border-2 border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-center group">
+                  <div className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-indigo-500 text-white flex items-center justify-center text-2xl font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
+                  <div className="w-full">
+                    <div className="text-[11px] font-semibold text-foreground group-hover:text-indigo-700 dark:group-hover:text-indigo-300">报告生成器</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">AI 自动生成分析报告</div>
                   </div>
-                  <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-sm font-bold flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform">+</div>
                 </button>
                 <button onClick={() => openAddModal('intel-monitor')}
-                  className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-left group">
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-lg flex-shrink-0">🛰️</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
-                    <div className="text-[10px] text-muted-foreground truncate">AI 持续监控关键词情报</div>
+                  className="relative aspect-square flex flex-col items-end justify-end p-3 rounded-2xl border-2 border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-center group">
+                  <div className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center text-2xl font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
+                  <div className="w-full">
+                    <div className="text-[11px] font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">持续监控关键词情报</div>
                   </div>
-                  <div className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 text-sm font-bold flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform">+</div>
                 </button>
               </div>
             </div>
 
             {/* Widget List */}
             <div className="flex-1 overflow-y-auto p-4">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">我的组件</p>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">我的组件</p>
               {widgets.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-12 text-muted-foreground">
                   <div className="text-2xl mb-2 opacity-30">🧩</div>
                   <p className="text-[11px]">从上方添加组件</p>
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   {widgets.map((w, i) => (
                     <div key={w.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, i)}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, i)}
-                      className={`group rounded-xl border transition-all cursor-pointer ${
+                      className={`group rounded-2xl border-2 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1.5 p-2.5 relative ${
                         selectedWidgetId === w.id
-                          ? w.type === 'report-generator' ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20' : 'border-amber-400 bg-amber-50 dark:bg-amber-950/20'
-                          : 'border-border hover:border-muted-foreground/40 bg-background hover:bg-muted/50'
+                          ? w.type === 'report-generator' ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 shadow-md' : 'border-amber-400 bg-amber-50 dark:bg-amber-950/20 shadow-md'
+                          : 'border-border hover:border-muted-foreground/40 bg-background hover:bg-muted/40'
                       }`}
                       onClick={() => handleWidgetClick(w.id)}
                     >
-                      <div className="flex items-center gap-2 px-3 py-2.5">
-                        <div className="text-muted-foreground/40 cursor-grab active:cursor-grabbing flex-shrink-0">
-                          <GripVertical size={12} />
-                        </div>
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${
-                          w.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'
-                        }`}>
-                          {w.type === 'report-generator' ? '📊' : '🛰️'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium truncate">{w.title}</div>
-                          <div className="text-[10px] text-muted-foreground truncate">
-                            {w.type === 'report-generator' ? `报告 · ${(w.config.analysisMethods || []).slice(0, 2).join(', ')}` : `监控 · ${(w.config.sources || []).length}个源`}
-                          </div>
-                        </div>
-                        <button onClick={(e) => { e.stopPropagation(); toggleWidget(w.id) }}
-                          className="p-0.5 rounded hover:bg-muted text-muted-foreground flex-shrink-0">
-                          {w.expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                        </button>
+                      <div className="absolute top-1.5 right-1.5 text-muted-foreground/25 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
+                        <GripVertical size={12} />
                       </div>
-                      {w.expanded && (
-                        <div className="px-3 pb-2.5">
-                          <div className="text-[10px] text-muted-foreground bg-muted/50 rounded-lg p-2 space-y-1">
-                            {w.type === 'report-generator' ? (
-                              <>
-                                <div>框架: {(w.config.analysisMethods || []).join(', ') || '未选'}</div>
-                                <div>平台: {SEARCH_PLATFORMS.find((p) => p.value === w.config.searchPlatform)?.label || '默认'}</div>
-                              </>
-                            ) : (
-                              <>
-                                {w.config.sources?.map((s) => (
-                                  <div key={s.id}>• {s.name} · {s.keywords.length}关键词</div>
-                                ))}
-                              </>
-                            )}
-                          </div>
-                          <button onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
-                            className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors">
-                            <Trash2 size={10} /> 删除
-                          </button>
-                        </div>
-                      )}
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm ${
+                        w.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'
+                      }`}>
+                        {w.type === 'report-generator' ? '📊' : '🛰️'}
+                      </div>
+                      <div className="text-[11px] font-semibold text-center leading-tight line-clamp-2 px-1">{w.title}</div>
+                      <div className="text-[9px] text-muted-foreground text-center">
+                        {w.type === 'report-generator' ? (w.config.analysisMethods || []).slice(0, 2).join(' · ') : `${(w.config.sources || []).length}个源`}
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
+                        className="absolute bottom-1.5 right-1.5 p-1 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash2 size={11} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -639,6 +618,12 @@ export function PortalBuilderPage() {
                     <textarea value={siteDesc} onChange={(e) => setSiteDesc(e.target.value)} rows={2}
                       placeholder="描述你的门户…"
                       className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">自定义域名 <span className="text-[9px] text-muted-foreground font-normal">(选填)</span></label>
+                    <input type="text" value={customDomain} onChange={(e) => setCustomDomain(e.target.value)}
+                      placeholder="如：portal.example.com"
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-muted-foreground mb-2">主题色</label>
