@@ -4597,7 +4597,8 @@ async function loadIntelData(){
 /* ===== RENDER SOURCE FILTERS ===== */
 function renderSourceFilters(monitors){
   var widgetSources=[];
-  monitors.forEach(function(mw,wi){
+  monitors.forEach(function(mw,monitorIdx){
+    var wi=WIDGETS.indexOf(mw);if(wi===-1)wi=monitorIdx;
     var srcs=mw.config&&mw.config.sources||mw.sources||[];
     srcs.forEach(function(src,si){widgetSources.push({widgetIndex:wi,sourceIndex:si,source:src})});
   });
@@ -4634,10 +4635,11 @@ function renderIntelFeed(data){
   data.forEach(function(item,i){
     var keywords=(item.keywords||[]).slice(0,3);
     var url=item.url||item.link||item.sourceUrl||item.href||'';
-    html+='<div class="intel-card">';
+    var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,\'_blank\')"':'';
+    html+='<div class="intel-card"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
     if(url){
-      html+='<a class="intel-card-title" href="'+escHtml(url)+'" target="_blank" rel="noopener">'+(item.title||'无标题')+'</a>';
+      html+='<span class="intel-card-title" style="color:var(--cyan);cursor:pointer">'+(item.title||'无标题')+'</span>';
     } else {
       html+='<span class="intel-card-title" style="cursor:default">'+(item.title||'无标题')+'</span>';
     }
