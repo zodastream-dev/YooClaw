@@ -4785,31 +4785,29 @@ function buildIntelSubFilters(monitors){
 function filterBySourceFromBtn(btn){
   var sourceName=btn.getAttribute('data-source');
   if(!sourceName)return;
-  filterBySource(sourceName, btn);
+  filterBySource(sourceName);
 }
-function filterBySource(sourceName, btn){
+function filterBySource(sourceName){
   if(sourceName==='全部'){
     currentSourceFilters=['全部'];
-    document.querySelectorAll('.subfilter-btn').forEach(function(b){b.classList.remove('active')});
-    if(btn)btn.classList.add('active');
-    renderIntelFeed(allIntelData);
-    return;
+  } else {
+    var allIdx=currentSourceFilters.indexOf('全部');
+    if(allIdx >= 0)currentSourceFilters.splice(allIdx,1);
+    var idx=currentSourceFilters.indexOf(sourceName);
+    if(idx >= 0){
+      currentSourceFilters.splice(idx,1);
+    }else{
+      currentSourceFilters.push(sourceName);
+    }
   }
-  var allIdx=currentSourceFilters.indexOf('全部');
-  if(allIdx >= 0)currentSourceFilters.splice(allIdx,1);
-  var idx=currentSourceFilters.indexOf(sourceName);
-  if(idx >= 0){
-    currentSourceFilters.splice(idx,1);
-    if(btn)btn.classList.remove('active');
-  }else{
-    currentSourceFilters.push(sourceName);
-    if(btn)btn.classList.add('active');
-  }
-  if(currentSourceFilters.length===0){
-    currentSourceFilters=['全部'];
-    document.querySelectorAll('.subfilter-btn').forEach(function(b){b.classList.remove('active')});
-    var firstBtn=document.querySelector('.subfilter-btn');
-    if(firstBtn)firstBtn.classList.add('active');
+  // Sync UI: set 'active' class based on currentSourceFilters
+  document.querySelectorAll('.subfilter-btn').forEach(function(b){
+    var sn=b.getAttribute('data-source');
+    if(!sn)return;
+    if(currentSourceFilters.indexOf(sn)>=0)b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  if(currentSourceFilters.length===0||currentSourceFilters[0]==='全部'){
     renderIntelFeed(allIntelData);
     return;
   }
