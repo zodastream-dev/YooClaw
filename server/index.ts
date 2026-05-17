@@ -288,6 +288,64 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title>${styleBlock}</head><body>${bodyContent}</body></html>`;
 }
 
+/** Convert markdown-like AI output to HTML (used when AI returns non-HTML content) */
+function markdownToHtml(markdown: string, title: string): string {
+  if (!markdown || !markdown.trim()) return '';
+  let text = mark
+down
+    .replace(/^### (.*$)/gm, '</section><section class="sub-section"><h3>$1</h3>')
+    .replace(/^## (.*$)/gm, '</section><section class="report-section"><h2>$1</h2>')
+    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+    .replace(/^\|(.+)\|$/gm, function(m: string) {
+      if (m.match(/^\|[-:\s|]+\|$/)) return '';
+      const cells = m.split('|').filter((c: string) => c.trim()).map((c: string) => `<td>${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .replace(/((?:<tr>.*<\/tr>\n?)+)/g, '<table>$1</table>')
+    .replace(/^---\s*$/gm, '<hr>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.*)/gm, '<li>$1</li>');
+
+  text = text.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="report-list">$1</ul>');
+  text = text.replace(/<\/section>\s*<section class="report-section">/g, '');
+  text = text.replace(/<\/section>\s*<section class="sub-section">/g, '');
+  const parts = text.split(/\n{2,}/);
+  text = parts.map((p: string) => {
+    p = p.trim();
+    if (!p) return '';
+    if (p.startsWith('<') && !p.startsWith('<br')) return p;
+    return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+  text = text.replace(/<\/?section[^>]*>/g, '');
+  text = text.replace(/(<table>.*?<\/table>)/gs, '$1');
+
+  return `<!DOCTYPE html><html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${title} - 行业分析报告</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Microsoft YaHei",sans-serif;background:#f8fafc;color:#333;line-height:1.8}
+.header{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;padding:40px 20px;text-align:center}
+.header h1{font-size:26px;font-weight:700;margin-bottom:6px}
+.content{max-width:900px;margin:0 auto;padding:24px 16px}
+.report-section{background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px}
+.report-section h2{font-size:20px;color:#1e40af;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #2563eb}
+.sub-section h3{font-size:16px;color:#2563eb;margin:16px 0 8px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e5e7eb}
+th{background:#f1f5f9;color:#1e40af;font-weight:600}
+tr:hover{background:#f8fafc}
+ul{margin:8px 0;padding-left:20px}
+li{margin:4px 0}
+p{margin:8px 0}
+</style>
+</head><body>
+<div class="header"><h1>${title}</h1><p>AI 生成行业分析报告</p></div>
+<div class="content">${text}</div>
+<div style="text-align:center;padding:20px;color:#888;font-size:13px">由 YooClaw AI 生成 · 不构成投资建议 | ${new Date().toISOString().slice(0,10)}</div>
+</body></html>`;
+}
+
 /** Clean up common CSS/HTML syntax mistakes that AI models tend to make */
 function fixAiCssErrors(html: string): string {
   let s = html;
@@ -334,10 +392,10 @@ function fixAiCssErrors(html: string): string {
 }
 
 // ========== Portal HTML Generator ==========
-function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, widgets?: any[]): string {
+function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, slug: string, widgets?: any[]): string {
   // Intel Station Layout (Three-Column Intelligence Workstation)
   if (template === 'intel-station') {
-    return generateIntelStationHtml(siteName, siteDesc, apiBase, widgets);
+    return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets);
   }
   
   const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
@@ -726,7 +784,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 </style>
 </head>
-<body data-template="business-blue">
+<body>
 <!-- ===== MODAL OVERLAY ===== -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
   <div class="modal-bg"></div>
@@ -3292,7 +3350,7 @@ app.post('/api/v1/runs/:runId/cancel', authMiddleware, async (req, res) => {
 app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
-    const { siteName, siteDesc, template, slug: customSlug } = req.body || {};
+    const { siteName, siteDesc, template, slug: customSlug, customDomain } = req.body || {};
 
     if (!siteName || typeof siteName !== 'string' || !siteName.trim()) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Site name is required' } });
@@ -3307,8 +3365,8 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
-    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'intel-station', apiBase, req.body.widgets);
-    const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal');
+    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'intel-station', apiBase, slug, req.body.widgets);
+    const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal', customDomain || '');
 
     res.status(201).json({
       data: {
@@ -3329,7 +3387,7 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
 app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
   try {
     const { userId } = (req as any).user as JwtPayload;
-    const { slug } = req.body || {};
+    const { slug, customDomain } = req.body || {};
 
     if (!slug || typeof slug !== 'string') {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Slug is required' } });
@@ -3354,8 +3412,9 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
         if (match) { widgets = JSON.parse(match[1]); }
       } catch (e) { /* keep empty */ }
     }
-    const htmlContent = generatePortalHtml(existing.title, '', 'intel-station', apiBase, widgets);
-    await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal');
+    const htmlContent = generatePortalHtml(existing.title, '', 'intel-station', apiBase, slug, widgets);
+    const cd = customDomain || (existing as any).custom_domain || '';
+    await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal', cd);
 
     res.json({
       data: {
@@ -3541,6 +3600,14 @@ ${userPrompt.replace('{company}', name).replace('{name}', name)}`
       }
     }
 
+    // 明确检查：如果 AI 返回为空，直接发 error
+    if (fullText.length === 0) {
+      console.error('[PubResearch] AI returned empty content for', name);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI 未返回内容，请稍后重试（可能是网络超时）' })}\n\n`);
+      res.end();
+      return;
+    }
+
     res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'research_complete', data: fullText })}\n\n`);
     res.end();
@@ -3651,11 +3718,26 @@ Remember: You are a code generator, not a chat assistant. Output ONLY HTML code.
       if (fullHtml.length === 0) throw e;
     }
 
+    // 明确检查：如果 AI 返回为空，直接发 error，避免"未获取到链接"
+    if (fullHtml.length === 0) {
+      console.error('[PubReport] AI returned empty content for', name);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI 未返回内容，请稍后重试（可能是网络超时）' })}\n\n`);
+      res.end();
+      return;
+    }
+
     res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
 
-    const finalHtml = cleanAiHtml(fullHtml, `${name} - 行业分析报告`);
+    // 如果 AI 返回了非 HTML 内容（markdown/纯文本），先转换为 HTML 再交给 cleanAiHtml
+    let preProcessed = fullHtml;
+    if (fullHtml.length > 0 && !/<[a-zA-Z]/.test(fullHtml)) {
+      console.log(`[PubReport] 未检测到 HTML 标签，先将 markdown 转为 HTML...`);
+      preProcessed = markdownToHtml(fullHtml, name);
+    }
+
+    const finalHtml = cleanAiHtml(preProcessed, `${name} - 行业分析报告`);
     
-    // If AI returned text/markdown instead of HTML, wrap in a professional page
+    // 如果 AI 返回 text/markdown instead of HTML, wrap in a professional page
     let displayHtml = finalHtml;
     if (!finalHtml.includes('<div') && !finalHtml.includes('<h1') && !finalHtml.includes('<p>') && !finalHtml.includes('<table')) {
       // Improved markdown-to-HTML conversion
@@ -3819,9 +3901,9 @@ app.post('/api/portal-intel', async (req, res) => {
         var _kw=_kwArr.join('、');
         var _sp=src.customPrompt||'你是一个专业的情报分析助手。';
         var _up='请搜索并整理关于【'+_kw+'】的最新资讯，列出最重要的10条。'+
-          '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)。'+
-          '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":""}]。'+
-          '4.仅输出JSON数组，不要任何其他文字。';
+          '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)、url(原始链接，如有)。'+
+          '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":"","url":""}]。'+
+          '4.如果无法提供真实url，url字段留空字符串。5.仅输出JSON数组，不要任何其他文字。';
         var _prompt={systemPrompt:_sp,userPrompt:_up};
         var _provider=src.aiProvider||'deepseek';
         var _apiKey=src.apiKey||(_provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
@@ -3844,6 +3926,8 @@ app.post('/api/portal-intel', async (req, res) => {
           var _content=_data.choices[0].message.content;
           _content=_content.replace('```json','').replace(/```/g,'').trim();
           try{_results=JSON.parse(_content)}catch(e){var _match=_content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);if(_match){try{_results=JSON.parse(_match[0])}catch(e2){}}else throw new Error('无法解析AI返回数据')}
+          // 确保每条结果都有 link 字段（用于前端卡片点击跳转）
+          _results=(_results||[]).map(function(r){return{title:r.title||'',summary:r.summary||'',source:r.source||'',date:r.date||r.time||'',link:r.url||r.link||'https://www.baidu.com/s?wd='+encodeURIComponent(r.title||'')};});
         }
         portalIntelCache.set(cacheKey, { data: _results, expiry: now + PORTAL_INTEL_CACHE_TTL });
         return { sourceIdx: idx, data: _results, fromCache: false };
@@ -3862,6 +3946,46 @@ app.post('/api/portal-intel', async (req, res) => {
     res.json({ success: true, results });
   } catch (err: any) {
     console.error('[PortalIntel Error]', err.message);
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// AI Chat endpoint for portal AI assistant
+app.post('/api/ai-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'AI service not configured' });
+    }
+    const chatHistory = Array.isArray(history) ? history.slice(-8) : [];
+    const messages = [
+      { role: 'system', content: '你是一个专业的行业分析AI助手。请用简洁、专业的中文回答用户的问题。回答应基于事实和数据，如果不能确定，请如实说明。' },
+      ...chatHistory,
+      { role: 'user', content: message }
+    ];
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    clearTimeout(timeout);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[AiChat Error]', response.status, errText.substring(0, 200));
+      return res.status(response.status).json({ error: 'AI service error' });
+    }
+    const data = await response.json();
+    const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，未能生成回复。';
+    res.json({ reply });
+  } catch (err: any) {
+    console.error('[AiChat Error]', err.message);
     res.status(500).json({ error: { message: err.message } });
   }
 });
@@ -3894,9 +4018,7 @@ app.post('/api/p/config/:slug', async (req, res) => {
     }
 
     const apiBase = process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
-    const templateMatch = site.html_content.match(/<body[^>]*data-template="([^"]+)"/);
-    const template = templateMatch ? templateMatch[1] : 'intel-station';
-    const htmlContent = generatePortalHtml(site.title, '', template, apiBase, widgets);
+    const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, slug, widgets);
     await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
 
     res.json({ data: { success: true, slug } });
@@ -4134,7 +4256,7 @@ process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
 process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
 
 // ========== Intel Station Portal Generator (Three-Column Layout) ==========
-function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: string, widgets?: any[]): string {
+function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: string, slug: string, widgets?: any[]): string {
   const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'intel-monitor', title: '情报监控', config: { sources: [] } }];
   const wlistJson = JSON.stringify(wlist).replace(/'/g, '\\x27');
@@ -4147,70 +4269,81 @@ function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: s
 <title>` + sn + `</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--cyan:#00d4ff;--purple:#a855f7;--bg-primary:#020617;--bg-secondary:#0f172a;--bg-card:rgba(15,23,42,0.6);--border:rgba(255,255,255,0.1);--text-primary:#e2e8f0;--text-secondary:#94a3b8}
+:root{--cyan:#00d4ff;--purple:#a855f7;--neon-blue:#00f0ff;--neon-purple:#d946ef;--neon-pink:#f472b6;--bg-primary:#020617;--bg-secondary:#0f172a;--bg-card:rgba(15,23,42,0.6);--border:rgba(255,255,255,0.1);--text-primary:#e2e8f0;--text-secondary:#94a3b8}
 html,body{height:100%}
-body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg-primary);color:var(--text-primary);display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg-primary);color:var(--text-primary);display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased;position:relative}
+body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse at 20% 50%,rgba(0,212,255,0.03) 0%,transparent 50%),radial-gradient(ellipse at 80% 50%,rgba(168,85,247,0.03) 0%,transparent 50%);pointer-events:none;z-index:0}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(0,212,255,0.3);border-radius:10px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(0,212,255,0.5)}
 
-/* ===== TOP BAR ===== */
-.top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:rgba(2,6,23,0.95);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);z-index:100;flex-shrink:0}
-.top-logo{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;color:var(--cyan)}
-.top-logo .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
-.top-status{display:flex;align-items:center;gap:16px}
-.status-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.6);animation:pulse 2s infinite}
+/* ===== NEON ANIMATIONS ===== */
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.2)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes neonScan{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@keyframes borderGlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+/* ===== TOP BAR ===== */
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:rgba(2,6,23,0.95);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);z-index:100;flex-shrink:0;box-shadow:0 2px 20px rgba(0,0,0,0.3),0 1px 0 rgba(0,212,255,0.05);position:relative;overflow:hidden}
+.top-bar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.4),rgba(168,85,247,0.4),rgba(0,212,255,0.4),transparent);animation:neonScan 4s linear infinite;pointer-events:none}
+.top-logo{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;color:var(--cyan)}
+.top-logo .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 16px rgba(0,212,255,0.3),0 0 32px rgba(168,85,247,0.2);position:relative;overflow:hidden}
+.top-logo .logo-icon::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,0.2) 50%,transparent 60%);animation:neonScan 2s linear infinite}
+.top-status{display:flex;align-items:center;gap:16px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.6),0 0 16px rgba(16,185,129,0.3);animation:pulse 2s infinite}
 .status-text{font-size:12px;color:var(--text-secondary)}
 .top-tabs{display:flex;gap:4px}
 .tab-btn{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit}
-.tab-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan)}
-.tab-btn.active{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));border-color:rgba(0,212,255,0.4);color:var(--cyan)}
+.tab-btn:hover{border-color:rgba(0,212,255,0.4);color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,0.12),inset 0 1px 0 rgba(255,255,255,0.03)}
+.tab-btn.active{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));border-color:rgba(0,212,255,0.5);color:var(--cyan);box-shadow:0 0 16px rgba(0,212,255,0.15),0 0 8px rgba(168,85,247,0.1),inset 0 1px 0 rgba(255,255,255,0.05)}
 .top-actions{display:flex;gap:8px}
-.btn-deploy{padding:8px 18px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;border-radius:8px;color:#020617;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit;letter-spacing:0.3px}
-.btn-deploy:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,212,255,0.3)}
+.btn-deploy{padding:8px 18px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;border-radius:8px;color:#020617;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit;letter-spacing:0.3px;box-shadow:0 0 12px rgba(0,212,255,0.2)}
+.btn-deploy:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,0.3),0 0 30px rgba(168,85,247,0.2)}
 
 /* ===== MAIN LAYOUT ===== */
-.main-layout{display:grid;grid-template-columns:320px 1fr 340px;flex:1;overflow:hidden}
+.main-layout{display:grid;grid-template-columns:320px 1fr 340px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right";flex:1;overflow:hidden;position:relative;z-index:1}
+.main-layout::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(0,212,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.02) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0}
 
-/* ===== LEFT COLUMN - Filter ===== */
-.left-col{background:var(--bg-secondary);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.left-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
-.left-header h3{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.5px}
+/* ===== LEFT COLUMN - Source Cards ===== */
+.left-col{grid-area:left;background:var(--bg-secondary);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;box-shadow:inset -1px 0 0 var(--border),2px 0 10px rgba(0,0,0,0.1)}
+.left-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:space-between}
+.left-header::after{content:'';position:absolute;bottom:-1px;left:0;width:60px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:1px}
+.left-header h3{font-size:13px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px}
 .source-groups{flex:1;overflow-y:auto;padding:12px}
-.source-group{margin-bottom:16px}
-.source-group-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s;user-select:none}
-.source-group-header:hover{border-color:rgba(0,212,255,0.3)}
-.sg-title{font-size:12px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:8px}
-.sg-count{font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,212,255,0.15);color:var(--cyan);font-weight:600}
-.source-group-body{padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.source-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:all .3s;background:var(--bg-card);aspect-ratio:1/0.85;text-align:center;gap:6px;box-shadow:0 0 12px rgba(0,212,255,0.04),0 2px 8px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.04)}
-.source-card:hover{border-color:rgba(0,212,255,0.35);box-shadow:0 0 20px rgba(0,212,255,0.1),0 0 35px rgba(168,85,247,0.06),0 6px 20px rgba(0,0,0,0.25);transform:translateY(-2px)}
-.source-card.active{background:rgba(0,212,255,0.1);border-color:rgba(0,212,255,0.4);box-shadow:0 0 20px rgba(0,212,255,0.12)}
-.source-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-bottom:2px}
-.source-icon.type-news{background:rgba(0,212,255,0.15);color:var(--cyan);box-shadow:0 0 8px rgba(0,212,255,0.15)}
-.source-icon.type-social{background:rgba(168,85,247,0.15);color:var(--purple);box-shadow:0 0 8px rgba(168,85,247,0.15)}
-.source-icon.type-financial{background:rgba(16,185,129,0.15);color:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.15)}
-.source-info{display:flex;flex-direction:column;align-items:center;gap:2px}
-.source-name{font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.sc-big-num{font-size:26px;font-weight:800;color:var(--cyan);line-height:1;text-shadow:0 0 12px rgba(0,212,255,0.25)}
-.source-meta{font-size:9px;color:var(--text-secondary)}
-.source-badge{font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text-secondary)}
-.add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:8px}
-.add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05)}
+.source-card{display:flex;align-items:flex-start;gap:10px;padding:12px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .25s;background:rgba(15,23,42,0.4);position:relative;overflow:hidden}
+.source-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.15),transparent);opacity:0;transition:opacity .25s}
+.source-card:hover{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.05);box-shadow:0 0 16px rgba(0,212,255,0.1),inset 0 1px 0 rgba(255,255,255,0.03);transform:translateX(2px)}
+.source-card:hover::before{opacity:1}
+.source-card.active{border-color:rgba(0,212,255,0.5);background:rgba(0,212,255,0.08);box-shadow:0 0 20px rgba(0,212,255,0.15),0 0 8px rgba(168,85,247,0.08)}
+.source-card .sc-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:rgba(0,212,255,0.1);box-shadow:0 0 8px rgba(0,212,255,0.08)}
+.source-card .sc-body{flex:1;min-width:0}
+.source-card .sc-name{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.source-card .sc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.source-card .sc-provider{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(0,212,255,0.12);color:var(--cyan)}
+.source-card .sc-provider.metaso{background:rgba(168,85,247,0.12);color:var(--purple)}
+.source-card .sc-kwcount{font-size:10px;color:var(--text-secondary)}
+.source-card .sc-freq{font-size:10px;color:var(--text-secondary)}
+.source-card .sc-edit{font-size:16px;color:var(--text-secondary);opacity:0;transition:opacity .2s;flex-shrink:0}
+.source-card:hover .sc-edit{opacity:1}
+.add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:10px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:4px}
+.add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.05)}
 
 /* ===== CENTER COLUMN - Intel Feed ===== */
-.center-col{display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}
-.center-header{padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
-.center-header h2{font-size:15px;font-weight:700;color:var(--text-primary)}
+.center-col{grid-area:center;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}
+.center-header{padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;position:relative}
+.center-header::after{content:'';position:absolute;bottom:-1px;left:0;width:80px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:1px}
+.center-header h2{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
-.intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all .3s;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 0 15px rgba(0,212,255,0.05),0 4px 12px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.04)}
+.intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all .3s;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
 .intel-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:background .3s}
-.intel-card:hover{border-color:rgba(0,212,255,0.35);transform:translateX(3px);box-shadow:0 0 25px rgba(0,212,255,0.1),0 0 40px rgba(168,85,247,0.06),0 8px 24px rgba(0,0,0,0.25)}
-.intel-card:hover::before{background:var(--cyan)}
+.intel-card::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.4),rgba(168,85,247,0.4),transparent);opacity:0;transition:opacity .3s}
+.intel-card:hover{border-color:rgba(0,212,255,0.5);transform:translateX(3px);box-shadow:0 4px 24px rgba(0,212,255,0.12),0 0 24px rgba(168,85,247,0.1),inset 0 1px 0 rgba(255,255,255,0.04)}
+.intel-card:hover::before{background:linear-gradient(180deg,var(--cyan),var(--purple))}
+.intel-card:hover::after{opacity:1}
 .intel-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
-.intel-card-title{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.5;flex:1;padding-right:12px}
+.intel-card-title{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.5;flex:1;padding-right:12px;text-decoration:none;transition:color .2s}
+.intel-card-title:hover{color:var(--cyan);text-decoration:none}
 .intel-card-source{font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(0,212,255,0.1);color:var(--cyan);white-space:nowrap;flex-shrink:0}
 .intel-card-summary{font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px}
 .intel-card-footer{display:flex;align-items:center;justify-content:space-between}
@@ -4219,138 +4352,149 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
 .intel-card-time{font-size:10px;color:var(--text-secondary)}
 .intel-loading{text-align:center;padding:40px;color:var(--text-secondary);font-size:13px}
 .intel-loading .spinner{display:inline-block;width:20px;height:20px;border:2px solid rgba(0,212,255,0.3);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:10px;vertical-align:middle}
-@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== CENTER TABS ===== */
+.center-tabs{display:flex;gap:2px;background:rgba(15,23,42,0.4);border-radius:10px;padding:3px;border:1px solid var(--border)}
+.ct-tab{padding:6px 18px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:all .25s;white-space:nowrap;font-family:inherit;background:transparent;border:none}
+.ct-tab:hover{color:var(--cyan);background:rgba(0,212,255,0.06)}
+.ct-tab.active{color:var(--cyan);background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.12));box-shadow:0 0 12px rgba(0,212,255,0.1),inset 0 1px 0 rgba(255,255,255,0.05);font-weight:600}
+/* ===== REPORT FEED ===== */
+.report-feed{flex:1;overflow-y:auto;padding:16px 24px}
+.report-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.report-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#10b981,#34d399);transition:all .3s}
+.report-card:hover{border-color:rgba(16,185,129,0.4);transform:translateX(3px);box-shadow:0 4px 24px rgba(16,185,129,0.12),0 0 24px rgba(52,211,153,0.08),inset 0 1px 0 rgba(255,255,255,0.04)}
+.report-card-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:linear-gradient(135deg,rgba(16,185,129,0.14),rgba(52,211,153,0.06));box-shadow:0 0 10px rgba(16,185,129,0.12)}
+.report-card-body{flex:1;min-width:0}
+.report-card-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.report-card-meta{display:flex;align-items:center;gap:10px}
+.report-card-date{font-size:10px;color:var(--text-secondary)}
+.report-card-tag{font-size:9px;padding:2px 8px;border-radius:4px;background:rgba(16,185,129,0.1);color:#34d399}
+/* ===== AI CHAT ===== */
+.ai-chat{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.ai-chat-messages{flex:1;overflow-y:auto;padding:16px 24px}
+.ai-msg{margin-bottom:12px;max-width:85%;line-height:1.6}
+.ai-msg-user{display:flex;justify-content:flex-end}
+.ai-msg-user>div{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;padding:10px 14px;border-radius:14px 14px 4px 14px;font-size:13px;font-weight:500;box-shadow:0 2px 12px rgba(0,212,255,0.15)}
+.ai-msg-bot{background:rgba(15,23,42,0.6);border:1px solid var(--border);padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;color:var(--text-secondary)}
+.ai-chat-input-area{display:flex;align-items:center;gap:8px;padding:12px 24px;border-top:1px solid var(--border);background:rgba(2,6,23,0.6);flex-shrink:0}
+.ai-chat-input{flex:1;padding:8px 14px;background:rgba(15,23,42,0.6);border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-size:13px;outline:none;font-family:inherit}
+.ai-chat-input:focus{border-color:var(--cyan)}
+.ai-chat-input-area .cmd-btn.send{width:34px;height:34px}
+/* Report card inner layout */
+.report-card-inner{display:flex;align-items:center;gap:12px}
+.no-data-msg{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:13px;line-height:1.8}
 
 /* ===== RIGHT COLUMN - Dashboard ===== */
-.right-col{background:var(--bg-secondary);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.right-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
-.right-header h3{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.5px}
+.right-col{grid-area:right;background:var(--bg-secondary);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;box-shadow:inset 1px 0 0 var(--border),-2px 0 10px rgba(0,0,0,0.1)}
+.right-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
+.right-header::after{content:'';position:absolute;bottom:-1px;left:0;width:60px;height:2px;background:linear-gradient(90deg,var(--purple),var(--cyan));border-radius:1px}
+.right-header h3{font-size:13px;font-weight:700;background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px}
 .dashboard-content{flex:1;overflow-y:auto;padding:16px 18px}
-.dashboard-section{margin-bottom:20px}
+.dashboard-section{margin-bottom:20px;position:relative;background:rgba(15,23,42,0.4);border:1px solid var(--border);border-radius:12px;padding:14px;transition:all .3s}
+.dashboard-section:hover{border-color:rgba(0,212,255,0.2);box-shadow:0 0 16px rgba(0,212,255,0.05)}
+.dashboard-section::before{content:'';position:absolute;top:-1px;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.2),rgba(168,85,247,0.2),transparent)}
 .dashboard-section h4{font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;letter-spacing:0.5px;text-transform:uppercase}
 /* Sentiment Gauge */
-.sentiment-gauge{position:relative;width:120px;height:60px;margin:0 auto 12px}
-.sentiment-label{text-align:center;font-size:11px;color:var(--text-secondary);margin-top:4px}
+.sentiment-gauge{position:relative;width:100%;max-width:260px;height:160px;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.sentiment-gauge canvas{display:block;max-width:100%;height:auto}
+.sentiment-label{font-size:16px;font-weight:700;color:rgba(255,255,255,0.9);text-shadow:0 0 16px rgba(0,212,255,0.3);margin-top:4px;text-align:center}
 /* Keyword Cloud */
 .keyword-cloud{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
-.kw-cloud-item{font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(0,212,255,0.08);color:var(--cyan);border:1px solid rgba(0,212,255,0.2);transition:all .3s;cursor:default}
-.kw-cloud-item:hover{transform:scale(1.1);background:rgba(0,212,255,0.15)}
-.kw-cloud-item.important{font-size:13px;font-weight:600;background:rgba(168,85,247,0.15);color:var(--purple);border-color:rgba(168,85,247,0.3)}
+.kw-cloud-item{font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(0,212,255,0.08);color:var(--cyan);border:1px solid rgba(0,212,255,0.2);transition:all .3s;cursor:default;box-shadow:0 0 6px rgba(0,212,255,0.1)}
+.kw-cloud-item:hover{transform:scale(1.1);background:rgba(0,212,255,0.15);box-shadow:0 0 16px rgba(0,212,255,0.25),0 0 8px rgba(0,212,255,0.15)}
+.kw-cloud-item.important{font-size:13px;font-weight:600;background:rgba(168,85,247,0.15);color:var(--purple);border-color:rgba(168,85,247,0.35);box-shadow:0 0 10px rgba(168,85,247,0.2)}
+.kw-cloud-item.important:hover{box-shadow:0 0 20px rgba(168,85,247,0.3),0 0 10px rgba(168,85,247,0.2)}
 /* KPI Trend */
-.kpi-trend{position:relative;height:100px;margin-bottom:12px}
+.kpi-trend{position:relative;height:100px;margin-bottom:12px;overflow:hidden}
+.kpi-trend canvas{display:block;width:100%!important;height:100px}
 /* AI Briefing */
-.ai-briefing{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;box-shadow:0 0 15px rgba(0,212,255,0.06),0 4px 12px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.04);transition:all .3s}
-.ai-briefing:hover{box-shadow:0 0 25px rgba(0,212,255,0.1),0 0 40px rgba(168,85,247,0.06),0 8px 24px rgba(0,0,0,0.2)}
+.ai-briefing{background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;box-shadow:0 0 16px rgba(0,212,255,0.06),inset 0 1px 0 rgba(255,255,255,0.03);position:relative;overflow:hidden}
+.ai-briefing::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.3),rgba(168,85,247,0.3),transparent)}
 .ai-briefing-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.ai-briefing-header .ai-icon{width:24px;height:24px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px}
-.ai-briefing-header .ai-title{font-size:12px;font-weight:600;color:var(--text-primary)}
+.ai-briefing-header .ai-icon{width:24px;height:24px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 0 12px rgba(0,212,255,0.25),0 0 20px rgba(168,85,247,0.15)}
+.ai-briefing-header .ai-title{font-size:12px;font-weight:600;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .briefing-text{font-size:11px;color:var(--text-secondary);line-height:1.6}
 .briefing-text p{margin-bottom:6px}
 
 /* ===== BOTTOM BAR - AI Command Center ===== */
-.bottom-bar{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 24px;background:rgba(2,6,23,0.95);border-top:1px solid var(--border);backdrop-filter:blur(16px);flex-shrink:0;position:relative}
-.bottom-bar::before{content:'';position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.3),rgba(168,85,247,0.3),transparent)}
-.cmd-wrapper{display:flex;align-items:center;gap:12px;width:100%;max-width:900px;margin:0 auto}
-.cmd-input{flex:1;padding:10px 16px;border:1px solid rgba(0,212,255,0.25);border-radius:10px;background:rgba(255,255,255,0.03);color:var(--text-primary);font-size:13px;outline:none;transition:all .2s;font-family:inherit;box-shadow:0 0 15px rgba(0,212,255,0.08),inset 0 1px 0 rgba(255,255,255,0.05)}
-.cmd-input:focus{border-color:rgba(0,212,255,0.5);background:rgba(0,212,255,0.04);box-shadow:0 0 25px rgba(0,212,255,0.15),0 0 50px rgba(168,85,247,0.08)}
-.cmd-input::placeholder{color:var(--text-secondary)}
-.cmd-btn{width:40px;height:40px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
-.cmd-btn.mic{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan);box-shadow:0 0 10px rgba(0,212,255,0.1)}
-.cmd-btn.mic:hover{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(168,85,247,0.25));transform:scale(1.05);box-shadow:0 0 18px rgba(0,212,255,0.2)}
-.cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700;box-shadow:0 0 12px rgba(0,212,255,0.2)}
-.cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 16px rgba(0,212,255,0.4),0 0 25px rgba(0,212,255,0.2)}
+.bottom-bar{grid-area:bottom;display:flex;align-items:center;justify-content:center;gap:0;padding:10px 24px 8px;background:rgba(2,6,23,0.98);border-top:1px solid var(--border);backdrop-filter:blur(20px);flex-shrink:0;position:relative;overflow:hidden;flex-direction:column}
+.bottom-bar::before{content:'';position:absolute;inset:0;border-radius:0;background:linear-gradient(135deg,rgba(0,212,255,0.06),rgba(168,85,247,0.06));pointer-events:none;z-index:0}
+.cmd-outer{position:relative;width:100%;max-width:600px;padding:2px;border-radius:30px;background:linear-gradient(135deg,#00d4ff,#a855f7,#00d4ff);background-size:200% 200%;animation:borderGlow 3s ease infinite;box-shadow:0 0 20px rgba(0,212,255,0.15),0 0 40px rgba(168,85,247,0.1);z-index:1;transition:all .3s}
+.cmd-outer:focus-within{background:linear-gradient(135deg,#00f0ff,#d946ef,#00f0ff);background-size:200% 200%;animation:borderGlow 2s ease infinite;box-shadow:0 0 30px rgba(0,212,255,0.25),0 0 60px rgba(168,85,247,0.15),0 0 100px rgba(0,212,255,0.08)}
+.cmd-wrapper{display:flex;align-items:center;gap:8px;width:100%;padding:4px 8px 4px 16px;background:linear-gradient(135deg,rgba(0,212,255,0.06),rgba(168,85,247,0.06));border-radius:28px;position:relative;z-index:1;transition:all .3s}
+.cmd-wrapper:focus-within{background:linear-gradient(135deg,rgba(0,212,255,0.1),rgba(168,85,247,0.1))}
+.cmd-label{display:none}
+.cmd-input{flex:1;padding:6px 12px;border:none;background:transparent;color:var(--text-primary);font-size:13px;outline:none;font-family:inherit;min-width:0}
+.cmd-input::placeholder{color:rgba(255,255,255,0.65);font-size:13px;font-weight:400}
+.cmd-input:focus{outline:none}
+.cmd-btn{width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .2s;flex-shrink:0}
+.cmd-btn.mic{background:rgba(255,255,255,0.08);color:#ffffff}
+.cmd-btn.mic:hover{background:rgba(0,212,255,0.2);color:#ffffff}
+.cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700;box-shadow:0 2px 12px rgba(0,212,255,0.3)}
+.cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 20px rgba(0,212,255,0.4),0 0 30px rgba(168,85,247,0.25)}
+.cmd-hint{font-size:13px;color:rgba(255,255,255,0.35);margin-top:5px;text-align:center;letter-spacing:0.3px}
 
-/* ===== MODAL (Dark Theme) ===== */
+/* ===== MODAL ===== */
 .modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
 .modal-overlay.open{opacity:1;pointer-events:auto}
-.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px)}
-.modal-panel{position:relative;width:100%;max-width:600px;max-height:88vh;background:#0f172a;border:1px solid rgba(0,212,255,0.2);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,.5),0 0 40px rgba(0,212,255,0.08)}
+.modal-bg{position:absolute;inset:0;background:rgba(2,6,23,0.85);backdrop-filter:blur(8px)}
+.modal-panel{position:relative;width:100%;max-width:560px;max-height:88vh;background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(255,255,255,0.12);border-top:3px solid var(--cyan);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,0.6),0 0 40px rgba(0,212,255,0.1)}
 .modal-overlay.open .modal-panel{transform:scale(1) translateY(0)}
-.modal-hd{display:flex;align-items:center;gap:14px;padding:20px 22px;border-bottom:1px solid var(--border);flex-shrink:0}
-.modal-hd .mh-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:linear-gradient(135deg,rgba(0,212,255,.14),rgba(168,85,247,.06));color:var(--cyan)}
-.modal-hd .mh-info{flex:1;min-width:0}
-.modal-hd .mh-title{font-size:16px;font-weight:700;color:var(--text-primary);letter-spacing:-.2px}
-.modal-hd .mh-sub{font-size:11px;color:var(--text-secondary);margin-top:3px}
-.modal-close{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-size:17px;line-height:1}
-.modal-close:hover{background:rgba(255,255,255,.08);color:var(--text-primary);border-color:rgba(255,255,255,.15);transform:rotate(90deg)}
-.modal-bd{flex:1;overflow-y:auto;padding:20px 22px 22px;scroll-behavior:smooth}
-.modal-bd::-webkit-scrollbar{width:5px}
-.modal-bd::-webkit-scrollbar-thumb{background:rgba(0,212,255,0.3);border-radius:10px}
-.modal-ft{padding:16px 22px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:10px}
-.modal-ft button{flex:1;padding:11px 16px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;letter-spacing:0}
-.btn-save{color:#fff;background:linear-gradient(135deg,var(--cyan),var(--purple))}
-.btn-save:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,212,255,0.3)}
-.btn-cancel{background:rgba(255,255,255,.03);color:var(--text-secondary);border:1px solid var(--border)}
-.btn-cancel:hover{background:rgba(255,255,255,.06);color:var(--text-primary)}
-/* Modal form elements (dark) */
-.mb-group{margin-bottom:18px}
-.mb-group:last-child{margin-bottom:0}
-.mb-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:7px;letter-spacing:.3px}
-.mb-input,.mb-select{width:100%;padding:10px 14px;font-size:13px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.03);color:var(--text-primary);outline:none;transition:all .25s;font-family:inherit}
-.mb-input:focus,.mb-select:focus{border-color:rgba(0,212,255,0.4);box-shadow:0 0 0 3px rgba(0,212,255,0.1)}
-.mb-area{width:100%;padding:10px 14px;font-size:12px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.03);color:var(--text-primary);outline:none;transition:all .25s;resize:vertical;font-family:inherit;min-height:60px;line-height:1.7}
-.mb-area:focus{border-color:rgba(0,212,255,0.4);box-shadow:0 0 0 3px rgba(0,212,255,0.1)}
-.mb-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.src-mini{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .2s}
+.modal-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.mh-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:rgba(0,212,255,0.12);box-shadow:0 0 12px rgba(0,212,255,0.1)}
+.mh-info{flex:1;min-width:0}
+.mh-title{font-size:14px;font-weight:700;color:var(--text-primary)}
+.mh-sub{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.modal-close{width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:var(--text-secondary);font-size:20px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.modal-close:hover{background:rgba(239,68,68,0.15);color:#ef4444}
+.modal-bd{flex:1;overflow-y:auto;padding:20px}
+.modal-ft{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0}
+.btn-cancel{padding:8px 18px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit}
+.btn-cancel:hover{border-color:rgba(255,255,255,0.2);color:var(--text-primary)}
+.btn-save{padding:8px 18px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;cursor:pointer;font-size:12px;font-weight:700;transition:all .2s;font-family:inherit;box-shadow:0 0 12px rgba(0,212,255,0.2)}
+.btn-save:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,212,255,0.3),0 0 20px rgba(168,85,247,0.2)}
+.btn-save:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none}
+/* Modal Form Fields */
+.mb-group{margin-bottom:14px}
+.mb-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
+.mb-label span{font-weight:400;color:var(--text-secondary);opacity:0.6}
+.mb-input{width:100%;padding:8px 12px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:inherit;transition:border .2s}
+.mb-input:focus{border-color:var(--cyan)}
+.mb-select{width:100%;padding:8px 12px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:inherit;transition:border .2s;cursor:pointer}
+.mb-select:focus{border-color:var(--cyan)}
+.mb-area{width:100%;padding:8px 12px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:inherit;transition:border .2s;resize:vertical}
+.mb-area:focus{border-color:var(--cyan)}
+.mb-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Keyword Tags in Modal */
+.kw-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.kw-t{display:flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);border-radius:10px;font-size:11px;color:var(--cyan);box-shadow:0 0 6px rgba(0,212,255,0.05)}
+.kw-x{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:13px;padding:0 2px;transition:color .2s}
+.kw-x:hover{color:#ef4444}
+.kw-add-row{display:flex;gap:6px}
+.kw-add-input{flex:1;padding:6px 10px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:11px;outline:none;font-family:inherit;transition:border .2s}
+.kw-add-input:focus{border-color:var(--cyan)}
+.kw-add-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:rgba(0,212,255,0.05);color:var(--cyan);cursor:pointer;font-size:14px;font-weight:700;transition:all .2s}
+.kw-add-btn:hover{background:rgba(0,212,255,0.15);border-color:rgba(0,212,255,0.3)}
+/* Delete source button */
+.src-del{font-size:11px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:4px;transition:all .2s}
+.src-del:hover{color:#ef4444;background:rgba(239,68,68,0.1)}
+.btn-add-src{width:100%;margin-top:8px;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--cyan);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;font-family:inherit}
+.btn-add-src:hover{border-color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.08)}
+
+/* Source Row Header */
+.src-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.st-name-input{flex:1;padding:6px 10px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;font-weight:600;outline:none;font-family:inherit;transition:border .2s}
+.st-name-input:focus{border-color:var(--cyan)}
+.src-mini{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:rgba(15,23,42,0.3);transition:border .2s}
 .src-mini:hover{border-color:rgba(0,212,255,0.2)}
-.src-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.st-name-input{font-size:14px;font-weight:700;border:1px solid transparent;background:transparent;padding:4px 8px;border-radius:6px;width:100%;transition:all .2s;color:var(--text-primary)}
-.st-name-input:focus{border-color:rgba(0,212,255,0.3);background:rgba(255,255,255,0.05);outline:none;box-shadow:0 0 0 3px rgba(0,212,255,0.08)}
-.src-del{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#94a3b8;font-size:14px;transition:all .2s;flex-shrink:0}
-.src-del:hover{background:rgba(226,75,74,.1);color:#e24b4a}
-.kw-tags{display:flex;flex-wrap:wrap;gap:5px}
-.kw-t{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(0,212,255,.08);color:var(--cyan);border:1px solid rgba(0,212,255,.15);transition:all .2s}
-.kw-t:hover{background:rgba(0,212,255,.15);transform:translateY(-1px)}
-.kw-x{width:14px;height:14px;border-radius:50%;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;margin-left:2px}
-.kw-x:hover{background:rgba(226,75,74,.15);color:#e24b4a}
-.kw-add-row{display:flex;gap:6px;margin-top:8px}
-.kw-add-input{flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.03);color:var(--text-primary);font-size:12px;outline:none;font-family:inherit}
-.kw-add-input:focus{border-color:rgba(0,212,255,0.3);box-shadow:0 0 0 3px rgba(0,212,255,0.08)}
-.kw-add-btn{padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.03);color:var(--cyan);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s}
-.kw-add-btn:hover{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,0.3)}
-.btn-add-src{width:100%;margin-top:8px;padding:10px;border:1px dashed var(--border);border-radius:9px;background:none;color:var(--cyan);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}
-.btn-add-src:hover{border-color:rgba(0,212,255,0.3);background:rgba(0,212,255,.05)}
-/* Report cards in modal */
-.rpt-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;padding:0}
-.rpt-card{position:relative;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:12px;padding:18px 20px;cursor:pointer;transition:all .25s;overflow:hidden}
-.rpt-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);border-color:rgba(16,185,129,0.4)}
-.rpt-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#10b981,#34d399);opacity:0;transition:opacity .25s}
-.rpt-card:hover::before{opacity:1}
-.rpt-card .rpt-company{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px}
-.rpt-card .rpt-date{font-size:11px;color:var(--text-secondary);margin-bottom:12px}
-.rpt-card .rpt-actions{display:flex;gap:10px;align-items:center}
-.rpt-card .rpt-view{font-size:12px;font-weight:600;color:#10b981;text-decoration:none;border:1px solid rgba(16,185,129,0.3);padding:6px 14px;border-radius:7px;transition:all .2s}
-.rpt-card .rpt-view:hover{background:rgba(16,185,129,0.1);color:#34d399}
-.rpt-card .rpt-delete{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s}
-.rpt-card .rpt-delete:hover{background:rgba(226,75,74,.1);color:#e24b4a}
 
 /* ===== RESPONSIVE ===== */
-@media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px}}
-@media(max-width:1024px){.main-layout{grid-template-columns:1fr;height:100%}.left-col,.right-col{display:none}}
+@media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right"}}
+@media(max-width:1024px){.main-layout{grid-template-columns:1fr;height:100%;grid-template-rows:1fr auto;grid-template-areas:"center""bottom"}.left-col,.right-col{display:none}}
 @media(max-width:768px){.top-bar{padding:10px 16px}.center-header{padding:12px 16px}.intel-feed{padding:12px 16px}}
 </style>
 </head>
-<body data-template="intel-station">
-<!-- ===== MODAL OVERLAY ===== -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
-  <div class="modal-bg"></div>
-  <div class="modal-panel" id="modalPanel" onclick="event.stopPropagation()">
-    <div class="modal-hd">
-      <div class="mh-icon" id="modalIcon"></div>
-      <div class="mh-info">
-        <div class="mh-title" id="modalTitle"></div>
-        <div class="mh-sub" id="modalSub"></div>
-      </div>
-      <button class="modal-close" onclick="closeModalDirect()">&times;</button>
-    </div>
-    <div class="modal-bd" id="modalBody"></div>
-    <div class="modal-ft" id="modalFooter">
-      <button class="btn-cancel" onclick="closeModalDirect()">取消</button>
-      <button class="btn-save" id="btnSave" onclick="closeModalDirect()">保存配置</button>
-    </div>
-  </div>
-</div>
-
+<body>
 <!-- ===== TOP BAR ===== -->
 <div class="top-bar">
   <div class="top-logo">
@@ -4377,31 +4521,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
   <!-- Left Column - Filter -->
   <div class="left-col">
     <div class="left-header">
-      <h3>&#x1F4E1; 情报过滤器</h3>
+      <h3>&#x1F6F0; 监控源</h3>
     </div>
     <div class="source-groups" id="sourceGroups">
       <!-- Dynamic content -->
-    </div>
-    <!-- My Reports Card -->
-    <div style="padding:12px;border-top:1px solid var(--border)">
-      <div class="source-card my-reports-card" onclick="openReportList()">
-        <div class="source-icon" style="background:rgba(16,185,129,0.15);color:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.15)">&#x1F4CB;</div>
-        <div class="sc-big-num" id="myReportsCount" style="color:#10b981;text-shadow:0 0 12px rgba(16,185,129,0.25)">-</div>
-        <div class="source-name">我的报告</div>
-        <div class="source-meta">查看分析报告</div>
-      </div>
     </div>
   </div>
 
   <!-- Center Column - Intel Feed -->
   <div class="center-col">
     <div class="center-header">
-      <h2>&#x1F4CA; 动态情报流</h2>
+      <div class="center-tabs" id="centerTabs">
+        <span class="ct-tab active" onclick="switchCenterTab('intel')">&#x1F4CA; 动态情报流</span>
+        <span class="ct-tab" onclick="switchCenterTab('reports')">&#x1F4C8; 行业分析报告</span>
+        <span class="ct-tab" onclick="switchCenterTab('ai')">&#x1F916; AI助手</span>
+      </div>
       <span class="status-text" id="feedStatus">加载中...</span>
     </div>
     <div class="intel-feed" id="intelFeed">
       <div class="intel-loading" id="intelLoading">
         <div class="spinner"></div>正在获取情报数据...
+      </div>
+    </div>
+    <div class="report-feed" id="reportFeed" style="display:none">
+      <div class="intel-loading" id="reportLoading">
+        <div class="spinner"></div>加载报告中...
+      </div>
+    </div>
+    <div class="ai-chat" id="aiChat" style="display:none">
+      <div class="ai-chat-messages" id="aiChatMessages">
+        <div class="ai-msg ai-msg-bot">&#x1F44B; 你好！我是AI助手，可以帮你分析行业趋势、解读情报数据、回答相关问题。请随时向我提问。</div>
+      </div>
+      <div class="ai-chat-input-area">
+        <input class="ai-chat-input" id="aiChatInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter'){sendAiMessage()}">
+        <button class="cmd-btn send" onclick="sendAiMessage()">&#x27A4;</button>
       </div>
     </div>
   </div>
@@ -4414,11 +4567,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
     <div class="dashboard-content" id="dashboardContent">
       <!-- Sentiment Gauge -->
       <div class="dashboard-section">
-        <h4>&#x1F4C8; 情感分析</h4>
+        <h4>&#x1F4C8; 情绪分析</h4>
         <div class="sentiment-gauge">
-          <canvas id="sentimentCanvas" width="240" height="120"></canvas>
+          <canvas id="sentimentCanvas" width="260" height="130"></canvas>
+          <div class="sentiment-label" id="sentimentLabel">中性 52%</div>
         </div>
-        <div class="sentiment-label" id="sentimentLabel">中性 52%</div>
       </div>
       <!-- Keyword Cloud -->
       <div class="dashboard-section">
@@ -4429,7 +4582,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
       </div>
       <!-- KPI Trend -->
       <div class="dashboard-section">
-        <h4>&#x1F4C9; KPI 趋势</h4>
+        <h4>&#x1F4C9; 关注度趋势</h4>
         <div class="kpi-trend">
           <canvas id="kpiCanvas" width="300" height="100"></canvas>
         </div>
@@ -4449,20 +4602,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC
       </div>
     </div>
   </div>
+
+  <!-- ===== BOTTOM BAR - AI Command Center ===== -->
+  <div class="bottom-bar">
+    <div class="cmd-outer">
+      <div class="cmd-wrapper">
+        <input class="cmd-input" id="cmdInput" placeholder="请在这里提问或给我指令" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCommand()}">
+        <button class="cmd-btn mic" onclick="toggleMic()">&#x1F399;</button>
+        <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
+      </div>
+    </div>
+    <div class="cmd-hint">你可以问AI：给我总结一下今天所有的最新情报</div>
+  </div>
 </div>
 
-<!-- ===== BOTTOM BAR - AI Command Center ===== -->
-<div class="bottom-bar">
-  <div class="cmd-wrapper">
-    <input class="cmd-input" id="cmdInput" placeholder="输入指令或问题... (Enter 发送)" onkeydown="if(event.key==='Enter'){event.preventDefault();sendCommand()}">
-    <button class="cmd-btn mic" onclick="toggleMic()">&#x1F399;</button>
-    <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
+<!-- ===== MODAL ===== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeSourceModal(event)">
+  <div class="modal-bg"></div>
+  <div class="modal-panel" id="modalPanel" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <div class="mh-icon" id="modalIcon">&#x1F6F0;</div>
+      <div class="mh-info">
+        <div class="mh-title" id="modalTitle">编辑监控源</div>
+        <div class="mh-sub" id="modalSub">修改情报监控源配置</div>
+      </div>
+      <button class="modal-close" onclick="closeSourceModalDirect()">&times;</button>
+    </div>
+    <div class="modal-bd" id="modalBody"></div>
+    <div class="modal-ft" id="modalFooter">
+      <button class="btn-cancel" onclick="closeSourceModalDirect()">取消</button>
+      <button class="btn-save" id="btnSave">保存配置</button>
+    </div>
   </div>
 </div>
 
 <script>
 var API='` + apiBase + `';
+var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
+var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
 var WIDGETS=` + wlistJson + `;
+var PORTAL_SLUG='` + slug.replace(/'/g, "\\'") + `';
 var allIntelData=[];
 var currentFilter='all';
 
@@ -4471,8 +4650,7 @@ function $(id){return document.getElementById(id)}
 /* ===== INIT ===== */
 (function(){
   setTimeout(function(){loadIntelData()},500);
-  setTimeout(function(){initDashboard()},800);
-  setTimeout(function(){loadRecentReportCount()},1000);
+  setTimeout(function(){initDashboard()},300);
 })();
 
 /* ===== LOAD INTEL DATA ===== */
@@ -4493,6 +4671,9 @@ async function loadIntelData(){
       $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源</p>';
       return;
     }
+    sources.forEach(function(src){
+      if(!src.apiKey)src.apiKey=src.aiProvider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY;
+    });
     var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources})});
     if(!result.ok)throw new Error('API error: '+result.status);
     var data=await result.json();
@@ -4512,44 +4693,35 @@ async function loadIntelData(){
 
 /* ===== RENDER SOURCE FILTERS ===== */
 function renderSourceFilters(monitors){
+  var widgetSources=[];
+  monitors.forEach(function(mw,monitorIdx){
+    var wi=WIDGETS.indexOf(mw);if(wi===-1)wi=monitorIdx;
+    var srcs=mw.config&&mw.config.sources||mw.sources||[];
+    srcs.forEach(function(src,si){widgetSources.push({widgetIndex:wi,sourceIndex:si,source:src})});
+  });
+  if(widgetSources.length===0){
+    $('sourceGroups').innerHTML='<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:12px">暂无监控源<br><br><button class="add-source-btn" onclick="addNewSource()">+ 添加第一个监控源</button></div>';
+    return;
+  }
   var html='';
-  var groups={news:[],social:[],financial:[]};
-  monitors.forEach(function(mw,mwIdx){
-    var srcList=mw.config&&mw.config.sources||mw.sources||[];
-    srcList.forEach(function(src,si){
-      var keywords=(src.keywords||[]).join('');
-      var item={src:src,mwIdx:mwIdx,si:si};
-      if(keywords.indexOf('股价')!=-1||keywords.indexOf('财报')!=-1)groups.financial.push(item);
-      else if(keywords.indexOf('Twitter')!=-1||keywords.indexOf('微博')!=-1)groups.social.push(item);
-      else groups.news.push(item);
-    });
-  });
-  var groupConfig=[
-    {key:'news',label:'新闻资讯',icon:'&#x1F4F0;',cls:'type-news'},
-    {key:'social',label:'社交媒体',icon:'&#x1F4AC;',cls:'type-social'},
-    {key:'financial',label:'金融数据',icon:'&#x1F4B9;',cls:'type-financial'}
-  ];
-  groupConfig.forEach(function(g){
-    if(groups[g.key].length===0)return;
-    html+='<div class="source-group">';
-    html+='<div class="source-group-header" onclick="toggleGroup(this)">';
-    html+='<div class="sg-title">'+g.icon+' '+g.label+'</div>';
-    html+='<div class="sg-count">'+groups[g.key].length+'</div>';
-    html+='</div>';
-    html+='<div class="source-group-body">';
-    groups[g.key].forEach(function(item){
-      var src=item.src;
-      var kwCount=(src.keywords||[]).length;
-      html+='<div class="source-card" onclick="openSourceEditor('+item.mwIdx+','+item.si+')">';
-      html+='<div class="source-icon '+g.cls+'">'+g.icon+'</div>';
-      html+='<div class="sc-big-num">'+kwCount+'</div>';
-      html+='<div class="source-name">'+escHtml(src.name||'未命名')+'</div>';
-      html+='<div class="source-meta">'+(src.updateFrequency||'daily')+'</div>';
-      html+='</div>';
-    });
+  widgetSources.forEach(function(ws){
+    var src=ws.source;
+    var providerLabel=src.aiProvider||'deepseek';
+    var kws=(src.keywords||[]);
+    var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[src.updateFrequency]||'每日';
+    html+='<div class="source-card" onclick="openSourceModal('+ws.widgetIndex+','+ws.sourceIndex+')" title="点击编辑此监控源">';
+    html+='<div class="sc-icon">&#x1F6F0;</div>';
+    html+='<div class="sc-body">';
+    html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
+    html+='<div class="sc-meta">';
+    html+='<span class="sc-provider'+(providerLabel==='metaso'?' metaso':'')+'">'+escHtml(providerLabel)+'</span>';
+    html+='<span class="sc-kwcount">'+kws.length+' 关键词</span>';
+    html+='<span class="sc-freq">'+freqLabel+'</span>';
     html+='</div></div>';
+    html+='<div class="sc-edit">&#x270E;</div>';
+    html+='</div>';
   });
-  html+='<button class="add-source-btn" onclick="addSource()">+ 添加监控源</button>';
+  html+='<button class="add-source-btn" onclick="addNewSource()">+ 添加监控源</button>';
   $('sourceGroups').innerHTML=html;
 }
 
@@ -4559,11 +4731,15 @@ function renderIntelFeed(data){
   var html='';
   data.forEach(function(item,i){
     var keywords=(item.keywords||[]).slice(0,3);
-    var link=item.link||item.url||'';
-    var clickAttr=link?' onclick="window.open(\''+link.replace(/'/g,'\\x27')+'\',\'_blank\')"':'';
+    var url=item.url||item.link||item.sourceUrl||item.href||'';
+    var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
     html+='<div class="intel-card"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
-    html+='<div class="intel-card-title">'+(item.title||'无标题')+'</div>';
+    if(url){
+      html+='<span class="intel-card-title" style="color:var(--cyan);cursor:pointer">'+(item.title||'无标题')+'</span>';
+    } else {
+      html+='<span class="intel-card-title" style="cursor:default">'+(item.title||'无标题')+'</span>';
+    }
     html+='<div class="intel-card-source">'+(item.source||'未知来源')+'</div>';
     html+='</div>';
     if(item.summary)html+='<div class="intel-card-summary">'+(item.summary||'')+'</div>';
@@ -4571,7 +4747,7 @@ function renderIntelFeed(data){
     html+='<div class="intel-card-tags">';
     keywords.forEach(function(kw){html+='<span class="intel-tag">'+escHtml(kw)+'</span>'});
     html+='</div>';
-    html+='<div class="intel-card-time">'+(item.date||'刚刚')+(link?' <span style="color:var(--cyan)">&#x2197;</span>':'')+'</div>';
+    html+='<div class="intel-card-time">'+(item.date||'刚刚')+'</div>';
     html+='</div>';
     html+='</div>';
   });
@@ -4595,18 +4771,311 @@ function filterFeed(type,btn){
   renderIntelFeed(filtered);
 }
 
-function toggleGroup(header){
-  var body=header.nextElementSibling;
-  if(body.style.display==='none')body.style.display='block';
-  else body.style.display='none';
+/* ===== CENTER TAB SWITCHING ===== */
+var currentCenterTab='intel';
+function switchCenterTab(tab){
+  if(currentCenterTab===tab)return;
+  currentCenterTab=tab;
+  var tabs=document.querySelectorAll('#centerTabs .ct-tab');
+  tabs.forEach(function(t){t.classList.remove('active')});
+  if(tab==='intel'){
+    tabs[0].classList.add('active');
+    $('intelFeed').style.display='';$('reportFeed').style.display='none';$('aiChat').style.display='none';
+    $('feedStatus').textContent=allIntelData.length?'已加载 '+allIntelData.length+' 条情报':'加载中...';
+  } else if(tab==='reports'){
+    tabs[1].classList.add('active');
+    $('intelFeed').style.display='none';$('reportFeed').style.display='';$('aiChat').style.display='none';
+    $('feedStatus').textContent='报告中';
+    loadReports();
+  } else if(tab==='ai'){
+    tabs[2].classList.add('active');
+    $('intelFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='';
+    $('feedStatus').textContent='AI助手';
+  }
 }
 
-/* ===== DASHBOARD ===== */
+/* ===== LOAD REPORTS ===== */
+var allReports=[];
+var reportsLoaded=false;
+async function loadReports(){
+  if(!PORTAL_SLUG){$('reportFeed').innerHTML='<div class="no-data-msg">无法获取门户标识</div>';return}
+  if(reportsLoaded&&allReports.length>0){renderReportCards(allReports);return}
+  $('reportLoading').style.display='block';
+  try {
+    var r=await fetch(API+'/api/p/reports/'+PORTAL_SLUG);
+    if(!r.ok)throw new Error('API error: '+r.status);
+    var data=await r.json();
+    allReports=data.data||[];
+    reportsLoaded=true;
+    renderReportCards(allReports);
+    $('feedStatus').textContent=allReports.length+' 份报告';
+  } catch(e){
+    $('reportFeed').innerHTML='<div class="no-data-msg">加载报告失败: '+e.message+'</div>';
+    $('feedStatus').textContent='加载失败';
+  }
+}
+
+function renderReportCards(reports){
+  $('reportLoading').style.display='none';
+  if(!reports||reports.length===0){
+    $('reportFeed').innerHTML='<div class="no-data-msg">&#x1F4D1; 暂无行业分析报告<br><span style="font-size:11px;opacity:0.6">在Portal Builder中生成报告后，这里将自动显示</span></div>';
+    return;
+  }
+  var html='';
+  reports.forEach(function(report){
+    var dateStr='';
+    if(report.createdAt){
+      var d=new Date(report.createdAt);
+      dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    }
+    var reportUrl=report.url||('/web/'+report.slug);
+    html+='<div class="report-card" onclick="window.open(&#39;'+escHtml(reportUrl)+'&#39;,&#39;_blank&#39;)">';
+    html+='<div class="report-card-inner">';
+    html+='<div class="report-card-icon">&#x1F4CA;</div>';
+    html+='<div class="report-card-body">';
+    html+='<div class="report-card-title">'+escHtml(report.companyName||report.title||'行业分析报告')+'</div>';
+    html+='<div class="report-card-meta">';
+    html+='<span class="report-card-date">'+dateStr+'</span>';
+    html+='<span class="report-card-tag">行业分析</span>';
+    html+='</div></div></div></div>';
+  });
+  $('reportFeed').innerHTML=html;
+}
+
+/* ===== AI ASSISTANT ===== */
+var aiChatHistory=[];
+async function sendAiMessage(){
+  var input=$('aiChatInput');
+  if(!input)return;
+  var msg=input.value.trim();
+  if(!msg)return;
+  input.value='';
+  input.disabled=true;
+  appendChatMessage('user',msg);
+  aiChatHistory.push({role:'user',content:msg});
+  var thinkId='think_'+Date.now();
+  var thinkEl=document.createElement('div');
+  thinkEl.className='ai-msg ai-msg-bot';
+  thinkEl.id=thinkId;
+  thinkEl.textContent='思考中...';
+  $('aiChatMessages').appendChild(thinkEl);
+  $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
+  try {
+    var response=await fetch(API+'/api/ai-chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg,history:aiChatHistory.slice(-10)})
+    });
+    if(!response.ok)throw new Error('API error: '+response.status);
+    var data=await response.json();
+    var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
+    aiChatHistory.push({role:'assistant',content:reply});
+    if(thinkEl.parentNode)thinkEl.parentNode.removeChild(thinkEl);
+    appendChatMessage('bot',reply);
+  } catch(e){
+    if(thinkEl.parentNode)thinkEl.parentNode.removeChild(thinkEl);
+    appendChatMessage('bot','抱歉，请求失败: '+e.message);
+  }
+  input.disabled=false;
+  input.focus();
+}
+
+function appendChatMessage(role,text){
+  var el=document.createElement('div');
+  el.className='ai-msg ai-msg-'+role;
+  var inner=document.createElement('div');
+  inner.textContent=text;
+  el.appendChild(inner);
+  $('aiChatMessages').appendChild(el);
+  $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
+}
+
+/* ===== MODAL: Source Edit ===== */
+var _activeWi=-1,_activeSi=-1;
+
+function openSourceModal(wi,si){
+  _activeWi=wi;_activeSi=si;
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  var src=srcs[si];
+  if(!src){closeSourceModalDirect();return}
+  $('modalIcon').textContent='\uD83D\uDEE0';
+  $('modalTitle').textContent=src.name||'编辑监控源';
+  $('modalSub').textContent='配置情报监控源参数';
+  renderSourceForm(wi,si);
+  $('btnSave').onclick=function(){saveSourceConfig(wi,si)};
+  $('modalOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeSourceModal(e){
+  if(e&&e.target!==$('modalOverlay'))return;
+  closeSourceModalDirect();
+}
+
+function closeSourceModalDirect(){
+  $('modalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  _activeWi=-1;_activeSi=-1;
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape')closeSourceModalDirect();
+});
+
+function renderSourceForm(wi,si){
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  var src=srcs[si];
+  if(!src)return;
+  var kws=src.keywords||[];
+  var s='';
+  s+='<div class="src-mini">';
+  s+='<div class="src-top"><input class="st-name-input" id="srcName_'+wi+'_'+si+'" value="'+escHtml(src.name||'')+'" placeholder="监控源名称">';
+  s+='<span class="src-del" onclick="deleteSource('+wi+','+si+')" title="删除此监控源">\u2715 删除</span></div>';
+  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
+  s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
+  ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
+    s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
+  });
+  s+='</select></div>';
+  s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
+  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v3.1">';
+  s+='</div></div>';
+  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
+  s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
+  s+='</div><div class="mb-group"><label class="mb-label">更新频率</label>';
+  s+='<select class="mb-select" id="srcFreq_'+wi+'_'+si+'">';
+  var freqs=['hourly','daily','weekly','monthly'];
+  var freqLabels={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'};
+  freqs.forEach(function(f){
+    s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+freqLabels[f]+'</option>';
+  });
+  s+='</select></div></div>';
+  s+='<div class="mb-group"><label class="mb-label">监控关键词</label>';
+  s+='<div class="kw-tags" id="kwTags_'+wi+'_'+si+'">';
+  kws.forEach(function(k){
+    s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+wi+','+si+',this.parentElement)" title="移除">&times;</button></span>';
+  });
+  s+='</div>';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}">';
+  s+='<button class="kw-add-btn" onclick="addKeyword('+wi+','+si+')">+</button></div>';
+  s+='</div>';
+  s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
+  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:80px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
+  s+='</div>';
+  s+='</div>';
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+function saveSourceConfig(wi,si){
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  if(!srcs[si])return;
+  var name=($('srcName_'+wi+'_'+si)||{}).value||'';
+  var provider=($('srcProvider_'+wi+'_'+si)||{}).value||'deepseek';
+  var model=($('srcModel_'+wi+'_'+si)||{}).value||'';
+  var apiKey=($('srcApiKey_'+wi+'_'+si)||{}).value||'';
+  var freq=($('srcFreq_'+wi+'_'+si)||{}).value||'daily';
+  var prompt=($('srcPrompt_'+wi+'_'+si)||{}).value||'';
+  var keywords=[];
+  var kwContainer=$('kwTags_'+wi+'_'+si);
+  if(kwContainer){
+    kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
+      var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('\u00d7','').trim():'';
+      if(kwText)keywords.push(kwText);
+    });
+  }
+  srcs[si].name=name;
+  srcs[si].aiProvider=provider;
+  srcs[si].aiModel=model;
+  srcs[si].apiKey=apiKey;
+  srcs[si].updateFrequency=freq;
+  srcs[si].customPrompt=prompt;
+  srcs[si].keywords=keywords;
+  if(w.config&&w.config.sources)w.config.sources=srcs;
+  else w.sources=srcs;
+  var slug=window.location.pathname.split('/').pop();
+  var monitorWidget={type:'intel-monitor',idx:wi,title:w.title,sources:srcs};
+  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:wi,widget:{type:'monitor',idx:wi,title:w.title||'情报监控',sources:srcs}})}).then(function(r){
+    if(r.ok){
+      var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+      renderSourceFilters(monitors);
+      closeSourceModalDirect();
+    }else{
+      alert('保存失败，请重试');
+    }
+  }).catch(function(){alert('网络错误，请重试');});
+}
+
+function addNewSource(){
+  var w=WIDGETS.find(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  if(!w){
+    alert('请先在建站页面添加情报监控组件');
+    return;
+  }
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  srcs.push({name:'新监控源',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],updateFrequency:'daily',customPrompt:''});
+  if(w.config&&w.config.sources)w.config.sources=srcs;
+  else w.sources=srcs;
+  var newSi=srcs.length-1;
+  var allMonitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  var wi=WIDGETS.indexOf(w);
+  if(wi===-1)wi=0;
+  renderSourceFilters(allMonitors);
+  setTimeout(function(){openSourceModal(wi,newSi)},100);
+}
+
+function deleteSource(wi,si){
+  if(!confirm('确定要删除这个监控源吗？此操作不可撤销。'))return;
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  srcs.splice(si,1);
+  if(w.config&&w.config.sources)w.config.sources=srcs;
+  else w.sources=srcs;
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  renderSourceFilters(monitors);
+  closeSourceModalDirect();
+}
+
+function addKeyword(wi,si){
+  var inp=$('kwInput_'+wi+'_'+si);
+  if(!inp)return;
+  var kw=inp.value.trim();
+  if(!kw)return;
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  if(!srcs[si])return;
+  if(!srcs[si].keywords)srcs[si].keywords=[];
+  if(srcs[si].keywords.indexOf(kw)===-1)srcs[si].keywords.push(kw);
+  renderSourceForm(wi,si);
+}
+
+function removeKeyword(wi,si,el){
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  if(!srcs[si])return;
+  var kwText=el.childNodes[0]?el.childNodes[0].textContent.replace('\u00d7','').trim():'';
+  var kws=srcs[si].keywords||[];
+  var ki=kws.indexOf(kwText);
+  if(ki!==-1)kws.splice(ki,1);
+  renderSourceForm(wi,si);
+}
+
+/* ===== UTILS ===== */
+function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function initDashboard(){
   renderSentimentGauge(52);
-  renderKeywordCloud();
   renderKPITrend();
   updateBriefing();
+  // 关键词云等数据加载后由 updateDashboard(data) 渲染，此处不填充默认词
 }
 
 function updateDashboard(data){
@@ -4622,19 +5091,20 @@ function renderSentimentGauge(value){
   var ctx=canvas.getContext('2d');
   var w=canvas.width,h=canvas.height;
   ctx.clearRect(0,0,w,h);
+  var cx=w/2,cy=h-10,r=Math.min(w/2-10,h-20);
   ctx.beginPath();
-  ctx.arc(w/2,h,40,Math.PI,0,false);
+  ctx.arc(cx,cy,r,Math.PI,0,false);
   ctx.strokeStyle='rgba(255,255,255,0.1)';
-  ctx.lineWidth=12;
+  ctx.lineWidth=14;
   ctx.stroke();
   var endAngle=Math.PI+(value/100)*Math.PI;
   ctx.beginPath();
-  ctx.arc(w/2,h,40,Math.PI,endAngle,false);
-  var gradient=ctx.createLinearGradient(0,h,w,0);
+  ctx.arc(cx,cy,r,Math.PI,endAngle,false);
+  var gradient=ctx.createLinearGradient(0,cy,w,0);
   gradient.addColorStop(0,'#00d4ff');
   gradient.addColorStop(1,'#a855f7');
   ctx.strokeStyle=gradient;
-  ctx.lineWidth=12;
+  ctx.lineWidth=14;
   ctx.lineCap='round';
   ctx.stroke();
   $('sentimentLabel').textContent=(value>60?'积极':value>40?'中性':'消极')+' '+value+'%';
@@ -4661,6 +5131,9 @@ function renderKPITrend(){
   var canvas=$('kpiCanvas');
   if(!canvas)return;
   var ctx=canvas.getContext('2d');
+  // Match canvas pixel size to container width
+  var container=canvas.parentElement;
+  if(container){var cw=container.clientWidth||300;canvas.width=cw;canvas.style.width=cw+'px';}
   var w=canvas.width,h=canvas.height;
   var data=[];
   for(var i=0;i<12;i++)data.push(Math.random()*80+20);
@@ -4716,318 +5189,6 @@ function sendCommand(){
 
 function toggleMic(){alert('语音输入功能开发中...');}
 function deployPortal(){alert('部署功能开发中...');}
-
-/* ===== MODAL ===== */
-var _activeIdx=-1;
-
-function openModal(idx){
-  _activeIdx=idx;
-  var w=WIDGETS[idx];
-  if(!w)return;
-  var overlay=$('modalOverlay');
-  var panel=$('modalPanel');
-  panel.className='modal-panel';
-  $('modalIcon').textContent='\u270F\uFE0F';
-  $('modalTitle').textContent=w.title||'配置';
-  $('modalSub').textContent='编辑情报监控配置';
-  renderMonitorForm(idx,w);
-  $('modalFooter').style.display='flex';
-  $('btnSave').style.display='inline-flex';
-  $('btnSave').textContent='保存配置';
-  $('btnSave').onclick=function(){saveMonitorConfig(idx)};
-  overlay.classList.add('open');
-  document.body.style.overflow='hidden';
-}
-
-function openSourceEditor(mwIdx,si){
-  var w=WIDGETS[mwIdx];
-  if(!w)return;
-  var overlay=$('modalOverlay');
-  var panel=$('modalPanel');
-  panel.className='modal-panel';
-  $('modalIcon').textContent='\u270F\uFE0F';
-  $('modalTitle').textContent='编辑情报源';
-  $('modalSub').textContent=(w.config&&w.config.sources&&w.config.sources[si]&&w.config.sources[si].name)||'未命名';
-  renderSourceEditForm(mwIdx,si,w);
-  $('modalFooter').style.display='flex';
-  $('btnSave').style.display='inline-flex';
-  $('btnSave').textContent='保存';
-  $('btnSave').onclick=function(){saveSourceEdit(mwIdx,si)};
-  overlay.classList.add('open');
-  document.body.style.overflow='hidden';
-}
-
-function closeModal(e){
-  if(e&&e.target!==$('modalOverlay'))return;
-  closeModalDirect();
-}
-
-function closeModalDirect(){
-  $('modalOverlay').classList.remove('open');
-  document.body.style.overflow='';
-  _activeIdx=-1;
-}
-
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape')closeModalDirect();
-});
-
-/* ===== MONITOR FORM (for full widget) ===== */
-function renderMonitorForm(idx,w){
-  var s='';
-  var sources=w.config&&w.config.sources||w.sources||[];
-  if(sources.length>0){
-    sources.forEach(function(src,si){
-      s+=renderSourceBlock(idx,si,src);
-    });
-    s+='<button class="btn-add-src" onclick="addSource('+idx+')">+ 添加监控源</button>';
-  }else{
-    s='<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">\u1F6F0\uFE0F</div><p style="font-size:14px;color:var(--text-secondary)">暂无监控源配置。<br>点击下方按钮添加监控源。</p></div>';
-    s+='<button class="btn-add-src" onclick="addSource('+idx+')">+ 添加监控源</button>';
-  }
-  $('modalBody').innerHTML=s;
-  $('modalBody').scrollTop=0;
-}
-
-function renderSourceEditForm(mwIdx,si,w){
-  var src=(w.config&&w.config.sources&&w.config.sources[si])||{};
-  var s=renderSourceBlock(mwIdx,si,src,true);
-  $('modalBody').innerHTML=s;
-  $('modalBody').scrollTop=0;
-}
-
-function renderSourceBlock(idx,si,src,hideDelete){
-  var s='<div class="src-mini" id="srcBlock_'+idx+'_'+si+'">';
-  s+='<div class="src-top"><input class="st-name-input" id="srcName_'+idx+'_'+si+'" value="'+escHtml(src.name)+'" placeholder="监控源名称">';
-  if(!hideDelete)s+='<span class="src-del" onclick="deleteSource('+idx+','+si+')" title="删除此监控源">\u2715</span>';
-  s+='</div>';
-  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
-  s+='<select class="mb-select" id="srcProvider_'+idx+'_'+si+'">';
-  ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
-    s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
-  });
-  s+='</select></div>';
-  s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
-  s+='<input class="mb-input" id="srcModel_'+idx+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v3.1">';
-  s+='</div></div>';
-  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
-  s+='<input class="mb-input" type="password" id="srcApiKey_'+idx+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
-  s+='</div><div class="mb-group"><label class="mb-label">更新频率</label>';
-  s+='<select class="mb-select" id="srcFreq_'+idx+'_'+si+'">';
-  ['hourly','daily','weekly','monthly'].forEach(function(f){
-    var labels={hourly:'\u6bcf\u5c0f\u65f6',daily:'\u6bcf\u65e5',weekly:'\u6bcf\u5468',monthly:'\u6bcf\u6708'};
-    s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+labels[f]+'</option>';
-  });
-  s+='</select></div></div>';
-  var kws=src.keywords||[];
-  s+='<div class="mb-group"><label class="mb-label">\u76d1\u63a7\u5173\u952e\u8bcd</label>';
-  s+='<div class="kw-tags" id="kwTags_'+idx+'_'+si+'">';
-  kws.forEach(function(k){
-    s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+idx+','+si+',this.parentElement)" title="\u79fb\u9664">&times;</button></span>';
-  });
-  s+='</div>';
-  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+idx+'_'+si+'" placeholder="\u8f93\u5165\u5173\u952e\u8bcd\u540e\u56de\u8f66\u6dfb\u52a0..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addKeyword('+idx+','+si+')}">';
-  s+='<button class="kw-add-btn" onclick="addKeyword('+idx+','+si+')">+</button></div>';
-  s+='</div>';
-  s+='<div class="mb-group"><label class="mb-label">\u81ea\u5b9a\u4e49\u63d0\u793a\u8bcd <span style="font-weight:400;color:var(--text-secondary)">（可选）</span></label>';
-  s+='<textarea class="mb-area" id="srcPrompt_'+idx+'_'+si+'" style="min-height:60px" placeholder="\u81ea\u5b9a\u4e49\u6b64\u76d1\u63a7\u6e90\u7684\u5206\u6790\u63d0\u793a\u8bcd...">'+escHtml(src.customPrompt||'')+'</textarea>';
-  s+='</div>';
-  s+='</div>';
-  return s;
-}
-
-function addSource(idx){
-  var w=WIDGETS[idx];
-  if(!w||(w.type!=='monitor'&&w.type!=='intel-monitor'))return;
-  var cfg=w.config||{};
-  if(!cfg.sources)cfg.sources=[];
-  cfg.sources.push({name:'',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],updateFrequency:'daily',customPrompt:''});
-  w.config=cfg;
-  renderMonitorForm(idx,w);
-}
-
-function deleteSource(idx,si){
-  if(!confirm('\u786e\u5b9a\u5220\u9664\u8fd9\u4e2a\u76d1\u63a7\u6e90\uff1f'))return;
-  var w=WIDGETS[idx];
-  if(!w)return;
-  var cfg=w.config||{};
-  var sources=cfg.sources||[];
-  sources.splice(si,1);
-  cfg.sources=sources;
-  w.config=cfg;
-  renderMonitorForm(idx,w);
-}
-
-function addKeyword(idx,si){
-  var inp=$('kwInput_'+idx+'_'+si);
-  if(!inp)return;
-  var kw=inp.value.trim();
-  if(!kw)return;
-  var w=WIDGETS[idx];
-  if(!w)return;
-  var cfg=w.config||{};
-  var sources=cfg.sources||[];
-  if(!sources[si])return;
-  if(!sources[si].keywords)sources[si].keywords=[];
-  if(sources[si].keywords.indexOf(kw)===-1){sources[si].keywords.push(kw);}
-  renderMonitorForm(idx,w);
-}
-
-function removeKeyword(idx,si,el){
-  var w=WIDGETS[idx];
-  if(!w)return;
-  var cfg=w.config||{};
-  var sources=cfg.sources||[];
-  if(!sources[si])return;
-  var kwText=el.childNodes[0]?el.childNodes[0].textContent.replace('\u00D7','').trim():'';
-  var kws=sources[si].keywords||[];
-  var ki=kws.indexOf(kwText);
-  if(ki!==-1)kws.splice(ki,1);
-  renderMonitorForm(idx,w);
-}
-
-function saveMonitorConfig(idx){
-  var w=WIDGETS[idx];
-  if(!w)return;
-  var cfg=w.config||{};
-  var sources=[];
-  var srcIndices=[];
-  document.querySelectorAll('[id^="srcName_'+idx+'_"]').forEach(function(el){
-    var idParts=el.id.split('_');
-    srcIndices.push(parseInt(idParts[idParts.length-1]));
-  });
-  srcIndices.forEach(function(si){
-    var name=($('srcName_'+idx+'_'+si)||{}).value||'';
-    var provider=($('srcProvider_'+idx+'_'+si)||{}).value||'deepseek';
-    var model=($('srcModel_'+idx+'_'+si)||{}).value||'';
-    var apiKey=($('srcApiKey_'+idx+'_'+si)||{}).value||'';
-    var freq=($('srcFreq_'+idx+'_'+si)||{}).value||'daily';
-    var prompt=($('srcPrompt_'+idx+'_'+si)||{}).value||'';
-    var keywords=[];
-    var kwContainer=$('kwTags_'+idx+'_'+si);
-    if(kwContainer){
-      kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
-        var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('\u00D7','').trim():'';
-        if(kwText)keywords.push(kwText);
-      });
-    }
-    if(name){
-      sources.push({name:name,aiProvider:provider,aiModel:model,apiKey:apiKey,keywords:keywords,updateFrequency:freq,customPrompt:prompt});
-    }
-  });
-  cfg.sources=sources;
-  w.config=cfg;
-  var updatedWidget={type:w.type,title:w.title,config:cfg};
-  var slug=window.location.pathname.split('/').pop();
-  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:idx,widget:updatedWidget})}).then(function(r){
-    if(r.ok){WIDGETS[idx]=updatedWidget;closeModalDirect();loadIntelData();}
-    else{alert('\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');}
-  }).catch(function(){alert('\u7f51\u7edc\u9519\u8bef\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');});
-}
-
-function saveSourceEdit(mwIdx,si){
-  var w=WIDGETS[mwIdx];
-  if(!w)return;
-  var cfg=w.config||{};
-  var sources=cfg.sources||[];
-  if(!sources[si])return;
-  sources[si].name=($('srcName_'+mwIdx+'_'+si)||{}).value||'';
-  sources[si].aiProvider=($('srcProvider_'+mwIdx+'_'+si)||{}).value||'deepseek';
-  sources[si].aiModel=($('srcModel_'+mwIdx+'_'+si)||{}).value||'';
-  sources[si].apiKey=($('srcApiKey_'+mwIdx+'_'+si)||{}).value||'';
-  sources[si].updateFrequency=($('srcFreq_'+mwIdx+'_'+si)||{}).value||'daily';
-  sources[si].customPrompt=($('srcPrompt_'+mwIdx+'_'+si)||{}).value||'';
-  var keywords=[];
-  var kwContainer=$('kwTags_'+mwIdx+'_'+si);
-  if(kwContainer){
-    kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
-      var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('\u00D7','').trim():'';
-      if(kwText)keywords.push(kwText);
-    });
-  }
-  sources[si].keywords=keywords;
-  cfg.sources=sources;
-  w.config=cfg;
-  var updatedWidget={type:w.type,title:w.title,config:cfg};
-  var slug=window.location.pathname.split('/').pop();
-  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:mwIdx,widget:updatedWidget})}).then(function(r){
-    if(r.ok){WIDGETS[mwIdx]=updatedWidget;closeModalDirect();loadIntelData();}
-    else{alert('\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');}
-  }).catch(function(){alert('\u7f51\u7edc\u9519\u8bef\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');});
-}
-
-/* ===== MY REPORTS ===== */
-function openReportList(){
-  var overlay=$('modalOverlay'),panel=$('modalPanel');
-  overlay.classList.add('open');
-  panel.className='modal-panel';
-  $('modalIcon').textContent='\u1F4CB';
-  $('modalTitle').textContent='\u6211\u7684\u62a5\u544a';
-  $('modalSub').textContent='\u67e5\u770b\u548c\u7ba1\u7406\u6240\u6709\u751f\u6210\u7684\u884c\u4e1a\u5206\u6790\u62a5\u544a';
-  $('modalFooter').innerHTML='<button class="btn-cancel" onclick="closeModalDirect()">\u5173\u95ed</button>';
-  $('btnSave').style.display='none';
-  $('modalBody').innerHTML='<p style="font-size:13px;text-align:center;color:var(--text-secondary)">\u52a0\u8f7d\u62a5\u544a\u5217\u8868\u4e2d...</p>';
-  var slug=window.location.pathname.split('/').pop();
-  fetch(API+'/api/p/reports/'+slug).then(function(r){
-    if(!r.ok){renderReportCards([]);return}
-    return r.json();
-  }).then(function(data){
-    renderReportCards(data.data||[]);
-  }).catch(function(e){
-    renderReportCards([]);
-  });
-}
-
-function renderReportCards(reports){
-  if(reports.length===0){
-    $('modalBody').innerHTML='<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">\u1F4ED</div><p style="font-size:14px;color:var(--text-secondary)">\u6682\u65e0\u62a5\u544a\uff0c\u5f00\u59cb\u884c\u4e1a\u5206\u6790\u540e\u8fd9\u91cc\u4f1a\u663e\u793a\u3002</p></div>';
-    var cnt=$('myReportsCount');
-    if(cnt)cnt.textContent='0';
-    return;
-  }
-  var html='<div class="rpt-cards-grid">';
-  reports.forEach(function(report){
-    var d=new Date(report.createdAt).toLocaleString('zh-CN');
-    var company=(report.companyName||'\u672a\u77e5').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    var rSlug=(report.slug||'').replace(/'/g,'\\x27');
-    html+='<div class="rpt-card" onclick="window.open(\''+report.url+'\',\'_blank\')">'+
-      '<button class="rpt-delete" onclick="event.stopPropagation();deleteReportCard(\''+rSlug+'\')" title="\u5220\u9664\u62a5\u544a">&times;</button>'+
-      '<div class="rpt-company">'+company+'</div>'+
-      '<div class="rpt-date">'+d+'</div>'+
-      '<div class="rpt-actions"><span class="rpt-view">\u67e5\u770b\u62a5\u544a \u2192</span></div>'+
-      '</div>';
-  });
-  html+='</div>';
-  $('modalBody').innerHTML=html;
-  var cnt=$('myReportsCount');
-  if(cnt)cnt.textContent=reports.length;
-}
-
-async function deleteReportCard(rSlug){
-  if(!confirm('\u786e\u5b9a\u5220\u9664\u8fd9\u4e2a\u62a5\u544a\uff1f'))return;
-  var slug=window.location.pathname.split('/').pop();
-  try{
-    var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
-    if(!r.ok){alert('\u5220\u9664\u5931\u8d25');return}
-    var r2=await fetch(API+'/api/p/reports/'+slug);
-    var data=await r2.json();
-    renderReportCards(data.data||[]);
-  }catch(e){alert('\u5220\u9664\u5931\u8d25')}
-}
-
-function loadRecentReportCount(){
-  var slug=window.location.pathname.split('/').pop();
-  fetch(API+'/api/p/reports/'+slug).then(function(r){
-    if(!r.ok)return;
-    return r.json();
-  }).then(function(data){
-    var cnt=$('myReportsCount');
-    if(cnt)cnt.textContent=(data.data||[]).length;
-  }).catch(function(){});
-}
-
-/* ===== UTILS ===== */
-function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 </script>
 </body>
 </html>`;

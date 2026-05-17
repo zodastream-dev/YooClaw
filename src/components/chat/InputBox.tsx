@@ -50,7 +50,7 @@ export function InputBox() {
             onKeyDown={handleKeyDown}
             placeholder="描述你想要创建的网站..."
             rows={1}
-            className="flex-1 resize-none bg-transparent outline-none text-sm leading-relaxed px-2 py-1.5 max-h-[180px] placeholder:text-muted-foreground"
+            className="flex-1 resize-none bg-transparent outline-none text-base leading-relaxed px-2 py-1.5 max-h-[180px] placeholder:text-foreground/50 placeholder:font-medium"
           />
           {isStreaming ? (
             <button
