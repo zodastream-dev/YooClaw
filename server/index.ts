@@ -4788,6 +4788,7 @@ function filterBySourceFromBtn(btn){
   filterBySource(sourceName);
 }
 function filterBySource(sourceName){
+  console.log('[filterBySource] sourceName=', sourceName, 'currentSourceFilters=', JSON.stringify(currentSourceFilters));
   if(sourceName==='全部'){
     currentSourceFilters=['全部'];
   } else {
@@ -4807,6 +4808,7 @@ function filterBySource(sourceName){
     if(currentSourceFilters.indexOf(sn)>=0)b.classList.add('active');
     else b.classList.remove('active');
   });
+  console.log('[filterBySource] after sync, currentSourceFilters=', JSON.stringify(currentSourceFilters));
   if(currentSourceFilters.length===0||currentSourceFilters[0]==='全部'){
     renderIntelFeed(allIntelData);
     return;
@@ -4814,6 +4816,10 @@ function filterBySource(sourceName){
   var filtered=allIntelData.filter(function(item){
     return currentSourceFilters.indexOf(item._sourceName) >= 0;
   });
+  console.log('[filterBySource] filtered count=', filtered.length, 'allIntelData count=', allIntelData.length);
+  if(allIntelData.length>0){
+    console.log('[filterBySource] sample _sourceName=', allIntelData[0]._sourceName);
+  }
   renderIntelFeed(filtered);
 }
 
