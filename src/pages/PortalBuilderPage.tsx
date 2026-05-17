@@ -92,18 +92,28 @@ const initialWidgets: Widget[] = [
     },
   },
   {
-    id: 'w-2', type: 'intel-monitor', title: '行业情报监控', expanded: false,
+    id: 'w-2', type: 'intel-monitor', title: '情报监控', expanded: false,
     config: {
       sources: [
         {
-          id: 's-1', name: '光伏产业监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-          apiKey: '', keywords: ['光伏', '太阳能', 'N型电池', 'TOPCon', 'HJT'],
-          updateFrequency: 'daily', customPrompt: '你是新能源光伏行业专家。',
+          id: 's-1', name: '行业信号', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['行业趋势', '政策法规', '技术突破', '市场规模', '产业动态'],
+          updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。',
         },
         {
-          id: 's-2', name: '储能市场追踪', aiProvider: 'metaso', aiModel: 'metaso-pro',
-          apiKey: '', keywords: ['储能', '锂电池', '钠离子电池', '宁德时代'],
-          updateFrequency: 'daily', customPrompt: '你是储能行业分析师。',
+          id: 's-2', name: '目标客户情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'],
+          updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。',
+        },
+        {
+          id: 's-3', name: '竞争对手情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'],
+          updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。',
+        },
+        {
+          id: 's-4', name: '自身舆情监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
+          apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'],
+          updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。',
         },
       ],
     },
