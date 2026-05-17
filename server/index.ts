@@ -4636,6 +4636,8 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 
 <script>
 var API='` + apiBase + `';
+var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
+var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
 var WIDGETS=` + wlistJson + `;
 var PORTAL_SLUG='` + slug.replace(/'/g, "\\'") + `';
 var allIntelData=[];
@@ -4667,6 +4669,9 @@ async function loadIntelData(){
       $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源</p>';
       return;
     }
+    sources.forEach(function(src){
+      if(!src.apiKey)src.apiKey=src.aiProvider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY;
+    });
     var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources})});
     if(!result.ok)throw new Error('API error: '+result.status);
     var data=await result.json();
