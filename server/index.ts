@@ -4358,6 +4358,11 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .ct-tab{padding:6px 18px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:all .25s;white-space:nowrap;font-family:inherit;background:transparent;border:none}
 .ct-tab:hover{color:var(--cyan);background:rgba(0,212,255,0.06)}
 .ct-tab.active{color:var(--cyan);background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.12));box-shadow:0 0 12px rgba(0,212,255,0.1),inset 0 1px 0 rgba(255,255,255,0.05);font-weight:600}
+/* ===== INTEL SUB-FILTERS ===== */
+.subfilter-btn{padding:4px 12px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;transition:all .2s;font-family:inherit}
+.subfilter-btn:hover{border-color:rgba(0,212,255,0.4);color:var(--cyan)}
+.subfilter-btn.active{background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));border-color:rgba(0,212,255,0.5);color:var(--cyan)}
+.intel-subfilters{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0 12px 0;border-bottom:1px solid var(--border);margin-bottom:12px}
 /* ===== REPORT FEED ===== */
 .report-feed{flex:1;overflow-y:auto;padding:16px 24px}
 .report-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
@@ -4501,12 +4506,6 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
     <div class="logo-icon">&#x1F680;</div>
     <span>` + sn + `</span>
   </div>
-  <div class="top-tabs">
-    <button class="tab-btn active" onclick="filterFeed('all',this)">全部</button>
-    <button class="tab-btn" onclick="filterFeed('news',this)">新闻</button>
-    <button class="tab-btn" onclick="filterFeed('social',this)">社交</button>
-    <button class="tab-btn" onclick="filterFeed('financial',this)">金融</button>
-  </div>
   <div class="top-status">
     <div class="status-dot"></div>
     <span class="status-text">实时监控中</span>
@@ -4538,6 +4537,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
       </div>
       <span class="status-text" id="feedStatus">加载中...</span>
     </div>
+    <div class="intel-subfilters" id="intelSubFilters" style="display:none"></div>
     <div class="intel-feed" id="intelFeed">
       <div class="intel-loading" id="intelLoading">
         <div class="spinner"></div>正在获取情报数据...
@@ -4642,6 +4642,7 @@ var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
 var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
 var WIDGETS=` + wlistJson + `;
 var PORTAL_SLUG='` + slug.replace(/'/g, "\\'") + `';
+var currentSourceFilter='全部';
 var allIntelData=[];
 var currentFilter='all';
 
@@ -4679,9 +4680,15 @@ async function loadIntelData(){
     var data=await result.json();
     allIntelData=[];
     (data.results||[]).forEach(function(r){
-      (r.data||[]).forEach(function(item){allIntelData.push(item)});
+      var srcConfig=sources[r.sourceIdx];
+      var sourceName=srcConfig?(srcConfig.name||'未命名'):'未知来源';
+      (r.data||[]).forEach(function(item){
+        item._sourceName=sourceName;
+        allIntelData.push(item);
+      });
     });
     renderSourceFilters(monitors);
+    buildIntelSubFilters(monitors);
     renderIntelFeed(allIntelData);
     updateDashboard(allIntelData);
     $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
@@ -4755,18 +4762,36 @@ function renderIntelFeed(data){
   $('intelFeed').innerHTML=html;
 }
 
-/* ===== FILTER FEED ===== */
-function filterFeed(type,btn){
-  currentFilter=type;
-  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});
+/* ===== INTEL SUB-FILTERS ===== */
+function buildIntelSubFilters(monitors){
+  var sourceNames=['全部'];
+  monitors.forEach(function(mw){
+    (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
+      var name=src.name||'未命名';
+      if(sourceNames.indexOf(name)===-1)sourceNames.push(name);
+    });
+  });
+  var el=$('intelSubFilters');
+  if(!el)return;
+  if(sourceNames.length<=1){el.style.display='none';return}
+  var html='';
+  sourceNames.forEach(function(name,i){
+    html+='<button class="subfilter-btn'+(i===0?' active':'')+'" onclick="filterBySource(\\''+escHtml(name)+'\\',this)">'+escHtml(name)+'</button>';
+  });
+  el.innerHTML=html;
+  if(currentCenterTab==='intel')el.style.display='';
+}
+
+function filterBySource(sourceName, btn){
+  currentSourceFilter=sourceName;
+  document.querySelectorAll('.subfilter-btn').forEach(function(b){b.classList.remove('active')});
   if(btn)btn.classList.add('active');
-  if(type==='all'){renderIntelFeed(allIntelData);return}
+  if(sourceName==='全部'){
+    renderIntelFeed(allIntelData);
+    return;
+  }
   var filtered=allIntelData.filter(function(item){
-    var src=(item.source||'').toLowerCase();
-    if(type==='news')return src.indexOf('news')!=-1||src.indexOf('cctv')!=-1;
-    if(type==='social')return src.indexOf('twitter')!=-1||src.indexOf('weibo')!=-1;
-    if(type==='financial')return src.indexOf('finance')!=-1||src.indexOf('stock')!=-1;
-    return true;
+    return item._sourceName===sourceName;
   });
   renderIntelFeed(filtered);
 }
@@ -4781,15 +4806,18 @@ function switchCenterTab(tab){
   if(tab==='intel'){
     tabs[0].classList.add('active');
     $('intelFeed').style.display='';$('reportFeed').style.display='none';$('aiChat').style.display='none';
+    $('intelSubFilters').style.display='';
     $('feedStatus').textContent=allIntelData.length?'已加载 '+allIntelData.length+' 条情报':'加载中...';
   } else if(tab==='reports'){
     tabs[1].classList.add('active');
     $('intelFeed').style.display='none';$('reportFeed').style.display='';$('aiChat').style.display='none';
+    $('intelSubFilters').style.display='none';
     $('feedStatus').textContent='报告中';
     loadReports();
   } else if(tab==='ai'){
     tabs[2].classList.add('active');
     $('intelFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='';
+    $('intelSubFilters').style.display='none';
     $('feedStatus').textContent='AI助手';
   }
 }
