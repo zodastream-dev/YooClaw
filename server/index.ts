@@ -3600,6 +3600,14 @@ ${userPrompt.replace('{company}', name).replace('{name}', name)}`
       }
     }
 
+    // 明确检查：如果 AI 返回为空，直接发 error
+    if (fullText.length === 0) {
+      console.error('[PubResearch] AI returned empty content for', name);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI 未返回内容，请稍后重试（可能是网络超时）' })}\n\n`);
+      res.end();
+      return;
+    }
+
     res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'research_complete', data: fullText })}\n\n`);
     res.end();
@@ -3708,6 +3716,14 @@ Remember: You are a code generator, not a chat assistant. Output ONLY HTML code.
     } catch (e: any) {
       console.error('[PubReport] AI stream error:', e.message);
       if (fullHtml.length === 0) throw e;
+    }
+
+    // 明确检查：如果 AI 返回为空，直接发 error，避免"未获取到链接"
+    if (fullHtml.length === 0) {
+      console.error('[PubReport] AI returned empty content for', name);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'AI 未返回内容，请稍后重试（可能是网络超时）' })}\n\n`);
+      res.end();
+      return;
     }
 
     res.write(`data: ${JSON.stringify({ type: 'progress_update', percent: 100 })}\n\n`);
@@ -4310,9 +4326,9 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .dashboard-section::before{content:'';position:absolute;top:-1px;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.2),rgba(168,85,247,0.2),transparent)}
 .dashboard-section h4{font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;letter-spacing:0.5px;text-transform:uppercase}
 /* Sentiment Gauge */
-.sentiment-gauge{position:relative;width:160px;height:95px;margin:0 auto;display:flex;align-items:center;justify-content:center}
-.sentiment-gauge canvas{display:block}
-.sentiment-label{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:16px;font-weight:700;color:rgba(255,255,255,0.9);text-shadow:0 0 16px rgba(0,212,255,0.3)}
+.sentiment-gauge{position:relative;width:320px;height:190px;margin:0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden;max-width:100%}
+.sentiment-gauge canvas{display:block;max-width:100%;height:auto}
+.sentiment-label{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:16px;font-weight:700;color:rgba(255,255,255,0.9);text-shadow:0 0 16px rgba(0,212,255,0.3)}
 /* Keyword Cloud */
 .keyword-cloud{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .kw-cloud-item{font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(0,212,255,0.08);color:var(--cyan);border:1px solid rgba(0,212,255,0.2);transition:all .3s;cursor:default;box-shadow:0 0 6px rgba(0,212,255,0.1)}
@@ -4320,7 +4336,8 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .kw-cloud-item.important{font-size:13px;font-weight:600;background:rgba(168,85,247,0.15);color:var(--purple);border-color:rgba(168,85,247,0.35);box-shadow:0 0 10px rgba(168,85,247,0.2)}
 .kw-cloud-item.important:hover{box-shadow:0 0 20px rgba(168,85,247,0.3),0 0 10px rgba(168,85,247,0.2)}
 /* KPI Trend */
-.kpi-trend{position:relative;height:100px;margin-bottom:12px}
+.kpi-trend{position:relative;height:100px;margin-bottom:12px;overflow:hidden}
+.kpi-trend canvas{display:block;width:100%!important;height:100px}
 /* AI Briefing */
 .ai-briefing{background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.15);border-radius:10px;padding:14px;box-shadow:0 0 16px rgba(0,212,255,0.06),inset 0 1px 0 rgba(255,255,255,0.03);position:relative;overflow:hidden}
 .ai-briefing::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.3),rgba(168,85,247,0.3),transparent)}
@@ -4423,7 +4440,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
       </div>
       <!-- KPI Trend -->
       <div class="dashboard-section">
-        <h4>&#x1F4C9; KPI 趋势</h4>
+        <h4>&#x1F4C9; 关注度趋势</h4>
         <div class="kpi-trend">
           <canvas id="kpiCanvas" width="300" height="100"></canvas>
         </div>
@@ -4657,6 +4674,9 @@ function renderKPITrend(){
   var canvas=$('kpiCanvas');
   if(!canvas)return;
   var ctx=canvas.getContext('2d');
+  // Match canvas pixel size to container width
+  var container=canvas.parentElement;
+  if(container){var cw=container.clientWidth||300;canvas.width=cw;canvas.style.width=cw+'px';}
   var w=canvas.width,h=canvas.height;
   var data=[];
   for(var i=0;i<12;i++)data.push(Math.random()*80+20);

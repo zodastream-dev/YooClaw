@@ -358,19 +358,17 @@ export function PortalBuilderPage() {
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">组件库</p>
               <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => openAddModal('report-generator')}
-                  className="relative aspect-square flex flex-col items-center justify-center gap-2 p-2.5 rounded-2xl border-2 border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-center group">
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-indigo-500 text-white flex items-center justify-center text-lg font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
-                  <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-110 transition-transform">📊</div>
-                  <div>
+                  className="relative aspect-square flex flex-col items-end justify-end p-3 rounded-2xl border-2 border-border hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-center group">
+                  <div className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-indigo-500 text-white flex items-center justify-center text-2xl font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
+                  <div className="w-full">
                     <div className="text-[11px] font-semibold text-foreground group-hover:text-indigo-700 dark:group-hover:text-indigo-300">报告生成器</div>
                     <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">AI 自动生成分析报告</div>
                   </div>
                 </button>
                 <button onClick={() => openAddModal('intel-monitor')}
-                  className="relative aspect-square flex flex-col items-center justify-center gap-2 p-2.5 rounded-2xl border-2 border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-center group">
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center text-lg font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-110 transition-transform">🛰️</div>
-                  <div>
+                  className="relative aspect-square flex flex-col items-end justify-end p-3 rounded-2xl border-2 border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-center group">
+                  <div className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center text-2xl font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
+                  <div className="w-full">
                     <div className="text-[11px] font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
                     <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">AI 持续监控关键词情报</div>
                   </div>
