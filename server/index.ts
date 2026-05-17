@@ -4642,7 +4642,7 @@ var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
 var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
 var WIDGETS=` + wlistJson + `;
 var PORTAL_SLUG='` + slug.replace(/'/g, "\\'") + `';
-var currentSourceFilter='全部';
+var currentSourceFilters=['全部'];
 var allIntelData=[];
 var currentFilter='all';
 
@@ -4776,22 +4776,45 @@ function buildIntelSubFilters(monitors){
   if(sourceNames.length<=1){el.style.display='none';return}
   var html='';
   sourceNames.forEach(function(name,i){
-    html+='<button class="subfilter-btn'+(i===0?' active':'')+'" onclick="filterBySource(\\''+escHtml(name)+'\\',this)">'+escHtml(name)+'</button>';
+    html+='<button class="subfilter-btn'+(i===0?' active':'')+'" data-source="'+escHtml(name)+'" onclick="filterBySourceFromBtn(this)">'+escHtml(name)+'</button>';
   });
   el.innerHTML=html;
   if(currentCenterTab==='intel')el.style.display='';
 }
 
+function filterBySourceFromBtn(btn){
+  var sourceName=btn.getAttribute('data-source');
+  if(!sourceName)return;
+  filterBySource(sourceName, btn);
+}
 function filterBySource(sourceName, btn){
-  currentSourceFilter=sourceName;
-  document.querySelectorAll('.subfilter-btn').forEach(function(b){b.classList.remove('active')});
-  if(btn)btn.classList.add('active');
   if(sourceName==='全部'){
+    currentSourceFilters=['全部'];
+    document.querySelectorAll('.subfilter-btn').forEach(function(b){b.classList.remove('active')});
+    if(btn)btn.classList.add('active');
+    renderIntelFeed(allIntelData);
+    return;
+  }
+  var allIdx=currentSourceFilters.indexOf('全部');
+  if(allIdx >= 0)currentSourceFilters.splice(allIdx,1);
+  var idx=currentSourceFilters.indexOf(sourceName);
+  if(idx >= 0){
+    currentSourceFilters.splice(idx,1);
+    if(btn)btn.classList.remove('active');
+  }else{
+    currentSourceFilters.push(sourceName);
+    if(btn)btn.classList.add('active');
+  }
+  if(currentSourceFilters.length===0){
+    currentSourceFilters=['全部'];
+    document.querySelectorAll('.subfilter-btn').forEach(function(b){b.classList.remove('active')});
+    var firstBtn=document.querySelector('.subfilter-btn');
+    if(firstBtn)firstBtn.classList.add('active');
     renderIntelFeed(allIntelData);
     return;
   }
   var filtered=allIntelData.filter(function(item){
-    return item._sourceName===sourceName;
+    return currentSourceFilters.indexOf(item._sourceName) >= 0;
   });
   renderIntelFeed(filtered);
 }
