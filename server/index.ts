@@ -392,10 +392,10 @@ function fixAiCssErrors(html: string): string {
 }
 
 // ========== Portal HTML Generator ==========
-function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, widgets?: any[]): string {
+function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, slug: string, widgets?: any[]): string {
   // Intel Station Layout (Three-Column Intelligence Workstation)
   if (template === 'intel-station') {
-    return generateIntelStationHtml(siteName, siteDesc, apiBase, widgets);
+    return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets);
   }
   
   const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
@@ -3365,7 +3365,7 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
-    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'intel-station', apiBase, req.body.widgets);
+    const htmlContent = generatePortalHtml(name, siteDesc || '', template || 'intel-station', apiBase, slug, req.body.widgets);
     const site = await createReportSite(userId, slug, name, name, htmlContent, 'portal', customDomain || '');
 
     res.status(201).json({
@@ -3412,7 +3412,7 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
         if (match) { widgets = JSON.parse(match[1]); }
       } catch (e) { /* keep empty */ }
     }
-    const htmlContent = generatePortalHtml(existing.title, '', 'intel-station', apiBase, widgets);
+    const htmlContent = generatePortalHtml(existing.title, '', 'intel-station', apiBase, slug, widgets);
     const cd = customDomain || (existing as any).custom_domain || '';
     await createReportSite(userId, slug, existing.title, existing.title, htmlContent, 'portal', cd);
 
@@ -3948,6 +3948,46 @@ app.post('/api/portal-intel', async (req, res) => {
   }
 });
 
+// AI Chat endpoint for portal AI assistant
+app.post('/api/ai-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'AI service not configured' });
+    }
+    const chatHistory = Array.isArray(history) ? history.slice(-8) : [];
+    const messages = [
+      { role: 'system', content: '你是一个专业的行业分析AI助手。请用简洁、专业的中文回答用户的问题。回答应基于事实和数据，如果不能确定，请如实说明。' },
+      ...chatHistory,
+      { role: 'user', content: message }
+    ];
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    clearTimeout(timeout);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[AiChat Error]', response.status, errText.substring(0, 200));
+      return res.status(response.status).json({ error: 'AI service error' });
+    }
+    const data = await response.json();
+    const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，未能生成回复。';
+    res.json({ reply });
+  } catch (err: any) {
+    console.error('[AiChat Error]', err.message);
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
 // Save widget config from live portal (public, no auth)
 app.post('/api/p/config/:slug', async (req, res) => {
   try {
@@ -3976,7 +4016,7 @@ app.post('/api/p/config/:slug', async (req, res) => {
     }
 
     const apiBase = process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
-    const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, widgets);
+    const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, slug, widgets);
     await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
 
     res.json({ data: { success: true, slug } });
@@ -4214,7 +4254,7 @@ process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
 process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
 
 // ========== Intel Station Portal Generator (Three-Column Layout) ==========
-function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: string, widgets?: any[]): string {
+function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: string, slug: string, widgets?: any[]): string {
   const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'intel-monitor', title: '情报监控', config: { sources: [] } }];
   const wlistJson = JSON.stringify(wlist).replace(/'/g, '\\x27');
@@ -4310,6 +4350,37 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .intel-card-time{font-size:10px;color:var(--text-secondary)}
 .intel-loading{text-align:center;padding:40px;color:var(--text-secondary);font-size:13px}
 .intel-loading .spinner{display:inline-block;width:20px;height:20px;border:2px solid rgba(0,212,255,0.3);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:10px;vertical-align:middle}
+
+/* ===== CENTER TABS ===== */
+.center-tabs{display:flex;gap:2px;background:rgba(15,23,42,0.4);border-radius:10px;padding:3px;border:1px solid var(--border)}
+.ct-tab{padding:6px 18px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:all .25s;white-space:nowrap;font-family:inherit;background:transparent;border:none}
+.ct-tab:hover{color:var(--cyan);background:rgba(0,212,255,0.06)}
+.ct-tab.active{color:var(--cyan);background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.12));box-shadow:0 0 12px rgba(0,212,255,0.1),inset 0 1px 0 rgba(255,255,255,0.05);font-weight:600}
+/* ===== REPORT FEED ===== */
+.report-feed{flex:1;overflow-y:auto;padding:16px 24px}
+.report-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.report-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#10b981,#34d399);transition:all .3s}
+.report-card:hover{border-color:rgba(16,185,129,0.4);transform:translateX(3px);box-shadow:0 4px 24px rgba(16,185,129,0.12),0 0 24px rgba(52,211,153,0.08),inset 0 1px 0 rgba(255,255,255,0.04)}
+.report-card-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:linear-gradient(135deg,rgba(16,185,129,0.14),rgba(52,211,153,0.06));box-shadow:0 0 10px rgba(16,185,129,0.12)}
+.report-card-body{flex:1;min-width:0}
+.report-card-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.report-card-meta{display:flex;align-items:center;gap:10px}
+.report-card-date{font-size:10px;color:var(--text-secondary)}
+.report-card-tag{font-size:9px;padding:2px 8px;border-radius:4px;background:rgba(16,185,129,0.1);color:#34d399}
+/* ===== AI CHAT ===== */
+.ai-chat{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.ai-chat-messages{flex:1;overflow-y:auto;padding:16px 24px}
+.ai-msg{margin-bottom:12px;max-width:85%;line-height:1.6}
+.ai-msg-user{display:flex;justify-content:flex-end}
+.ai-msg-user>div{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;padding:10px 14px;border-radius:14px 14px 4px 14px;font-size:13px;font-weight:500;box-shadow:0 2px 12px rgba(0,212,255,0.15)}
+.ai-msg-bot{background:rgba(15,23,42,0.6);border:1px solid var(--border);padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;color:var(--text-secondary)}
+.ai-chat-input-area{display:flex;align-items:center;gap:8px;padding:12px 24px;border-top:1px solid var(--border);background:rgba(2,6,23,0.6);flex-shrink:0}
+.ai-chat-input{flex:1;padding:8px 14px;background:rgba(15,23,42,0.6);border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-size:13px;outline:none;font-family:inherit}
+.ai-chat-input:focus{border-color:var(--cyan)}
+.ai-chat-input-area .cmd-btn.send{width:34px;height:34px}
+/* Report card inner layout */
+.report-card-inner{display:flex;align-items:center;gap:12px}
+.no-data-msg{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:13px;line-height:1.8}
 
 /* ===== RIGHT COLUMN - Dashboard ===== */
 .right-col{grid-area:right;background:var(--bg-secondary);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;box-shadow:inset 1px 0 0 var(--border),-2px 0 10px rgba(0,0,0,0.1)}
@@ -4458,12 +4529,30 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
   <!-- Center Column - Intel Feed -->
   <div class="center-col">
     <div class="center-header">
-      <h2>&#x1F4CA; 动态情报流</h2>
+      <div class="center-tabs" id="centerTabs">
+        <span class="ct-tab active" onclick="switchCenterTab('intel')">&#x1F4CA; 动态情报流</span>
+        <span class="ct-tab" onclick="switchCenterTab('reports')">&#x1F4C8; 行业分析报告</span>
+        <span class="ct-tab" onclick="switchCenterTab('ai')">&#x1F916; AI助手</span>
+      </div>
       <span class="status-text" id="feedStatus">加载中...</span>
     </div>
     <div class="intel-feed" id="intelFeed">
       <div class="intel-loading" id="intelLoading">
         <div class="spinner"></div>正在获取情报数据...
+      </div>
+    </div>
+    <div class="report-feed" id="reportFeed" style="display:none">
+      <div class="intel-loading" id="reportLoading">
+        <div class="spinner"></div>加载报告中...
+      </div>
+    </div>
+    <div class="ai-chat" id="aiChat" style="display:none">
+      <div class="ai-chat-messages" id="aiChatMessages">
+        <div class="ai-msg ai-msg-bot">&#x1F44B; 你好！我是AI助手，可以帮你分析行业趋势、解读情报数据、回答相关问题。请随时向我提问。</div>
+      </div>
+      <div class="ai-chat-input-area">
+        <input class="ai-chat-input" id="aiChatInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter'){sendAiMessage()}">
+        <button class="cmd-btn send" onclick="sendAiMessage()">&#x27A4;</button>
       </div>
     </div>
   </div>
@@ -4548,6 +4637,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 <script>
 var API='` + apiBase + `';
 var WIDGETS=` + wlistJson + `;
+var PORTAL_SLUG='` + slug.replace(/'/g, "\\'") + `';
 var allIntelData=[];
 var currentFilter='all';
 
@@ -4635,7 +4725,7 @@ function renderIntelFeed(data){
   data.forEach(function(item,i){
     var keywords=(item.keywords||[]).slice(0,3);
     var url=item.url||item.link||item.sourceUrl||item.href||'';
-    var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,\\'_blank\\')"':'';
+    var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
     html+='<div class="intel-card"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
     if(url){
@@ -4672,6 +4762,125 @@ function filterFeed(type,btn){
     return true;
   });
   renderIntelFeed(filtered);
+}
+
+/* ===== CENTER TAB SWITCHING ===== */
+var currentCenterTab='intel';
+function switchCenterTab(tab){
+  if(currentCenterTab===tab)return;
+  currentCenterTab=tab;
+  var tabs=document.querySelectorAll('#centerTabs .ct-tab');
+  tabs.forEach(function(t){t.classList.remove('active')});
+  if(tab==='intel'){
+    tabs[0].classList.add('active');
+    $('intelFeed').style.display='';$('reportFeed').style.display='none';$('aiChat').style.display='none';
+    $('feedStatus').textContent=allIntelData.length?'已加载 '+allIntelData.length+' 条情报':'加载中...';
+  } else if(tab==='reports'){
+    tabs[1].classList.add('active');
+    $('intelFeed').style.display='none';$('reportFeed').style.display='';$('aiChat').style.display='none';
+    $('feedStatus').textContent='报告中';
+    loadReports();
+  } else if(tab==='ai'){
+    tabs[2].classList.add('active');
+    $('intelFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='';
+    $('feedStatus').textContent='AI助手';
+  }
+}
+
+/* ===== LOAD REPORTS ===== */
+var allReports=[];
+var reportsLoaded=false;
+async function loadReports(){
+  if(!PORTAL_SLUG){$('reportFeed').innerHTML='<div class="no-data-msg">无法获取门户标识</div>';return}
+  if(reportsLoaded&&allReports.length>0){renderReportCards(allReports);return}
+  $('reportLoading').style.display='block';
+  try {
+    var r=await fetch(API+'/api/p/reports/'+PORTAL_SLUG);
+    if(!r.ok)throw new Error('API error: '+r.status);
+    var data=await r.json();
+    allReports=data.data||[];
+    reportsLoaded=true;
+    renderReportCards(allReports);
+    $('feedStatus').textContent=allReports.length+' 份报告';
+  } catch(e){
+    $('reportFeed').innerHTML='<div class="no-data-msg">加载报告失败: '+e.message+'</div>';
+    $('feedStatus').textContent='加载失败';
+  }
+}
+
+function renderReportCards(reports){
+  $('reportLoading').style.display='none';
+  if(!reports||reports.length===0){
+    $('reportFeed').innerHTML='<div class="no-data-msg">&#x1F4D1; 暂无行业分析报告<br><span style="font-size:11px;opacity:0.6">在Portal Builder中生成报告后，这里将自动显示</span></div>';
+    return;
+  }
+  var html='';
+  reports.forEach(function(report){
+    var dateStr='';
+    if(report.createdAt){
+      var d=new Date(report.createdAt);
+      dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    }
+    var reportUrl=report.url||('/web/'+report.slug);
+    html+='<div class="report-card" onclick="window.open(&#39;'+escHtml(reportUrl)+'&#39;,&#39;_blank&#39;)">';
+    html+='<div class="report-card-inner">';
+    html+='<div class="report-card-icon">&#x1F4CA;</div>';
+    html+='<div class="report-card-body">';
+    html+='<div class="report-card-title">'+escHtml(report.companyName||report.title||'行业分析报告')+'</div>';
+    html+='<div class="report-card-meta">';
+    html+='<span class="report-card-date">'+dateStr+'</span>';
+    html+='<span class="report-card-tag">行业分析</span>';
+    html+='</div></div></div></div>';
+  });
+  $('reportFeed').innerHTML=html;
+}
+
+/* ===== AI ASSISTANT ===== */
+var aiChatHistory=[];
+async function sendAiMessage(){
+  var input=$('aiChatInput');
+  if(!input)return;
+  var msg=input.value.trim();
+  if(!msg)return;
+  input.value='';
+  input.disabled=true;
+  appendChatMessage('user',msg);
+  aiChatHistory.push({role:'user',content:msg});
+  var thinkId='think_'+Date.now();
+  var thinkEl=document.createElement('div');
+  thinkEl.className='ai-msg ai-msg-bot';
+  thinkEl.id=thinkId;
+  thinkEl.textContent='思考中...';
+  $('aiChatMessages').appendChild(thinkEl);
+  $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
+  try {
+    var response=await fetch(API+'/api/ai-chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg,history:aiChatHistory.slice(-10)})
+    });
+    if(!response.ok)throw new Error('API error: '+response.status);
+    var data=await response.json();
+    var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
+    aiChatHistory.push({role:'assistant',content:reply});
+    if(thinkEl.parentNode)thinkEl.parentNode.removeChild(thinkEl);
+    appendChatMessage('bot',reply);
+  } catch(e){
+    if(thinkEl.parentNode)thinkEl.parentNode.removeChild(thinkEl);
+    appendChatMessage('bot','抱歉，请求失败: '+e.message);
+  }
+  input.disabled=false;
+  input.focus();
+}
+
+function appendChatMessage(role,text){
+  var el=document.createElement('div');
+  el.className='ai-msg ai-msg-'+role;
+  var inner=document.createElement('div');
+  inner.textContent=text;
+  el.appendChild(inner);
+  $('aiChatMessages').appendChild(el);
+  $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
 }
 
 /* ===== MODAL: Source Edit ===== */
