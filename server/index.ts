@@ -4181,32 +4181,28 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .main-layout{display:grid;grid-template-columns:320px 1fr 340px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right";flex:1;overflow:hidden;position:relative;z-index:1}
 .main-layout::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(0,212,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.02) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0}
 
-/* ===== LEFT COLUMN - Filter ===== */
+/* ===== LEFT COLUMN - Source Cards ===== */
 .left-col{grid-area:left;background:var(--bg-secondary);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;box-shadow:inset -1px 0 0 var(--border),2px 0 10px rgba(0,0,0,0.1)}
-.left-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative}
+.left-header{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:space-between}
 .left-header::after{content:'';position:absolute;bottom:-1px;left:0;width:60px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:1px}
 .left-header h3{font-size:13px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px}
 .source-groups{flex:1;overflow-y:auto;padding:12px}
-.source-group{margin-bottom:16px}
-.source-group-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s;user-select:none;position:relative;overflow:hidden}
-.source-group-header::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.2),transparent);opacity:0;transition:opacity .2s}
-.source-group-header:hover{border-color:rgba(0,212,255,0.4);box-shadow:0 0 12px rgba(0,212,255,0.08)}
-.source-group-header:hover::before{opacity:1}
-.sg-title{font-size:12px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:8px}
-.sg-count{font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,212,255,0.15);color:var(--cyan);font-weight:600}
-.source-group-body{padding:8px 4px}
-.source-card{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;border:1px solid transparent;border-radius:8px;cursor:pointer;transition:all .2s}
-.source-card:hover{background:rgba(255,255,255,0.03);border-color:rgba(0,212,255,0.25);box-shadow:0 0 12px rgba(0,212,255,0.08),inset 0 1px 0 rgba(255,255,255,0.03)}
-.source-card.active{background:rgba(0,212,255,0.08);border-color:rgba(0,212,255,0.4);box-shadow:0 0 12px rgba(0,212,255,0.1),0 0 4px rgba(168,85,247,0.06)}
-.source-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.source-icon.type-news{background:rgba(0,212,255,0.15);color:var(--cyan)}
-.source-icon.type-social{background:rgba(168,85,247,0.15);color:var(--purple)}
-.source-icon.type-financial{background:rgba(16,185,129,0.15);color:#10b981}
-.source-info{flex:1;min-width:0}
-.source-name{font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.source-meta{font-size:10px;color:var(--text-secondary);margin-top:2px}
-.source-badge{font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.05);color:var(--text-secondary)}
-.add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:8px}
+.source-card{display:flex;align-items:flex-start;gap:10px;padding:12px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .25s;background:rgba(15,23,42,0.4);position:relative;overflow:hidden}
+.source-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.15),transparent);opacity:0;transition:opacity .25s}
+.source-card:hover{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.05);box-shadow:0 0 16px rgba(0,212,255,0.1),inset 0 1px 0 rgba(255,255,255,0.03);transform:translateX(2px)}
+.source-card:hover::before{opacity:1}
+.source-card.active{border-color:rgba(0,212,255,0.5);background:rgba(0,212,255,0.08);box-shadow:0 0 20px rgba(0,212,255,0.15),0 0 8px rgba(168,85,247,0.08)}
+.source-card .sc-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:rgba(0,212,255,0.1);box-shadow:0 0 8px rgba(0,212,255,0.08)}
+.source-card .sc-body{flex:1;min-width:0}
+.source-card .sc-name{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.source-card .sc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.source-card .sc-provider{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(0,212,255,0.12);color:var(--cyan)}
+.source-card .sc-provider.metaso{background:rgba(168,85,247,0.12);color:var(--purple)}
+.source-card .sc-kwcount{font-size:10px;color:var(--text-secondary)}
+.source-card .sc-freq{font-size:10px;color:var(--text-secondary)}
+.source-card .sc-edit{font-size:16px;color:var(--text-secondary);opacity:0;transition:opacity .2s;flex-shrink:0}
+.source-card:hover .sc-edit{opacity:1}
+.add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:10px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:4px}
 .add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.05)}
 
 /* ===== CENTER COLUMN - Intel Feed ===== */
@@ -4280,6 +4276,60 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700;box-shadow:0 2px 12px rgba(0,212,255,0.3)}
 .cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 20px rgba(0,212,255,0.4),0 0 30px rgba(168,85,247,0.25)}
 
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal-bg{position:absolute;inset:0;background:rgba(2,6,23,0.85);backdrop-filter:blur(8px)}
+.modal-panel{position:relative;width:100%;max-width:560px;max-height:88vh;background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(255,255,255,0.12);border-top:3px solid var(--cyan);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,0.6),0 0 40px rgba(0,212,255,0.1)}
+.modal-overlay.open .modal-panel{transform:scale(1) translateY(0)}
+.modal-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.mh-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:rgba(0,212,255,0.12);box-shadow:0 0 12px rgba(0,212,255,0.1)}
+.mh-info{flex:1;min-width:0}
+.mh-title{font-size:14px;font-weight:700;color:var(--text-primary)}
+.mh-sub{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.modal-close{width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:var(--text-secondary);font-size:20px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.modal-close:hover{background:rgba(239,68,68,0.15);color:#ef4444}
+.modal-bd{flex:1;overflow-y:auto;padding:20px}
+.modal-ft{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0}
+.btn-cancel{padding:8px 18px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit}
+.btn-cancel:hover{border-color:rgba(255,255,255,0.2);color:var(--text-primary)}
+.btn-save{padding:8px 18px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;cursor:pointer;font-size:12px;font-weight:700;transition:all .2s;font-family:inherit;box-shadow:0 0 12px rgba(0,212,255,0.2)}
+.btn-save:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,212,255,0.3),0 0 20px rgba(168,85,247,0.2)}
+.btn-save:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none}
+/* Modal Form Fields */
+.mb-group{margin-bottom:14px}
+.mb-label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
+.mb-label span{font-weight:400;color:var(--text-secondary);opacity:0.6}
+.mb-input{width:100%;padding:8px 12px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:inherit;transition:border .2s}
+.mb-input:focus{border-color:var(--cyan)}
+.mb-select{width:100%;padding:8px 12px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:inherit;transition:border .2s;cursor:pointer}
+.mb-select:focus{border-color:var(--cyan)}
+.mb-area{width:100%;padding:8px 12px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:inherit;transition:border .2s;resize:vertical}
+.mb-area:focus{border-color:var(--cyan)}
+.mb-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Keyword Tags in Modal */
+.kw-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.kw-t{display:flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);border-radius:10px;font-size:11px;color:var(--cyan);box-shadow:0 0 6px rgba(0,212,255,0.05)}
+.kw-x{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:13px;padding:0 2px;transition:color .2s}
+.kw-x:hover{color:#ef4444}
+.kw-add-row{display:flex;gap:6px}
+.kw-add-input{flex:1;padding:6px 10px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:11px;outline:none;font-family:inherit;transition:border .2s}
+.kw-add-input:focus{border-color:var(--cyan)}
+.kw-add-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:rgba(0,212,255,0.05);color:var(--cyan);cursor:pointer;font-size:14px;font-weight:700;transition:all .2s}
+.kw-add-btn:hover{background:rgba(0,212,255,0.15);border-color:rgba(0,212,255,0.3)}
+/* Delete source button */
+.src-del{font-size:11px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:4px;transition:all .2s}
+.src-del:hover{color:#ef4444;background:rgba(239,68,68,0.1)}
+.btn-add-src{width:100%;margin-top:8px;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--cyan);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;font-family:inherit}
+.btn-add-src:hover{border-color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.08)}
+
+/* Source Row Header */
+.src-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.st-name-input{flex:1;padding:6px 10px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;font-weight:600;outline:none;font-family:inherit;transition:border .2s}
+.st-name-input:focus{border-color:var(--cyan)}
+.src-mini{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:rgba(15,23,42,0.3);transition:border .2s}
+.src-mini:hover{border-color:rgba(0,212,255,0.2)}
+
 /* ===== RESPONSIVE ===== */
 @media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right"}}
 @media(max-width:1024px){.main-layout{grid-template-columns:1fr;height:100%;grid-template-rows:1fr auto;grid-template-areas:"center""bottom"}.left-col,.right-col{display:none}}
@@ -4313,7 +4363,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
   <!-- Left Column - Filter -->
   <div class="left-col">
     <div class="left-header">
-      <h3>&#x1F4E1; 情报过滤器</h3>
+      <h3>&#x1F6F0; 监控源</h3>
     </div>
     <div class="source-groups" id="sourceGroups">
       <!-- Dynamic content -->
@@ -4389,6 +4439,26 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
   </div>
 </div>
 
+<!-- ===== MODAL ===== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeSourceModal(event)">
+  <div class="modal-bg"></div>
+  <div class="modal-panel" id="modalPanel" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <div class="mh-icon" id="modalIcon">&#x1F6F0;</div>
+      <div class="mh-info">
+        <div class="mh-title" id="modalTitle">编辑监控源</div>
+        <div class="mh-sub" id="modalSub">修改情报监控源配置</div>
+      </div>
+      <button class="modal-close" onclick="closeSourceModalDirect()">&times;</button>
+    </div>
+    <div class="modal-bd" id="modalBody"></div>
+    <div class="modal-ft" id="modalFooter">
+      <button class="btn-cancel" onclick="closeSourceModalDirect()">取消</button>
+      <button class="btn-save" id="btnSave">保存配置</button>
+    </div>
+  </div>
+</div>
+
 <script>
 var API='` + apiBase + `';
 var WIDGETS=` + wlistJson + `;
@@ -4440,42 +4510,34 @@ async function loadIntelData(){
 
 /* ===== RENDER SOURCE FILTERS ===== */
 function renderSourceFilters(monitors){
+  var widgetSources=[];
+  monitors.forEach(function(mw,wi){
+    var srcs=mw.config&&mw.config.sources||mw.sources||[];
+    srcs.forEach(function(src,si){widgetSources.push({widgetIndex:wi,sourceIndex:si,source:src})});
+  });
+  if(widgetSources.length===0){
+    $('sourceGroups').innerHTML='<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:12px">暂无监控源<br><br><button class="add-source-btn" onclick="addNewSource()">+ 添加第一个监控源</button></div>';
+    return;
+  }
   var html='';
-  var groups={news:[],social:[],financial:[]};
-  monitors.forEach(function(mw){
-    (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
-      var keywords=(src.keywords||[]).join('');
-      if(keywords.indexOf('股价')!=-1||keywords.indexOf('财报')!=-1)groups.financial.push(src);
-      else if(keywords.indexOf('Twitter')!=-1||keywords.indexOf('微博')!=-1)groups.social.push(src);
-      else groups.news.push(src);
-    });
-  });
-  var groupConfig=[
-    {key:'news',label:'新闻资讯',icon:'&#x1F4F0;',cls:'type-news'},
-    {key:'social',label:'社交媒体',icon:'&#x1F4AC;',cls:'type-social'},
-    {key:'financial',label:'金融数据',icon:'&#x1F4B9;',cls:'type-financial'}
-  ];
-  groupConfig.forEach(function(g){
-    if(groups[g.key].length===0)return;
-    html+='<div class="source-group">';
-    html+='<div class="source-group-header" onclick="toggleGroup(this)">';
-    html+='<div class="sg-title">'+g.icon+' '+g.label+'</div>';
-    html+='<div class="sg-count">'+groups[g.key].length+'</div>';
-    html+='</div>';
-    html+='<div class="source-group-body">';
-    groups[g.key].forEach(function(src){
-      html+='<div class="source-card">';
-      html+='<div class="source-icon '+g.cls+'">'+g.icon+'</div>';
-      html+='<div class="source-info">';
-      html+='<div class="source-name">'+escHtml(src.name||'未命名')+'</div>';
-      html+='<div class="source-meta">'+(src.updateFrequency||'daily')+'</div>';
-      html+='</div>';
-      html+='<div class="source-badge">'+(src.keywords||[]).length+' 关键词</div>';
-      html+='</div>';
-    });
+  widgetSources.forEach(function(ws){
+    var src=ws.source;
+    var providerLabel=src.aiProvider||'deepseek';
+    var kws=(src.keywords||[]);
+    var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[src.updateFrequency]||'每日';
+    html+='<div class="source-card" onclick="openSourceModal('+ws.widgetIndex+','+ws.sourceIndex+')" title="点击编辑此监控源">';
+    html+='<div class="sc-icon">&#x1F6F0;</div>';
+    html+='<div class="sc-body">';
+    html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
+    html+='<div class="sc-meta">';
+    html+='<span class="sc-provider'+(providerLabel==='metaso'?' metaso':'')+'">'+escHtml(providerLabel)+'</span>';
+    html+='<span class="sc-kwcount">'+kws.length+' 关键词</span>';
+    html+='<span class="sc-freq">'+freqLabel+'</span>';
     html+='</div></div>';
+    html+='<div class="sc-edit">&#x270E;</div>';
+    html+='</div>';
   });
-  html+='<button class="add-source-btn" onclick="addSource()">+ 添加监控源</button>';
+  html+='<button class="add-source-btn" onclick="addNewSource()">+ 添加监控源</button>';
   $('sourceGroups').innerHTML=html;
 }
 
@@ -4520,13 +4582,187 @@ function filterFeed(type,btn){
   renderIntelFeed(filtered);
 }
 
-function toggleGroup(header){
-  var body=header.nextElementSibling;
-  if(body.style.display==='none')body.style.display='block';
-  else body.style.display='none';
+/* ===== MODAL: Source Edit ===== */
+var _activeWi=-1,_activeSi=-1;
+
+function openSourceModal(wi,si){
+  _activeWi=wi;_activeSi=si;
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  var src=srcs[si];
+  if(!src){closeSourceModalDirect();return}
+  $('modalIcon').textContent='\uD83D\uDEE0';
+  $('modalTitle').textContent=src.name||'编辑监控源';
+  $('modalSub').textContent='配置情报监控源参数';
+  renderSourceForm(wi,si);
+  $('btnSave').onclick=function(){saveSourceConfig(wi,si)};
+  $('modalOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
 }
 
-/* ===== DASHBOARD ===== */
+function closeSourceModal(e){
+  if(e&&e.target!==$('modalOverlay'))return;
+  closeSourceModalDirect();
+}
+
+function closeSourceModalDirect(){
+  $('modalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  _activeWi=-1;_activeSi=-1;
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape')closeSourceModalDirect();
+});
+
+function renderSourceForm(wi,si){
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  var src=srcs[si];
+  if(!src)return;
+  var kws=src.keywords||[];
+  var s='';
+  s+='<div class="src-mini">';
+  s+='<div class="src-top"><input class="st-name-input" id="srcName_'+wi+'_'+si+'" value="'+escHtml(src.name||'')+'" placeholder="监控源名称">';
+  s+='<span class="src-del" onclick="deleteSource('+wi+','+si+')" title="删除此监控源">\u2715 删除</span></div>';
+  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
+  s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
+  ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
+    s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
+  });
+  s+='</select></div>';
+  s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
+  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v3.1">';
+  s+='</div></div>';
+  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
+  s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
+  s+='</div><div class="mb-group"><label class="mb-label">更新频率</label>';
+  s+='<select class="mb-select" id="srcFreq_'+wi+'_'+si+'">';
+  var freqs=['hourly','daily','weekly','monthly'];
+  var freqLabels={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'};
+  freqs.forEach(function(f){
+    s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+freqLabels[f]+'</option>';
+  });
+  s+='</select></div></div>';
+  s+='<div class="mb-group"><label class="mb-label">监控关键词</label>';
+  s+='<div class="kw-tags" id="kwTags_'+wi+'_'+si+'">';
+  kws.forEach(function(k){
+    s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+wi+','+si+',this.parentElement)" title="移除">&times;</button></span>';
+  });
+  s+='</div>';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}">';
+  s+='<button class="kw-add-btn" onclick="addKeyword('+wi+','+si+')">+</button></div>';
+  s+='</div>';
+  s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
+  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:80px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
+  s+='</div>';
+  s+='</div>';
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+function saveSourceConfig(wi,si){
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  if(!srcs[si])return;
+  var name=($('srcName_'+wi+'_'+si)||{}).value||'';
+  var provider=($('srcProvider_'+wi+'_'+si)||{}).value||'deepseek';
+  var model=($('srcModel_'+wi+'_'+si)||{}).value||'';
+  var apiKey=($('srcApiKey_'+wi+'_'+si)||{}).value||'';
+  var freq=($('srcFreq_'+wi+'_'+si)||{}).value||'daily';
+  var prompt=($('srcPrompt_'+wi+'_'+si)||{}).value||'';
+  var keywords=[];
+  var kwContainer=$('kwTags_'+wi+'_'+si);
+  if(kwContainer){
+    kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
+      var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('\u00d7','').trim():'';
+      if(kwText)keywords.push(kwText);
+    });
+  }
+  srcs[si].name=name;
+  srcs[si].aiProvider=provider;
+  srcs[si].aiModel=model;
+  srcs[si].apiKey=apiKey;
+  srcs[si].updateFrequency=freq;
+  srcs[si].customPrompt=prompt;
+  srcs[si].keywords=keywords;
+  if(w.config&&w.config.sources)w.config.sources=srcs;
+  else w.sources=srcs;
+  var slug=window.location.pathname.split('/').pop();
+  var monitorWidget={type:'intel-monitor',idx:wi,title:w.title,sources:srcs};
+  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:wi,widget:{type:'monitor',idx:wi,title:w.title||'情报监控',sources:srcs}})}).then(function(r){
+    if(r.ok){
+      var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+      renderSourceFilters(monitors);
+      closeSourceModalDirect();
+    }else{
+      alert('保存失败，请重试');
+    }
+  }).catch(function(){alert('网络错误，请重试');});
+}
+
+function addNewSource(){
+  var w=WIDGETS.find(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  if(!w){
+    alert('请先在建站页面添加情报监控组件');
+    return;
+  }
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  srcs.push({name:'新监控源',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],updateFrequency:'daily',customPrompt:''});
+  if(w.config&&w.config.sources)w.config.sources=srcs;
+  else w.sources=srcs;
+  var newSi=srcs.length-1;
+  var allMonitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  var wi=WIDGETS.indexOf(w);
+  if(wi===-1)wi=0;
+  renderSourceFilters(allMonitors);
+  setTimeout(function(){openSourceModal(wi,newSi)},100);
+}
+
+function deleteSource(wi,si){
+  if(!confirm('确定要删除这个监控源吗？此操作不可撤销。'))return;
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  srcs.splice(si,1);
+  if(w.config&&w.config.sources)w.config.sources=srcs;
+  else w.sources=srcs;
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  renderSourceFilters(monitors);
+  closeSourceModalDirect();
+}
+
+function addKeyword(wi,si){
+  var inp=$('kwInput_'+wi+'_'+si);
+  if(!inp)return;
+  var kw=inp.value.trim();
+  if(!kw)return;
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  if(!srcs[si])return;
+  if(!srcs[si].keywords)srcs[si].keywords=[];
+  if(srcs[si].keywords.indexOf(kw)===-1)srcs[si].keywords.push(kw);
+  renderSourceForm(wi,si);
+}
+
+function removeKeyword(wi,si,el){
+  var w=WIDGETS[wi];
+  if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];
+  if(!srcs[si])return;
+  var kwText=el.childNodes[0]?el.childNodes[0].textContent.replace('\u00d7','').trim():'';
+  var kws=srcs[si].keywords||[];
+  var ki=kws.indexOf(kwText);
+  if(ki!==-1)kws.splice(ki,1);
+  renderSourceForm(wi,si);
+}
+
+/* ===== UTILS ===== */
+function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function initDashboard(){
   renderSentimentGauge(52);
   renderKeywordCloud();
@@ -4641,10 +4877,6 @@ function sendCommand(){
 
 function toggleMic(){alert('语音输入功能开发中...');}
 function deployPortal(){alert('部署功能开发中...');}
-function addSource(){alert('添加监控源功能开发中...');}
-
-/* ===== UTILS ===== */
-function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 </script>
 </body>
 </html>`;
