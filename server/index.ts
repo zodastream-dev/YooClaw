@@ -3901,9 +3901,9 @@ app.post('/api/portal-intel', async (req, res) => {
         var _kw=_kwArr.join('、');
         var _sp=src.customPrompt||'你是一个专业的情报分析助手。';
         var _up='请搜索并整理关于【'+_kw+'】的最新资讯，列出最重要的10条。'+
-          '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)。'+
-          '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":""}]。'+
-          '4.仅输出JSON数组，不要任何其他文字。';
+          '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)、url(原始链接，如有)。'+
+          '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":"","url":""}]。'+
+          '4.如果无法提供真实url，url字段留空字符串。5.仅输出JSON数组，不要任何其他文字。';
         var _prompt={systemPrompt:_sp,userPrompt:_up};
         var _provider=src.aiProvider||'deepseek';
         var _apiKey=src.apiKey||(_provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
@@ -3926,6 +3926,8 @@ app.post('/api/portal-intel', async (req, res) => {
           var _content=_data.choices[0].message.content;
           _content=_content.replace('```json','').replace(/```/g,'').trim();
           try{_results=JSON.parse(_content)}catch(e){var _match=_content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);if(_match){try{_results=JSON.parse(_match[0])}catch(e2){}}else throw new Error('无法解析AI返回数据')}
+          // 确保每条结果都有 link 字段（用于前端卡片点击跳转）
+          _results=(_results||[]).map(function(r){return{title:r.title||'',summary:r.summary||'',source:r.source||'',date:r.date||r.time||'',link:r.url||r.link||'https://www.baidu.com/s?wd='+encodeURIComponent(r.title||'')};});
         }
         portalIntelCache.set(cacheKey, { data: _results, expiry: now + PORTAL_INTEL_CACHE_TTL });
         return { sourceIdx: idx, data: _results, fromCache: false };
