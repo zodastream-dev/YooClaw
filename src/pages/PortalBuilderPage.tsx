@@ -370,7 +370,7 @@ export function PortalBuilderPage() {
                   <div className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center text-2xl font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
                   <div className="w-full">
                     <div className="text-[11px] font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
-                    <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">AI 持续监控关键词情报</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">持续监控关键词情报</div>
                   </div>
                 </button>
               </div>

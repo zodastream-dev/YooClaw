@@ -4326,9 +4326,9 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .dashboard-section::before{content:'';position:absolute;top:-1px;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.2),rgba(168,85,247,0.2),transparent)}
 .dashboard-section h4{font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;letter-spacing:0.5px;text-transform:uppercase}
 /* Sentiment Gauge */
-.sentiment-gauge{position:relative;width:320px;height:190px;margin:0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden;max-width:100%}
+.sentiment-gauge{position:relative;width:100%;max-width:260px;height:160px;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .sentiment-gauge canvas{display:block;max-width:100%;height:auto}
-.sentiment-label{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:16px;font-weight:700;color:rgba(255,255,255,0.9);text-shadow:0 0 16px rgba(0,212,255,0.3)}
+.sentiment-label{font-size:16px;font-weight:700;color:rgba(255,255,255,0.9);text-shadow:0 0 16px rgba(0,212,255,0.3);margin-top:4px;text-align:center}
 /* Keyword Cloud */
 .keyword-cloud{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .kw-cloud-item{font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(0,212,255,0.08);color:var(--cyan);border:1px solid rgba(0,212,255,0.2);transition:all .3s;cursor:default;box-shadow:0 0 6px rgba(0,212,255,0.1)}
@@ -4348,7 +4348,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .briefing-text p{margin-bottom:6px}
 
 /* ===== BOTTOM BAR - AI Command Center ===== */
-.bottom-bar{grid-area:bottom;display:flex;align-items:center;justify-content:center;gap:0;padding:16px 24px;background:rgba(2,6,23,0.98);border-top:1px solid var(--border);backdrop-filter:blur(20px);flex-shrink:0;position:relative;overflow:hidden}
+.bottom-bar{grid-area:bottom;display:flex;align-items:center;justify-content:center;gap:0;padding:10px 24px 8px;background:rgba(2,6,23,0.98);border-top:1px solid var(--border);backdrop-filter:blur(20px);flex-shrink:0;position:relative;overflow:hidden;flex-direction:column}
 .bottom-bar::before{content:'';position:absolute;inset:0;border-radius:0;background:linear-gradient(135deg,rgba(0,212,255,0.06),rgba(168,85,247,0.06));pointer-events:none;z-index:0}
 .cmd-outer{position:relative;width:100%;max-width:900px;padding:2px;border-radius:30px;background:linear-gradient(135deg,#00d4ff,#a855f7,#00d4ff);background-size:200% 200%;animation:borderGlow 3s ease infinite;box-shadow:0 0 20px rgba(0,212,255,0.15),0 0 40px rgba(168,85,247,0.1);z-index:1;transition:all .3s}
 .cmd-outer:focus-within{background:linear-gradient(135deg,#00f0ff,#d946ef,#00f0ff);background-size:200% 200%;animation:borderGlow 2s ease infinite;box-shadow:0 0 30px rgba(0,212,255,0.25),0 0 60px rgba(168,85,247,0.15),0 0 100px rgba(0,212,255,0.08)}
@@ -4359,10 +4359,11 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .cmd-input::placeholder{color:rgba(255,255,255,0.65);font-size:15px;font-weight:400}
 .cmd-input:focus{outline:none}
 .cmd-btn{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
-.cmd-btn.mic{background:rgba(255,255,255,0.05);color:var(--text-secondary)}
-.cmd-btn.mic:hover{background:rgba(0,212,255,0.15);color:var(--cyan)}
+.cmd-btn.mic{background:rgba(255,255,255,0.08);color:#ffffff}
+.cmd-btn.mic:hover{background:rgba(0,212,255,0.2);color:#ffffff}
 .cmd-btn.send{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;font-weight:700;box-shadow:0 2px 12px rgba(0,212,255,0.3)}
 .cmd-btn.send:hover{transform:scale(1.05);box-shadow:0 4px 20px rgba(0,212,255,0.4),0 0 30px rgba(168,85,247,0.25)}
+.cmd-hint{font-size:11px;color:rgba(255,255,255,0.35);margin-top:5px;text-align:center;letter-spacing:0.3px}
 
 /* ===== RESPONSIVE ===== */
 @media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right"}}
@@ -4427,9 +4428,9 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
       <div class="dashboard-section">
         <h4>&#x1F4C8; 情绪分析</h4>
         <div class="sentiment-gauge">
-          <canvas id="sentimentCanvas" width="320" height="190"></canvas>
+          <canvas id="sentimentCanvas" width="260" height="130"></canvas>
+          <div class="sentiment-label" id="sentimentLabel">中性 52%</div>
         </div>
-        <div class="sentiment-label" id="sentimentLabel">中性 52%</div>
       </div>
       <!-- Keyword Cloud -->
       <div class="dashboard-section">
@@ -4470,6 +4471,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
         <button class="cmd-btn send" onclick="sendCommand()">&#x27A4;</button>
       </div>
     </div>
+    <div class="cmd-hint">你可以问AI：给我总结一下今天所有的最新情报</div>
   </div>
 </div>
 
@@ -4484,7 +4486,7 @@ function $(id){return document.getElementById(id)}
 /* ===== INIT ===== */
 (function(){
   setTimeout(function(){loadIntelData()},500);
-  setTimeout(function(){initDashboard()},800);
+  setTimeout(function(){initDashboard()},300);
 })();
 
 /* ===== LOAD INTEL DATA ===== */
@@ -4617,9 +4619,9 @@ function toggleGroup(header){
 /* ===== DASHBOARD ===== */
 function initDashboard(){
   renderSentimentGauge(52);
-  renderKeywordCloud();
   renderKPITrend();
   updateBriefing();
+  // 关键词云等数据加载后由 updateDashboard(data) 渲染，此处不填充默认词
 }
 
 function updateDashboard(data){
@@ -4635,19 +4637,20 @@ function renderSentimentGauge(value){
   var ctx=canvas.getContext('2d');
   var w=canvas.width,h=canvas.height;
   ctx.clearRect(0,0,w,h);
+  var cx=w/2,cy=h-10,r=Math.min(w/2-10,h-20);
   ctx.beginPath();
-  ctx.arc(w/2,h,60,Math.PI,0,false);
+  ctx.arc(cx,cy,r,Math.PI,0,false);
   ctx.strokeStyle='rgba(255,255,255,0.1)';
-  ctx.lineWidth=16;
+  ctx.lineWidth=14;
   ctx.stroke();
   var endAngle=Math.PI+(value/100)*Math.PI;
   ctx.beginPath();
-  ctx.arc(w/2,h,60,Math.PI,endAngle,false);
-  var gradient=ctx.createLinearGradient(0,h,w,0);
+  ctx.arc(cx,cy,r,Math.PI,endAngle,false);
+  var gradient=ctx.createLinearGradient(0,cy,w,0);
   gradient.addColorStop(0,'#00d4ff');
   gradient.addColorStop(1,'#a855f7');
   ctx.strokeStyle=gradient;
-  ctx.lineWidth=16;
+  ctx.lineWidth=14;
   ctx.lineCap='round';
   ctx.stroke();
   $('sentimentLabel').textContent=(value>60?'积极':value>40?'中性':'消极')+' '+value+'%';
