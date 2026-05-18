@@ -228,11 +228,11 @@ function cleanAiHtml(raw: string, fallbackTitle: string): string {
     return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${fallbackTitle}</title></head><body><p style="padding:2em;text-align:center;color:#888">报告内容生成失败，请重试。</p></body></html>`;
   }
 
-  // 1. Remove markdown code fences (```html ... ```)
+  // 1. Remove markdown code fences (${TRIPLE_BACKTICK}html ... ${TRIPLE_BACKTICK})
   let html = raw
-    .replace(/^```html\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/i, '')
+    .replace(/^${TRIPLE_BACKTICK}html\s*/i, '')
+    .replace(/^${TRIPLE_BACKTICK}\s*/i, '')
+    .replace(/${TRIPLE_BACKTICK}\s*$/i, '')
     .trim();
 
   // 2. Locate the start of the actual HTML document
@@ -4017,7 +4017,7 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
     }
     const data = await response.json();
     let content = data.choices[0].message.content;
-    content = content.replace('```json', '').replace(/```/g, '').trim();
+    content = content.replace('${TRIPLE_BACKTICK}json', '').replace(/${TRIPLE_BACKTICK}/g, '').trim();
     try {
       results = JSON.parse(content);
     } catch (e) {
@@ -4288,6 +4288,7 @@ app.post('/api/ai-chat', async (req, res) => {
     const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
     const dateStr = now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + weekDays[now.getDay()];
 
+    const TRIPLE_BACKTICK = '```';
     let systemContent = `# 实时数据指令
 今天是${dateStr}，请以这个日期为准回答用户问题。
 
@@ -4305,7 +4306,7 @@ app.post('/api/ai-chat', async (req, res) => {
 
 # Copy-Friendly Specifications (一键复制友好规范)
 为了完美配合前端的"一键复制"功能，你必须遵守以下排版规则：
-- **独立代码块**：所有核心代码、配置文件、命令行指令、或长篇的文案模板，必须使用标准的 Markdown 代码块（如 ```javascript, ```text）包裹，严禁与普通正文混在一起。
+- **独立代码块**：所有核心代码、配置文件、命令行指令、或长篇的文案模板，必须使用标准的 Markdown 代码块（如 ${TRIPLE_BACKTICK}javascript, ${TRIPLE_BACKTICK}text）包裹，严禁与普通正文混在一起。
 - **纯净容器**：代码块内部只能包含可执行的代码、配置内容或需要被复制的纯文本。严禁在代码块内部夹杂你的解释性文字（如"// 这里的代码意思是..."），所有的分析、解释、前言和后语必须写在代码块外面。
 - **格式规范**：提供代码时必须声明编程语言，确保前端高亮插件完美渲染；涉及复杂公式时使用 LaTeX 标准格式（$行内公式$ 或 $$独立公式$$）。
 
