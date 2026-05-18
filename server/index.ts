@@ -4199,8 +4199,11 @@ app.post('/api/ai-chat', async (req, res) => {
       return res.status(500).json({ error: 'AI service not configured' });
     }
     const chatHistory = Array.isArray(history) ? history.slice(-8) : [];
+    const now = new Date();
+    const weekDays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+    const dateStr = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日 ' + weekDays[now.getDay()];
     const messages = [
-      { role: 'system', content: '你是一个专业的行业分析AI助手。请用简洁、专业的中文回答用户的问题。回答应基于事实和数据，如果不能确定，请如实说明。' },
+      { role: 'system', content: '你是一个专业的行业分析AI助手。请用简洁、专业的中文回答用户的问题。回答应基于事实和数据，如果不能确定，请如实说明。\n\n【当前时间】今天是' + dateStr + '，请以这个日期为准回答用户问题。' },
       ...chatHistory,
       { role: 'user', content: message }
     ];
