@@ -1322,25 +1322,56 @@ async function fetchAllIntel(){
   var monitors=WIDGETS.filter(function(w){return w.type==='monitor'});
   if(monitors.length===0){INTEL_FETCHING=false;return}
   area.style.display='block';
-  status.innerHTML='<div class="intel-loading"><div class="spinner"></div>正在获取情报数据...</div>';
-  var allHtml='';
+  status.innerHTML='<div class="intel-loading"><div class="spinner"></div>正在获取情报数据（并行加速中）...</div>';
+  // Collect all source fetch tasks with position info
+  var fetchTasks=[];
   for(var mi=0;mi<monitors.length;mi++){
     var mw=monitors[mi];
     if(!mw.sources||mw.sources.length===0)continue;
-    allHtml+='<div class="intel-src-group"><h3 class="isg-title">🛰️ '+mw.title+'</h3>';
     for(var si=0;si<mw.sources.length;si++){
       var src=mw.sources[si];
-      var fl=src.updateFrequency==='realtime'?'实时':src.updateFrequency==='daily'?'每日':'每周';
-      allHtml+='<div class="intel-src-block"><div class="intel-src-title"><span class="isdot"></span>'+src.name+'<span class="isfreq"> · '+fl+'更新 · '+(src.aiModel||'默认')+'</span></div>';
-      try{
-        var intelData=await fetchSourceIntel(src);
-        if(intelData&&intelData.length>0){allHtml+=renderIntelItems(intelData)}
-        else{allHtml+='<div class="intel-empty">暂无情报数据</div>'}
-      }catch(e){allHtml+='<div class="intel-error">获取失败: '+e.message+'</div>'}
-      allHtml+='</div>';
+      fetchTasks.push({
+        mi:mi,si:si,mw:mw,src:src,
+        fl:src.updateFrequency==='realtime'?'实时':src.updateFrequency==='daily'?'每日':'每周'
+      });
+    }
+  }
+  if(fetchTasks.length===0){INTEL_FETCHING=false;results.innerHTML='<div class="intel-empty">暂无监控源</div>';return}
+  // Fetch all sources concurrently in chunks of 3 (parallel acceleration)
+  var allResults=[];
+  for(var i=0;i<fetchTasks.length;i+=3){
+    var chunk=fetchTasks.slice(i,i+3);
+    var chunkResults=await Promise.all(chunk.map(function(task,chunkIdx){
+      return fetchSourceIntel(task.src).then(function(data){
+        return {ok:true,data:data,idx:i+chunkIdx};
+      }).catch(function(e){
+        return {ok:false,error:e.message,idx:i+chunkIdx};
+      });
+    }));
+    allResults=allResults.concat(chunkResults);
+  }
+  // Sort by original index and build HTML in order
+  allResults.sort(function(a,b){return a.idx-b.idx});
+  var allHtml='';
+  var currentMi=-1;
+  for(var j=0;j<allResults.length;j++){
+    var task=fetchTasks[j];
+    if(task.mi!==currentMi){
+      if(currentMi>=0)allHtml+='</div>';
+      currentMi=task.mi;
+      allHtml+='<div class="intel-src-group"><h3 class="isg-title">🛰️ '+task.mw.title+'</h3>';
+    }
+    allHtml+='<div class="intel-src-block"><div class="intel-src-title"><span class="isdot"></span>'+task.src.name+'<span class="isfreq"> · '+task.fl+'更新 · '+(task.src.aiModel||'默认')+'</span></div>';
+    if(allResults[j].ok&&allResults[j].data&&allResults[j].data.length>0){
+      allHtml+=renderIntelItems(allResults[j].data);
+    }else if(allResults[j].ok){
+      allHtml+='<div class="intel-empty">暂无情报数据</div>';
+    }else{
+      allHtml+='<div class="intel-error">获取失败: '+allResults[j].error+'</div>';
     }
     allHtml+='</div>';
   }
+  if(currentMi>=0)allHtml+='</div>';
   results.innerHTML=allHtml;
   status.innerHTML='';
   INTEL_FETCHING=false;
