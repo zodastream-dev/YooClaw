@@ -4734,6 +4734,7 @@ function renderSourceFilters(monitors){
 
 /* ===== RENDER INTEL FEED ===== */
 function renderIntelFeed(data){
+  console.log('[renderIntelFeed] called with data.length=', data.length, 'first _sourceName=', data.length>0?data[0]._sourceName:'N/A');
   if(data.length===0){$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据</div>';return}
   var html='';
   data.forEach(function(item,i){
