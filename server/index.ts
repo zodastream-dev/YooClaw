@@ -3874,7 +3874,47 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
 
 // Portal Intel API - fetch intelligence data from sources (server-side)
 const portalIntelCache = new Map<string, { data: any; expiry: number }>();
-const PORTAL_INTEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const PORTAL_INTEL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (was 5 min)
+const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-intel-cache.json');
+
+// Load persisted cache from file on startup
+function loadPortalIntelCache() {
+  try {
+    if (fs.existsSync(PORTAL_INTEL_CACHE_FILE)) {
+      const raw = fs.readFileSync(PORTAL_INTEL_CACHE_FILE, 'utf-8');
+      const entries = JSON.parse(raw);
+      const now = Date.now();
+      let loaded = 0;
+      const entriesArr = Array.isArray(entries) ? entries : [];
+      entriesArr.forEach((entry: any) => {
+        if (entry.expiry > now) {
+          portalIntelCache.set(entry.key, { data: entry.data, expiry: entry.expiry });
+          loaded++;
+        }
+      });
+      console.log(`[PortalIntelCache] Loaded ${loaded} entries from file (${entriesArr.length} total, ${entriesArr.length - loaded} expired)`);
+    }
+  } catch (err: any) {
+    console.warn('[PortalIntelCache] Failed to load from file:', err.message);
+  }
+}
+
+// Persist cache to file (async save via setTimeout to not block)
+function savePortalIntelCache() {
+  try {
+    const dir = path.dirname(PORTAL_INTEL_CACHE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const entries: any[] = [];
+    portalIntelCache.forEach((value, key) => {
+      entries.push({ key, data: value.data, expiry: value.expiry });
+    });
+    fs.writeFileSync(PORTAL_INTEL_CACHE_FILE, JSON.stringify(entries), 'utf-8');
+  } catch (err: any) {
+    console.warn('[PortalIntelCache] Failed to save to file:', err.message);
+  }
+}
 
 app.post('/api/portal-intel', async (req, res) => {
   try {
@@ -3930,6 +3970,7 @@ app.post('/api/portal-intel', async (req, res) => {
           _results=(_results||[]).map(function(r){return{title:r.title||'',summary:r.summary||'',source:r.source||'',date:r.date||r.time||'',link:r.url||r.link||'https://www.baidu.com/s?wd='+encodeURIComponent(r.title||'')};});
         }
         portalIntelCache.set(cacheKey, { data: _results, expiry: now + PORTAL_INTEL_CACHE_TTL });
+        setTimeout(() => savePortalIntelCache(), 100); // async persist to file
         return { sourceIdx: idx, data: _results, fromCache: false };
       } catch (err: any) {
         return { sourceIdx: idx, error: err.message, data: [] };
@@ -4229,6 +4270,11 @@ async function start() {
   } else {
     console.warn('[Startup] CODEBUDDY_API_KEY not set. AI features disabled.');
   }
+
+  // Load persisted intelligence cache from file
+  loadPortalIntelCache();
+  // Periodic cache save every 5 minutes
+  setInterval(() => savePortalIntelCache(), 5 * 60 * 1000);
 
   app.listen(APP_PORT, '0.0.0.0', () => {
     console.log('');
@@ -4662,13 +4708,32 @@ async function loadIntelData(){
   }
   $('intelLoading').style.display='block';
   $('feedStatus').textContent='获取情报中...';
+  // Check localStorage cache first (30min TTL matches backend)
+  var cacheKey='portal-intel-'+PORTAL_SLUG;
+  var cachedData=null;
+  try{
+    var cachedRaw=localStorage.getItem(cacheKey);
+    if(cachedRaw){
+      cachedData=JSON.parse(cachedRaw);
+      if(cachedData&&cachedData.expiry>Date.now()){
+        allIntelData=cachedData.data||[];
+        renderSourceFilters(monitors);
+        buildIntelSubFilters(monitors);
+        renderIntelFeed(allIntelData);
+        updateDashboard(allIntelData);
+        $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报（缓存，后台更新中...）';
+        $('intelLoading').style.display='none';
+        console.log('[loadIntelData] Loaded '+allIntelData.length+' items from localStorage cache');
+      } else {cachedData=null;}
+    }
+  }catch(e){cachedData=null;}
   try {
     var sources=[];
     monitors.forEach(function(mw){
       (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){sources.push(src)});
     });
     if(sources.length===0){
-      $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源</p>';
+      if(!cachedData) $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源</p>';
       return;
     }
     sources.forEach(function(src){
@@ -4686,6 +4751,8 @@ async function loadIntelData(){
         allIntelData.push(item);
       });
     });
+    // Save to localStorage (30min TTL)
+    try{localStorage.setItem(cacheKey,JSON.stringify({data:allIntelData,expiry:Date.now()+30*60*1000}));}catch(e){}
     renderSourceFilters(monitors);
     buildIntelSubFilters(monitors);
     // 如果当前有过滤条件激活，重新应用过滤；否则渲染全部
@@ -4700,9 +4767,14 @@ async function loadIntelData(){
     }
     updateDashboard(allIntelData);
     $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
+    $('intelLoading').style.display='none';
   } catch(e) {
-    $('intelLoading').innerHTML='<p style="color:#ef4444">加载失败: '+e.message+'</p>';
-    $('feedStatus').textContent='加载失败';
+    if(!cachedData){
+      $('intelLoading').innerHTML='<p style="color:#ef4444">加载失败: '+e.message+'</p>';
+      $('feedStatus').textContent='加载失败';
+    } else {
+      $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报（缓存，更新失败：'+e.message+'）';
+    }
   }
 }
 

@@ -7,6 +7,9 @@ dist/
 # Database (local SQLite — cloud uses Supabase)
 data/
 
+# Runtime cache (portal intelligence cache persisted to file)
+cache/
+
 # Environment variables
 .env
 .env.local
