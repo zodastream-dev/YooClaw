@@ -5597,53 +5597,53 @@ function sendCommand(){
   if(!input)return;
   var cmd=input.value.trim();
   if(!cmd)return;
-  if(currentCenterTab==='ai'){
-    // AI 模式：发送AI消息
-    input.value='';
-    input.disabled=true;
-    appendChatMessage('user',cmd);
-    aiChatHistory.push({role:'user',content:cmd});
-    var thinkId='think_'+Date.now();
-    var thinkEl=document.createElement('div');
-    thinkEl.className='ai-msg ai-msg-bot';
-    thinkEl.id=thinkId;
-    thinkEl.textContent='思考中...';
-    $('aiChatMessages').appendChild(thinkEl);
-    $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
-    try {
-      fetch(API+'/api/ai-chat',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({message:cmd,history:aiChatHistory.slice(-10)})
-      }).then(function(response){
-        if(!response.ok)throw new Error('API error: '+response.status);
-        return response.json();
-      }).then(function(data){
-        var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
-        aiChatHistory.push({role:'assistant',content:reply});
-        var el=document.getElementById(thinkId);
-        if(el&&el.parentNode)el.parentNode.removeChild(el);
-        appendChatMessage('bot',reply);
-        input.disabled=false;
-        input.focus();
-      }).catch(function(e){
-        var el=document.getElementById(thinkId);
-        if(el&&el.parentNode)el.parentNode.removeChild(el);
-        appendChatMessage('bot','抱歉，请求失败: '+e.message);
-        input.disabled=false;
-        input.focus();
-      });
-    } catch(e){
+
+  // 如果在其他标签，自动切换到 AI 助手标签
+  if(currentCenterTab!=='ai'){
+    switchCenterTab('ai');
+  }
+
+  // AI 模式：发送AI消息
+  input.value='';
+  input.disabled=true;
+  appendChatMessage('user',cmd);
+  aiChatHistory.push({role:'user',content:cmd});
+  var thinkId='think_'+Date.now();
+  var thinkEl=document.createElement('div');
+  thinkEl.className='ai-msg ai-msg-bot';
+  thinkEl.id=thinkId;
+  thinkEl.textContent='思考中...';
+  $('aiChatMessages').appendChild(thinkEl);
+  $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
+  try {
+    fetch(API+'/api/ai-chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:cmd,history:aiChatHistory.slice(-10)})
+    }).then(function(response){
+      if(!response.ok)throw new Error('API error: '+response.status);
+      return response.json();
+    }).then(function(data){
+      var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
+      aiChatHistory.push({role:'assistant',content:reply});
+      var el=document.getElementById(thinkId);
+      if(el&&el.parentNode)el.parentNode.removeChild(el);
+      appendChatMessage('bot',reply);
+      input.disabled=false;
+      input.focus();
+    }).catch(function(e){
       var el=document.getElementById(thinkId);
       if(el&&el.parentNode)el.parentNode.removeChild(el);
       appendChatMessage('bot','抱歉，请求失败: '+e.message);
       input.disabled=false;
       input.focus();
-    }
-  } else {
-    // 普通命令模式
-    input.value='';
-    alert('指令已发送: '+cmd+'\\n\\n(AI 命令中心功能开发中...)');
+    });
+  } catch(e){
+    var el=document.getElementById(thinkId);
+    if(el&&el.parentNode)el.parentNode.removeChild(el);
+    appendChatMessage('bot','抱歉，请求失败: '+e.message);
+    input.disabled=false;
+    input.focus();
   }
 }
 function toggleMic(){alert('语音输入功能开发中...');}
