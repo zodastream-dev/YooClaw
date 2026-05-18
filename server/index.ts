@@ -4538,11 +4538,10 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
       <span class="status-text" id="feedStatus">加载中...</span>
     </div>
     <div class="intel-subfilters" id="intelSubFilters" style="display:none"></div>
-    <div class="intel-feed" id="intelFeed">
-      <div class="intel-loading" id="intelLoading">
-        <div class="spinner"></div>正在获取情报数据...
-      </div>
+    <div class="intel-loading" id="intelLoading">
+      <div class="spinner"></div>正在获取情报数据...
     </div>
+    <div class="intel-feed" id="intelFeed"></div>
     <div class="report-feed" id="reportFeed" style="display:none">
       <div class="intel-loading" id="reportLoading">
         <div class="spinner"></div>加载报告中...
