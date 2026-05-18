@@ -4864,6 +4864,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 @media(max-width:1024px){.main-layout{grid-template-columns:1fr;height:100%;grid-template-rows:1fr auto;grid-template-areas:"center""bottom"}.left-col,.right-col{display:none}}
 @media(max-width:768px){.top-bar{padding:10px 16px}.center-header{padding:12px 16px}.intel-feed{padding:12px 16px}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 <!-- ===== TOP BAR ===== -->
@@ -5318,7 +5319,11 @@ function appendChatMessage(role,text){
   var el=document.createElement('div');
   el.className='ai-msg ai-msg-'+role;
   var inner=document.createElement('div');
-  inner.textContent=text;
+  if(role==='bot'){
+    inner.innerHTML=typeof marked!=='undefined'?marked.parse(text):text;
+  } else {
+    inner.textContent=text;
+  }
   el.appendChild(inner);
   $('aiChatMessages').appendChild(el);
   $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
