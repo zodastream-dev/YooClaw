@@ -4681,7 +4681,7 @@ async function loadIntelData(){
     allIntelData=[];
     (data.results||[]).forEach(function(r){
       var srcConfig=sources[r.sourceIdx];
-      var sourceName=srcConfig?(srcConfig.name||'未命名'):'未知来源';
+      var sourceName=(srcConfig?(srcConfig.name||'未命名'):'未知来源').trim();
       (r.data||[]).forEach(function(item){
         item._sourceName=sourceName;
         allIntelData.push(item);
@@ -4770,6 +4770,12 @@ function renderIntelFeed(data){
   });
   $('intelLoading').style.display='none';
   $('intelFeed').innerHTML=html;
+  // 更新状态文字，反映当前过滤结果
+  if(typeof currentSourceFilters!=='undefined'&&currentSourceFilters.length>0&&currentSourceFilters[0]!=='全部'){
+    $('feedStatus').textContent='已过滤：显示 '+data.length+' 条（共 '+allIntelData.length+' 条）';
+  } else {
+    $('feedStatus').textContent='已加载 '+data.length+' 条情报';
+  }
 }
 
 /* ===== INTEL SUB-FILTERS ===== */
@@ -4777,7 +4783,7 @@ function buildIntelSubFilters(monitors){
   var sourceNames=['全部'];
   monitors.forEach(function(mw){
     (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
-      var name=src.name||'未命名';
+      var name=(src.name||'未命名').trim();
       if(sourceNames.indexOf(name)===-1)sourceNames.push(name);
     });
   });
@@ -4813,7 +4819,7 @@ function filterBySource(sourceName){
   }
   // Sync UI: set 'active' class based on currentSourceFilters
   document.querySelectorAll('.subfilter-btn').forEach(function(b){
-    var sn=b.getAttribute('data-source');
+    var sn=(b.getAttribute('data-source')||'').trim();
     if(!sn)return;
     if(currentSourceFilters.indexOf(sn)>=0)b.classList.add('active');
     else b.classList.remove('active');
@@ -4824,13 +4830,17 @@ function filterBySource(sourceName){
     return;
   }
   var filtered=allIntelData.filter(function(item){
-    return currentSourceFilters.indexOf(item._sourceName) >= 0;
+    return currentSourceFilters.indexOf((item._sourceName||'').trim()) >= 0;
   });
   console.log('[filterBySource] filtered count=', filtered.length, 'allIntelData count=', allIntelData.length);
-  if(allIntelData.length>0){
-    console.log('[filterBySource] sample _sourceName=', allIntelData[0]._sourceName);
-  }
   renderIntelFeed(filtered);
+  // 延迟检查：确认 DOM 没有被 loadIntelData 覆盖
+  setTimeout(function(){
+    var feed=$('intelFeed');
+    if(feed&&feed.children.length!==filtered.length){
+      console.warn('[filterBySource] DOM was overwritten! children=',feed.children.length,'expected=',filtered.length);
+    }
+  },1000);
 }
 
 /* ===== CENTER TAB SWITCHING ===== */
