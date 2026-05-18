@@ -4188,34 +4188,81 @@ async function warmAllPortalCaches() {
 }
 
 // AI Chat endpoint for portal AI assistant
+// Flow: 1) search web via Metaso (if key available) → 2) feed results to DeepSeek → 3) return answer
 app.post('/api/ai-chat', async (req, res) => {
   try {
     const { message, history } = req.body || {};
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'message is required' });
     }
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
+    const deepseekApiKey = process.env.DEEPSEEK_API_KEY;
+    if (!deepseekApiKey) {
       return res.status(500).json({ error: 'AI service not configured' });
     }
+
+    // Step 1: Web search via Metaso (free-tier, already have API key)
+    let searchContext = '';
+    const metasoApiKey = process.env.METASO_API_KEY;
+    if (metasoApiKey) {
+      try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 15000);
+        const searchResp = await fetch('https://metaso.cn/api/open/search/v2', {
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + metasoApiKey },
+          body: JSON.stringify({ question: message, lang: 'zh' }),
+        });
+        clearTimeout(to);
+        if (searchResp.ok) {
+          const searchData = await searchResp.json();
+          const rawResults = (searchData.data && searchData.data.references)
+            ? searchData.data.references
+            : (searchData.data || []);
+          const results = Array.isArray(rawResults) ? rawResults.slice(0, 6) : [];
+          if (results.length > 0) {
+            searchContext = '\n\n【网络搜索结果】\n' + results.map((r: any, i: number) => {
+              const title = r.title || r.name || '';
+              const snippet = r.snippet || r.summary || r.content || '';
+              const url = r.url || r.link || '';
+              return `[${i + 1}] ${title}\n摘要: ${snippet}\n链接: ${url}`;
+            }).join('\n\n') + '\n';
+          }
+        }
+      } catch (e: any) {
+        console.error('[AiChat Search] Failed:', e.message);
+        // Continue without search results
+      }
+    }
+
+    // Step 2: Build messages with date + search context
     const chatHistory = Array.isArray(history) ? history.slice(-8) : [];
     const now = new Date();
-    const weekDays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
-    const dateStr = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日 ' + weekDays[now.getDay()];
+    const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+    const dateStr = now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + weekDays[now.getDay()];
+
+    let systemContent = '你是一个专业的行业分析AI助手。请用简洁、专业的中文回答用户的问题。回答应基于事实和数据，如果不能确定，请如实说明。';
+    systemContent += '\n\n【当前时间】今天是' + dateStr + '，请以这个日期为准回答用户问题。';
+    if (searchContext) {
+      systemContent += '\n\n以下是网络搜索到的相关资料，请基于这些内容回答用户问题。如果搜索结果不相关，可以使用你自己的知识回答。' + searchContext;
+    }
+
     const messages = [
-      { role: 'system', content: '你是一个专业的行业分析AI助手。请用简洁、专业的中文回答用户的问题。回答应基于事实和数据，如果不能确定，请如实说明。\n\n【当前时间】今天是' + dateStr + '，请以这个日期为准回答用户问题。' },
+      { role: 'system', content: systemContent },
       ...chatHistory,
       { role: 'user', content: message }
     ];
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 25000);
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + deepseekApiKey },
       body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7 })
     });
     clearTimeout(timeout);
+
     if (!response.ok) {
       const errText = await response.text();
       console.error('[AiChat Error]', response.status, errText.substring(0, 200));
