@@ -4257,16 +4257,22 @@ app.post('/api/ai-chat', async (req, res) => {
           });
           console.log('[AiChat Search] Metaso raw response:', searchJson.substring(0, 200));
           const searchData = JSON.parse(searchJson);
-          const rawResults = (searchData.data && searchData.data.references) ? searchData.data.references : (searchData.data || []);
+          // Extract AI-generated answer (PRIMARY content with actual data)
+          if (searchData.data && searchData.data.text) {
+            searchContext = '\n\n【网络搜索结果】\n' + searchData.data.text + '\n\n';
+          }
+          // Also include references (sources)
+          const rawResults = searchData.data.references || [];
           const results = Array.isArray(rawResults) ? rawResults.slice(0, 6) : [];
           if (results.length > 0) {
-            searchContext = '\n\n【网络搜索结果】\n' + results.map((r: any, i: number) => {
+            searchContext += '【参考来源】\n' + results.map((r: any, i: number) => {
               const title = r.title || r.name || '';
-              const snippet = r.snippet || r.summary || '';
               const url = r.url || r.link || '';
-              return `[${i + 1}] ${title}${snippet ? '\n摘要: ' + snippet : ''}\n链接: ${url}`;
+              return `[${i + 1}] ${title}\n链接: ${url}`;
             }).join('\n\n') + '\n';
-            console.log(`[AiChat Search] Metaso returned ${results.length} results`);
+          }
+          if (searchContext) {
+            console.log(`[AiChat Search] Metaso returned answer + ${results.length} references`);
           }
         } catch (e2: any) {
           console.error('[AiChat Search] Metaso failed:', e2.message);
