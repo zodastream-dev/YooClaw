@@ -36,6 +36,19 @@ import {
   getAllPortalSites,
 } from './db.js';
 
+import {
+  TRIPLE_BACKTICK,
+  PROMPT_REPORT_HTML,
+  PROMPT_GAME_GENERATOR,
+  PROMPT_RESEARCH_ANALYST,
+  PROMPT_RESEARCH_WITH_SEARCH,
+  PROMPT_DEEP_REPORT_HTML,
+  PROMPT_AI_CHAT_SIMPLE,
+  PROMPT_REPORT_DEFAULT,
+  makeIntelPrompt,
+  buildAiChatSystemPrompt,
+} from './prompts.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -401,8 +414,1077 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
   } else if (template === 'intel-station-hacker-green' || template === 'hacker-green') {
     colorScheme = 'hacker-green';
   }
-  // All other values (including old templates) default to tech-blue
-  return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
+  
+  const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
+    'business-blue': { primary: '#2563eb', secondary: '#1e40af', bg: '#ffffff', text: '#1f2937', accent: '#3b82f6' },
+    'tech-black': { primary: '#0f172a', secondary: '#38bdf8', bg: '#0f172a', text: '#e2e8f0', accent: '#38bdf8' },
+    'simple-white': { primary: '#1a1a2e', secondary: '#f59e0b', bg: '#ffffff', text: '#1a1a2e', accent: '#f59e0b' },
+  };
+  const theme = templates[template] || templates['business-blue'];
+  const isDark = template === 'tech-black';
+  const headerBg = template === 'tech-black'
+    ? 'background:linear-gradient(135deg,#0f172a,#1e293b);border-bottom:2px solid ' + theme.secondary
+    : template === 'simple-white'
+      ? 'background:' + theme.bg + ';border-bottom:2px solid #e5e7eb'
+      : 'background:linear-gradient(135deg,' + theme.primary + ',' + theme.secondary + ')';
+  const pageBg = isDark ? '#020617' : '#f8fafc';
+  const cardBg = isDark ? '#0f172a' : '#ffffff';
+  const borderClr = isDark ? '#1e293b' : '#e5e7eb';
+  const inputBg = isDark ? '#1e293b' : '#ffffff';
+  const inputBorder = isDark ? '#334155' : '#d1d5db';
+  const textClr = isDark ? '#e2e8f0' : '#1f2937';
+  const mutedClr = '#94a3b8';
+  const successBg = isDark ? '#0f172a' : '#f0fdf4';
+  const successBorder = isDark ? '#166534' : '#bbf7d0';
+  const successText = isDark ? '#4ade80' : '#16a34a';
+  const errBg = isDark ? '#450a0a' : '#fef2f2';
+  const errBorder = isDark ? '#991b1b' : '#fecaca';
+  const errText = isDark ? '#fca5a5' : '#dc2626';
+
+  const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const sd = siteDesc.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'report-generator', title: '行业分析报告', config: {} }];
+  // Normalize type names (JS config uses 'report'/'monitor', widget config uses 'report-generator'/'intel-monitor')
+  wlist.forEach((w: any) => {
+    if (w.type === 'report') w.type = 'report-generator';
+    else if (w.type === 'monitor') w.type = 'intel-monitor';
+  });
+  const reportWidgetIndices: number[] = [];
+  const monitorWidgetIndices: number[] = [];
+
+  // Build compact cards HTML
+  let cardsHtml = '';
+
+  wlist.forEach((w: any, i: number) => {
+    if (w.type === 'report-generator') {
+      reportWidgetIndices.push(i);
+      const title = (w.title || '行业分析报告').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      cardsHtml += `
+  <div class="c-card type-report" onclick="openModal(${i})" title="${title}">
+    <div class="cc-icon">📊</div>
+    <div class="cc-title">${title}</div>
+    <div class="cc-meta"><span>SWOT</span><span class="cc-dot"></span><span>PEST</span><span class="cc-dot"></span><span>+3</span></div>
+  </div>`;
+    } else if (w.type === 'intel-monitor') {
+      monitorWidgetIndices.push(i);
+      const title = (w.title || '情报监控').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const sources = w.config?.sources || [];
+      const kwCount = sources.reduce((sum: number, s: any) => sum + (s.keywords?.length || 0), 0);
+      const freq = sources[0]?.updateFrequency || 'daily';
+      const freqLabel = freq === 'realtime' ? '实时' : freq === 'daily' ? '每日' : '每周';
+      cardsHtml += `
+  <div class="c-card type-monitor" onclick="openModal(${i})" title="${title}">
+    <div class="cc-icon">🛰️</div>
+    <div class="cc-title">${title}</div>
+    <div class="cc-meta"><span>${kwCount} 关键词</span><span class="cc-dot"></span><span>${freqLabel}</span></div>
+  </div>`;
+    }
+  });
+
+  // 我的报告卡片
+  cardsHtml += `
+  <div class="c-card type-reports" onclick="openReportList()" title="查看所有报告">
+    <div class="cc-icon">📋</div>
+    <div class="cc-title">我的报告</div>
+    <div class="cc-meta"><span id="reportCardCount">0 份</span></div>
+  </div>`;
+
+  // Build widget configs for JS (modal content data)
+  const widgetConfigsJs = JSON.stringify(wlist.map((w: any, i: number) => {
+    if (w.type === 'report-generator') {
+      return {
+        type: 'report',
+        idx: i,
+        title: w.title || '行业分析报告',
+        subtitle: (w.config?.subtitle || '配置分析参数，AI 将自动搜索信息并生成专业的分析报告。')
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
+        defaultOpen: w.config?.defaultOpen !== false,
+        sysPrompt: (w.config?.sysPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
+        userPrompt: (w.config?.userPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
+        searchPlatform: w.config?.searchPlatform || 'metaso',
+        searchApiKey: (w.config?.searchApiKey || '').replace(/'/g,'\\x27'),
+        searchEndpoint: (w.config?.searchEndpoint || '').replace(/'/g,'\\x27'),
+      };
+    } else {
+      const sources = (w.config?.sources || []).map((s: any) => ({
+        name: (s.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
+        aiProvider: (s.aiProvider || '默认').replace(/'/g,'\\x27'),
+        aiModel: (s.aiModel || '默认').replace(/'/g,'\\x27'),
+        updateFrequency: s.updateFrequency || 'daily',
+        keywords: (s.keywords || []).map((k: string) => k.replace(/'/g,'\\x27')),
+        customPrompt: (s.customPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'\\x27'),
+        apiKey: (s.apiKey || '').replace(/'/g,'\\x27'),
+      }));
+      return {
+        type: 'monitor',
+        idx: i,
+        title: (w.title || '情报监控').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
+        subtitle: sources.length > 0 ? '追踪配置的关键词情报' : '暂无监控源配置',
+        sources,
+      };
+    }
+  }));
+
+  const reportIndicesJson = JSON.stringify(reportWidgetIndices);
+
+  // Modal dark/light colors
+  const modalBg = isDark ? '#111118' : '#ffffff';
+  const modalBorder = isDark ? 'rgba(255,255,255,.08)' : '#e5e7eb';
+  const modalInputBg = isDark ? 'rgba(255,255,255,.02)' : '#f8fafc';
+  const modalInputBorder = isDark ? 'rgba(255,255,255,.06)' : '#d1d5db';
+  const reportAccent = '#6366f1';
+  const reportAccentLight = '#818cf8';
+  const monitorAccent = '#f59e0b';
+  const monitorAccentLight = '#fbbf24';
+
+  const defaultSysPrompt = '你是一个行业研究分析师，输出结构化研究资料，用中文。';
+  const defaultUserPrompt = `请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 <h2> 标题和 <p>/<ul>/<table> 等 HTML 标签）：
+
+<h2>公司概况</h2>
+<h2>市场规模与趋势</h2>
+<h2>财务与经营分析</h2>
+<h2>竞争格局</h2>
+<h2>近期动态</h2>
+<h2>机遇与挑战</h2>
+
+要求：
+- 每个章节用 <h2> 标题，内容用 <p> 段落和 <ul>/<li> 列表
+- 关键数字用 <strong>加粗</strong>
+- 包含具体数据，每个章节不少于 3 个要点
+- 只输出纯 HTML 代码，不要 markdown 标记，不要额外说明文字`;
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${sn}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--card-radius:14px;--transition-smooth:cubic-bezier(.4,0,.2,1)}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei","PingFang SC",sans-serif;background:${pageBg};color:${textClr};min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+::selection{background:${theme.primary}22;color:${textClr}}
+body::-webkit-scrollbar{width:6px}
+body::-webkit-scrollbar-track{background:transparent}
+body::-webkit-scrollbar-thumb{background:${isDark?'#334155':'#cbd5e1'};border-radius:10px}
+body::-webkit-scrollbar-thumb:hover{background:${isDark?'#475569':'#94a3b8'}}
+
+/* ===== HEADER ===== */
+.header{${headerBg};padding:52px 20px 44px;text-align:center;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;top:-60%;left:-30%;width:160%;height:200%;background:radial-gradient(ellipse at 35% 50%,rgba(255,255,255,0.07) 0%,transparent 60%);pointer-events:none;animation:headerGlow 8s ease-in-out infinite alternate}
+.header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:${isDark?'rgba(255,255,255,.06)':'rgba(255,255,255,.12)'};pointer-events:none}
+@keyframes headerGlow{0%{opacity:.6;transform:scale(1)}100%{opacity:1;transform:scale(1.08)}}
+.header h1{font-size:30px;font-weight:800;color:${isDark?'#f1f5f9':'#ffffff'};margin-bottom:10px;letter-spacing:-.3px;position:relative;animation:fadeSlideDown .6s var(--transition-smooth)}
+.header p{font-size:15px;color:${isDark?'#94a3b8':'rgba(255,255,255,0.78)'};max-width:600px;margin:0 auto;line-height:1.6;position:relative;animation:fadeSlideDown .6s var(--transition-smooth) .1s backwards}
+@keyframes fadeSlideDown{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== CARD ROW ===== */
+.card-row-wrap{display:flex;justify-content:center;gap:16px;padding:24px 24px 14px;flex-wrap:wrap;max-width:1100px;margin:0 auto}
+
+/* Card — polished */
+.c-card{width:230px;height:138px;border-radius:var(--card-radius);border:1px solid ${borderClr};background:${cardBg};cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;transition:all .35s var(--transition-smooth);position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,${isDark?'.2':'.04'})}
+.c-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .35s;pointer-events:none}
+.type-report::before{background:radial-gradient(circle at 50% 0%,rgba(99,102,241,.06) 0%,transparent 70%)}
+.type-monitor::before{background:radial-gradient(circle at 50% 0%,rgba(245,158,11,.06) 0%,transparent 70%)}
+.c-card:hover{border-color:${theme.primary}44;transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,${isDark?'.35':'.1'})}
+.c-card:hover::before{opacity:1}
+.c-card:active{transform:scale(.97);transition:transform .1s}
+.c-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;opacity:0;transition:opacity .35s var(--transition-smooth)}
+.c-card:hover::after{opacity:1}
+.type-report::after{background:linear-gradient(90deg,${reportAccent},${reportAccentLight})}
+.type-monitor::after{background:linear-gradient(90deg,${monitorAccent},${monitorAccentLight})}
+
+/* Card entrance animation */
+@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.c-card{animation:cardIn .5s var(--transition-smooth) backwards}
+.c-card:nth-child(1){animation-delay:0s}
+.c-card:nth-child(2){animation-delay:.06s}
+.c-card:nth-child(3){animation-delay:.12s}
+.c-card:nth-child(4){animation-delay:.18s}
+.c-card:nth-child(5){animation-delay:.24s}
+.c-card:nth-child(6){animation-delay:.3s}
+.c-card:nth-child(7){animation-delay:.36s}
+.c-card:nth-child(8){animation-delay:.42s}
+
+.cc-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;transition:transform .35s var(--transition-smooth)}
+.c-card:hover .cc-icon{transform:scale(1.08)}
+.type-report .cc-icon{background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(129,140,248,.08));color:#818cf8}
+.type-monitor .cc-icon{background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(251,191,36,.08));color:#fbbf24}
+.cc-title{font-size:13px;font-weight:700;color:${textClr};letter-spacing:-.2px;text-align:center;line-height:1.3;padding:0 10px}
+.cc-meta{font-size:9px;color:${mutedClr};display:flex;align-items:center;gap:6px;font-weight:500}
+.cc-dot{width:4px;height:4px;border-radius:50%;background:${isDark?'#334155':'#d1d5db'}}
+
+/* ===== DIVIDER ===== */
+.divider{max-width:1100px;margin:20px auto;padding:0 24px;display:flex;align-items:center;gap:12px}
+.divider .dlabel{font-size:10px;font-weight:700;letter-spacing:1.8px;color:${mutedClr};text-transform:uppercase;white-space:nowrap}
+.divider .dline{flex:1;height:1px;background:linear-gradient(90deg,${borderClr},transparent)}
+
+/* ===== CONTENT AREA ===== */
+.content-area{flex:1;max-width:1100px;margin:0 auto;padding:12px 24px 48px;width:100%}
+.placeholder{text-align:center;padding:60px 20px}
+.placeholder .ph-icon{font-size:40px;margin-bottom:14px;opacity:.25;transition:opacity .3s;animation:phPulse 3s ease-in-out infinite}
+@keyframes phPulse{0%,100%{opacity:.2}50%{opacity:.35}}
+.placeholder .ph-text{font-size:13px;color:${mutedClr};line-height:1.6}
+
+/* ===== REPORT LIST ===== */
+.report-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid ${borderClr};border-radius:10px;margin-bottom:8px;transition:all .2s var(--transition-smooth)}
+.report-item:hover{background:${isDark?'#1e293b':'#f8fafc'};border-color:${theme.primary}22;transform:translateX(2px)}
+.report-item .rname{font-size:13px;font-weight:600;color:${textClr};letter-spacing:-.1px}
+.report-item .rdate{font-size:11px;color:${mutedClr};margin-top:3px}
+.report-item a,.report-item button{font-size:12px;text-decoration:none;flex-shrink:0;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:500;transition:all .2s}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px)}
+.modal-panel{position:relative;width:100%;max-width:600px;max-height:88vh;background:${modalBg};border:1px solid ${modalBorder};border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,${isDark?'.5':'.15'})}
+.modal-overlay.open .modal-panel{transform:scale(1) translateY(0)}
+.modal-panel.type-report{border-top:4px solid ${reportAccent}}
+.modal-panel.type-monitor{border-top:4px solid ${monitorAccent}}
+.modal-hd{display:flex;align-items:center;gap:14px;padding:20px 22px;border-bottom:1px solid ${modalBorder};flex-shrink:0}
+.modal-hd .mh-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.modal-panel.type-report .mh-icon{background:linear-gradient(135deg,rgba(99,102,241,.14),rgba(129,140,248,.06));color:#818cf8}
+.modal-panel.type-monitor .mh-icon{background:linear-gradient(135deg,rgba(245,158,11,.14),rgba(251,191,36,.06));color:#fbbf24}
+.modal-hd .mh-info{flex:1;min-width:0}
+.modal-hd .mh-title{font-size:16px;font-weight:700;color:${textClr};letter-spacing:-.2px}
+.modal-hd .mh-sub{font-size:11px;color:${mutedClr};margin-top:3px}
+.modal-close{width:34px;height:34px;border-radius:50%;border:1px solid ${modalBorder};background:transparent;color:${mutedClr};cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-size:17px;line-height:1}
+.modal-close:hover{background:${isDark?'rgba(255,255,255,.08)':'#f1f5f9'};color:${textClr};border-color:${isDark?'rgba(255,255,255,.15)':'#94a3b8'};transform:rotate(90deg)}
+.modal-bd{flex:1;overflow-y:auto;padding:20px 22px 22px;scroll-behavior:smooth}
+.modal-bd::-webkit-scrollbar{width:5px}
+.modal-bd::-webkit-scrollbar-thumb{background:${isDark?'#334155':'#d1d5db'};border-radius:10px}
+.modal-ft{padding:16px 22px;border-top:1px solid ${modalBorder};flex-shrink:0;display:flex;gap:10px}
+.modal-ft button{flex:1;padding:11px 16px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit;letter-spacing:0}
+.btn-save{color:#fff}
+.modal-panel.type-report .btn-save{background:linear-gradient(135deg,${reportAccent},${reportAccentLight})}
+.modal-panel.type-monitor .btn-save{background:linear-gradient(135deg,${monitorAccent},${monitorAccentLight})}
+/* ===== REPORTS CARD & MODAL ===== */
+.type-reports{background:linear-gradient(135deg,rgba(16,185,129,.05),rgba(52,211,153,.02))}
+.type-reports::before{background:radial-gradient(circle at 50% 0%,rgba(16,185,129,.08) 0%,transparent 70%)}
+.type-reports::after{background:linear-gradient(90deg,#10b981,#34d399)}
+.type-reports .cc-icon{background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(52,211,153,.08));color:#34d399}
+.modal-panel.type-reports{border-top:4px solid #10b981}
+.modal-panel.type-reports .mh-icon{background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(52,211,153,.06));color:#34d399}
+.rpt-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding:0}
+.rpt-card{position:relative;background:${modalInputBg};border:1px solid ${modalBorder};border-radius:12px;padding:18px 20px;cursor:pointer;transition:all .25s;overflow:hidden}
+.rpt-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,${isDark?'.3':'.08'});border-color:#10b98155}
+.rpt-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#10b981,#34d399);opacity:0;transition:opacity .25s}
+.rpt-card:hover::before{opacity:1}
+.rpt-card .rpt-company{font-size:15px;font-weight:700;color:${textClr};margin-bottom:6px}
+.rpt-card .rpt-date{font-size:11px;color:${mutedClr};margin-bottom:12px}
+.rpt-card .rpt-actions{display:flex;gap:10px;align-items:center}
+.rpt-card .rpt-view{font-size:12px;font-weight:600;color:#10b981;text-decoration:none;border:1px solid #10b98144;padding:6px 14px;border-radius:7px;transition:all .2s}
+.rpt-card .rpt-view:hover{background:#10b98115;color:#059669}
+.rpt-card .rpt-delete{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:6px;border:none;background:transparent;color:${mutedClr};cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.rpt-card .rpt-delete:hover{background:rgba(226,75,74,.1);color:#e24b4a}
+.btn-save:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,${isDark?'.3':'.1'})}
+.btn-cancel{background:${isDark?'rgba(255,255,255,.03)':'#f3f4f6'};color:${mutedClr};border:1px solid ${modalBorder}}
+.btn-cancel:hover{background:${isDark?'rgba(255,255,255,.06)':'#e5e7eb'};color:${textClr}}
+
+/* ===== MODAL FORM ===== */
+.mb-group{margin-bottom:18px}
+.mb-group:last-child{margin-bottom:0}
+.mb-label{display:block;font-size:11px;font-weight:600;color:${mutedClr};margin-bottom:7px;letter-spacing:.3px}
+.mb-label span{font-weight:400;color:${isDark?'#475569':'#94a3b8'}}
+.mb-input,.mb-select{width:100%;padding:10px 14px;font-size:13px;border:1px solid ${modalInputBorder};border-radius:9px;background:${modalInputBg};color:${textClr};outline:none;transition:all .25s;font-family:inherit}
+.mb-input:focus,.mb-select:focus{border-color:${theme.primary}66;box-shadow:0 0 0 3px ${theme.primary}15}
+.mb-input::placeholder{color:${isDark?'#475569':'#94a3b8'}}
+.mb-select option{background:${cardBg};color:${textClr}}
+.mb-area{width:100%;padding:10px 14px;font-size:12px;border:1px solid ${modalInputBorder};border-radius:9px;background:${modalInputBg};color:${textClr};outline:none;transition:all .25s;resize:vertical;font-family:inherit;min-height:60px;line-height:1.7}
+.mb-area:focus{border-color:${theme.primary}66;box-shadow:0 0 0 3px ${theme.primary}15}
+.mb-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* ===== FRAMEWORK CHIPS ===== */
+.fw-chips{display:flex;flex-wrap:wrap;gap:6px}
+.fw-c{position:relative;cursor:pointer;user-select:none}
+.fw-c input{position:absolute;opacity:0;width:0;height:0}
+.fw-c .fw-v{display:block;padding:7px 16px;border:2px solid ${modalInputBorder};border-radius:9px;font-size:12px;font-weight:600;color:${mutedClr};transition:all .25s}
+.fw-c input:checked+.fw-v{border-color:${theme.primary}66;background:${theme.primary}14;color:${isDark?reportAccentLight:theme.primary};box-shadow:0 2px 8px ${theme.primary}18}
+.fw-c:hover .fw-v{border-color:${theme.primary}44}
+
+/* ===== KEYWORD TAGS ===== */
+.kw-tags{display:flex;flex-wrap:wrap;gap:5px}
+.kw-t{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(129,140,248,.08);color:#a5b4fc;border:1px solid rgba(129,140,248,.15);transition:all .2s}
+.kw-t:hover{background:rgba(129,140,248,.15);transform:translateY(-1px)}
+
+/* ===== MONITOR SOURCE MINI CARD ===== */
+.src-mini{background:${isDark?'rgba(255,255,255,.02)':'#f9fafb'};border:1px solid ${modalBorder};border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .2s}
+.src-mini:hover{border-color:${monitorAccent}33}
+.src-mini:last-child{margin-bottom:0}
+.src-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.src-top .st-name{font-size:12px;font-weight:600;color:${textClr};display:flex;align-items:center;gap:8px}
+.src-top .st-name::before{content:'';width:5px;height:5px;border-radius:50%;background:${monitorAccent};flex-shrink:0;box-shadow:0 0 6px ${monitorAccent}44}
+.src-top .st-model{font-size:10px;padding:3px 10px;border-radius:10px;border:1px solid rgba(251,191,36,.2);color:#fbbf24;background:rgba(251,191,36,.06);font-weight:600}
+
+/* 监控源可编辑样式 */
+.st-name-input { font-size: 14px; font-weight: 700; border: 1px solid transparent; background: transparent; padding: 4px 8px; border-radius: 6px; width: 100%; transition: all .2s }
+.st-name-input:focus { border-color: #f59e0b33; background: #fff; outline: none; box-shadow: 0 0 0 3px rgba(245,158,11,.1) }
+.src-del { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #94a3b8; font-size: 14px; transition: all .2s; flex-shrink: 0 }
+.src-del:hover { background: #fef2f2; color: #ef4444 }
+.kw-x { margin-left: 4px; background: none; border: none; color: inherit; cursor: pointer; font-size: 12px; opacity: .5; padding: 0; line-height: 1 }
+.kw-x:hover { opacity: 1 }
+.kw-add-row { display: flex; gap: 8px; margin-top: 8px }
+.kw-add-input { flex: 1; padding: 6px 10px; font-size: 12px; border: 1px solid #e5e7eb; border-radius: 6px }
+.kw-add-input:focus { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.08) }
+.kw-add-btn { padding: 6px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600 }
+.btn-add-src:hover { background: #f8f4ff !important; border-color: #6366f1 !important }
+
+/* ===== PROGRESS ===== */
+.progress-section{margin-top:18px}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;color:${mutedClr};margin-bottom:8px;font-weight:500}
+.progress-bar{height:6px;background:${isDark?'#1e293b':'#e5e7eb'};border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,${theme.primary},${theme.accent});border-radius:4px;transition:width .5s ease-out}
+.stage-text{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;background:${isDark?'#1e293b':'#f8fafc'};border-radius:9px;margin-top:14px;font-size:13px;color:${mutedClr};line-height:1.6}
+.spinner{width:14px;height:14px;border:2px solid ${theme.primary}33;border-top-color:${theme.primary};border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;margin-top:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result-card{background:${successBg};border:1px solid ${successBorder};border-radius:14px;padding:24px;text-align:center;margin-top:12px}
+.result-card h3{font-size:20px;color:${successText};margin-bottom:10px;font-weight:700}
+.result-card .url-box{display:flex;align-items:center;gap:10px;background:${cardBg};border:1px solid ${inputBorder};border-radius:10px;padding:12px 16px;margin-top:14px}
+.result-card .url-box a{flex:1;font-size:13px;color:${theme.primary};text-decoration:none;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.error-box{background:${errBg};border:1px solid ${errBorder};border-radius:10px;padding:16px;margin-top:14px;font-size:13px;color:${errText};line-height:1.6;white-space:pre-wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px 20px;font-size:14px;font-weight:600;border:none;border-radius:10px;cursor:pointer;transition:all .25s;color:#fff;background:linear-gradient(135deg,${theme.primary},${theme.accent});margin-top:18px;letter-spacing:0}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:hover:not(:disabled){opacity:.92;transform:translateY(-1px);box-shadow:0 4px 16px ${theme.primary}44}
+
+/* ===== FOOTER ===== */
+.footer{text-align:center;padding:28px 24px;font-size:12px;color:${mutedClr};border-top:1px solid ${borderClr};letter-spacing:.3px;position:relative}
+.footer::before{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:120px;height:2px;background:linear-gradient(90deg,transparent,${theme.accent}66,transparent)}
+
+/* ===== INTEL RESULTS ===== */
+.intel-results-area{padding:0 24px 24px;max-width:1100px;margin:0 auto}
+.intel-src-group{margin-bottom:28px}
+.isg-title{font-size:15px;font-weight:700;color:${textClr};margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.isg-title::before{content:'';width:8px;height:8px;border-radius:3px;background:${monitorAccent};flex-shrink:0}
+.intel-src-block{margin-bottom:20px}
+.intel-src-title{font-size:14px;font-weight:600;color:${textClr};display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid ${borderClr}}
+.intel-src-title .isdot{width:7px;height:7px;border-radius:50%;background:${monitorAccent};flex-shrink:0;box-shadow:0 0 8px ${monitorAccent}44}
+.intel-src-title .isfreq{font-size:10px;color:${mutedClr};font-weight:400}
+.intel-items{display:flex;flex-direction:column;gap:8px}
+.intel-item{display:flex;gap:14px;padding:14px 16px;background:${cardBg};border:1px solid ${borderClr};border-radius:10px;transition:all .25s var(--transition-smooth);position:relative;overflow:hidden}
+.intel-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:background .25s}
+.intel-item:hover{border-color:${theme.primary}33;background:${isDark?'rgba(255,255,255,.02)':'#fafbfc'};transform:translateX(3px)}
+.intel-item:hover::before{background:${theme.accent}}
+.intel-item .inum{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,${theme.accent},${theme.primary});color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px ${theme.primary}33}
+.intel-item .ibody{flex:1;min-width:0}
+.intel-item .ititle{font-size:13px;font-weight:600;color:${textClr};margin-bottom:5px;line-height:1.5;letter-spacing:-.1px}
+.intel-item .isummary{font-size:12px;color:${mutedClr};line-height:1.6}
+.intel-item .isource{font-size:10px;color:${mutedClr};margin-top:6px;display:flex;align-items:center;gap:4px}
+.intel-item .isource::before{content:'🔗';font-size:10px}
+.intel-loading{text-align:center;padding:24px;color:${mutedClr};font-size:13px}
+.intel-loading .spinner{display:inline-block;width:18px;height:18px;border:2px solid ${theme.primary}33;border-top-color:${theme.primary};border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:10px}
+.intel-error{text-align:center;padding:18px;color:${errText};background:${errBg};border:1px solid ${errBorder};border-radius:10px;font-size:13px;margin-bottom:14px}
+.intel-empty{text-align:center;padding:24px;color:${mutedClr};font-size:13px}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+  .header{padding:40px 16px 32px}
+  .header h1{font-size:24px}
+  .card-row-wrap{gap:12px;padding:18px 16px 10px}
+  .c-card{width:180px;height:118px}
+  .cc-icon{width:38px;height:38px;font-size:18px}
+  .cc-title{font-size:12px}
+  .modal-panel{max-width:95vw;border-radius:14px 14px 0 0;max-height:90vh}
+  .mb-row{grid-template-columns:1fr}
+}
+@media(max-width:400px){
+  .card-row-wrap{gap:8px}
+  .c-card{width:150px;height:105px;border-radius:12px}
+  .cc-icon{width:32px;height:32px;font-size:16px;border-radius:10px}
+  .intel-item{padding:10px 12px;gap:10px}
+}
+
+/* ===== ACCESSIBILITY ===== */
+:focus-visible{outline:2px solid ${theme.accent};outline-offset:2px;border-radius:4px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid ${theme.accent};outline-offset:2px}
+
+</style>
+</head>
+<body>
+<!-- ===== MODAL OVERLAY ===== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal-bg"></div>
+  <div class="modal-panel" id="modalPanel" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <div class="mh-icon" id="modalIcon"></div>
+      <div class="mh-info">
+        <div class="mh-title" id="modalTitle"></div>
+        <div class="mh-sub" id="modalSub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()">&times;</button>
+    </div>
+    <div class="modal-bd" id="modalBody"></div>
+    <div class="modal-ft" id="modalFooter">
+      <button class="btn-cancel" onclick="closeModalDirect()">取消</button>
+      <button class="btn-save" id="btnSave" onclick="closeModalDirect()">保存配置</button>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <h1>${sn}</h1>
+  ${sd ? '<p>'+sd+'</p>' : ''}
+</div>
+
+<div class="card-row-wrap">
+  ${cardsHtml}
+</div>
+
+<div class="intel-results-area" id="intelResultsArea" style="display:none">
+  <div class="divider" style="margin-bottom:16px"><span class="dlabel">Intel Feed</span><span class="dline"></span></div>
+  <div class="intel-results" id="intelResults"></div>
+  <div class="intel-status" id="intelStatus"></div>
+</div>
+
+<div id="globalPlaceholder" style="display:none"></div>
+<div id="globalReports" style="display:none"></div>
+
+<div class="footer">Powered by <strong>YooClaw AI</strong></div>
+
+<script>
+var API='${apiBase}';
+var REPORT_INDICES=${reportIndicesJson};
+var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
+var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
+var WIDGETS=${widgetConfigsJs};
+var METHOD_NAMES={SWOT:'SWOT分析',PEST:'PEST分析',PORTER:'波特五力分析','3C':'3C分析',STOCK:'股价预测'};
+
+function $(id){return document.getElementById(id)}
+
+/* ===== MODAL ===== */
+var _activeIdx=-1;
+
+function openModal(idx){
+  _activeIdx=idx;
+  var w=WIDGETS[idx];
+  if(!w)return;
+  var overlay=$('modalOverlay');
+  var panel=$('modalPanel');
+  panel.className='modal-panel type-'+(w.type==='report'?'report':'monitor');
+  $('modalIcon').textContent=w.type==='report'?'📊':'🛰️';
+  $('modalTitle').textContent=w.title;
+  $('modalSub').textContent=w.subtitle;
+  if(w.type==='report'){
+    renderReportForm(idx,w);
+    $('modalFooter').style.display='flex';
+    $('btnSave').style.display='none';
+  }else{
+    renderMonitorForm(idx,w);
+    $('modalFooter').style.display='flex';
+    $('btnSave').style.display='inline-flex';
+    $('btnSave').onclick=function(){saveMonitorConfig(idx)};
+  }
+  overlay.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeModal(e){
+  if(e&&e.target!==$('modalOverlay'))return;
+  closeModalDirect();
+}
+
+function closeModalDirect(){
+  $('modalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  _activeIdx=-1;
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape')closeModalDirect();
+});
+
+/* ===== REPORT FORM ===== */
+function renderReportForm(idx,w){
+  var defSys='${defaultSysPrompt.replace(/'/g,"\\'").replace(/\n/g,'\\n')}';
+  var defUsr='${defaultUserPrompt.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')}';
+  var s='<div class="mb-group">';
+  s+='<label class="mb-label">公司 / 行业名称</label>';
+  s+='<input class="mb-input" id="mfCompany_'+idx+'" placeholder="例如：比亚迪、特斯拉、宁德时代...">';
+  s+='</div><div class="mb-group">';
+  s+='<label class="mb-label">分析框架 <span>· 可多选</span></label>';
+  s+='<div class="fw-chips" id="mfFrameworks_'+idx+'">';
+  var fws=[{v:'SWOT',l:'SWOT',c:true},{v:'PEST',l:'PEST',c:true},{v:'PORTER',l:'波特五力',c:false},{v:'3C',l:'3C分析',c:false},{v:'STOCK',l:'股价预测',c:false}];
+  fws.forEach(function(f){
+    s+='<label class="fw-c"><input type="checkbox" value="'+f.v+'"'+(f.c?' checked':'')+' onchange="onFrameworkChange('+idx+')"><span class="fw-v">'+f.l+'</span></label>';
+  });
+  s+='</div></div><div class="mb-row"><div class="mb-group">';
+  s+='<label class="mb-label">搜索平台</label>';
+  s+='<select class="mb-select" id="mfPlatform_'+idx+'" onchange="onPlatformChange('+idx+')">';
+  s+='<option value="">默认 (CodeBuddy)</option>';
+  s+='<option value="tavily">Tavily</option>';
+  s+='<option value="metaso" selected>秘塔 (Metaso)</option>';
+  s+='<option value="deepseek">DeepSeek</option>';
+  s+='<option value="custom">自定义 API</option></select></div>';
+  s+='<div class="mb-group"><label class="mb-label">API Key</label>';
+  s+='<div style="position:relative"><input class="mb-input" type="password" id="mfApiKey_'+idx+'" value="'+(w.searchApiKey||'mk-65F31E31CBAB4DD4697CF57DA49000CB')+'" style="padding-right:36px"><span onclick="toggleApiKeyEye('+idx+')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#94a3b8;user-select:none" id="mfApiKeyEye_'+idx+'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span></div>';
+  s+='<input class="mb-input" id="mfEndpoint_'+idx+'" placeholder="自定义 API 端点 URL..." style="margin-top:6px;display:none"></div></div>';
+  s+='<div class="mb-group"><label class="mb-label">系统提示词 <span>（可选）</span></label>';
+  s+='<textarea class="mb-area" id="mfSysPrompt_'+idx+'" style="min-height:50px">'+(w.sysPrompt||defSys)+'</textarea></div>';
+  s+='<div class="mb-group"><label class="mb-label">用户提示词 <span>（可选）</span></label>';
+  s+='<textarea class="mb-area" id="mfUserPrompt_'+idx+'" style="min-height:100px">'+(w.userPrompt||defUsr)+'</textarea></div>';
+  s+='<button class="btn" id="btnStartAnalysis_'+idx+'" onclick="startAnalysis('+idx+')">开始分析</button>';
+  s+='<div id="modalResultArea_'+idx+'"></div>';
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+/* ===== MONITOR VIEW ===== */
+function renderMonitorForm(idx,w){
+  var s='';
+  var sources=w.sources||[];
+  if(sources.length>0){
+    sources.forEach(function(src,si){
+      s+='<div class="src-mini" id="srcBlock_'+idx+'_'+si+'">';
+      s+='<div class="src-top"><input class="st-name-input" id="srcName_'+idx+'_'+si+'" value="'+escHtml(src.name)+'" placeholder="监控源名称">';
+      s+='<span class="src-del" onclick="deleteSource('+idx+','+si+')" title="删除此监控源">\u2715</span></div>';
+      s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
+      s+='<select class="mb-select" id="srcProvider_'+idx+'_'+si+'">';
+      ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
+        s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
+      });
+      s+='</select></div>';
+      s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
+      s+='<input class="mb-input" id="srcModel_'+idx+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v3.1">';
+      s+='</div></div>';
+      s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
+      s+='<input class="mb-input" type="password" id="srcApiKey_'+idx+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
+      s+='</div><div class="mb-group"><label class="mb-label">更新频率</label>';
+      s+='<select class="mb-select" id="srcFreq_'+idx+'_'+si+'">';
+      ['hourly','daily','weekly','monthly'].forEach(function(f){
+        var labels={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'};
+        s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+labels[f]+'</option>';
+      });
+      s+='</select></div></div>';
+      var kws=src.keywords||[];
+      s+='<div class="mb-group"><label class="mb-label">监控关键词</label>';
+      s+='<div class="kw-tags" id="kwTags_'+idx+'_'+si+'">';
+      kws.forEach(function(k){
+        s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+idx+','+si+',this.parentElement)" title="移除">&times;</button></span>';
+      });
+      s+='</div>';
+      s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+idx+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+idx+','+si+')}">';
+      s+='<button class="kw-add-btn" onclick="addKeyword('+idx+','+si+')">+</button></div>';
+      s+='</div>';
+      s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
+      s+='<textarea class="mb-area" id="srcPrompt_'+idx+'_'+si+'" style="min-height:60px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
+      s+='</div>';
+      s+='</div>';
+    });
+    s+='<button class="btn-add-src" onclick="addSource('+idx+')" style="width:100%;margin-top:8px;padding:10px;border:1px dashed #d1d5db;border-radius:9px;background:none;color:#6366f1;cursor:pointer;font-size:13px;font-weight:600">+ 添加监控源</button>';
+  }else{
+    s='<div class="placeholder"><div class="ph-icon">\U0001f6f0\ufe0f</div><p class="ph-text">暂无监控源配置。<br>点击下方按钮添加监控源。</p></div>';
+    s+='<button class="btn-add-src" onclick="addSource('+idx+')" style="width:100%;margin-top:16px;padding:10px;border:1px dashed #d1d5db;border-radius:9px;background:none;color:#6366f1;cursor:pointer;font-size:13px;font-weight:600">+ 添加监控源</button>';
+  }
+  $('modalBody').innerHTML=s;
+  $('modalBody').scrollTop=0;
+}
+
+
+/* ===== MONITOR HELPERS ===== */
+function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function addSource(idx){
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  if(!w.sources)w.sources=[];
+  w.sources.push({name:'',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],updateFrequency:'daily',customPrompt:''});
+  renderMonitorForm(idx,w);
+}
+
+function deleteSource(idx,si){
+  if(!confirm('确定删除这个监控源？'))return;
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  w.sources.splice(si,1);
+  renderMonitorForm(idx,w);
+}
+
+function addKeyword(idx,si){
+  var inp=$('kwInput_'+idx+'_'+si);
+  if(!inp)return;
+  var kw=inp.value.trim();
+  if(!kw)return;
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  if(!w.sources[si].keywords)w.sources[si].keywords=[];
+  if(w.sources[si].keywords.indexOf(kw)===-1){
+    w.sources[si].keywords.push(kw);
+  }
+  renderMonitorForm(idx,w);
+}
+
+function removeKeyword(idx,si,el){
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  var kwText=el.childNodes[0]?el.childNodes[0].textContent.replace('×','').trim():'';
+  var kws=w.sources[si].keywords||[];
+  var ki=kws.indexOf(kwText);
+  if(ki!==-1)kws.splice(ki,1);
+  renderMonitorForm(idx,w);
+}
+
+function saveMonitorConfig(idx){
+  var w=WIDGETS[idx];
+  if(!w||w.type!=='monitor')return;
+  var sources=[];
+  var srcIndices=[];
+  document.querySelectorAll('[id^="srcName_'+idx+'_"]').forEach(function(el){
+    var idParts=el.id.split('_');
+    srcIndices.push(parseInt(idParts[idParts.length-1]));
+  });
+  srcIndices.forEach(function(si){
+    var name=($('srcName_'+idx+'_'+si)||{}).value||'';
+    var provider=($('srcProvider_'+idx+'_'+si)||{}).value||'deepseek';
+    var model=($('srcModel_'+idx+'_'+si)||{}).value||'';
+    var apiKey=($('srcApiKey_'+idx+'_'+si)||{}).value||'';
+    var freq=($('srcFreq_'+idx+'_'+si)||{}).value||'daily';
+    var prompt=($('srcPrompt_'+idx+'_'+si)||{}).value||'';
+    var keywords=[];
+    var kwContainer=$('kwTags_'+idx+'_'+si);
+    if(kwContainer){
+      kwContainer.querySelectorAll('.kw-t').forEach(function(tag){
+        var kwText=tag.childNodes[0]?tag.childNodes[0].textContent.replace('×','').trim():'';
+        if(kwText)keywords.push(kwText);
+      });
+    }
+    if(name){
+      sources.push({name:name,aiProvider:provider,aiModel:model,apiKey:apiKey,keywords:keywords,updateFrequency:freq,customPrompt:prompt});
+    }
+  });
+  var freq=(sources[0]||{}).updateFrequency||'daily';
+  var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[freq]||'每日';
+  var updatedWidget={type:'monitor',idx:idx,title:w.title,subtitle:sources.length>0?'追踪配置的关键词情报':'暂无监控源配置',sources:sources};
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:idx,widget:updatedWidget})}).then(function(r){
+    if(r.ok){
+      WIDGETS[idx]=updatedWidget;
+      var card=document.querySelectorAll('.c-card')[idx];
+      if(card){
+        var meta=card.querySelector('.cc-meta');
+        if(meta)meta.textContent=(sources.length||0)+' 个监控源 · '+freqLabel;
+      }
+      closeModalDirect();
+    }else{alert('保存失败，请稍后重试');}
+  }).catch(function(){alert('网络错误，请稍后重试');});
+}
+
+/* ===== FRAMEWORK & PLATFORM ===== */
+function onFrameworkChange(idx){
+  updatePrompt(idx);
+}
+
+function updatePrompt(idx){
+  var container=$('mfFrameworks_'+idx);
+  if(!container)return;
+  var methods='',hasStock=false;
+  container.querySelectorAll('input[type=checkbox]:checked').forEach(function(cb){
+    if(cb.value==='STOCK')hasStock=true;
+    else{methods+=METHOD_NAMES[cb.value]+'、'}
+  });
+  methods=methods.replace(/、$/,'');
+  var up=$('mfUserPrompt_'+idx);
+  if(!up)return;
+  var v=up.value;
+  var lines=v.split('\\n'),result=[];
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i];
+    if(l.indexOf('请使用以下分析框架')===0)continue;
+    if(l.indexOf('结合公司最新的年报/季报')!=-1)continue;
+    result.push(l);
+  }
+  v=result.join('\\n').trim();
+  var extra='';
+  if(methods)extra+='\\n\\n请使用以下分析框架进行分析：'+methods+'。';
+  if(hasStock)extra+='\\n\\n结合公司最新的年报/季报，预测公司股价未来12个月的走势。';
+  up.value=v+extra;
+}
+
+function onPlatformChange(idx){
+  var p=$('mfPlatform_'+idx);
+  if(!p)return;
+  var ep=$('mfEndpoint_'+idx);
+  if(ep)ep.style.display=p.value==='custom'?'block':'none';
+  if(p.value==='metaso'){
+    var key=$('mfApiKey_'+idx);
+    if(key&&!key.value)key.value='mk-65F31E31CBAB4DD4697CF57DA49000CB';
+  }
+}
+
+function toggleApiKeyEye(idx){
+  var inp=$('mfApiKey_'+idx),eye=$('mfApiKeyEye_'+idx);
+  if(!inp||!eye)return;
+  if(inp.type==='password'){
+    inp.type='text';
+    eye.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.9 9.9a3 3 0 1 0 4.2 4.2"/><path d="M10.7 5.1A10.4 10.4 0 0 1 12 5c7 0 10 7 10 7a13 13 0 0 1-1.7 2.7"/><path d="M6.6 6.6A13.5 13.5 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><line x1="2" y1="2" x2="22" y2="22"/></svg>';
+  }else{
+    inp.type='password';
+    eye.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  }
+}
+
+/* ===== STREAMING ===== */
+async function* _s(url,body){
+  var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  var rd=r.body.getReader(),dc=new TextDecoder(),buf='';
+  try{while(true){var nxt=await rd.read();if(nxt.done)break;buf+=dc.decode(nxt.value,{stream:true});var ls=buf.split('\\n');buf=ls.pop()||'';for(var l of ls){if(!l.startsWith('data: '))continue;var js=l.slice(6).trim();if(!js||js==='{}')continue;try{yield JSON.parse(js)}catch(e){}}}}
+  finally{rd.releaseLock()}
+}
+
+/* ===== ANALYSIS ===== */
+async function startAnalysis(idx){
+  var n=$('mfCompany_'+idx);
+  if(!n)return;
+  n=n.value.trim();if(!n)return;
+  var sp=$('mfPlatform_'+idx);sp=sp?sp.value:'';
+  var sak=$('mfApiKey_'+idx);sak=sak?sak.value.trim():'';
+  var se=$('mfEndpoint_'+idx);se=se?se.value.trim():'';
+  var sprompt=$('mfSysPrompt_'+idx);sprompt=sprompt?sprompt.value.trim():'';
+  var uprompt=$('mfUserPrompt_'+idx);uprompt=uprompt?uprompt.value.trim():'';
+  var fwContainer=$('mfFrameworks_'+idx);
+  var methods=[];
+  if(fwContainer){fwContainer.querySelectorAll('input[type=checkbox]:checked').forEach(function(c){methods.push(c.value)})}
+  if(methods.length===0)methods=['SWOT','PEST'];
+  methods=methods.filter(function(m){return m!=='STOCK'});
+  if(methods.length===0)methods=['SWOT','PEST'];
+  var slug=window.location.pathname.split('/').pop();
+  
+  $('modalBody').innerHTML=
+    '<h3 style="font-size:15px;font-weight:600;margin-bottom:6px;color:${textClr}">正在搜索行业信息</h3>'+
+    '<p style="font-size:13px;margin-bottom:16px;color:${mutedClr}">'+n+'</p>'+
+    '<div class="progress-section"><div class="progress-label"><span>搜索进度</span><span id="sp_'+idx+'">0%</span></div>'+
+    '<div class="progress-bar"><div class="progress-fill" id="sbar_'+idx+'" style="width:0%"></div></div>'+
+    '<div class="stage-text" id="stxt_'+idx+'" style="display:none"><div class="spinner"></div><span id="smsg_'+idx+'"></span></div></div>';
+  $('modalBody').scrollTop=0;
+  
+  try{
+    var rt='';
+    for await(var ev of _s(API+'/api/p/research/'+slug,{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor',searchPlatform:sp,searchApiKey:sak,searchEndpoint:se,sysPrompt:sprompt,userPrompt:uprompt})){
+      if(ev.type==='progress_update'){$('sp_'+idx).textContent=ev.percent+'%';$('sbar_'+idx).style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){$('stxt_'+idx).style.display='flex';$('smsg_'+idx).textContent=ev.text}
+      else if(ev.type==='research_complete'){rt=ev.data||''}
+      else if(ev.type==='error'){throw new Error(ev.message||'搜索失败')}
+    }
+    
+    $('modalBody').innerHTML=
+      '<h3 style="font-size:15px;font-weight:600;margin-bottom:6px;color:${textClr}">正在生成深度分析报告</h3>'+
+      '<p style="font-size:13px;margin-bottom:16px;color:${mutedClr}">'+n+'</p>'+
+      '<div class="progress-section"><div class="progress-label"><span>报告进度</span><span id="rp_'+idx+'">0%</span></div>'+
+      '<div class="progress-bar"><div class="progress-fill" id="rbar_'+idx+'" style="width:0%"></div></div>'+
+      '<div class="stage-text" id="rtxt_'+idx+'" style="display:none"><div class="spinner"></div><span id="rmsg_'+idx+'"></span></div></div>';
+    $('modalBody').scrollTop=0;
+    
+    var url='';
+    for await(var ev of _s(API+'/api/p/report/'+slug,{formData:{companyName:n,businessDesc:'',analysisMethods:methods,perspective:'investor'},researchData:rt,sysPrompt:sprompt,userPrompt:uprompt})){
+      if(ev.type==='progress_update'){$('rp_'+idx).textContent=ev.percent+'%';$('rbar_'+idx).style.width=ev.percent+'%'}
+      else if(ev.type==='stage'){$('rtxt_'+idx).style.display='flex';$('rmsg_'+idx).textContent=ev.text}
+      else if(ev.type==='report_complete'){url=ev.url||''}
+      else if(ev.type==='error'){throw new Error(ev.message||'生成失败')}
+    }
+    
+    if(url){
+      var lu=window.location.origin+url;
+      $('modalBody').innerHTML=
+        '<div class="result-card"><h3>✅ 报告生成成功!</h3>'+
+        '<p style="font-size:13px;margin-bottom:4px;color:${mutedClr}">'+n+' 行业分析报告</p>'+
+        '<div class="url-box"><a href="'+lu+'" target="_blank" rel="noopener">'+lu+'</a>'+
+        '<button onclick="copyUrlModal()" style="flex-shrink:0;padding:4px 10px;font-size:12px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer">复制</button></div></div>'+
+        '<div id="modalReportList_'+idx+'" style="margin-top:16px"><p style="font-size:13px;text-align:center;color:${mutedClr}">加载报告列表...</p></div>';
+      loadReports(idx);
+    }else throw new Error('未获取到链接');
+  }catch(e){
+    $('modalBody').innerHTML=
+      '<div class="error-box">❌ 错误: '+e.message+'</div>'+
+      '<button class="btn" onclick="openModal('+idx+')">返回重试</button>';
+    $('modalBody').scrollTop=0;
+  }
+}
+
+function copyUrlModal(){
+  var links=$('modalBody').querySelectorAll('a');
+  if(links.length>0){
+    navigator.clipboard.writeText(links[0].textContent||'');
+    var btns=$('modalBody').querySelectorAll('button');
+    btns.forEach(function(b){
+      if(b.textContent==='复制'){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},2000)}
+    });
+  }
+}
+
+/* ===== REPORTS ===== */
+async function loadReports(idx){
+  var slug=window.location.pathname.split('/').pop();
+  try{
+    var r=await fetch(API+'/api/p/reports/'+slug);
+    if(!r.ok){renderReportList(idx,[]);return}
+    var reports=await r.json();
+    renderReportList(idx,reports.data||[]);
+  }catch(e){renderReportList(idx,[])}
+}
+
+function renderReportList(idx,reports){
+  var html='<h4 style="font-size:13px;font-weight:600;margin-bottom:10px;color:${textClr}">最近生成的报告 ('+reports.length+')</h4>';
+  if(reports.length>0){
+    reports.slice(0,20).forEach(function(report){
+      var d=new Date(report.createdAt).toLocaleString('zh-CN');
+      html+='<div class="report-item"><div style="flex:1"><div class="rname">'+(report.companyName||'未知')+'</div><div class="rdate">'+d+'</div></div><a href="'+report.url+'" target="_blank" style="color:${reportAccent};border:1px solid ${reportAccent}33">查看</a><button onclick="deleteReport('+idx+',\\''+(report.slug||'').replace(/'/g,'\\x27')+'\\')" style="border:1px solid rgba(226,75,74,.3);background:none;color:#e24b4a;cursor:pointer">删除</button></div>';
+    });
+  }else{
+    html+='<p style="font-size:13px;text-align:center;color:${mutedClr}">暂无报告，开始分析后这里会显示。</p>';
+  }
+  var container=$('modalReportList_'+idx);
+  if(container)container.innerHTML=html;
+  // Update main card count
+  var cnt=$('reportCardCount');
+  if(cnt)cnt.textContent=reports.length+' 份';
+}
+
+async function deleteReport(idx,rSlug){
+  if(!confirm('确定删除这个报告？'))return;
+  var slug=window.location.pathname.split('/').pop();
+  try{
+    var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
+    if(!r.ok){alert('删除失败');return}
+    loadReports(idx);
+  }catch(e){alert('删除失败')}
+}
+
+/* ===== INIT ===== */
+REPORT_INDICES.forEach(function(idx){
+  setTimeout(function(){loadReports(idx)},100);
+});
+// Load report count for my reports card
+setTimeout(function(){loadRecentReportCount()},200);
+
+/* ===== REPORT LIST MODAL ===== */
+var CURRENT_REPORTS=[];
+
+function openReportList(){
+  var overlay=$('modalOverlay'),panel=$('modalPanel');
+  overlay.classList.add('open');
+  panel.className='modal-panel type-reports';
+  $('modalIcon').innerHTML='📋';
+  $('modalTitle').textContent='我的报告';
+  $('modalSub').textContent='查看和管理所有生成的行业分析报告';
+  $('modalFooter').innerHTML='<button class="btn-cancel" onclick="closeModalDirect()">关闭</button>';
+  $('modalBody').innerHTML='<p style="font-size:13px;text-align:center;color:${mutedClr}">加载报告列表中...</p>';
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/reports/'+slug).then(function(r){
+    if(!r.ok){renderReportCards([]);return}
+    return r.json();
+  }).then(function(data){
+    renderReportCards(data.data||[]);
+  }).catch(function(e){
+    renderReportCards([]);
+  });
+}
+
+function renderReportCards(reports){
+  CURRENT_REPORTS=reports;
+  if(reports.length===0){
+    $('modalBody').innerHTML='<div style="text-align:center;padding:40px 20px"><div style="font-size:40px;margin-bottom:12px">📭</div><p style="font-size:14px;color:${mutedClr}">暂无报告，开始行业分析后这里会显示。</p></div>';
+    var cnt=$('reportCardCount');
+    if(cnt)cnt.textContent='0 份';
+    return;
+  }
+  var html='<div class="rpt-cards-grid">';
+  reports.forEach(function(report){
+    var d=new Date(report.createdAt).toLocaleString('zh-CN');
+    var company=(report.companyName||'未知').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var rSlug=(report.slug||'').replace(/'/g,'\\x27');
+    html+='<div class="rpt-card" onclick="window.open(\\''+report.url+'\\',\\'_blank\\')">'+
+      '<button class="rpt-delete" onclick="event.stopPropagation();deleteReportCard(\\''+rSlug+'\\')" title="删除报告">&times;</button>'+
+      '<div class="rpt-company">'+company+'</div>'+
+      '<div class="rpt-date">'+d+'</div>'+
+      '<div class="rpt-actions"><span class="rpt-view">查看报告 →</span></div>'+
+      '</div>';
+  });
+  html+='</div>';
+  $('modalBody').innerHTML=html;
+  var cnt=$('reportCardCount');
+  if(cnt)cnt.textContent=reports.length+' 份';
+}
+
+async function deleteReportCard(rSlug){
+  if(!confirm('确定删除这个报告？'))return;
+  var slug=window.location.pathname.split('/').pop();
+  try{
+    var r=await fetch(API+'/api/p/reports/'+slug+'/'+rSlug,{method:'DELETE'});
+    if(!r.ok){alert('删除失败');return}
+    var r2=await fetch(API+'/api/p/reports/'+slug);
+    var data=await r2.json();
+    renderReportCards(data.data||[]);
+  }catch(e){alert('删除失败')}
+}
+
+function loadRecentReportCount(){
+  var slug=window.location.pathname.split('/').pop();
+  fetch(API+'/api/p/reports/'+slug).then(function(r){
+    if(!r.ok)return;
+    return r.json();
+  }).then(function(data){
+    var cnt=$('reportCardCount');
+    if(cnt)cnt.textContent=(data.data||[]).length+' 份';
+  }).catch(function(){});
+}
+
+/* ===== INTEL FETCH ===== */
+var INTEL_FETCHING=false;
+
+async function fetchAllIntel(){
+  if(INTEL_FETCHING)return;
+  INTEL_FETCHING=true;
+  var area=$('intelResultsArea'),results=$('intelResults'),status=$('intelStatus');
+  var monitors=WIDGETS.filter(function(w){return w.type==='monitor'});
+  if(monitors.length===0){INTEL_FETCHING=false;return}
+  area.style.display='block';
+  status.innerHTML='<div class="intel-loading"><div class="spinner"></div>正在获取情报数据（并行加速中）...</div>';
+  // Collect all source fetch tasks with position info
+  var fetchTasks=[];
+  for(var mi=0;mi<monitors.length;mi++){
+    var mw=monitors[mi];
+    if(!mw.sources||mw.sources.length===0)continue;
+    for(var si=0;si<mw.sources.length;si++){
+      var src=mw.sources[si];
+      fetchTasks.push({
+        mi:mi,si:si,mw:mw,src:src,
+        fl:src.updateFrequency==='realtime'?'实时':src.updateFrequency==='daily'?'每日':'每周'
+      });
+    }
+  }
+  if(fetchTasks.length===0){INTEL_FETCHING=false;results.innerHTML='<div class="intel-empty">暂无监控源</div>';return}
+  // Fetch all sources concurrently in chunks of 3 (parallel acceleration)
+  var allResults=[];
+  for(var i=0;i<fetchTasks.length;i+=3){
+    var chunk=fetchTasks.slice(i,i+3);
+    var chunkResults=await Promise.all(chunk.map(function(task,chunkIdx){
+      return fetchSourceIntel(task.src).then(function(data){
+        return {ok:true,data:data,idx:i+chunkIdx};
+      }).catch(function(e){
+        return {ok:false,error:e.message,idx:i+chunkIdx};
+      });
+    }));
+    allResults=allResults.concat(chunkResults);
+  }
+  // Sort by original index and build HTML in order
+  allResults.sort(function(a,b){return a.idx-b.idx});
+  var allHtml='';
+  var currentMi=-1;
+  for(var j=0;j<allResults.length;j++){
+    var task=fetchTasks[j];
+    if(task.mi!==currentMi){
+      if(currentMi>=0)allHtml+='</div>';
+      currentMi=task.mi;
+      allHtml+='<div class="intel-src-group"><h3 class="isg-title">🛰️ '+task.mw.title+'</h3>';
+    }
+    allHtml+='<div class="intel-src-block"><div class="intel-src-title"><span class="isdot"></span>'+task.src.name+'<span class="isfreq"> · '+task.fl+'更新 · '+(task.src.aiModel||'默认')+'</span></div>';
+    if(allResults[j].ok&&allResults[j].data&&allResults[j].data.length>0){
+      allHtml+=renderIntelItems(allResults[j].data);
+    }else if(allResults[j].ok){
+      allHtml+='<div class="intel-empty">暂无情报数据</div>';
+    }else{
+      allHtml+='<div class="intel-error">获取失败: '+allResults[j].error+'</div>';
+    }
+    allHtml+='</div>';
+  }
+  if(currentMi>=0)allHtml+='</div>';
+  results.innerHTML=allHtml;
+  status.innerHTML='';
+  INTEL_FETCHING=false;
+}
+
+
+// makeIntelPrompt 已迁移到 ./prompts.ts
+
+async function fetchSourceIntel(src){
+  var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
+  var provider=src.aiProvider||'deepseek';
+  var apiKey=src.apiKey||(provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
+  var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?src.keywords.split(/[,，、]/).map(function(s){return s.trim()}).filter(Boolean):[]);
+  var model=src.aiModel||'deepseek-v4-flash';
+  if(!apiKey)throw new Error('未配置API Key');
+  if(provider==='metaso'){
+    var apiUrl='https://metaso.cn/api/open/search/v2';
+    var msResponse=await fetch(apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({question:_kwArr.join(' OR '),lang:'zh'})
+    });
+    if(!msResponse.ok){var msErr=await msResponse.text();throw new Error('秘塔API错误: '+msResponse.status+' '+msErr.substring(0,200))}
+    var msData=await msResponse.json();
+    var rawData=(msData.data&&msData.data.references)?msData.data.references:(msData.data||msData.results||msData.items||[]);
+    var results=Array.isArray(rawData)?rawData:(rawData.results||rawData.items||rawData.references||[rawData]);
+    return results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||r.aiSummary||'',source:r.url||r.link||r.source||'秘塔搜索',date:r.date||r.publishedAt||r.publishTime||'',link:r.url||r.link||''};});
+  } else {
+    var apiUrl='https://api.deepseek.com/chat/completions';
+    var response=await fetch(apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+      body:JSON.stringify({model:model,messages:[{role:'system',content:prompt.systemPrompt},{role:'user',content:prompt.userPrompt}],max_tokens:4096,temperature:0.7})
+    });
+    if(!response.ok){var err=await response.text();throw new Error('API错误: '+response.status)}
+    var data=await response.json();
+    var content=data.choices[0].message.content;
+    content=content.replace('\`\`\`json','').replace(/\`\`\`/g,'').trim();
+    try{return JSON.parse(content)}
+    catch(e){
+      var match=content.match(/\\[\\s*(?:\\{[\\s\\S]*?\\}|\\[[\\s\\S]*?\\])+\\s*\\]/);
+      if(match)return JSON.parse(match[0]);
+      throw new Error('无法解析AI返回数据');
+    }
+  }
+}
+
+function renderIntelItems(items){
+  var html='<div class="intel-items">';
+  for(var i=0;i<Math.min(items.length,10);i++){
+    var item=items[i];
+    var itemId='intel-'+i+'-'+Date.now();
+    html+='<div class="intel-item" onclick="toggleIntelDetail(this,\\x27'+itemId+'\\x27)" style="cursor:pointer">';
+    html+='<div class="inum">'+(i+1)+'</div><div class="ibody">';
+    html+='<div class="ititle">'+(item.title||'')+'</div>';
+    if(item.summary)html+='<div class="isummary">'+item.summary+'</div>';
+    if(item.link){
+      html+='<a class="isource" href="'+item.link+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 '+((item.source||item.link||'').replace(/^https?:\\/\\//,''))+'</a>';
+    }else if(item.source){
+      html+='<div class="isource">📎 '+item.source+'</div>';
+    }
+    if(item.date)html+='<div class="idate" style="font-size:10px;color:#888;margin-top:2px">🕐 '+item.date+'</div>';
+    if(item.summary){
+      html+='<div class="intel-detail" id="'+itemId+'" style="display:none;margin-top:6px;padding:10px;background:#f8fafc;border-radius:6px;border:1px solid #e5e7eb">';
+      html+='<div style="font-size:12px;line-height:1.7">'+item.summary+'</div>';
+      html+='</div>';
+    }
+    html+='</div></div>';
+  }
+  html+='</div>';
+  return html;
+}
+
+function toggleIntelDetail(el,detailId){
+  var detail=document.getElementById(detailId);
+  if(!detail)return;
+  var numEl=el.querySelector(".inum");
+  if(detail.style.display==="none"||!detail.style.display){
+    detail.style.display="block";
+    if(numEl)numEl.textContent="▼";
+    el.style.borderColor="var(--primary,#2563eb)";
+  } else {
+    detail.style.display="none";
+    if(numEl)numEl.textContent=numEl.textContent==="▼"?"▶":numEl.textContent;
+    el.style.borderColor="";
+  }
+}
+
+(function(){
+  var monitors=WIDGETS.filter(function(w){return w.type==='monitor'});
+  if(monitors.length>0){setTimeout(function(){fetchAllIntel()},500)}
+})();
+
+</script>
+</body>
+</html>`;
 }
 
 
@@ -573,7 +1655,7 @@ body { font-family: -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft Ya
       model: CODEBUDDY_MODEL,
       stream: true,
       messages: [
-        { role: 'system', content: '你是 YooClaw AI 助手，专门生成专业美观的行业分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+        { role: 'system', content: PROMPT_REPORT_HTML },
         { role: 'user', content: prompt },
       ],
       max_tokens: 16384,
@@ -669,7 +1751,7 @@ const prompt = `你是一个 HTML 游戏代码生成器，不是对话机器人�
       model: CODEBUDDY_MODEL,
       stream: true,
       messages: [
-        { role: 'system', content: '你是 YooClaw 游戏代码生成器。你只能输出纯 HTML 代码，第一个字符必须是<。禁止输出任何中文文字、说明、文件路径、摘要或描述。你不是对话助手，你是一个代码输出机器。' },
+        { role: 'system', content: PROMPT_GAME_GENERATOR },
         { role: 'user', content: prompt },
       ],
       max_tokens: 16384,
@@ -1236,7 +2318,7 @@ async function fetchResearchViaCodeBuddy(companyName: string, businessDesc: stri
       model: CODEBUDDY_MODEL,
       stream: true,
       messages: [
-        { role: 'system', content: '你是一个专业的行业研究分析师，擅长搜集和整理行业信息。输出结构化的研究资料，用中文。' },
+        { role: 'system', content: PROMPT_RESEARCH_ANALYST },
         { role: 'user', content: prompt },
       ],
       max_tokens: 16384,
@@ -1509,7 +2591,7 @@ app.post('/api/v1/sites/research', authMiddleware, async (req, res) => {
             model: modelName,
             stream: true,
             messages: [
-              { role: 'system', content: '你是一个专业的行业研究分析师。请务必使用【联网搜索】能力查找最新的行业数据和新闻，基于实时搜索结果回答。用中文输出结构化的研究资料。' },
+              { role: 'system', content: PROMPT_RESEARCH_WITH_SEARCH },
               { role: 'user', content: externalSearchPrompt },
             ],
             max_tokens: 16384,
@@ -1701,7 +2783,7 @@ ${researchData || '（暂无详细研究资料，请基于你的知识生成）'
           model: CODEBUDDY_MODEL,
           stream: true,
           messages: [
-            { role: 'system', content: '你是 YooClaw AI 助手，专门生成专业美观的行业深度分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记。' },
+            { role: 'system', content: PROMPT_DEEP_REPORT_HTML },
             { role: 'user', content: reportPrompt },
           ],
           max_tokens: 32768,
@@ -2081,7 +3163,7 @@ const gamePrompt = `你是一个 HTML 游戏代码生成器，不是对话机器
           model: CODEBUDDY_MODEL,
           stream: true,
           messages: [
-            { role: 'system', content: '你是 YooClaw 游戏代码生成器。你只能输出纯 HTML 代码，第一个字符必须是<。禁止输出任何中文文字、说明、文件路径、摘要或描述。你不是对话助手，你是一个代码输出机器。' },
+            { role: 'system', content: PROMPT_GAME_GENERATOR },
             { role: 'user', content: gamePrompt },
           ],
           max_tokens: 16384,
@@ -2192,7 +3274,7 @@ const gamePrompt = `你是一个 HTML 游戏代码生成器，不是对话机器
         model: CODEBUDDY_MODEL,
         stream: true,
         messages: [
-          { role: 'system', content: '你是 YooClaw AI 助手，一个友好、专业的对话助手。请用简洁清晰的中文回答用户的问题。' },
+          { role: 'system', content: PROMPT_AI_CHAT_SIMPLE },
           { role: 'user', content: userMessage },
         ],
       }),
@@ -2504,7 +3586,7 @@ app.post('/api/p/research/:slug', async (req, res) => {
     }
 
     // Build the AI prompt — use custom prompts if provided
-    const systemMsg = sysPrompt || `你是 YooClaw AI 助手，专门生成专业美观的行业分析报告 HTML 页面。你只输出纯 HTML 代码，不要包含任何 markdown 标记或额外说明文字。`;
+    const systemMsg = sysPrompt || PROMPT_REPORT_DEFAULT;
     const defaultPrompt = `请研究以下公司：${name}${businessDesc ? `（${businessDesc}）` : ''}
 ${searchResults || '\n请使用你的知识储备进行回答。'}
 请用完整的 HTML 格式输出行业研究报告，包含以下章节（用 <h2> 标题和 <p>/<ul>/<table> 等 HTML 标签）：
@@ -3215,39 +4297,7 @@ app.post('/api/ai-chat', async (req, res) => {
     const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
     const dateStr = now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + weekDays[now.getDay()];
 
-    const TRIPLE_BACKTICK = '```';
-    let systemContent = `# 实时数据指令
-今天是${dateStr}，请以这个日期为准回答用户问题。
-
-# Role and Objective
-你是一个集成在网页端的全能型 AI 效率助手。你的核心目标是协助用户高效完成任务，提供高质量、有实用价值的解答。你需要表现得像一个专业的"内容副驾驶（Copilot）"，提供直接、精准且高度结构化的响应。
-
-# Personality and Tone
-- **干练且高效**：拒绝冗长的客套话和无意义的前言（如"很高兴为你解答"、"作为一款AI..."）。不主动寒暄，不重复用户的提问，接收到指令后直奔主题，直接输出核心答案。
-- **专业与严谨**：保持客观、理性的专业态度。知之为知之，不知为不知，遇到无法确定的事实或超出知识库范围的时效性问题，应坦诚说明，严禁凭空编造（拒绝幻觉）。
-
-# UI & Presentation Optimization (网页端视觉优化)
-- **极高可读性**：严禁输出密密麻麻的文字墙。必须熟练使用 Markdown 语法来使内容结构化（多用 ## 标题、* 列表、**粗体高亮**）。
-- **信息可视化**：当涉及对比、参数、操作步骤或多维度数据时，优先使用 Markdown 表格（Table）或编号步骤进行呈现，方便网页端用户快速抓取关键信息。
-- **长度控制**：保持回答精炼，第一轮回答尽量控制在 2-3 个屏幕滚动内。先给核心结论，再展开细节。
-
-# Copy-Friendly Specifications (一键复制友好规范)
-为了完美配合前端的"一键复制"功能，你必须遵守以下排版规则：
-- **独立代码块**：所有核心代码、配置文件、命令行指令、或长篇的文案模板，必须使用标准的 Markdown 代码块（如 ${TRIPLE_BACKTICK}javascript, ${TRIPLE_BACKTICK}text）包裹，严禁与普通正文混在一起。
-- **纯净容器**：代码块内部只能包含可执行的代码、配置内容或需要被复制的纯文本。严禁在代码块内部夹杂你的解释性文字（如"// 这里的代码意思是..."），所有的分析、解释、前言和后语必须写在代码块外面。
-- **格式规范**：提供代码时必须声明编程语言，确保前端高亮插件完美渲染；涉及复杂公式时使用 LaTeX 标准格式（$行内公式$ 或 $$独立公式$$）。
-
-# Workflow & Constraints
-- **完整性**：给出的方案应尽可能完整，减少用户因为信息缺失而反复追问的次数。
-- **引导澄清**：如果用户的提问过于模糊或缺乏必要上下文，应在给出可能性最大的初步解答后，以友好的方式提出 1-2 个问题，引导用户补充细节。
-- **安全底线**：严格遵守安全合规原则，坚决拒绝任何涉及违法、暴力、侵犯隐私、歧视或有害信息的请求。对于灰色地带或有争议的话题，保持中立，仅客观陈述多方观点。`;
-
-
-    if (searchContext) {
-      systemContent += `\n\n以下是网络搜索到的实时资料，请【仅基于】这些内容回答用户问题。如果搜索结果无法完全回答，请结合你自己的知识补充，但严禁编造任何具体数据或数字。\n${searchContext}`;
-    } else {
-      systemContent += '\n\n【重要警告】未获取到实时搜索结果，请你绝对不要编造任何数据、数字或事实。如果无法回答时效性问题，请直接告知"无法获取实时数据"。';
-    }
+    const systemContent = buildAiChatSystemPrompt(dateStr, searchContext);
 
     const messages = [
       { role: 'system', content: systemContent },
@@ -4649,7 +5699,7 @@ function sendCommand(){
       return response.json();
     }).then(function(data){
       var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
-      aiChatHistory.push({role:'assitant',content:reply});
+      aiChatHistory.push({role:'assistant',content:reply});
       var el=document.getElementById(thinkId);
       if(el&&el.parentNode)el.parentNode.removeChild(el);
       appendChatMessage('bot',reply);
