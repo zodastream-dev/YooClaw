@@ -4689,7 +4689,16 @@ async function loadIntelData(){
     });
     renderSourceFilters(monitors);
     buildIntelSubFilters(monitors);
-    renderIntelFeed(allIntelData);
+    // 如果当前有过滤条件激活，重新应用过滤；否则渲染全部
+    if(currentSourceFilters.length===0||currentSourceFilters[0]==='全部'){
+      renderIntelFeed(allIntelData);
+    } else {
+      var filtered=allIntelData.filter(function(item){
+        return currentSourceFilters.indexOf(item._sourceName) >= 0;
+      });
+      console.log('[loadIntelData] filter active, rendering', filtered.length, 'of', allIntelData.length);
+      renderIntelFeed(filtered);
+    }
     updateDashboard(allIntelData);
     $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
   } catch(e) {
