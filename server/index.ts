@@ -4188,8 +4188,8 @@ async function warmAllPortalCaches() {
 }
 
 // AI Chat endpoint for portal AI assistant
-// Flow: 1) search web via Metaso (if key available) → 2) feed results to DeepSeek → 3) return answer
-app.post('/api/ai-chat', async (req, res) => {
+// Flow: 1) search web via DuckDuckGo HTML scrape (free, no key) → 2) feed results to DeepSeek → 3) return answer
+app.post('/api/ai-ch-at', async (req, res) => {
   try {
     const { message, history } = req.body || {};
     if (!message || typeof message !== 'string' || !message.trim()) {
@@ -4200,38 +4200,79 @@ app.post('/api/ai-chat', async (req, res) => {
       return res.status(500).json({ error: 'AI service not configured' });
     }
 
-    // Step 1: Web search via Metaso (free-tier, already have API key)
+    // Step 1: Web search via DuckDuckGo HTML (free, no API key needed)
     let searchContext = '';
-    const metasoApiKey = process.env.METASO_API_KEY;
-    if (metasoApiKey) {
-      try {
-        const ctrl = new AbortController();
-        const to = setTimeout(() => ctrl.abort(), 15000);
-        const searchResp = await fetch('https://metaso.cn/api/open/search/v2', {
-          method: 'POST',
-          signal: ctrl.signal,
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + metasoApiKey },
-          body: JSON.stringify({ question: message, lang: 'zh' }),
-        });
-        clearTimeout(to);
-        if (searchResp.ok) {
-          const searchData = await searchResp.json();
-          const rawResults = (searchData.data && searchData.data.references)
-            ? searchData.data.references
-            : (searchData.data || []);
-          const results = Array.isArray(rawResults) ? rawResults.slice(0, 6) : [];
-          if (results.length > 0) {
-            searchContext = '\n\n【网络搜索结果】\n' + results.map((r: any, i: number) => {
-              const title = r.title || r.name || '';
-              const snippet = r.snippet || r.summary || r.content || '';
-              const url = r.url || r.link || '';
-              return `[${i + 1}] ${title}\n摘要: ${snippet}\n链接: ${url}`;
-            }).join('\n\n') + '\n';
-          }
+    try {
+      const query = encodeURIComponent(message);
+      const ddgUrl = 'https://html.duckduckgo.com/html/?q=' + query;
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 10000);
+      const ddgResp = await fetch(ddgUrl, {
+        signal: ctrl.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        },
+      });
+      clearTimeout(to);
+      if (ddgResp.ok) {
+        const html = await ddgResp.text();
+        // Parse DuckDuckGo HTML results: extract titles, snippets, URLs
+        const results: { title: string; snippet: string; url: string }[] = [];
+        // Match result links: <a class="result__a" href="...">Title</a>
+        const linkRegex = /<a class="result__a" href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
+        const snippetRegex = /<a class="result__snippet"[^>]*>([^<]+)<\/a>/g;
+        let match;
+        while ((match = linkRegex.exec(html)) !== null && results.length < 6) {
+          const url = decodeURIComponent(match[1].replace(/^\/\/duckduckgo\.com\/l\/\?uddg=/, ''));
+          const title = match[2].replace(/<[^>]+>/g, '');
+          results.push({ title, snippet: '', url });
         }
-      } catch (e: any) {
-        console.error('[AiChat Search] Failed:', e.message);
-        // Continue without search results
+        // Also try alternative regex for DuckDuckGo result format
+        const linkRegex2 = /<div class="result__body">.*?<a href="([^"]+)"[^>]*>([^<]+)<\/a>/gs;
+        let match2;
+        while ((match2 = linkRegex2.exec(html)) !== null && results.length < 6) {
+          results.push({ title: match2[2].replace(/<[^>]+>/g, ''), snippet: '', url: match2[1] });
+        }
+        if (results.length > 0) {
+          searchContext = '\n\n【网络搜索结果】\n' + results.map((r, i) => {
+            return `[${i + 1}] ${r.title}\n链接: ${r.url}`;
+          }).join('\n\n') + '\n';
+        }
+      }
+    } catch (e: any) {
+      console.error('[AiChat Search] DuckDuckGo failed:', e.message);
+      // Try Metaso as fallback if available
+      const metasoApiKey = process.env.METASO_API_KEY;
+      if (metasoApiKey) {
+        try {
+          const ctrl2 = new AbortController();
+          const to2 = setTimeout(() => ctrl2.abort(), 10000);
+          const searchResp = await fetch('https://metaso.cn/api/open/search/v2', {
+            method: 'POST',
+            signal: ctrl2.signal,
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + metasoApiKey },
+            body: JSON.stringify({ question: message, lang: 'zh' }),
+          });
+          clearTimeout(to2);
+          if (searchResp.ok) {
+            const searchData = await searchResp.json();
+            const rawResults = (searchData.data && searchData.data.references)
+              ? searchData.data.references
+              : (searchData.data || []);
+            const metasoResults = Array.isArray(rawResults) ? rawResults.slice(0, 6) : [];
+            if (metasoResults.length > 0) {
+              searchContext = '\n\n【网络搜索结果】\n' + metasoResults.map((r: any, i: number) => {
+                const title = r.title || r.name || '';
+                const snippet = r.snippet || r.summary || '';
+                const url = r.url || r.link || '';
+                return `[${i + 1}] ${title}\n摘要: ${snippet}\n链接: ${url}`;
+              }).join('\n\n') + '\n';
+            }
+          }
+        } catch (e2: any) {
+          console.error('[AiChat Search] Metaso fallback failed:', e2.message);
+        }
       }
     }
 
