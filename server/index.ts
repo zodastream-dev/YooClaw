@@ -407,18 +407,14 @@ function fixAiCssErrors(html: string): string {
 
 // ========== Portal HTML Generator ==========
 function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, slug: string, widgets?: any[]): string {
-  // Map template to color scheme - all templates now use intel-station layout
-  const templateColorMap: Record<string, string> = {
-    'intel-station': 'tech-blue',
-    'intel-station-neon-purple': 'neon-purple',
-    'intel-station-hacker-green': 'hacker-green',
-    'neon-purple': 'neon-purple',
-    'hacker-green': 'hacker-green',
-    'business-blue': 'tech-blue',
-    'tech-black': 'tech-blue',
-    'simple-white': 'tech-blue',
-  };
-  const colorScheme = templateColorMap[template] || 'tech-blue';
+  // Map template to colorScheme for intel-station
+  let colorScheme = 'tech-blue';
+  if (template === 'intel-station-neon-purple' || template === 'neon-purple') {
+    colorScheme = 'neon-purple';
+  } else if (template === 'intel-station-hacker-green' || template === 'hacker-green') {
+    colorScheme = 'hacker-green';
+  }
+  // All templates now use intel-station layout
   return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
   
   // Dead code below kept for reference - legacy templates no longer used
@@ -4613,29 +4609,65 @@ process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
 /* ===== COLOR SCHEMES for IntelStation Template ===== */
 type ColorScheme = 'tech-blue' | 'neon-purple' | 'hacker-green';
 interface SchemeColors {
-  // Map template to color scheme - all templates now use intel-station layout
-  const templateColorMap: Record<string, string> = {
-    'intel-station': 'tech-blue',
-    'intel-station-neon-purple': 'neon-purple',
-    'intel-station-hacker-green': 'hacker-green',
-    'neon-purple': 'neon-purple',
-    'hacker-green': 'hacker-green',
-    'business-blue': 'tech-blue',
-    'tech-black': 'tech-blue',
-    'simple-white': 'tech-blue',
-  };
-  const colorScheme = templateColorMap[template] || 'tech-blue';
-  return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
-  
-  // Dead code below kept for reference - legacy templates no longer used
+  cyan: string;
+  purple: string;
+  neonBlue: string;
+  neonPurple: string;
+  neonPink: string;
+  bgPrimary: string;
+  bgSecondary: string;
+  bgCard: string;
+  border: string;
+  textPrimary: string;
+  textSecondary: string;
+}
+const COLOR_SCHEMES: Record<ColorScheme, SchemeColors> = {
+  'tech-blue': {
+    cyan: '#00d4ff',
+    purple: '#a855f7',
+    neonBlue: '#00f0ff',
+    neonPurple: '#d946ef',
+    neonPink: '#f472b6',
+    bgPrimary: '#020617',
+    bgSecondary: '#0f172a',
+    bgCard: 'rgba(15,23,42,0.6)',
+    border: 'rgba(255,255,255,0.1)',
+    textPrimary: '#e2e8f0',
+    textSecondary: '#94a3b8'
+  },
+  'neon-purple': {
+    cyan: '#a855f7',
+    purple: '#d946ef',
+    neonBlue: '#00f0ff',
+    neonPurple: '#a855f7',
+    neonPink: '#f472b6',
+    bgPrimary: '#0f0a1a',
+    bgSecondary: '#1a0f2e',
+    bgCard: 'rgba(26,15,46,0.6)',
+    border: 'rgba(168,85,247,0.2)',
+    textPrimary: '#e2e8f0',
+    textSecondary: '#a855f7'
+  },
+  'hacker-green': {
+    cyan: '#00ff88',
+    purple: '#00d4aa',
+    neonBlue: '#00ffaa',
+    neonPurple: '#00d4aa',
+    neonPink: '#00ff88',
+    bgPrimary: '#000a00',
+    bgSecondary: '#001a00',
+    bgCard: 'rgba(0,26,0,0.6)',
+    border: 'rgba(0,255,136,0.2)',
+    textPrimary: '#00ff88',
+    textSecondary: '#00cc66'
+  }
+};
 
 // ========== Intel Station Portal Generator (Three-Column Layout) ==========
 function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: string, slug: string, widgets?: any[], colorScheme: string = 'tech-blue'): string {
   const sn = siteName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const wlist = (widgets && widgets.length > 0) ? widgets : [{ type: 'intel-monitor', title: '情报监控', config: { sources: [] } }];
   const wlistJson = JSON.stringify(wlist).replace(/'/g, '\\x27');
-  const scheme = COLOR_SCHEMES[colorScheme as ColorScheme] || COLOR_SCHEMES['tech-blue'];
-  const rootVars = `--cyan:${scheme.cyan};--purple:${scheme.purple};--neon-blue:${scheme.neonBlue};--neon-purple:${scheme.neonPurple};--neon-pink:${scheme.neonPink};--bg-primary:${scheme.bgPrimary};--bg-secondary:${scheme.bgSecondary};--bg-card:${scheme.bgCard};--border:${scheme.border};--text-primary:${scheme.textPrimary};--text-secondary:${scheme.textSecondary}`;
   
   const scheme = COLOR_SCHEMES[colorScheme as ColorScheme] || COLOR_SCHEMES['tech-blue'];
   const rootVars =
