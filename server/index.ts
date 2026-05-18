@@ -4626,10 +4626,6 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .ai-msg-user{display:flex;justify-content:flex-end}
 .ai-msg-user>div{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#020617;padding:10px 14px;border-radius:14px 14px 4px 14px;font-size:13px;font-weight:500;box-shadow:0 2px 12px rgba(0,212,255,0.15)}
 .ai-msg-bot{background:rgba(15,23,42,0.6);border:1px solid var(--border);padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;color:var(--text-secondary)}
-.ai-chat-input-area{display:flex;align-items:center;gap:8px;padding:12px 24px;border-top:1px solid var(--border);background:rgba(2,6,23,0.6);flex-shrink:0}
-.ai-chat-input{flex:1;padding:8px 14px;background:rgba(15,23,42,0.6);border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-size:13px;outline:none;font-family:inherit}
-.ai-chat-input:focus{border-color:var(--cyan)}
-.ai-chat-input-area .cmd-btn.send{width:34px;height:34px}
 /* Report card inner layout */
 .report-card-inner{display:flex;align-items:center;gap:12px}
 .no-data-msg{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:13px;line-height:1.8}
@@ -4796,10 +4792,6 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
       <div class="ai-chat-messages" id="aiChatMessages">
         <div class="ai-msg ai-msg-bot">&#x1F44B; 你好！我是AI助手，可以帮你分析行业趋势、解读情报数据、回答相关问题。请随时向我提问。</div>
       </div>
-      <div class="ai-chat-input-area">
-        <input class="ai-chat-input" id="aiChatInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter'){sendAiMessage()}">
-        <button class="cmd-btn send" onclick="sendAiMessage()">&#x27A4;</button>
-      </div>
     </div>
   </div>
 
@@ -4889,6 +4881,8 @@ var PORTAL_SLUG='` + slug.replace(/'/g, "\\'") + `';
 var currentSourceFilters=['全部'];
 var allIntelData=[];
 var currentFilter='all';
+var aiChatHistory=[];
+var currentCenterTab='intel';
 
 function $(id){return document.getElementById(id)}
 
@@ -5125,17 +5119,25 @@ function switchCenterTab(tab){
     $('intelFeed').style.display='';$('reportFeed').style.display='none';$('aiChat').style.display='none';
     $('intelSubFilters').style.display='';
     $('feedStatus').textContent=allIntelData.length?'已加载 '+allIntelData.length+' 条情报':'加载中...';
+    // 恢复底部输入框为普通模式
+    var cmd=$('cmdInput');
+    if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
   } else if(tab==='reports'){
     tabs[1].classList.add('active');
     $('intelFeed').style.display='none';$('reportFeed').style.display='';$('aiChat').style.display='none';
     $('intelSubFilters').style.display='none';
     $('feedStatus').textContent='报告中';
+    var cmd=$('cmdInput');
+    if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
     loadReports();
   } else if(tab==='ai'){
     tabs[2].classList.add('active');
     $('intelFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='';
     $('intelSubFilters').style.display='none';
     $('feedStatus').textContent='AI助手';
+    // 切换底部输入框为AI模式
+    var cmd=$('cmdInput');
+    if(cmd){cmd.placeholder='输入你的问题，按Enter发送...';cmd.dataset.mode='ai'}
   }
 }
 
@@ -5185,44 +5187,6 @@ function renderReportCards(reports){
     html+='</div></div></div></div>';
   });
   $('reportFeed').innerHTML=html;
-}
-
-/* ===== AI ASSISTANT ===== */
-var aiChatHistory=[];
-async function sendAiMessage(){
-  var input=$('aiChatInput');
-  if(!input)return;
-  var msg=input.value.trim();
-  if(!msg)return;
-  input.value='';
-  input.disabled=true;
-  appendChatMessage('user',msg);
-  aiChatHistory.push({role:'user',content:msg});
-  var thinkId='think_'+Date.now();
-  var thinkEl=document.createElement('div');
-  thinkEl.className='ai-msg ai-msg-bot';
-  thinkEl.id=thinkId;
-  thinkEl.textContent='思考中...';
-  $('aiChatMessages').appendChild(thinkEl);
-  $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
-  try {
-    var response=await fetch(API+'/api/ai-chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:msg,history:aiChatHistory.slice(-10)})
-    });
-    if(!response.ok)throw new Error('API error: '+response.status);
-    var data=await response.json();
-    var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
-    aiChatHistory.push({role:'assistant',content:reply});
-    if(thinkEl.parentNode)thinkEl.parentNode.removeChild(thinkEl);
-    appendChatMessage('bot',reply);
-  } catch(e){
-    if(thinkEl.parentNode)thinkEl.parentNode.removeChild(thinkEl);
-    appendChatMessage('bot','抱歉，请求失败: '+e.message);
-  }
-  input.disabled=false;
-  input.focus();
 }
 
 function appendChatMessage(role,text){
@@ -5523,15 +5487,61 @@ function updateBriefing(data){
 }
 
 /* ===== COMMAND CENTER ===== */
+var aiChatHistory=[];
 function sendCommand(){
   var input=$('cmdInput');
   if(!input)return;
   var cmd=input.value.trim();
   if(!cmd)return;
-  input.value='';
-  alert('指令已发送: '+cmd+'\\n\\n(AI 命令中心功能开发中...)');
+  if(currentCenterTab==='ai'){
+    // AI 模式：发送AI消息
+    input.value='';
+    input.disabled=true;
+    appendChatMessage('user',cmd);
+    aiChatHistory.push({role:'user',content:cmd});
+    var thinkId='think_'+Date.now();
+    var thinkEl=document.createElement('div');
+    thinkEl.className='ai-msg ai-msg-bot';
+    thinkEl.id=thinkId;
+    thinkEl.textContent='思考中...';
+    $('aiChatMessages').appendChild(thinkEl);
+    $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
+    try {
+      fetch(API+'/api/ai-chat',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({message:cmd,history:aiChatHistory.slice(-10)})
+      }).then(function(response){
+        if(!response.ok)throw new Error('API error: '+response.status);
+        return response.json();
+      }).then(function(data){
+        var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
+        aiChatHistory.push({role:'assistant',content:reply});
+        var el=document.getElementById(thinkId);
+        if(el&&el.parentNode)el.parentNode.removeChild(el);
+        appendChatMessage('bot',reply);
+        input.disabled=false;
+        input.focus();
+      }).catch(function(e){
+        var el=document.getElementById(thinkId);
+        if(el&&el.parentNode)el.parentNode.removeChild(el);
+        appendChatMessage('bot','抱歉，请求失败: '+e.message);
+        input.disabled=false;
+        input.focus();
+      });
+    } catch(e){
+      var el=document.getElementById(thinkId);
+      if(el&&el.parentNode)el.parentNode.removeChild(el);
+      appendChatMessage('bot','抱歉，请求失败: '+e.message);
+      input.disabled=false;
+      input.focus();
+    }
+  } else {
+    // 普通命令模式
+    input.value='';
+    alert('指令已发送: '+cmd+'\\n\\n(AI 命令中心功能开发中...)');
+  }
 }
-
 function toggleMic(){alert('语音输入功能开发中...');}
 function deployPortal(){alert('部署功能开发中...');}
 </script>
