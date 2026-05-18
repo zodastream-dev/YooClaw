@@ -33,6 +33,7 @@ import {
   deleteReportSite,
   incrementSiteViewCount,
   getSiteCountByType,
+  getAllPortalSites,
 } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -3947,6 +3948,101 @@ function savePortalIntelCache() {
   }
 }
 
+// ========== Shared: Core AI Intel Fetcher (used by both endpoint & cache warmer) ==========
+// Fetches intelligence data from Metaso or DeepSeek API for a single source.
+// Returns array of intel items [{title, summary, source, date, link}].
+// Does NOT handle caching — caller is responsible for cache management.
+async function fetchIntelForSource(src: any): Promise<any[]> {
+  const kwArr = Array.isArray(src.keywords)
+    ? src.keywords
+    : (typeof src.keywords === 'string' ? src.keywords.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : []);
+  const kw = kwArr.join('、');
+  const sp = src.customPrompt || '你是一个专业的情报分析助手。';
+  const up = '请搜索并整理关于【' + kw + '】的最新资讯，列出最重要的10条。' +
+    '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)、url(原始链接，如有)。' +
+    '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":"","url":""}]。' +
+    '4.如果无法提供真实url，url字段留空字符串。5.仅输出JSON数组，不要任何其他文字。';
+  const prompt = { systemPrompt: sp, userPrompt: up };
+  const provider = src.aiProvider || 'deepseek';
+  const apiKey = src.apiKey || (provider === 'metaso' ? process.env.METASO_API_KEY : process.env.DEEPSEEK_API_KEY) || '';
+  const model = src.aiModel || 'deepseek-v4-flash';
+  if (!apiKey) throw new Error('未配置API Key');
+
+  let results: any[];
+  if (provider === 'metaso') {
+    const apiUrl = 'https://metaso.cn/api/open/search/v2';
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 25000);
+    const response = await fetch(apiUrl, {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ question: kwArr.join(' OR '), lang: 'zh' }),
+    });
+    clearTimeout(to);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error('秘塔API错误: ' + response.status + ' ' + errText.substring(0, 200));
+    }
+    const data = await response.json();
+    const rawData = (data.data && data.data.references) ? data.data.references : (data.data || data.results || data.items || []);
+    results = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
+    results = results.slice(0, 10).map(function (r: any) {
+      return {
+        title: r.title || r.name || '',
+        summary: r.snippet || r.summary || r.content || r.aiSummary || '',
+        source: r.url || r.link || r.source || '秘塔搜索',
+        date: r.date || r.publishedAt || r.publishTime || '',
+        link: r.url || r.link || '',
+      };
+    });
+  } else {
+    const apiUrl = 'https://api.deepseek.com/chat/completions';
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 25000);
+    const response = await fetch(apiUrl, {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model, max_tokens: 4096, temperature: 0.7,
+        messages: [
+          { role: 'system', content: prompt.systemPrompt },
+          { role: 'user', content: prompt.userPrompt },
+        ],
+      }),
+    });
+    clearTimeout(to);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error('API错误: ' + response.status);
+    }
+    const data = await response.json();
+    let content = data.choices[0].message.content;
+    content = content.replace('```json', '').replace(/```/g, '').trim();
+    try {
+      results = JSON.parse(content);
+    } catch (e) {
+      const match = content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);
+      if (match) {
+        try { results = JSON.parse(match[0]); } catch (e2) { results = []; }
+      } else {
+        throw new Error('无法解析AI返回数据');
+      }
+    }
+    results = (results || []).map(function (r: any) {
+      return {
+        title: r.title || '',
+        summary: r.summary || '',
+        source: r.source || '',
+        date: r.date || r.time || '',
+        link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''),
+      };
+    });
+  }
+  return results;
+}
+
+// ========== POST /api/portal-intel ==========
+// Returns intelligence data for requested sources. Uses 30-min in-memory cache.
 app.post('/api/portal-intel', async (req, res) => {
   try {
     const { sources } = req.body || {};
@@ -3957,53 +4053,19 @@ app.post('/api/portal-intel', async (req, res) => {
     const results: any[] = [];
     const now = Date.now();
 
-    // Process sources with concurrency control (max 3 concurrent)
     const processSource = async (src: any, idx: number) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider });
       const cached = portalIntelCache.get(cacheKey);
       if (cached && cached.expiry > now) {
         return { sourceIdx: idx, data: cached.data, fromCache: true };
       }
-
       try {
-        console.log('[PortalIntel] V2 DEBUG keywords raw:', typeof src.keywords, JSON.stringify(src.keywords).substring(0,100));
-        // Fully inlined: no dependency on top-level helper functions
-        var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?src.keywords.split(/[,，、]/).map(function(s){return s.trim()}).filter(Boolean):[]);
-        var _kw=_kwArr.join('、');
-        var _sp=src.customPrompt||'你是一个专业的情报分析助手。';
-        var _up='请搜索并整理关于【'+_kw+'】的最新资讯，列出最重要的10条。'+
-          '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)、url(原始链接，如有)。'+
-          '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":"","url":""}]。'+
-          '4.如果无法提供真实url，url字段留空字符串。5.仅输出JSON数组，不要任何其他文字。';
-        var _prompt={systemPrompt:_sp,userPrompt:_up};
-        var _provider=src.aiProvider||'deepseek';
-        var _apiKey=src.apiKey||(_provider==='metaso'?process.env.METASO_API_KEY:process.env.DEEPSEEK_API_KEY)||'';
-        var _model=src.aiModel||'deepseek-v4-flash';
-        if(!_apiKey)throw new Error('未配置API Key');
-        var _results;
-        if(_provider==='metaso'){
-          var _apiUrl='https://metaso.cn/api/open/search/v2';
-          var _msCtrl=new AbortController();var _msTo=setTimeout(()=>_msCtrl.abort(),25000);var _msResponse=await fetch(_apiUrl,{method:'POST',signal:_msCtrl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+_apiKey},body:JSON.stringify({question:_kwArr.join(' OR '),lang:'zh'})});clearTimeout(_msTo);
-          if(!_msResponse.ok){var _msErr=await _msResponse.text();throw new Error('秘塔API错误: '+_msResponse.status+' '+_msErr.substring(0,200))}
-          var _msData=await _msResponse.json();
-          var _rawData=(_msData.data&&_msData.data.references)?_msData.data.references:(_msData.data||_msData.results||_msData.items||[]);
-          _results=Array.isArray(_rawData)?_rawData:(_rawData.results||_rawData.items||_rawData.references||[_rawData]);
-          _results=_results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||r.aiSummary||'',source:r.url||r.link||r.source||'秘塔搜索',date:r.date||r.publishedAt||r.publishTime||'',link:r.url||r.link||''};});
-        } else {
-          var _apiUrl2='https://api.deepseek.com/chat/completions';
-          var _ctrl=new AbortController();var _to=setTimeout(()=>_ctrl.abort(),25000);var _response=await fetch(_apiUrl2,{method:'POST',signal:_ctrl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+_apiKey},body:JSON.stringify({model:_model,messages:[{role:'system',content:_prompt.systemPrompt},{role:'user',content:_prompt.userPrompt}],max_tokens:4096,temperature:0.7})});clearTimeout(_to);
-          if(!_response.ok){var _err=await _response.text();throw new Error('API错误: '+_response.status)}
-          var _data=await _response.json();
-          var _content=_data.choices[0].message.content;
-          _content=_content.replace('```json','').replace(/```/g,'').trim();
-          try{_results=JSON.parse(_content)}catch(e){var _match=_content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);if(_match){try{_results=JSON.parse(_match[0])}catch(e2){}}else throw new Error('无法解析AI返回数据')}
-          // 确保每条结果都有 link 字段（用于前端卡片点击跳转）
-          _results=(_results||[]).map(function(r){return{title:r.title||'',summary:r.summary||'',source:r.source||'',date:r.date||r.time||'',link:r.url||r.link||'https://www.baidu.com/s?wd='+encodeURIComponent(r.title||'')};});
-        }
-        portalIntelCache.set(cacheKey, { data: _results, expiry: now + PORTAL_INTEL_CACHE_TTL });
-        setTimeout(() => savePortalIntelCache(), 100); // async persist to file
-        return { sourceIdx: idx, data: _results, fromCache: false };
+        const intelData = await fetchIntelForSource(src);
+        portalIntelCache.set(cacheKey, { data: intelData, expiry: now + PORTAL_INTEL_CACHE_TTL });
+        setTimeout(() => savePortalIntelCache(), 100);
+        return { sourceIdx: idx, data: intelData, fromCache: false };
       } catch (err: any) {
+        console.error('[PortalIntel] Source fetch failed:', err.message);
         return { sourceIdx: idx, error: err.message, data: [] };
       }
     };
@@ -4021,6 +4083,109 @@ app.post('/api/portal-intel', async (req, res) => {
     res.status(500).json({ error: { message: err.message } });
   }
 });
+
+// ========== Background Cache Warmer ==========
+// Collects all unique intel sources across all portal sites and pre-warms the cache.
+// Runs on startup + every 20 minutes. Uses max 2 concurrent API calls (less aggressive
+// than the request-time endpoint which uses 3).
+let cacheWarmingActive = false;
+
+async function warmAllPortalCaches() {
+  if (cacheWarmingActive) {
+    console.log('[CacheWarmer] Already in progress, skipping...');
+    return;
+  }
+  cacheWarmingActive = true;
+  try {
+    const portalSites = await getAllPortalSites();
+    if (portalSites.length === 0) {
+      console.log('[CacheWarmer] No portal sites found');
+      cacheWarmingActive = false;
+      return;
+    }
+
+    // Collect unique sources across all portals
+    const sourceMap = new Map<string, any>();
+    portalSites.forEach((site: any) => {
+      const match = site.html_content?.match(/var WIDGETS=(\[[\s\S]*?\]);/);
+      if (!match) return;
+      try {
+        const widgets = JSON.parse(match[1]);
+        widgets.forEach((w: any) => {
+          if (w.type === 'intel-monitor' || w.type === 'monitor') {
+            const sources = w.config?.sources || w.sources || [];
+            sources.forEach((src: any) => {
+              const cacheKey = JSON.stringify({
+                name: src.name,
+                keywords: src.keywords,
+                aiProvider: src.aiProvider,
+              });
+              if (!sourceMap.has(cacheKey)) {
+                sourceMap.set(cacheKey, src);
+              }
+            });
+          }
+        });
+      } catch (e) {
+        // Skip sites with corrupted WIDGETS JSON
+      }
+    });
+
+    if (sourceMap.size === 0) {
+      console.log('[CacheWarmer] No intel sources found in any portal');
+      cacheWarmingActive = false;
+      return;
+    }
+
+    // Skip already-cached sources
+    const now = Date.now();
+    const toWarm: { key: string; src: any }[] = [];
+    sourceMap.forEach((src, key) => {
+      const cached = portalIntelCache.get(key);
+      if (!cached || cached.expiry <= now) {
+        toWarm.push({ key, src });
+      }
+    });
+
+    if (toWarm.length === 0) {
+      console.log(`[CacheWarmer] All ${sourceMap.size} sources already cached, nothing to warm`);
+      cacheWarmingActive = false;
+      return;
+    }
+
+    console.log(`[CacheWarmer] Warming ${toWarm.length} sources (${sourceMap.size - toWarm.length}/${sourceMap.size} already cached) from ${portalSites.length} portals`);
+
+    // Warm in chunks of 2 (less aggressive than request endpoint's 3)
+    let warmed = 0;
+    let failed = 0;
+    for (let i = 0; i < toWarm.length; i += 2) {
+      const chunk = toWarm.slice(i, i + 2);
+      const chunkResults = await Promise.allSettled(
+        chunk.map(async ({ key, src }) => {
+          const intelData = await fetchIntelForSource(src);
+          portalIntelCache.set(key, { data: intelData, expiry: Date.now() + PORTAL_INTEL_CACHE_TTL });
+          return { key, src, count: intelData.length };
+        })
+      );
+      chunkResults.forEach((r) => {
+        if (r.status === 'fulfilled') {
+          warmed++;
+          console.log(`[CacheWarmer] Warmed: ${r.value.src.name || 'unnamed'} (${r.value.count} items)`);
+        } else {
+          failed++;
+          console.warn(`[CacheWarmer] Failed: ${r.reason?.message || r.reason}`);
+        }
+      });
+    }
+
+    savePortalIntelCache();
+    console.log(`[CacheWarmer] Complete. Warmed ${warmed}, failed ${failed}. Total cache entries: ${portalIntelCache.size}`);
+  } catch (err: any) {
+    console.error('[CacheWarmer] Error:', err.message);
+  } finally {
+    cacheWarmingActive = false;
+  }
+}
 
 // AI Chat endpoint for portal AI assistant
 app.post('/api/ai-chat', async (req, res) => {
@@ -4306,6 +4471,9 @@ async function start() {
   loadPortalIntelCache();
   // Periodic cache save every 5 minutes
   setInterval(() => savePortalIntelCache(), 5 * 60 * 1000);
+  // Background cache warming: startup (deferred 30s) + every 20 minutes
+  setTimeout(() => warmAllPortalCaches(), 30000);
+  setInterval(() => warmAllPortalCaches(), 20 * 60 * 1000);
 
   app.listen(APP_PORT, '0.0.0.0', () => {
     console.log('');

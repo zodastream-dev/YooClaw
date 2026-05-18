@@ -455,3 +455,11 @@ export async function incrementSiteViewCount(slug: string): Promise<void> {
     UPDATE report_sites SET view_count = view_count + 1 WHERE slug = ${slug}
   `;
 }
+
+// Get all portal-type sites (for cache warming)
+export async function getAllPortalSites(): Promise<DbReportSite[]> {
+  const rows = await sql`
+    SELECT slug, html_content FROM report_sites WHERE type = 'portal' AND is_published = true
+  `;
+  return rows as unknown as DbReportSite[];
+}
