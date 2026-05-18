@@ -4243,14 +4243,19 @@ app.post('/api/ai-chat', async (req, res) => {
     if (!searchContext) {
       const metasoApiKey = process.env.METASO_API_KEY;
       if (metasoApiKey) {
+      let tmpFile = '';
         try {
-          const curlCmd = `curl -s -m 15 -X POST "https://metaso.cn/api/open/search/v2" -H "Content-Type: application/json" -H "Authorization: Bearer ${metasoApiKey}" -d '{"question":"${message.replace(/'/g, "")}","lang":"zh"}'`;
-          const { stdout: searchJson } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+          const jsonBody = JSON.stringify({ question: message, lang: 'zh' });
+          tmpFile = `/tmp/metaso_search_${Date.now()}.json`;
+          fs.writeFileSync(tmpFile, jsonBody);
+          const curlCmd = `curl -s -m 15 -X POST "https://metaso.cn/api/open/search/v2" -H "Content-Type: application/json" -H "Authorization: Bearer ${metasoApiKey}" -d @${tmpFile}`;
+          const { stdout: searchJson, stderr: curlStderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
             exec(curlCmd, { maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
-              if (err) reject(err);
+              if (err) { console.error('[AiChat Search] Curl error:', err.message, curlStderr); reject(err); }
               else resolve({ stdout, stderr });
             });
           });
+          console.log('[AiChat Search] Metaso raw response:', searchJson.substring(0, 200));
           const searchData = JSON.parse(searchJson);
           const rawResults = (searchData.data && searchData.data.references) ? searchData.data.references : (searchData.data || []);
           const results = Array.isArray(rawResults) ? rawResults.slice(0, 6) : [];
@@ -4265,6 +4270,8 @@ app.post('/api/ai-chat', async (req, res) => {
           }
         } catch (e2: any) {
           console.error('[AiChat Search] Metaso failed:', e2.message);
+        } finally {
+          if (tmpFile) { try { fs.unlinkSync(tmpFile); console.log('[AiChat Search] Cleaned up temp file:', tmpFile); } catch (e3) { console.error('[AiChat Search] Failed to cleanup:', e3.message); } }
         }
       }
     }
@@ -4278,7 +4285,9 @@ app.post('/api/ai-chat', async (req, res) => {
     let systemContent = '你是一个专业的行业分析AI助手。请用简洁、专业的中文回答用户的问题。回答应基于事实和数据，如果不能确定，请如实说明。';
     systemContent += '\n\n【当前时间】今天是' + dateStr + '，请以这个日期为准回答用户问题。';
     if (searchContext) {
-      systemContent += '\n\n以下是网络搜索到的相关资料，请基于这些内容回答用户问题。如果搜索结果不相关，可以使用你自己的知识回答。' + searchContext;
+      systemContent += '\n\n以下是网络搜索到的相关资料，请【仅基于】这些内容回答用户问题。如果搜索结果无法回答，请如实告知无法获取实时数据，严禁编造任何数据。' + searchContext;
+    } else {
+      systemContent += '\n\n【重要警告】未获取到实时搜索结果，请你绝对不要编造任何数据、数字或事实。如果无法回答，请直接告知“无法获取实时数据”。';
     }
 
     const messages = [
