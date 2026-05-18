@@ -48,10 +48,9 @@ interface DeployResult {
 // ========== Templates ==========
 
 const TEMPLATES = [
-  { id: 'intel-station', name: '酷炫风', desc: '暗色情报站，三段式布局', primary: '#00d4ff', preview: 'linear-gradient(135deg, #00d4ff, #a855f7)', textColor: '#e2e8f0', bg: '#020617', cardBg: '#0f172a', muted: '#94a3b8', border: 'rgba(255,255,255,0.1)', reportAccent: '#818cf8', monitorAccent: '#fbbf24', navBg: '#020617', heroBg: 'linear-gradient(135deg, #0f172a, #1e293b)' },
-  { id: 'business-blue', name: '商务蓝', desc: '简洁专业，适合金融企业', primary: '#2563eb', preview: 'linear-gradient(135deg, #2563eb, #1e40af)', textColor: '#ffffff', bg: '#f8fafc', cardBg: '#ffffff', muted: '#64748b', border: '#e2e8f0', reportAccent: '#6366f1', monitorAccent: '#f59e0b', navBg: '#1e3a8a', heroBg: 'linear-gradient(135deg, #2563eb, #1e40af)' },
-  { id: 'tech-black', name: '科技黑', desc: '深色炫酷，适合科技互联网', primary: '#38bdf8', preview: 'linear-gradient(135deg, #0f172a, #1e293b)', textColor: '#e2e8f0', bg: '#020617', cardBg: '#0f172a', muted: '#64748b', border: '#1e293b', reportAccent: '#818cf8', monitorAccent: '#fbbf24', navBg: '#020617', heroBg: 'linear-gradient(135deg, #0f172a, #1e293b)' },
-  { id: 'simple-white', name: '简约白', desc: '极简留白，适合个人分析师', primary: '#1a1a2e', preview: '#ffffff', textColor: '#1a1a2e', bg: '#ffffff', cardBg: '#ffffff', muted: '#94a3b8', border: '#e5e7eb', reportAccent: '#6366f1', monitorAccent: '#f59e0b', navBg: '#f8fafc', heroBg: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)' },
+  { id: 'intel-station', name: '科技蓝', desc: '酷炫情报站，三段式布局', primary: '#00d4ff', preview: 'linear-gradient(135deg, #00d4ff, #a855f7)', textColor: '#e2e8f0', bg: '#020617', cardBg: '#0f172a', muted: '#94a3b8', border: 'rgba(255,255,255,0.1)', reportAccent: '#818cf8', monitorAccent: '#fbbf24', navBg: '#020617', heroBg: 'linear-gradient(135deg, #0f172a, #1e293b)' },
+  { id: 'intel-station-neon-purple', name: '霓虹紫', desc: '酷炫情报站，三段式布局', primary: '#a855f7', preview: 'linear-gradient(135deg, #a855f7, #d946ef)', textColor: '#e2e8f0', bg: '#0f0a1a', cardBg: '#1a0f2e', muted: '#a855f7', border: 'rgba(168,85,247,0.2)', reportAccent: '#a855f7', monitorAccent: '#d946ef', navBg: '#0f0a1a', heroBg: 'linear-gradient(135deg, #1a0f2e, #2d1b4e)' },
+  { id: 'intel-station-hacker-green', name: '黑客绿', desc: '酷炫情报站，三段式布局', primary: '#00ff88', preview: 'linear-gradient(135deg, #00ff88, #00d4aa)', textColor: '#00ff88', bg: '#000a00', cardBg: '#001a00', muted: '#00cc66', border: 'rgba(0,255,136,0.2)', reportAccent: '#00ff88', monitorAccent: '#00d4aa', navBg: '#000a00', heroBg: 'linear-gradient(135deg, #001a00, #003300)' },
 ]
 
 const AI_PROVIDERS = [
@@ -469,7 +468,7 @@ export function PortalBuilderPage() {
                   </div>
                   {/* Widget Cards / Layout Preview */}
                   <div className="px-8 py-8">
-                    {selectedTheme === 'intel-station' ? (
+                    {selectedTheme.startsWith('intel-station') ? (
                       /* 酷炫风三段式预览 */
                       <div className="rounded-xl border overflow-hidden" style={{ borderColor: theme.border, background: theme.bg, minHeight: 280 }}>
                         {/* Mock top bar */}

@@ -412,12 +412,16 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
     'intel-station': 'tech-blue',
     'intel-station-neon-purple': 'neon-purple',
     'intel-station-hacker-green': 'hacker-green',
+    'neon-purple': 'neon-purple',
+    'hacker-green': 'hacker-green',
     'business-blue': 'tech-blue',
     'tech-black': 'tech-blue',
     'simple-white': 'tech-blue',
   };
   const colorScheme = templateColorMap[template] || 'tech-blue';
   return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
+  
+  // Dead code below kept for reference - legacy templates no longer used
   
   const templates: Record<string, {primary: string; secondary: string; bg: string; text: string; accent: string}> = {
     'business-blue': { primary: '#2563eb', secondary: '#1e40af', bg: '#ffffff', text: '#1f2937', accent: '#3b82f6' },
@@ -4609,31 +4613,21 @@ process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
 /* ===== COLOR SCHEMES for IntelStation Template ===== */
 type ColorScheme = 'tech-blue' | 'neon-purple' | 'hacker-green';
 interface SchemeColors {
-  cyan: string; purple: string; neonBlue: string; neonPurple: string;
-  neonPink: string; bgPrimary: string; bgSecondary: string;
-  bgCard: string; border: string; textPrimary: string; textSecondary: string;
-}
-const COLOR_SCHEMES: Record<ColorScheme, SchemeColors> = {
-  'tech-blue': {
-    cyan:'#00d4ff', purple:'#a855f7', neonBlue:'#00f0ff', neonPurple:'#d946ef',
-    neonPink:'#f472b6', bgPrimary:'#020617', bgSecondary:'#0f172a',
-    bgCard:'rgba(15,23,42,0.6)', border:'rgba(255,255,255,0.1)',
-    textPrimary:'#e2e8f0', textSecondary:'#94a3b8'
-  },
-  'neon-purple': {
-    cyan:'#a855f7', purple:'#d946ef', neonBlue:'#d946ef', neonPurple:'#f472b6',
-    neonPink:'#ff6b9d', bgPrimary:'#0a0514', bgSecondary:'#1a0a2e',
-    bgCard:'rgba(26,10,46,0.6)', border:'rgba(168,85,247,0.15)',
-    textPrimary:'#f3e8ff', textSecondary:'#c4b5f5'
-  },
-  'hacker-green': {
-    cyan:'#00ff88', purple:'#00d4aa', neonBlue:'#00ffaa', neonPurple:'#00d4aa',
-    neonPink:'#88ff00', bgPrimary:'#020d0a', bgSecondary:'#0f2917',
-    bgCard:'rgba(15,41,23,0.6)', border:'rgba(0,255,136,0.1)',
-    textPrimary:'#e8ffe2', textSecondary:'#a3f5b5'
-  }
-};
-/* ===== END COLOR SCHEMES ===== */
+  // Map template to color scheme - all templates now use intel-station layout
+  const templateColorMap: Record<string, string> = {
+    'intel-station': 'tech-blue',
+    'intel-station-neon-purple': 'neon-purple',
+    'intel-station-hacker-green': 'hacker-green',
+    'neon-purple': 'neon-purple',
+    'hacker-green': 'hacker-green',
+    'business-blue': 'tech-blue',
+    'tech-black': 'tech-blue',
+    'simple-white': 'tech-blue',
+  };
+  const colorScheme = templateColorMap[template] || 'tech-blue';
+  return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
+  
+  // Dead code below kept for reference - legacy templates no longer used
 
 // ========== Intel Station Portal Generator (Three-Column Layout) ==========
 function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: string, slug: string, widgets?: any[], colorScheme: string = 'tech-blue'): string {
@@ -4642,6 +4636,20 @@ function generateIntelStationHtml(siteName: string, siteDesc: string, apiBase: s
   const wlistJson = JSON.stringify(wlist).replace(/'/g, '\\x27');
   const scheme = COLOR_SCHEMES[colorScheme as ColorScheme] || COLOR_SCHEMES['tech-blue'];
   const rootVars = `--cyan:${scheme.cyan};--purple:${scheme.purple};--neon-blue:${scheme.neonBlue};--neon-purple:${scheme.neonPurple};--neon-pink:${scheme.neonPink};--bg-primary:${scheme.bgPrimary};--bg-secondary:${scheme.bgSecondary};--bg-card:${scheme.bgCard};--border:${scheme.border};--text-primary:${scheme.textPrimary};--text-secondary:${scheme.textSecondary}`;
+  
+  const scheme = COLOR_SCHEMES[colorScheme as ColorScheme] || COLOR_SCHEMES['tech-blue'];
+  const rootVars =
+    '--cyan:' + scheme.cyan + ';' +
+    '--purple:' + scheme.purple + ';' +
+    '--neon-blue:' + scheme.neonBlue + ';' +
+    '--neon-purple:' + scheme.neonPurple + ';' +
+    '--neon-pink:' + scheme.neonPink + ';' +
+    '--bg-primary:' + scheme.bgPrimary + ';' +
+    '--bg-secondary:' + scheme.bgSecondary + ';' +
+    '--bg-card:' + scheme.bgCard + ';' +
+    '--border:' + scheme.border + ';' +
+    '--text-primary:' + scheme.textPrimary + ';' +
+    '--text-secondary:' + scheme.textSecondary + ';';
   
   return `<!DOCTYPE html>
 <html lang="zh-CN">
