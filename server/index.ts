@@ -4189,7 +4189,7 @@ async function warmAllPortalCaches() {
 
 // AI Chat endpoint for portal AI assistant
 // Flow: 1) search web via curl (free, no key) → 2) feed results to DeepSeek → 3) return answer
-app.post('/api/ai-ch-at', async (req, res) => {
+app.post('/api/ai-chat', async (req, res) => {
   try {
     const { message, history } = req.body || {};
     if (!message || typeof message !== 'string' || !message.trim()) {
