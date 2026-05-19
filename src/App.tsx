@@ -9,6 +9,7 @@ import { PortalBuilderPage } from '@/pages/PortalBuilderPage'
 import { GameCreatePage } from '@/pages/GameCreatePage'
 import { VideoCreatePage } from '@/pages/VideoCreatePage'
 import { ProfilePage } from '@/pages/ProfilePage'
+import { MpSubscriptionPage } from '@/pages/MpSubscriptionPage'
 import { useAuthStore } from '@/lib/store'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -112,6 +113,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mp"
+          element={
+            <ProtectedRoute>
+              <MpSubscriptionPage />
             </ProtectedRoute>
           }
         />

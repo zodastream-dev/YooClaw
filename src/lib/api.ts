@@ -384,6 +384,7 @@ export async function generateVideo(params: {
   )
 }
 
+// ========== MP Subscription ==========export async function mpQrLogin() {  return apiRequest<{ uuid: string; scanUrl: string }>(POST, /api/mp/qr-login)}export async function mpCheckLogin(uuid: string) {  return apiRequest<{ status: string; vid?: string; token?: string; username?: string; message?: string }>(GET, `/api/mp/check-login/${uuid}`)}export async function mpSubscribe(wxsLink: string) {  return apiRequest<{ mpId: string; mpName: string; mpCover: string }>(POST, /api/mp/subscribe, { wxsLink })}export async function mpUnsubscribe(mpId: string) {  return apiRequest<void>(DELETE, `/api/mp/subscribe/${mpId}`)}export async function mpGetSubscriptions() {  return apiRequest<{ items: { mpId: string; mpName: string; mpCover: string; subscribedAt: string }[]; count: number; limit: number }>(GET, /api/mp/subscriptions)}export async function mpGetArticles(mpId?: string, page = 1, limit = 20) {  const path = mpId ? `/api/mp/articles/${mpId}?page=${page}&limit=${limit}` : `/api/mp/articles?limit=${limit}`  return apiRequest<{ articles: { id: string; title: string; url: string; summary: string; publishTime: string; author: string; mpId?: string }[]; total: number }>(GET, path)}
 // ========== Legacy compatibility ==========
 // These map to the new user-scoped APIs
 export const getSessions = getUserSessions

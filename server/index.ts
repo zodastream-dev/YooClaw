@@ -34,6 +34,19 @@ import {
   incrementSiteViewCount,
   getSiteCountByType,
   getAllPortalSites,
+  // MP Subscription
+  subscribeMp,
+  unsubscribeMp,
+  getUserMpSubscriptions,
+  getUserMpSubscriptionCount,
+  getMpSubscriberCount,
+  checkUserSubscribed,
+  // WeRead Account Pool
+  addWereadAccount,
+  getWereadAccountByVid,
+  updateWereadAccountFeedCount,
+  getAllActiveWereadAccounts,
+  setWereadAccountStatus,
 } from './db.js';
 
 import {
@@ -78,6 +91,10 @@ if (!JWT_SECRET) {
   console.error('[FATAL] JWT_SECRET environment variable is required');
   process.exit(1);
 }
+
+// ========== WeWe-RSS Integration ==========
+const WEWE_RSS_URL = process.env.WEWE_RSS_URL || 'http://127.0.0.1:4000';
+const WEWE_RSS_AUTH = process.env.WEWE_RSS_AUTH_CODE || 'wewe-rss-admin-2024';
 
 // ========== CodeBuddy Integration ==========
 const CODEBUDDY_API_KEY = process.env.CODEBUDDY_API_KEY;
@@ -4526,6 +4543,355 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
     res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
+  }
+});
+
+// ======================== MP Subscription API Routes ========================
+
+// Get QR code URL for WeRead login
+app.post('/api/mp/qr-login', authMiddleware, async (req, res) => {
+  try {
+    const response = await fetch(`${WEWE_RSS_URL}/trpc/platform.createLoginUrl`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': WEWE_RSS_AUTH,
+      },
+      body: '{}',
+    });
+    const data = await response.json() as any;
+    const uuid = data?.result?.data?.uuid;
+    const scanUrl = data?.result?.data?.scanUrl;
+
+    if (!uuid || !scanUrl) {
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to create login URL' } });
+    }
+
+    res.json({ success: true, data: { uuid, scanUrl } });
+  } catch (err: any) {
+    console.error('[MP QR Login]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Check QR login result (long-polling, 60s timeout)
+app.get('/api/mp/check-login/:uuid', authMiddleware, async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const encodedInput = encodeURIComponent(JSON.stringify({ id: uuid }));
+    const tRPCUrl = `${WEWE_RSS_URL}/trpc/platform.getLoginResult?input=${encodedInput}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(tRPCUrl, {
+      headers: { 'Authorization': WEWE_RSS_AUTH },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    const data = await response.json() as any;
+
+    if (data?.result?.data) {
+      const { vid, token, username } = data.result.data;
+      if (vid && token) {
+        // Save to YooClaw's Supabase
+        await addWereadAccount(String(vid), username || 'WeRead Account');
+        // Also sync to WeWe-RSS's own accounts table so it can fetch articles
+        try {
+          await fetch(`${WEWE_RSS_URL}/trpc/account.add`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': WEWE_RSS_AUTH,
+            },
+            body: JSON.stringify({ id: String(vid), token, name: username || 'WeRead Account', status: 1 }),
+          });
+        } catch (e: any) {
+          console.warn('[MP Check Login] Failed to sync account to WeWe-RSS:', e.message);
+        }
+        res.json({ success: true, data: { vid, token, username, status: 'logged_in' } });
+        return;
+      }
+    }
+
+    res.json({ success: true, data: { status: 'waiting', message: 'Waiting for scan...' } });
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      return res.json({ success: true, data: { status: 'timeout', message: 'Login timeout, please try again' } });
+    }
+    console.error('[MP Check Login]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Subscribe to a WeChat MP by article link
+app.post('/api/mp/subscribe', authMiddleware, async (req, res) => {
+  try {
+    const { wxsLink } = req.body || {};
+    const userId = (req as any).user.userId;
+
+    if (!wxsLink || typeof wxsLink !== 'string') {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Article link is required' } });
+    }
+    if (!wxsLink.startsWith('https://mp.weixin.qq.com/s/')) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid WeChat article link' } });
+    }
+
+    const count = await getUserMpSubscriptionCount(userId);
+    if (count >= 10) {
+      return res.status(400).json({ error: { code: 'LIMIT_EXCEEDED', message: 'Max 10 subscriptions reached' } });
+    }
+
+    // Get MP info via WeWe-RSS tRPC
+    const mpRes = await fetch(`${WEWE_RSS_URL}/trpc/platform.getMpInfo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': WEWE_RSS_AUTH,
+      },
+      body: JSON.stringify({ wxsLink }),
+    });
+    const mpData = await mpRes.json() as any;
+
+    if (!mpData?.result?.data) {
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to get MP info' } });
+    }
+
+    const { id: mpId, name: mpName, cover: mpCover } = mpData.result.data;
+
+    // Register feed in WeWe-RSS if not exists
+    try {
+      const checkRes = await fetch(
+        `${WEWE_RSS_URL}/trpc/feed.byId?input=${encodeURIComponent(JSON.stringify(mpId))}`,
+        { headers: { 'Authorization': WEWE_RSS_AUTH } }
+      );
+      if (!checkRes.ok) {
+        await fetch(`${WEWE_RSS_URL}/trpc/feed.add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': WEWE_RSS_AUTH,
+          },
+          body: JSON.stringify({
+            id: mpId,
+            mpName,
+            mpCover,
+            mpIntro: '',
+            updateTime: Math.floor(Date.now() / 1000),
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn('[MP Subscribe] Feed registration warning:', e);
+    }
+
+    const result = await subscribeMp(userId, mpId, mpName, mpCover);
+    if (!result.success) {
+      return res.status(400).json({ error: { code: 'CONFLICT', message: result.message } });
+    }
+
+    res.json({
+      success: true,
+      data: { mpId, mpName, mpCover, subscribedAt: new Date().toISOString() },
+    });
+  } catch (err: any) {
+    console.error('[MP Subscribe]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Unsubscribe from a WeChat MP
+app.delete('/api/mp/subscribe/:mpId', authMiddleware, async (req, res) => {
+  try {
+    const { mpId } = req.params;
+    const userId = (req as any).user.userId;
+
+    const result = await unsubscribeMp(userId, mpId);
+
+    if (result.deleted) {
+      try {
+        await fetch(`${WEWE_RSS_URL}/trpc/feed.delete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': WEWE_RSS_AUTH,
+          },
+          body: JSON.stringify(mpId),
+        });
+      } catch (e) {
+        console.warn('[MP Unsubscribe] Failed to delete feed from WeWe-RSS:', e);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[MP Unsubscribe]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Get my MP subscriptions
+app.get('/api/mp/subscriptions', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const subscriptions = await getUserMpSubscriptions(userId);
+
+    res.json({
+      success: true,
+      data: {
+        items: subscriptions.map((s: any) => ({
+          mpId: s.mp_id,
+          mpName: s.mp_name,
+          mpCover: s.mp_cover,
+          subscribedAt: s.created_at,
+        })),
+        count: subscriptions.length,
+        limit: 10,
+      },
+    });
+  } catch (err: any) {
+    console.error('[MP Subscriptions]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Get articles for a specific MP (must be subscribed)
+app.get('/api/mp/articles/:mpId', authMiddleware, async (req, res) => {
+  try {
+    const { mpId } = req.params;
+    const userId = (req as any).user.userId;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const page = parseInt(req.query.page as string) || 1;
+
+    const isSubscribed = await checkUserSubscribed(userId, mpId);
+    if (!isSubscribed) {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Please subscribe first' } });
+    }
+
+    const feedRes = await fetch(`${WEWE_RSS_URL}/feeds/${mpId}.json?limit=${limit}&page=${page}`, {
+      headers: { 'Authorization': WEWE_RSS_AUTH },
+    });
+
+    if (!feedRes.ok) {
+      return res.json({ success: true, data: { articles: [], total: 0, page } });
+    }
+
+    const feedData = await feedRes.json() as any;
+    const articles = (feedData?.items || []).map((item: any) => ({
+      id: item.id || item.guid,
+      title: item.title,
+      url: item.link || item.url,
+      summary: item.description || item.summary || '',
+      publishTime: item.pubDate || item.published || item.date_published,
+      author: item.author || feedData?.title || '',
+    }));
+
+    res.json({ success: true, data: { articles, total: articles.length, page } });
+  } catch (err: any) {
+    console.error('[MP Articles]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Get aggregated articles feed from all subscriptions
+app.get('/api/mp/articles', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const subscriptions = await getUserMpSubscriptions(userId);
+    if (subscriptions.length === 0) {
+      return res.json({ success: true, data: { articles: [], total: 0 } });
+    }
+
+    const feedPromises = subscriptions.map(async (sub: any) => {
+      try {
+        const response = await fetch(`${WEWE_RSS_URL}/feeds/${sub.mp_id}.json?limit=10`, {
+          headers: { 'Authorization': WEWE_RSS_AUTH },
+        });
+        if (!response.ok) return [];
+        const data = await response.json() as any;
+        return (data?.items || []).map((item: any) => ({
+          id: item.id || item.guid,
+          title: item.title,
+          url: item.link || item.url,
+          summary: item.description || item.summary || '',
+          publishTime: item.pubDate || item.published || item.date_published,
+          author: sub.mp_name,
+          mpId: sub.mp_id,
+        }));
+      } catch {
+        return [];
+      }
+    });
+
+    const allArticles = (await Promise.all(feedPromises)).flat();
+    allArticles.sort((a: any, b: any) => {
+      const dateA = new Date(a.publishTime).getTime() || 0;
+      const dateB = new Date(b.publishTime).getTime() || 0;
+      return dateB - dateA;
+    });
+
+    res.json({
+      success: true,
+      data: { articles: allArticles.slice(0, limit), total: allArticles.length },
+    });
+  } catch (err: any) {
+    console.error('[MP Aggregated Feed]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+
+// Manual refresh: trigger WeWe-RSS to re-fetch all subscribed MP articles
+app.post('/api/mp/refresh', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { mpId } = req.body || {};
+
+    // Get user's subscriptions
+    const subscriptions = await getUserMpSubscriptions(userId);
+
+    if (mpId) {
+      // Refresh a specific MP
+      const isSubscribed = await checkUserSubscribed(userId, mpId);
+      if (!isSubscribed) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Please subscribe first' } });
+      }
+      await fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': WEWE_RSS_AUTH,
+        },
+        body: JSON.stringify({ mpId }),
+      });
+      res.json({ success: true, data: { mpId, status: 'refreshed' } });
+    } else {
+      // Refresh all user's subscriptions one by one
+      const results = await Promise.allSettled(
+        subscriptions.map((sub: any) =>
+          fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': WEWE_RSS_AUTH,
+            },
+            body: JSON.stringify({ mpId: sub.mp_id }),
+          }).then(r => r.json())
+        )
+      );
+
+      const refreshed = results.filter(r => r.status === 'fulfilled').length;
+      res.json({
+        success: true,
+        data: { status: 'all_refreshed', total: subscriptions.length, refreshed },
+      });
+    }
+  } catch (err: any) {
+    console.error('[MP Refresh]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });
 
