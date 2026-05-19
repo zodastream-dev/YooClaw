@@ -235,7 +235,7 @@ function LoginSection({ onLogin }: { onLogin: () => void }) {
   )
 }
 
-function SubscribeForm({ onSubscribed }: { onSubscribed: () => void }) {
+function SubscribeForm({ onSubscribed }: { onSubscribed: (mpId: string) => void }) {
   const [link, setLink] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -260,7 +260,7 @@ function SubscribeForm({ onSubscribed }: { onSubscribed: () => void }) {
       const data = await subscribeMp(link.trim())
       setSuccess(`已成功订阅「${data.mpName}」`)
       setLink('')
-      onSubscribed()
+      onSubscribed(data.mpId)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -576,7 +576,7 @@ export function MpSubscriptionPage() {
           {/* Left column: Login + Subscribe */}
           <div className="space-y-4">
             <LoginSection onLogin={handleLogin} />
-            <SubscribeForm onSubscribed={loadSubscriptions} />
+            <SubscribeForm onSubscribed={(mpId) => { loadSubscriptions(); setSelectedMpId(mpId); }} />
             <SubscriptionList
               subscriptions={subscriptions}
               onUnsubscribe={handleUnsubscribe}

@@ -4698,6 +4698,16 @@ app.post('/api/mp/subscribe', authMiddleware, async (req, res) => {
           }),
         });
       }
+
+      // Trigger article fetch for the newly subscribed MP
+      await fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': WEWE_RSS_AUTH,
+        },
+        body: JSON.stringify({ mpId }),
+      });
     } catch (e) {
       console.warn('[MP Subscribe] Feed registration warning:', e);
     }
