@@ -1,10 +1,11 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { deployPortalWithWidgets } from '@/lib/api'
+import { deployPortalWithWidgets, mpSubscribe, mpUnsubscribe, mpGetSubscriptions } from '@/lib/api'
 import {
   ArrowLeft, Globe, ExternalLink, Copy, Loader2,
   Plus, Trash2, X,
-  Settings, LayoutGrid, GripVertical
+  Settings, LayoutGrid, GripVertical,
+  Rss, BookOpen, AlertCircle, Check
 } from 'lucide-react'
 
 // ========== Types ==========
@@ -176,6 +177,14 @@ export function PortalBuilderPage() {
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<'site' | 'widget'>('site')
 
+  // ========== MP Subscription State ==========
+  const [mpLink, setMpLink] = useState('')
+  const [mpSubscribing, setMpSubscribing] = useState(false)
+  const [mpError, setMpError] = useState<string | null>(null)
+  const [mpSuccess, setMpSuccess] = useState<string | null>(null)
+  const [mpSubscriptions, setMpSubscriptions] = useState<{ mpId: string; mpName: string; mpCover: string }[]>([])
+  const [mpLoading, setMpLoading] = useState(true)
+
   // ========== Add Widget Modal ==========
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalType, setAddModalType] = useState<'report-generator' | 'intel-monitor' | null>(null)
@@ -319,6 +328,51 @@ export function PortalBuilderPage() {
     }
   }
 
+  // ========== MP Subscription Handlers ==========
+
+  const loadMpSubscriptions = useCallback(async () => {
+    try {
+      const res = await mpGetSubscriptions()
+      if (res.data?.items) {
+        setMpSubscriptions(res.data.items)
+      }
+    } catch { /* silently fail */ }
+    finally { setMpLoading(false) }
+  }, [])
+
+  useEffect(() => { loadMpSubscriptions() }, [loadMpSubscriptions])
+
+  const handleMpSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setMpError(null)
+    setMpSuccess(null)
+    const link = mpLink.trim()
+    if (!link) { setMpError('请输入公众号文章链接'); return }
+    if (!link.startsWith('https://mp.weixin.qq.com/s/')) {
+      setMpError('请输入有效的公众号文章链接（以 https://mp.weixin.qq.com/s/ 开头）')
+      return
+    }
+    setMpSubscribing(true)
+    try {
+      const res = await mpSubscribe(link)
+      const data = res.data as { mpId: string; mpName: string; mpCover: string }
+      setMpSuccess(`已订阅「${data.mpName}」`)
+      setMpLink('')
+      setMpSubscriptions((prev) => [...prev, data])
+    } catch (e: any) {
+      setMpError(e.message)
+    } finally { setMpSubscribing(false) }
+  }
+
+  const handleMpUnsubscribe = async (mpId: string) => {
+    try {
+      await mpUnsubscribe(mpId)
+      setMpSubscriptions((prev) => prev.filter((s) => s.mpId !== mpId))
+    } catch (e: any) {
+      setMpError(e.message)
+    }
+  }
+
   // ========== Theme ==========
   const theme = useMemo(() => TEMPLATES.find((t) => t.id === selectedTheme) || TEMPLATES[0], [selectedTheme])
 
@@ -422,6 +476,80 @@ export function PortalBuilderPage() {
                       </div>
                       <button onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
                         className="absolute bottom-1.5 right-1.5 p-1 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* MP Subscription Section */}
+            <div className="flex-shrink-0 border-t border-border p-4">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">📡 公众号源</p>
+
+              {/* Subscribe Form */}
+              <form onSubmit={handleMpSubscribe} className="flex gap-1.5 mb-3">
+                <input
+                  type="url"
+                  value={mpLink}
+                  onChange={(e) => setMpLink(e.target.value)}
+                  placeholder="粘贴文章链接…"
+                  className="flex-1 px-2.5 py-1.5 bg-background border border-dashed border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all"
+                  disabled={mpSubscribing}
+                />
+                <button
+                  type="submit"
+                  disabled={mpSubscribing || !mpLink.trim()}
+                  className="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
+                >
+                  {mpSubscribing ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                  订阅
+                </button>
+              </form>
+
+              {/* Status Messages */}
+              {mpError && (
+                <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/20 text-red-600 dark:text-red-400 text-[10px]">
+                  <AlertCircle size={12} className="flex-shrink-0" />
+                  {mpError}
+                </div>
+              )}
+              {mpSuccess && (
+                <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/20 text-emerald-600 dark:text-emerald-400 text-[10px]">
+                  <Check size={12} className="flex-shrink-0" />
+                  {mpSuccess}
+                </div>
+              )}
+
+              {/* Subscription List */}
+              {mpLoading ? (
+                <div className="flex items-center justify-center gap-1.5 py-3 text-muted-foreground">
+                  <Loader2 size={12} className="animate-spin" />
+                  <span className="text-[10px]">加载订阅…</span>
+                </div>
+              ) : mpSubscriptions.length === 0 ? (
+                <div className="text-center py-3">
+                  <Rss size={20} className="mx-auto text-muted-foreground/30 mb-1" />
+                  <p className="text-[10px] text-muted-foreground">暂无公众号订阅</p>
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                  {mpSubscriptions.map((sub) => (
+                    <div key={sub.mpId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors group">
+                      <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-400/20 to-violet-600/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {sub.mpCover ? (
+                          <img src={sub.mpCover} alt={sub.mpName} className="w-full h-full object-cover" />
+                        ) : (
+                          <BookOpen size={11} className="text-violet-500" />
+                        )}
+                      </div>
+                      <span className="flex-1 text-[10px] font-medium truncate">{sub.mpName}</span>
+                      <button
+                        onClick={() => handleMpUnsubscribe(sub.mpId)}
+                        className="p-0.5 rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all"
+                        title="取消订阅"
+                      >
                         <Trash2 size={11} />
                       </button>
                     </div>
