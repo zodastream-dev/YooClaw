@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LayoutDashboard, QrCode, Plus, Trash2, Loader2, RefreshCw, ExternalLink, BookOpen, Clock, AlertCircle, Check, X, UserPlus, Rss } from 'lucide-react'
+import { LayoutDashboard, QrCode, Plus, Trash2, Loader2, RefreshCw, ExternalLink, BookOpen, Clock, AlertCircle, Check, X, UserPlus, Rss, Search, Zap } from 'lucide-react'
 
 // Types
 interface MpSubscription {
@@ -95,6 +95,25 @@ async function refreshArticles(mpId?: string) {
 async function getArticles(mpId?: string, page = 1): Promise<ArticlesResponse['data']> {
   const path = mpId ? `/api/mp/articles/${mpId}?page=${page}` : `/api/mp/articles`
   const res = await apiRequest<ArticlesResponse>('GET', path)
+  return res.data
+}
+
+interface MpCandidate {
+  id: string
+  mpName: string
+  mpCover: string
+  mpIntro: string
+  updateTime: number
+  wxsLink: string
+}
+
+async function searchByName(name: string): Promise<{ candidates: MpCandidate[] }> {
+  const res = await apiRequest<{ success: boolean; data: any }>('POST', '/api/mp/search-by-name', { name })
+  return res.data
+}
+
+async function subscribeByName(params: { id: string; mpName: string; mpCover: string; mpIntro: string; updateTime: number }): Promise<{ mpId: string; mpName: string }> {
+  const res = await apiRequest<{ success: boolean; data: any }>('POST', '/api/mp/subscribe-by-name', params)
   return res.data
 }
 
@@ -313,6 +332,127 @@ function SubscribeForm({ onSubscribed }: { onSubscribed: (mpId: string) => void 
   )
 }
 
+function NameSearchSection({ onSubscribed }: { onSubscribed: (mpId: string) => void }) {
+  const [name, setName] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [candidates, setCandidates] = useState<MpCandidate[]>([])
+  const [error, setError] = useState('')
+  const [subscribing, setSubscribing] = useState<string | null>(null)
+  const [subscribed, setSubscribed] = useState<string | null>(null)
+
+  const handleSearch = async () => {
+    if (!name.trim()) return
+    setLoading(true)
+    setError('')
+    setCandidates([])
+    try {
+      const data = await searchByName(name.trim())
+      setCandidates(data.candidates || [])
+      if (!data.candidates?.length) {
+        setError('未找到相关公众号，请尝试其他关键词')
+      }
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubscribe = async (c: MpCandidate) => {
+    setSubscribing(c.id)
+    setError('')
+    try {
+      await subscribeByName({
+        id: c.id,
+        mpName: c.mpName,
+        mpCover: c.mpCover,
+        mpIntro: c.mpIntro,
+        updateTime: c.updateTime,
+      })
+      setSubscribed(c.id)
+      onSubscribed(c.id)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSubscribing(null)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <Search size={18} className="text-primary" />
+        <h2 className="text-sm font-semibold">搜索公众号</h2>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        输入公众号名称，系统将通过搜索找到对应的公众号并直接订阅
+      </p>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
+          placeholder="输入公众号名称..."
+          className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+          disabled={loading}
+        />
+        <button
+          onClick={handleSearch}
+          disabled={loading || !name.trim()}
+          className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-1.5 whitespace-nowrap"
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+          搜索
+        </button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 mb-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+          <AlertCircle size={14} />
+          {error}
+        </div>
+      )}
+
+      {candidates.length > 0 && (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {candidates.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {c.mpCover ? (
+                  <img src={c.mpCover} alt={c.mpName} className="w-full h-full object-cover" />
+                ) : (
+                  <BookOpen size={18} className="text-emerald-500" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{c.mpName}</p>
+                {c.mpIntro && <p className="text-xs text-muted-foreground truncate">{c.mpIntro}</p>}
+              </div>
+              {subscribed === c.id ? (
+                <span className="flex items-center gap-1 text-xs text-emerald-500 font-medium flex-shrink-0">
+                  <Check size={12} />
+                  已订阅
+                </span>
+              ) : (
+                <button
+                  onClick={() => handleSubscribe(c)}
+                  disabled={subscribing === c.id}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors flex items-center gap-1 disabled:opacity-50 flex-shrink-0"
+                >
+                  {subscribing === c.id ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                  订阅
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SubscriptionList({
   subscriptions,
   onUnsubscribe,
@@ -487,6 +627,7 @@ export function MpSubscriptionPage() {
   const [loadingArticles, setLoadingArticles] = useState(false)
   const [loggedIn, setLoggedIn] = useState(false)
   const [error, setError] = useState('')
+  const [subscribeTab, setSubscribeTab] = useState<'link' | 'name'>('link')
 
   const loadSubscriptions = useCallback(async () => {
     setLoadingSubs(true)
@@ -576,7 +717,40 @@ export function MpSubscriptionPage() {
           {/* Left column: Login + Subscribe */}
           <div className="space-y-4">
             <LoginSection onLogin={handleLogin} />
-            <SubscribeForm onSubscribed={(mpId) => { loadSubscriptions(); setSelectedMpId(mpId); }} />
+            {/* Tabbed subscribe: paste link or search by name */}
+            <div className="border border-border rounded-xl bg-card overflow-hidden">
+              <div className="flex border-b border-border">
+                <button
+                  onClick={() => setSubscribeTab('link')}
+                  className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+                    subscribeTab === 'link'
+                      ? 'text-primary border-b-2 border-primary bg-primary/5'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Plus size={12} className="inline mr-1" />
+                  粘贴链接
+                </button>
+                <button
+                  onClick={() => setSubscribeTab('name')}
+                  className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+                    subscribeTab === 'name'
+                      ? 'text-primary border-b-2 border-primary bg-primary/5'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Search size={12} className="inline mr-1" />
+                  名称搜索
+                </button>
+              </div>
+              <div className="p-5">
+                {subscribeTab === 'link' ? (
+                  <SubscribeForm onSubscribed={(mpId) => { loadSubscriptions(); setSelectedMpId(mpId); }} />
+                ) : (
+                  <NameSearchSection onSubscribed={(mpId) => { loadSubscriptions(); setSelectedMpId(mpId); }} />
+                )}
+              </div>
+            </div>
             <SubscriptionList
               subscriptions={subscriptions}
               onUnsubscribe={handleUnsubscribe}

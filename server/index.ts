@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -4918,6 +4919,162 @@ app.post('/api/mp/refresh', authMiddleware, async (req, res) => {
   } catch (err: any) {
     console.error('[MP Refresh]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// ========== MP: Search by Name (Baidu + WeWe-RSS) ==========
+
+// Helper: unified tRPC mutation call
+async function weweTrpcCall(procedure: string, input: unknown): Promise<any> {
+  const res = await fetch(`${WEWE_RSS_URL}/trpc/${procedure}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': WEWE_RSS_AUTH,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'Unknown error');
+    throw new Error(`WeWe-RSS ${procedure} failed: HTTP ${res.status} - ${errText}`);
+  }
+  const json = await res.json();
+  return json?.result?.data || json;
+}
+
+// POST /api/mp/search-by-name — Search MPs by name via Baidu
+app.post('/api/mp/search-by-name', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '公众号名称不能为空' } });
+    }
+
+    const searchName = name.trim();
+    console.log(`[MP Search] Searching for: "${searchName}"`);
+
+    // Step 1: Baidu search for weixin articles
+    const baiduQuery = `site:mp.weixin.qq.com "${searchName}"`;
+    const baiduUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(baiduQuery)}&rn=20`;
+
+    const baiduRes = await fetch(baiduUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+      },
+    });
+
+    if (!baiduRes.ok) {
+      return res.status(502).json({ error: { code: 'SEARCH_FAILED', message: `百度搜索失败: HTTP ${baiduRes.status}` } });
+    }
+
+    const html = await baiduRes.text();
+    const $ = cheerio.load(html);
+
+    const articleUrls = new Set<string>();
+    $('a').each((_, el) => {
+      const href = $(el).attr('href');
+      if (!href) return;
+      const match = href.match(/mp\.weixin\.qq\.com\/s\/[^\s&"']+/);
+      if (match) articleUrls.add('https://' + match[0]);
+    });
+
+    const urls = Array.from(articleUrls).slice(0, 10);
+    console.log(`[MP Search] Found ${urls.length} article URLs from Baidu`);
+
+    if (urls.length === 0) {
+      return res.json({ success: true, data: { candidates: [], message: '未找到匹配的公众号文章，请尝试更精确的名称' } });
+    }
+
+    const mpMap = new Map<string, { id: string; name: string; cover: string; intro: string; updateTime: number }>();
+    for (const url of urls) {
+      try {
+        const results = await weweTrpcCall('platform.getMpInfo', { wxsLink: url });
+        const mpList = Array.isArray(results) ? results : (results?.data || [results]).filter(Boolean);
+        for (const mp of mpList) {
+          if (mp?.id && !mpMap.has(mp.id)) {
+            mpMap.set(mp.id, {
+              id: mp.id,
+              name: mp.name || '',
+              cover: mp.cover || '',
+              intro: mp.intro || '',
+              updateTime: mp.updateTime || 0,
+            });
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[MP Search] Failed to get MP info for ${url}:`, err.message);
+      }
+    }
+
+    const candidates = Array.from(mpMap.values());
+    console.log(`[MP Search] Found ${candidates.length} unique MPs`);
+    res.json({ success: true, data: { candidates } });
+  } catch (err: any) {
+    console.error('[MP Search Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: `搜索失败: ${err.message}` } });
+  }
+});
+
+// POST /api/mp/subscribe-by-name — Subscribe by MP info (from search results)
+app.post('/api/mp/subscribe-by-name', authMiddleware, async (req, res) => {
+  try {
+    const { id, mpName, mpCover, mpIntro, updateTime } = req.body || {};
+    if (!id || !mpName) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '公众号ID和名称不能为空' } });
+    }
+
+    console.log(`[MP Subscribe-By-Name] Subscribing to: ${mpName} (${id})`);
+    await weweTrpcCall('feed.add', {
+      id, mpName, mpCover: mpCover || '', mpIntro: mpIntro || '', updateTime: updateTime || Date.now(),
+    });
+    console.log(`[MP Subscribe-By-Name] Success: ${mpName}`);
+
+    // Auto-refresh articles after subscribing
+    try {
+      await fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': WEWE_RSS_AUTH },
+        body: JSON.stringify({ mpId: id }),
+      });
+    } catch (e: any) {
+      console.warn(`[MP Subscribe-By-Name] Refresh articles failed (non-fatal):`, e.message);
+    }
+
+    res.json({ success: true, data: { success: true, message: `已成功订阅「${mpName}」` } });
+  } catch (err: any) {
+    console.error('[MP Subscribe-By-Name Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: `订阅失败: ${err.message}` } });
+  }
+});
+
+// POST /api/mp/lookup-by-url — Get MP info from a WeChat article URL
+app.post('/api/mp/lookup-by-url', authMiddleware, async (req, res) => {
+  try {
+    const { url } = req.body || {};
+    if (!url || !url.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '文章链接不能为空' } });
+    }
+
+    console.log(`[MP Lookup] Looking up MP from URL: ${url.trim()}`);
+    const results = await weweTrpcCall('platform.getMpInfo', { wxsLink: url.trim() });
+    const mpList = Array.isArray(results) ? results : (results?.data || [results]).filter(Boolean);
+
+    if (!mpList.length) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: '无法从该链接识别公众号信息' } });
+    }
+
+    const mp = mpList[0];
+    res.json({
+      success: true,
+      data: {
+        id: mp.id, name: mp.name || '', cover: mp.cover || '',
+        intro: mp.intro || '', updateTime: mp.updateTime || 0,
+      },
+    });
+  } catch (err: any) {
+    console.error('[MP Lookup Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: `查找失败: ${err.message}` } });
   }
 });
 
