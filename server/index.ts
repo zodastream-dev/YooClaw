@@ -4593,7 +4593,8 @@ app.get('/api/mp/check-login/:uuid', authMiddleware, async (req, res) => {
     const data = await response.json() as any;
 
     if (data?.result?.data) {
-      const { vid, token, username } = data.result.data;
+      const dataList = Array.isArray(data.result.data) ? data.result.data : [data.result.data];
+      const { vid, token, username } = dataList[0] || {};
       if (vid && token) {
         // Save to YooClaw's Supabase
         await addWereadAccount(String(vid), username || 'WeRead Account');
@@ -4658,13 +4659,20 @@ app.post('/api/mp/subscribe', authMiddleware, async (req, res) => {
       return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to get MP info' } });
     }
 
-    const { id: mpId, name, cover } = mpData.result.data;
+    // WeWe-RSS returns an array, e.g. [{"name":"...","id":"...","cover":"..."}]
+    const dataList = Array.isArray(mpData.result.data) ? mpData.result.data : [mpData.result.data];
+    if (dataList.length === 0) {
+      console.error('[MP Subscribe] Empty MP info list from WeWe-RSS:', JSON.stringify(mpData.result.data));
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to get MP info' } });
+    }
+    const { id, name, cover } = dataList[0];
 
     // Validate required fields from upstream
-    if (!mpId || !name) {
+    if (!id || !name) {
       console.error('[MP Subscribe] Incomplete MP info from WeWe-RSS:', JSON.stringify(mpData.result.data));
       return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Incomplete MP info from upstream' } });
     }
+    const mpId = id;
     const mpName = name || '未知公众号';
     const mpCover = cover || '';
 
