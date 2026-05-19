@@ -409,10 +409,10 @@ function fixAiCssErrors(html: string): string {
 function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, slug: string, widgets?: any[]): string {
   // Map template to colorScheme for intel-station
   let colorScheme = 'tech-blue';
-  if (template === 'intel-station-neon-purple' || template === 'neon-purple') {
-    colorScheme = 'neon-purple';
-  } else if (template === 'intel-station-hacker-green' || template === 'hacker-green') {
-    colorScheme = 'hacker-green';
+  if (template === 'intel-station-white-base' || template === 'white-base') {
+    colorScheme = 'white-base';
+  } else if (template === 'intel-station-sky-blue' || template === 'sky-blue') {
+    colorScheme = 'sky-blue';
   }
   // All templates now use intel-station layout
   return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
@@ -4607,7 +4607,7 @@ process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
 process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
 
 /* ===== COLOR SCHEMES for IntelStation Template ===== */
-type ColorScheme = 'tech-blue' | 'neon-purple' | 'hacker-green';
+type ColorScheme = 'tech-blue' | 'white-base' | 'sky-blue';
 interface SchemeColors {
   cyan: string;
   purple: string;
@@ -4635,31 +4635,31 @@ const COLOR_SCHEMES: Record<ColorScheme, SchemeColors> = {
     textPrimary: '#e2e8f0',
     textSecondary: '#94a3b8'
   },
-  'neon-purple': {
-    cyan: '#a855f7',
-    purple: '#d946ef',
-    neonBlue: '#00f0ff',
-    neonPurple: '#a855f7',
+  'white-base': {
+    cyan: '#3b82f6',
+    purple: '#8b5cf6',
+    neonBlue: '#60a5fa',
+    neonPurple: '#a78bfa',
     neonPink: '#f472b6',
-    bgPrimary: '#0f0a1a',
-    bgSecondary: '#1a0f2e',
-    bgCard: 'rgba(26,15,46,0.6)',
-    border: 'rgba(168,85,247,0.2)',
-    textPrimary: '#e2e8f0',
-    textSecondary: '#a855f7'
+    bgPrimary: '#f8fafc',
+    bgSecondary: '#f1f5f9',
+    bgCard: 'rgba(255,255,255,0.92)',
+    border: 'rgba(0,0,0,0.06)',
+    textPrimary: '#1e293b',
+    textSecondary: '#64748b'
   },
-  'hacker-green': {
-    cyan: '#00ff88',
-    purple: '#00d4aa',
-    neonBlue: '#00ffaa',
-    neonPurple: '#00d4aa',
-    neonPink: '#00ff88',
-    bgPrimary: '#000a00',
-    bgSecondary: '#001a00',
-    bgCard: 'rgba(0,26,0,0.6)',
-    border: 'rgba(0,255,136,0.2)',
-    textPrimary: '#00ff88',
-    textSecondary: '#00cc66'
+  'sky-blue': {
+    cyan: '#0284c7',
+    purple: '#7c3aed',
+    neonBlue: '#0ea5e9',
+    neonPurple: '#8b5cf6',
+    neonPink: '#ec4899',
+    bgPrimary: '#f0f9ff',
+    bgSecondary: '#e0f2fe',
+    bgCard: 'rgba(255,255,255,0.88)',
+    border: 'rgba(14,165,233,0.15)',
+    textPrimary: '#0c4a6e',
+    textSecondary: '#0369a1'
   }
 };
 

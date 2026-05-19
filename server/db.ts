@@ -45,6 +45,26 @@ export interface DbReportSite {
   created_at: string;
   updated_at: string;
 }
+// ========== MP Subscription Types ==========
+export interface DbUserMpSubscription {
+  id: number;
+  user_id: string;
+  mp_id: string;
+  mp_name: string;
+  mp_cover: string;
+  created_at: string;
+}
+
+export interface DbWereadAccount {
+  id: number;
+  vid: string;
+  name: string;
+  feed_count: number;
+  max_feeds: number;
+  status: string;
+  last_refresh: string;
+  created_at: string;
+}
 
 // ========== Postgres Connection ==========
 let sql: postgres.Sql<{}>;
@@ -149,7 +169,34 @@ export async function initDatabase(): Promise<void> {
     )
   `;
 
-  // Add type column if not exists (migration for existing tables)
+    // ========== MP Subscription Tables ==========
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_mp_subscriptions (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      mp_id VARCHAR(64) NOT NULL,
+      mp_name VARCHAR(128) NOT NULL,
+      mp_cover VARCHAR(512) DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT now(),
+      UNIQUE(user_id, mp_id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS weread_account_pool (
+      id SERIAL PRIMARY KEY,
+      vid VARCHAR(64) UNIQUE NOT NULL,
+      name VARCHAR(128) DEFAULT '',
+      feed_count INTEGER DEFAULT 0,
+      max_feeds INTEGER DEFAULT 10,
+      status VARCHAR(16) DEFAULT 'active',
+      last_refresh TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+// Add type column if not exists (migration for existing tables)
   await sql`
     DO $$ BEGIN
       IF NOT EXISTS (
@@ -462,4 +509,131 @@ export async function getAllPortalSites(): Promise<DbReportSite[]> {
     SELECT slug, html_content FROM report_sites WHERE type = 'portal' AND is_published = true
   `;
   return rows as unknown as DbReportSite[];
+}
+
+// ======================== MP Subscription Operations ========================
+
+export async function subscribeMp(
+  userId: string,
+  mpId: string,
+  mpName: string,
+  mpCover: string
+): Promise<{ success: boolean; message: string }> {
+  // Check subscription count
+  const count = await sql`
+    SELECT COUNT(*)::int as count FROM user_mp_subscriptions WHERE user_id = ${userId}
+  `;
+  if (count[0].count >= 10) {
+    return { success: false, message: '已达到订阅上限（10个公众号）' };
+  }
+
+  // Check duplicates
+  const existing = await sql`
+    SELECT id FROM user_mp_subscriptions WHERE user_id = ${userId} AND mp_id = ${mpId}
+  `;
+  if (existing.length > 0) {
+    return { success: false, message: '已订阅过该公众号' };
+  }
+
+  await sql`
+    INSERT INTO user_mp_subscriptions (user_id, mp_id, mp_name, mp_cover)
+    VALUES (${userId}, ${mpId}, ${mpName}, ${mpCover})
+  `;
+
+  return { success: true, message: '订阅成功' };
+}
+
+export async function unsubscribeMp(
+  userId: string,
+  mpId: string
+): Promise<{ success: boolean; deleted: boolean }> {
+  await sql`
+    DELETE FROM user_mp_subscriptions WHERE user_id = ${userId} AND mp_id = ${mpId}
+  `;
+
+  // Check if any other users still subscribe to this MP
+  const remaining = await sql`
+    SELECT COUNT(*)::int as count FROM user_mp_subscriptions WHERE mp_id = ${mpId}
+  `;
+
+  return { success: true, deleted: remaining[0].count === 0 };
+}
+
+export async function getUserMpSubscriptions(userId: string): Promise<DbUserMpSubscription[]> {
+  const rows = await sql`
+    SELECT * FROM user_mp_subscriptions WHERE user_id = ${userId} ORDER BY created_at DESC
+  `;
+  return rows as unknown as DbUserMpSubscription[];
+}
+
+export async function getUserMpSubscriptionCount(userId: string): Promise<number> {
+  const result = await sql`
+    SELECT COUNT(*)::int as count FROM user_mp_subscriptions WHERE user_id = ${userId}
+  `;
+  return result[0].count;
+}
+
+export async function getMpSubscriberCount(mpId: string): Promise<number> {
+  const result = await sql`
+    SELECT COUNT(*)::int as count FROM user_mp_subscriptions WHERE mp_id = ${mpId}
+  `;
+  return result[0].count;
+}
+
+export async function checkUserSubscribed(userId: string, mpId: string): Promise<boolean> {
+  const rows = await sql`
+    SELECT id FROM user_mp_subscriptions WHERE user_id = ${userId} AND mp_id = ${mpId}
+  `;
+  return rows.length > 0;
+}
+
+// ======================== WeRead Account Pool Operations ========================
+
+export async function addWereadAccount(
+  vid: string,
+  name: string
+): Promise<DbWereadAccount> {
+  const rows = await sql`
+    INSERT INTO weread_account_pool (vid, name, status)
+    VALUES (${vid}, ${name}, 'active')
+    ON CONFLICT (vid) DO UPDATE SET
+      name = EXCLUDED.name,
+      status = 'active'
+    RETURNING *
+  `;
+  return rows[0] as unknown as DbWereadAccount;
+}
+
+export async function getWereadAccountByVid(vid: string): Promise<DbWereadAccount | undefined> {
+  const rows = await sql`
+    SELECT * FROM weread_account_pool WHERE vid = ${vid}
+  `;
+  if (rows.length === 0) return undefined;
+  return rows[0] as unknown as DbWereadAccount;
+}
+
+export async function updateWereadAccountFeedCount(vid: string, count: number): Promise<void> {
+  await sql`
+    UPDATE weread_account_pool SET feed_count = ${count}, last_refresh = now()
+    WHERE vid = ${vid}
+  `;
+}
+
+export async function getAllActiveWereadAccounts(): Promise<DbWereadAccount[]> {
+  const rows = await sql`
+    SELECT * FROM weread_account_pool
+    WHERE status = 'active' AND feed_count < max_feeds
+    ORDER BY feed_count ASC, last_refresh ASC NULLS FIRST
+  `;
+  return rows as unknown as DbWereadAccount[];
+}
+
+export async function setWereadAccountStatus(
+  vid: string,
+  status: string
+): Promise<void> {
+  await sql`
+    UPDATE weread_account_pool SET status = ${status}, last_refresh = now()
+    WHERE vid = ${vid}
+  `;
 }

@@ -49,8 +49,8 @@ interface DeployResult {
 
 const TEMPLATES = [
   { id: 'intel-station', name: '科技蓝', desc: '酷炫情报站，三段式布局', primary: '#00d4ff', preview: 'linear-gradient(135deg, #00d4ff, #a855f7)', textColor: '#e2e8f0', bg: '#020617', cardBg: '#0f172a', muted: '#94a3b8', border: 'rgba(255,255,255,0.1)', reportAccent: '#818cf8', monitorAccent: '#fbbf24', navBg: '#020617', heroBg: 'linear-gradient(135deg, #0f172a, #1e293b)' },
-  { id: 'intel-station-neon-purple', name: '霓虹紫', desc: '酷炫情报站，三段式布局', primary: '#a855f7', preview: 'linear-gradient(135deg, #a855f7, #d946ef)', textColor: '#e2e8f0', bg: '#0f0a1a', cardBg: '#1a0f2e', muted: '#a855f7', border: 'rgba(168,85,247,0.2)', reportAccent: '#a855f7', monitorAccent: '#d946ef', navBg: '#0f0a1a', heroBg: 'linear-gradient(135deg, #1a0f2e, #2d1b4e)' },
-  { id: 'intel-station-hacker-green', name: '黑客绿', desc: '酷炫情报站，三段式布局', primary: '#00ff88', preview: 'linear-gradient(135deg, #00ff88, #00d4aa)', textColor: '#00ff88', bg: '#000a00', cardBg: '#001a00', muted: '#00cc66', border: 'rgba(0,255,136,0.2)', reportAccent: '#00ff88', monitorAccent: '#00d4aa', navBg: '#000a00', heroBg: 'linear-gradient(135deg, #001a00, #003300)' },
+  { id: 'intel-station-white-base', name: '白色简约', desc: '酷炫情报站，三段式布局', primary: '#3b82f6', preview: 'linear-gradient(135deg, #f8fafc, #e2e8f0)', textColor: '#1e293b', bg: '#f8fafc', cardBg: '#ffffff', muted: '#64748b', border: 'rgba(0,0,0,0.06)', reportAccent: '#3b82f6', monitorAccent: '#8b5cf6', navBg: '#ffffff', heroBg: 'linear-gradient(135deg, #f1f5f9, #e0e7ff)' },
+  { id: 'intel-station-sky-blue', name: '淡蓝科技', desc: '酷炫情报站，三段式布局', primary: '#0284c7', preview: 'linear-gradient(135deg, #f0f9ff, #bae6fd)', textColor: '#0c4a6e', bg: '#f0f9ff', cardBg: '#ffffff', muted: '#0369a1', border: 'rgba(14,165,233,0.15)', reportAccent: '#0284c7', monitorAccent: '#0ea5e9', navBg: '#ffffff', heroBg: 'linear-gradient(135deg, #e0f2fe, #bae6fd)' },
 ]
 
 const AI_PROVIDERS = [
