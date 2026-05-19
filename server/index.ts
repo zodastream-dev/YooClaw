@@ -4659,6 +4659,12 @@ app.post('/api/mp/subscribe', authMiddleware, async (req, res) => {
     }
 
     const { id: mpId, name, cover } = mpData.result.data;
+
+    // Validate required fields from upstream
+    if (!mpId || !name) {
+      console.error('[MP Subscribe] Incomplete MP info from WeWe-RSS:', JSON.stringify(mpData.result.data));
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Incomplete MP info from upstream' } });
+    }
     const mpName = name || '未知公众号';
     const mpCover = cover || '';
 
@@ -4698,7 +4704,7 @@ app.post('/api/mp/subscribe', authMiddleware, async (req, res) => {
       data: { mpId, mpName, mpCover, subscribedAt: new Date().toISOString() },
     });
   } catch (err: any) {
-    console.error('[MP Subscribe]', err.message);
+    console.error('[MP Subscribe] Error:', err.message, '| stack:', err.stack?.split('\n')[1]?.trim());
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });
