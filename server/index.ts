@@ -4658,7 +4658,9 @@ app.post('/api/mp/subscribe', authMiddleware, async (req, res) => {
       return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to get MP info' } });
     }
 
-    const { id: mpId, name: mpName, cover: mpCover } = mpData.result.data;
+    const { id: mpId, name, cover } = mpData.result.data;
+    const mpName = name || '未知公众号';
+    const mpCover = cover || '';
 
     // Register feed in WeWe-RSS if not exists
     try {
