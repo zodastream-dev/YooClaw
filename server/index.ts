@@ -4461,86 +4461,108 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Video prompt is required' } });
     }
 
-
     const dur = Number(duration) || 5;
     const reso = resolution || '720p';
     const rat = ratio || '16:9';
-    
-    console.log(`[VideoGen] Generating: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
 
-    const cmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=300`;
-    console.log('[VideoGen] Running:', cmd.slice(0, 150));
-    
-    const { stdout } = await execAsync(cmd + ' 2>&1', { timeout: 360000, maxBuffer: 10 * 1024 * 1024, cwd: '/tmp' });
+    console.log(`[VideoGen] Submitting: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
 
-    console.log('[VideoGen] Output:', stdout.slice(0, 500));
+    // Phase 1: Submit the generation task (no polling)
+    const submitCmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=0`;
+    console.log('[VideoGen] Submit:', submitCmd.slice(0, 150));
 
-    // Parse video output - look for video URL
-    let videoUrl = '';
+    const { stdout: submitOut } = await execAsync(submitCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+    console.log('[VideoGen] Submit response:', submitOut.slice(0, 300));
+
+    // Extract submit_id
     let submitId = '';
-    
-    // Try JSON parsing first
-    const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+    const jsonMatch = submitOut.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
-        videoUrl = parsed.video_url || parsed.url || '';
-        submitId = parsed.submit_id || parsed.id || '';
+        submitId = parsed.submit_id || '';
       } catch {}
     }
-    
-    // Try URL patterns
-    if (!videoUrl) {
-      const urlMatch = stdout.match(/https?:\/\/[^\s"']+\.(mp4|mov|webm)[^\s"']*/i);
-      if (urlMatch) videoUrl = urlMatch[0];
+
+    if (!submitId) {
+      return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: 'Failed to get submit_id from Dreamina' } });
     }
-    
-    if (videoUrl) {
-      const videoId = submitId || crypto.randomUUID();
-      const extMatch = videoUrl.match(/\.(mp4|webm|mov)/i);
-      const ext = extMatch ? extMatch[1] : 'mp4';
-      const localFilename = `${videoId}.${ext}`;
-      const localPath = path.join(VIDEO_DIR, localFilename);
-      
-      // Download video from Jimeng CDN to local server
-      let localUrl = videoUrl; // fallback to Jimeng URL
+
+    console.log(`[VideoGen] Task submitted: ${submitId}, polling for result...`);
+
+    // Phase 2: Poll query_result until completed (max 10 min)
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
+    let result;
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 5000)); // wait 5s between polls
+
+      const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId} --download_dir=${VIDEO_DIR}`;
+      const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+
       try {
-        console.log(`[VideoGen] Downloading video from Jimeng CDN...`);
-        const downloadRes = await fetch(videoUrl);
-        if (downloadRes.ok) {
-          const buffer = Buffer.from(await downloadRes.arrayBuffer());
-          fs.writeFileSync(localPath, buffer);
-          const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
-          console.log(`[VideoGen] Downloaded: ${localFilename} (${fileSizeMB} MB)`);
-          localUrl = `${process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com'}/videos/${localFilename}`;
-        } else {
-          console.error(`[VideoGen] Download failed: HTTP ${downloadRes.status}`);
-        }
-      } catch (downloadErr: any) {
-        console.error('[VideoGen] Download error:', downloadErr.message);
-        // Fall through — use Jimeng URL as fallback
+        result = JSON.parse(queryOut);
+      } catch {
+        console.log(`[VideoGen] Poll #${i + 1}: invalid JSON, retrying...`);
+        continue;
       }
-      
-      res.json({
-        data: {
-          id: videoId,
-          title: prompt.trim().slice(0, 30),
-          url: localUrl,
-          status: 'completed',
-        },
-      });
-    } else {
-      // Return the raw output as info
-      res.json({
-        data: {
-          id: crypto.randomUUID(),
-          title: prompt.trim().slice(0, 30),
-          url: '',
-          status: 'processing',
-          message: '视频已提交即梦生成，请稍后查看: ' + stdout.slice(0, 200),
-        },
-      });
+
+      console.log(`[VideoGen] Poll #${i + 1}: gen_status=${result.gen_status}`);
+
+      if (result.gen_status === 'success') {
+        break;
+      }
+      if (result.gen_status === 'failed') {
+        console.error('[VideoGen] Generation failed:', JSON.stringify(result).slice(0, 300));
+        return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败，即梦返回 gen_status=failed' } });
+      }
+      // Otherwise "running" or "querying" — continue polling
     }
+
+    if (result?.gen_status === 'success') {
+      // Extract local file path from query_result output
+      const videos = result.result_json?.videos || [];
+      const localPath = videos[0]?.path || '';
+      const filename = localPath ? path.basename(localPath) : '';
+
+      if (localPath && filename) {
+        const localUrl = `${FRONTEND_URL}/videos/${filename}`;
+        console.log(`[VideoGen] Completed: ${localPath} → ${localUrl}`);
+        return res.json({
+          data: {
+            id: submitId,
+            title: prompt.trim().slice(0, 30),
+            url: localUrl,
+            status: 'completed',
+          },
+        });
+      }
+
+      // Fallback: try CDN URL if no local path
+      const videoUrl = videos[0]?.video_url || '';
+      if (videoUrl) {
+        console.log(`[VideoGen] Completed (CDN fallback): ${videoUrl.slice(0, 100)}`);
+        return res.json({
+          data: {
+            id: submitId,
+            title: prompt.trim().slice(0, 30),
+            url: videoUrl,
+            status: 'completed',
+          },
+        });
+      }
+    }
+
+    // Timeout or unknown status — return processing
+    console.log(`[VideoGen] Polling timeout for ${submitId}, status: ${result?.gen_status || 'unknown'}`);
+    return res.json({
+      data: {
+        id: submitId,
+        title: prompt.trim().slice(0, 30),
+        url: '',
+        status: 'processing',
+        message: '视频生成时间较长，请稍后在即梦网站查看结果',
+      },
+    });
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
     res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
