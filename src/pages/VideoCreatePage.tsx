@@ -236,10 +236,17 @@ export function VideoCreatePage() {
                 <div>
                   <label className="block text-sm font-medium mb-1.5">上传图片 <span className="text-destructive">*</span></label>
                   {imagePreview ? (
-                    <div className="relative rounded-lg overflow-hidden border border-border bg-muted/30">
-                      <img src={imagePreview} alt="Preview" className="w-full max-h-[240px] object-contain" />
-                      <button onClick={handleRemoveImage} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-destructive/10 transition-colors"><X size={14} /></button>
-                    </div>
+                    <>
+                      <div className="relative rounded-lg overflow-hidden border border-border bg-muted/30">
+                        <img src={imagePreview} alt="Preview" className="w-full max-h-[240px] object-contain" />
+                        <button onClick={handleRemoveImage} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-destructive/10 transition-colors"><X size={14} /></button>
+                      </div>
+                      {imageFile && (
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          {imageFile.name} · {(imageFile.size / 1024).toFixed(0)} KB · {imageFile.type.replace('image/', '').toUpperCase()}
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <div
                       onClick={() => fileInputRef.current?.click()}
