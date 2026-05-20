@@ -137,10 +137,57 @@ export function VideoCreatePage() {
     finally { setIsSubmitting(false) }
   }
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
   const handleCopy = async () => {
     if (!result?.url) return
     try { await navigator.clipboard.writeText(result.url); setCopied(true); setTimeout(() => setCopied(false), 2000) }
     catch { setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  }
+
+  const [downloading, setDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
+
+  const handleDownload = async () => {
+    if (!result?.url) return
+    setDownloading(true)
+    setDownloadProgress(0)
+    try {
+      const response = await fetch(result.url)
+      if (!response.ok) throw new Error('Download failed')
+      const contentLength = response.headers.get('content-length')
+      const total = contentLength ? parseInt(contentLength) : 0
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No reader')
+      const chunks: Uint8Array[] = []
+      let received = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        received += value.length
+        if (total > 0) setDownloadProgress(Math.round((received / total) * 100))
+      }
+      const blob = new Blob(chunks, { type: 'video/mp4' })
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = 'video-' + result.id.slice(0, 8) + '.mp4'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } catch (e: any) {
+      // Fallback: open in new tab
+      window.open(result.url, '_blank')
+    } finally {
+      setDownloading(false)
+      setDownloadProgress(0)
+    }
   }
 
   const filteredTemplates = getTemplatesByCategory(activeCategory)
@@ -301,9 +348,81 @@ export function VideoCreatePage() {
             <button onClick={handleReset} className="w-full px-4 py-2.5 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">取消等待，返回创作</button>
           </div>
         ) : result ? (
-          <div className="border border-border rounded-xl p-6 bg-card">
-            <div className="flex items-center gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center"><Play size={20} className="text-green-600" /></div><div><h2 className="text-sm font-medium text-green-600">视频生成成功!</h2><p className="text-xs text-muted-foreground">{result.title}</p></div></div>
-            {result.url ? <><div className="bg-muted rounded-lg p-4 mb-4"><video src={result.url} controls className="w-full rounded-lg" style={{ maxHeight: '360px' }}>您的浏览器不支持视频播放</video></div><div className="bg-muted rounded-lg p-4 mb-4"><div className="flex items-center gap-2"><a href={result.url} target="_blank" rel="noopener" className="flex-1 text-sm bg-background px-3 py-2 rounded border border-border truncate text-primary flex items-center gap-1.5"><ExternalLink size={13} />{result.url}</a><button onClick={handleCopy} className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium">{copied ? '已复制' : <Copy size={14} />}</button></div></div><div className="flex gap-3"><a href={result.url} target="_blank" rel="noopener" download className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium"><Download size={16} />下载视频</a><button onClick={handleReset} className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-medium">再生成一个</button></div></> : (<div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4"><p className="text-sm text-yellow-700 dark:text-yellow-300">视频生成完成，但未获取到视频地址，请稍后重试</p></div>)}
+          <div className="border border-border rounded-xl p-6 bg-card space-y-5">
+            {/* Success Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Play size={20} className="text-green-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-medium text-green-600">视频生成成功!</h2>
+                <p className="text-xs text-muted-foreground">{result.title}</p>
+              </div>
+            </div>
+
+            {/* Video Player */}
+            {result.url ? <div className="space-y-4">
+              {/* Video player with gradient frame */}
+              <div className="relative rounded-xl overflow-hidden border border-border bg-black">
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-black/0 via-black/0 to-black/60 pointer-events-none z-10" />
+                <video
+                  src={result.url}
+                  controls
+                  playsInline
+                  className="w-full aspect-video object-contain"
+                  poster={isImageTemplate ? imagePreview || undefined : undefined}
+                >
+                  您的浏览器不支持视频播放
+                </video>
+              </div>
+
+              {/* URL display */}
+              <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <ExternalLink size={14} className="text-muted-foreground flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground truncate select-all">{result.url}</span>
+                </div>
+                <button
+                  onClick={handleCopy}
+                  className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-xs font-medium hover:bg-primary/90 transition-colors"
+                >
+                  {copied ? '✓ 已复制' : <><Copy size={12} /> 复制链接</>}
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg text-sm font-medium hover:from-emerald-600 hover:to-teal-600 transition-all disabled:opacity-60 disabled:cursor-wait shadow-lg shadow-emerald-500/20"
+                >
+                  {downloading ? (
+                    <><Loader2 size={16} className="animate-spin" /> 下载中 {downloadProgress > 0 ? `${downloadProgress}%` : ''}</>
+                  ) : (
+                    <><Download size={16} /> 下载视频</>
+                  )}
+                </button>
+                <button
+                  onClick={() => window.open(result.url, '_blank')}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                  新窗口
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition-colors"
+                >
+                  <Sparkles size={14} />
+                  重新生成
+                </button>
+              </div>
+            </div> : (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">视频生成完成，但未获取到视频地址，请稍后重试</p>
+              </div>
+            )}
           </div>
         ) : null}
       </div>
