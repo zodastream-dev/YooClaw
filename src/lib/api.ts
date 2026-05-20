@@ -384,6 +384,23 @@ export async function generateVideo(params: {
   )
 }
 
+export interface VideoTaskStatus {
+  id: string
+  status: 'completed' | 'failed' | 'processing' | 'unknown'
+  polls: number
+  maxPolls: number
+  isPolling: boolean
+  queueInfo: { queue_idx: number; queue_length: number; queue_status: string } | null
+  queueMessage: string
+  elapsedMinutes: number
+  estimatedMaxMinutes: number
+  result: { videoUrl: string | null } | null
+}
+
+export async function videoTaskStatus(submitId: string) {
+  return apiRequest<VideoTaskStatus>('GET', `/api/v1/videos/status/${submitId}`)
+}
+
 // ========== MP Subscription ==========
 
 export interface MpCandidate {
