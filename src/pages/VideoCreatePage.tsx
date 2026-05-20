@@ -20,6 +20,7 @@ export function VideoCreatePage() {
   const [ratio, setRatio] = useState('16:9')
 
   const [activeCategory, setActiveCategory] = useState('all')
+  const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('all')
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null)
 
   // Image upload state
@@ -143,6 +144,9 @@ export function VideoCreatePage() {
   }
 
   const filteredTemplates = getTemplatesByCategory(activeCategory)
+  const displayTemplates = inputMode === 'all'
+    ? filteredTemplates
+    : filteredTemplates.filter(t => t.inputType === inputMode)
 
   const handleSelectTemplate = (template: VideoTemplate) => {
     setSelectedTemplate(template); setPrompt(template.prompt); setDuration(template.duration); setRatio(template.ratio)
@@ -188,11 +192,41 @@ export function VideoCreatePage() {
                 <h3 className="text-sm font-medium flex items-center gap-2"><Sparkles size={15} className="text-primary" />视频模板库</h3>
                 {selectedTemplate && (<button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"><X size={13} />清空模板</button>)}
               </div>
+              {/* Mode Toggle: Text / Image / All */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">模式：</span>
+                <div className="flex bg-muted rounded-lg p-0.5 gap-0.5">
+                  <button
+                    onClick={() => setInputMode('all')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${inputMode === 'all' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    全部
+                  </button>
+                  <button
+                    onClick={() => setInputMode('text')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${inputMode === 'text' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    <Sparkles size={12} />文生视频
+                  </button>
+                  <button
+                    onClick={() => setInputMode('image')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${inputMode === 'image' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    <ImageIcon size={12} />图生视频
+                  </button>
+                </div>
+                {inputMode !== 'all' && (
+                  <span className="text-xs text-muted-foreground">
+                    ({displayTemplates.length} 个模板)
+                  </span>
+                )}
+              </div>
+
               <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
                 {templateCategories.map(cat => (<button key={cat.key} onClick={() => setActiveCategory(cat.key)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs transition-all flex-shrink-0 ${activeCategory === cat.key ? 'bg-primary text-primary-foreground font-medium' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>{cat.icon} {cat.label}</button>))}
               </div>
               <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-0.5 scrollbar-thin">
-                {filteredTemplates.map(tpl => (<button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-3 rounded-lg border transition-all ${selectedTemplate?.id === tpl.id ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background hover:border-primary/40 hover:bg-muted/50'}`}><div className="flex items-start gap-2"><span className="text-lg flex-shrink-0">{tpl.icon}</span><div className="min-w-0"><div className="text-xs font-medium truncate flex items-center gap-1">{tpl.name}{tpl.inputType === 'image' && <ImageIcon size={10} className="text-primary/60 flex-shrink-0" />}</div><div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{tpl.description}</div><div className="flex items-center gap-1.5 mt-1.5"><span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{tpl.duration}s</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{tpl.ratio}</span>{tpl.inputType === 'image' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">📸 图片</span>}</div></div></div></button>))}
+                {displayTemplates.map(tpl => (<button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-3 rounded-lg border transition-all ${selectedTemplate?.id === tpl.id ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background hover:border-primary/40 hover:bg-muted/50'}`}><div className="flex items-start gap-2"><span className="text-lg flex-shrink-0">{tpl.icon}</span><div className="min-w-0"><div className="text-xs font-medium truncate flex items-center gap-1">{tpl.name}{tpl.inputType === 'image' && <ImageIcon size={10} className="text-primary/60 flex-shrink-0" />}</div><div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{tpl.description}</div><div className="flex items-center gap-1.5 mt-1.5"><span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{tpl.duration}s</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{tpl.ratio}</span>{tpl.inputType === 'image' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">📸 图片</span>}</div></div></div></button>))}
               </div>
             </div>
             <div id="video-form" className="border border-border rounded-xl p-6 bg-card space-y-4">

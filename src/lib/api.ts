@@ -378,6 +378,8 @@ export async function generateVideo(params: {
   duration: string
   resolution: string
   ratio?: string
+  image?: string
+  inputType?: string
 }) {
   return apiRequest<{ id: string; title?: string; url: string; status?: string; message?: string }>(
     'POST', '/api/v1/videos/generate', params

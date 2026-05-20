@@ -1741,7 +1741,7 @@ function adminMiddleware(req: express.Request, res: express.Response, next: expr
 }
 
 // ========== Middleware ==========
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
@@ -4076,25 +4076,54 @@ app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
   }
 });
 
-// Generate video using dreamina CLI
+// Generate video using dreamina CLI (supports text-to-video and image-to-video)
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   try {
-    const { prompt, duration, resolution, ratio } = req.body || {};
+    const { prompt, duration, resolution, ratio, image, inputType } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Video prompt is required' } });
     }
 
+    const isImageMode = inputType === 'image';
+
+    // Image mode: validate and save base64 image to temp file
+    let tempImagePath = '';
+    if (isImageMode) {
+      if (!image || typeof image !== 'string') {
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Image is required for image-to-video mode' } });
+      }
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+      const imgExt = (image.match(/^data:image\/(\w+);base64,/) || [])[1] || 'png';
+      if (!base64Data) {
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid base64 image data' } });
+      }
+      tempImagePath = path.join('/tmp', `video-input-${crypto.randomUUID()}.${imgExt}`);
+      fs.writeFileSync(tempImagePath, Buffer.from(base64Data, 'base64'));
+      console.log(`[VideoGen] Saved image to ${tempImagePath} (${(base64Data.length / 1024).toFixed(1)} KB base64)`);
+    }
 
     const dur = Number(duration) || 5;
     const reso = resolution || '720p';
     const rat = ratio || '16:9';
-    
-    console.log(`[VideoGen] Generating: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
 
-    const cmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=300`;
+    let cmd: string;
+
+    if (isImageMode) {
+      console.log(`[VideoGen] Image-to-video: "${prompt.slice(0, 80)}..." (${dur}s, ${reso})`);
+      cmd = `${DREAMINA_BIN} image2video --image="${tempImagePath}" --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --video_resolution=${reso} --poll=300`;
+    } else {
+      console.log(`[VideoGen] Text-to-video: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
+      cmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=300`;
+    }
+
     console.log('[VideoGen] Running:', cmd.slice(0, 150));
     
     const { stdout } = await execAsync(cmd + ' 2>&1', { timeout: 360000, maxBuffer: 10 * 1024 * 1024, cwd: '/tmp' });
+
+    // Cleanup temp image file
+    if (tempImagePath) {
+      try { fs.unlinkSync(tempImagePath); } catch {}
+    }
 
     console.log('[VideoGen] Output:', stdout.slice(0, 500));
 
@@ -4169,7 +4198,6 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
   }
 });
-
 // ======================== MP Subscription API Routes ========================
 
 // Get QR code URL for WeRead login
