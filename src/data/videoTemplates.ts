@@ -1,4 +1,5 @@
 export interface VideoTemplate {
+  inputType: "text" | "image"
   id: string
   name: string
   category: string
@@ -18,11 +19,16 @@ export const templateCategories = [
   { key: 'tech', label: '科技/产品', icon: '💻' },
   { key: 'scenery', label: '风景/旅行', icon: '🏔️' },
   { key: 'camera', label: '运镜特效', icon: '🎥' },
+  { key: 'img2vid-food', label: '📸 图生视频-美食', icon: '🍲' },
+  { key: 'img2vid-shop', label: '📸 图生视频-带货', icon: '🛍️' },
+  { key: 'img2vid-travel', label: '📸 图生视频-旅行', icon: '✈️' },
+  { key: 'img2vid-product', label: '📸 图生视频-产品', icon: '📷' },
 ]
 
 export const videoTemplates: VideoTemplate[] = [
   // ===== 电商带货 =====
   {
+    inputType: 'text',
     id: 'ec-01',
     name: '口红试色特写',
     category: 'ecommerce',
@@ -33,6 +39,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '💄',
   },
   {
+    inputType: 'text',
     id: 'ec-02',
     name: '直播间促销',
     category: 'ecommerce',
@@ -43,6 +50,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '📢',
   },
   {
+    inputType: 'text',
     id: 'ec-03',
     name: '护肤品展示',
     category: 'ecommerce',
@@ -53,6 +61,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '✨',
   },
   {
+    inputType: 'text',
     id: 'ec-04',
     name: '服装穿搭展示',
     category: 'ecommerce',
@@ -63,6 +72,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '👗',
   },
   {
+    inputType: 'text',
     id: 'ec-05',
     name: '数码产品开箱',
     category: 'ecommerce',
@@ -73,6 +83,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '📦',
   },
   {
+    inputType: 'text',
     id: 'ec-06',
     name: '零食特写',
     category: 'ecommerce',
@@ -85,6 +96,7 @@ export const videoTemplates: VideoTemplate[] = [
 
   // ===== 短视频 =====
   {
+    inputType: 'text',
     id: 'sv-01',
     name: '知识科普动画',
     category: 'short-video',
@@ -95,6 +107,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🧠',
   },
   {
+    inputType: 'text',
     id: 'sv-02',
     name: '好物开箱',
     category: 'short-video',
@@ -105,6 +118,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🎁',
   },
   {
+    inputType: 'text',
     id: 'sv-03',
     name: '前后对比',
     category: 'short-video',
@@ -115,6 +129,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🔁',
   },
   {
+    inputType: 'text',
     id: 'sv-04',
     name: '文字快闪',
     category: 'short-video',
@@ -125,6 +140,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '💬',
   },
   {
+    inputType: 'text',
     id: 'sv-05',
     name: '清单列表',
     category: 'short-video',
@@ -135,6 +151,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '📋',
   },
   {
+    inputType: 'text',
     id: 'sv-06',
     name: '悬念揭晓',
     category: 'short-video',
@@ -147,6 +164,7 @@ export const videoTemplates: VideoTemplate[] = [
 
   // ===== Vlog/生活 =====
   {
+    inputType: 'text',
     id: 'vl-01',
     name: '咖啡店日常',
     category: 'vlog',
@@ -157,6 +175,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '☕',
   },
   {
+    inputType: 'text',
     id: 'vl-02',
     name: '城市步行',
     category: 'vlog',
@@ -167,6 +186,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🚶',
   },
   {
+    inputType: 'text',
     id: 'vl-03',
     name: '书房学习',
     category: 'vlog',
@@ -177,6 +197,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '📚',
   },
   {
+    inputType: 'text',
     id: 'vl-04',
     name: '周末早晨',
     category: 'vlog',
@@ -187,6 +208,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🌅',
   },
   {
+    inputType: 'text',
     id: 'vl-05',
     name: '宠物日常',
     category: 'vlog',
@@ -197,6 +219,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🐱',
   },
   {
+    inputType: 'text',
     id: 'vl-06',
     name: '雨天氛围',
     category: 'vlog',
@@ -209,6 +232,7 @@ export const videoTemplates: VideoTemplate[] = [
 
   // ===== 美食 =====
   {
+    inputType: 'text',
     id: 'fd-01',
     name: '烘焙过程',
     category: 'food',
@@ -219,6 +243,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🍞',
   },
   {
+    inputType: 'text',
     id: 'fd-02',
     name: '拉面慢动作',
     category: 'food',
@@ -229,6 +254,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🍜',
   },
   {
+    inputType: 'text',
     id: 'fd-03',
     name: '火锅沸腾',
     category: 'food',
@@ -239,6 +265,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🫕',
   },
   {
+    inputType: 'text',
     id: 'fd-04',
     name: '饮品制作',
     category: 'food',
@@ -249,6 +276,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🧋',
   },
   {
+    inputType: 'text',
     id: 'fd-05',
     name: '烧烤烟火',
     category: 'food',
@@ -259,6 +287,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🍖',
   },
   {
+    inputType: 'text',
     id: 'fd-06',
     name: '日料摆盘',
     category: 'food',
@@ -271,6 +300,7 @@ export const videoTemplates: VideoTemplate[] = [
 
   // ===== 科技/产品 =====
   {
+    inputType: 'text',
     id: 'tx-01',
     name: '手机外观展示',
     category: 'tech',
@@ -281,6 +311,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '📱',
   },
   {
+    inputType: 'text',
     id: 'tx-02',
     name: '芯片微观',
     category: 'tech',
@@ -291,6 +322,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🔬',
   },
   {
+    inputType: 'text',
     id: 'tx-03',
     name: '智能手表',
     category: 'tech',
@@ -301,6 +333,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '⌚',
   },
   {
+    inputType: 'text',
     id: 'tx-04',
     name: '耳机产品',
     category: 'tech',
@@ -311,6 +344,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🎧',
   },
   {
+    inputType: 'text',
     id: 'tx-05',
     name: 'APP界面演示',
     category: 'tech',
@@ -321,6 +355,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '📲',
   },
   {
+    inputType: 'text',
     id: 'tx-06',
     name: '笔记本电脑',
     category: 'tech',
@@ -333,6 +368,7 @@ export const videoTemplates: VideoTemplate[] = [
 
   // ===== 风景/旅行 =====
   {
+    inputType: 'text',
     id: 'sc-01',
     name: '雪山日出',
     category: 'scenery',
@@ -343,6 +379,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🏔️',
   },
   {
+    inputType: 'text',
     id: 'sc-02',
     name: '极光延时',
     category: 'scenery',
@@ -353,6 +390,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🌌',
   },
   {
+    inputType: 'text',
     id: 'sc-03',
     name: '海边日落',
     category: 'scenery',
@@ -363,6 +401,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🌅',
   },
   {
+    inputType: 'text',
     id: 'sc-04',
     name: '樱花季',
     category: 'scenery',
@@ -373,6 +412,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🌸',
   },
   {
+    inputType: 'text',
     id: 'sc-05',
     name: '城市夜景',
     category: 'scenery',
@@ -385,6 +425,7 @@ export const videoTemplates: VideoTemplate[] = [
 
   // ===== 运镜特效 =====
   {
+    inputType: 'text',
     id: 'cm-01',
     name: '赛博朋克转场',
     category: 'camera',
@@ -395,6 +436,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '⚡',
   },
   {
+    inputType: 'text',
     id: 'cm-02',
     name: '水墨渲染',
     category: 'camera',
@@ -405,6 +447,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '🖌️',
   },
   {
+    inputType: 'text',
     id: 'cm-03',
     name: '粒子汇聚',
     category: 'camera',
@@ -415,6 +458,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '💫',
   },
   {
+    inputType: 'text',
     id: 'cm-04',
     name: '故障艺术',
     category: 'camera',
@@ -425,6 +469,7 @@ export const videoTemplates: VideoTemplate[] = [
     icon: '📺',
   },
   {
+    inputType: 'text',
     id: 'cm-05',
     name: '流光线条',
     category: 'camera',
@@ -433,6 +478,190 @@ export const videoTemplates: VideoTemplate[] = [
     duration: '5',
     ratio: '16:9',
     icon: '✨',
+  },
+
+  // ===== 📸 图生视频 - 美食博主探店 =====
+  {
+    inputType: 'image',
+    id: 'i2v-fd-01',
+    name: '美食上菜推镜',
+    category: 'img2vid-food',
+    description: '上传食物照片 → 相机推近 + 热气升腾动画',
+    prompt: '相机缓慢推近食物，热气冉冉升起，香料颗粒在空气中飘浮，暖色灯光从上方打来，浅景深虚化背景，食欲感强烈',
+    duration: '5',
+    ratio: '9:16',
+    icon: '🍲',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-fd-02',
+    name: '食物切开特写',
+    category: 'img2vid-food',
+    description: '上传食物照片 → 切开慢动作，内馅流出',
+    prompt: '刀切入食物的慢动作特写，内馅缓缓流出挤出，芝士拉丝或肉汁溢出，微距镜头，柔和侧光，诱人质感',
+    duration: '5',
+    ratio: '9:16',
+    icon: '🔪',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-fd-03',
+    name: '餐厅环境巡览',
+    category: 'img2vid-food',
+    description: '上传餐厅照片 → 从门口推进到餐桌',
+    prompt: '从餐厅门口推进到餐桌，环境灯光温暖，桌上摆盘精致的菜肴，窗外城市夜景作为背景，电影感色彩调色',
+    duration: '8',
+    ratio: '16:9',
+    icon: '🏪',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-fd-04',
+    name: '饮品调制慢动作',
+    category: 'img2vid-food',
+    description: '上传饮品照片 → 倒入杯中慢动作',
+    prompt: '饮品从壶中倒入透明玻璃杯的慢动作，液体流动分层，冰块碰撞发出光芒折射，气泡上升，清凉夏日感',
+    duration: '5',
+    ratio: '9:16',
+    icon: '🧋',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-fd-05',
+    name: '烧烤烟火氛围',
+    category: 'img2vid-food',
+    description: '上传烧烤照片 → 火焰跳跃 + 烟雾缭绕',
+    prompt: '烤架上肉串滋滋冒油，火焰跳跃，调料撒下的瞬间慢动作，烟雾缭绕，金黄色泽，夜晚户外灯光氛围',
+    duration: '5',
+    ratio: '16:9',
+    icon: '🍖',
+  },
+
+  // ===== 📸 图生视频 - 电商带货 =====
+  {
+    inputType: 'image',
+    id: 'i2v-shop-01',
+    name: '产品360°悬浮旋转',
+    category: 'img2vid-shop',
+    description: '上传产品照片 → 360度悬浮旋转 + 粒子光效',
+    prompt: '产品悬浮在黑暗中缓慢旋转360度，金属或玻璃材质表面反射流动光线，粒子光效环绕，高级电商质感，干净无噪点',
+    duration: '8',
+    ratio: '1:1',
+    icon: '🔄',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-shop-02',
+    name: '模特穿搭动态展示',
+    category: 'img2vid-shop',
+    description: '上传穿搭照片 → 衣服飘动 + 镜头环绕',
+    prompt: '人物变为轻微动态，衣服面料随风飘动，头发微微飘起，镜头缓慢环绕，柔光打亮面部和服装细节，时尚杂志封面感',
+    duration: '5',
+    ratio: '9:16',
+    icon: '👗',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-shop-03',
+    name: '产品开箱光效',
+    category: 'img2vid-shop',
+    description: '上传产品照片 → 粒子汇聚 + 光效游走',
+    prompt: '产品从黑暗中由发光粒子汇聚而成，光效沿着产品轮廓流动，包装盒虚化开合，最后定格在产品特写，科技感十足',
+    duration: '8',
+    ratio: '16:9',
+    icon: '📦',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-shop-04',
+    name: '美妆产品微距质感',
+    category: 'img2vid-shop',
+    description: '上传美妆产品 → 水滴滑落 + 光影流动',
+    prompt: '美妆产品微距特写，水滴或精华液在瓶身表面缓慢滑落，光影在曲面流动，极浅景深，高级护肤广告质感',
+    duration: '5',
+    ratio: '1:1',
+    icon: '✨',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-shop-05',
+    name: '数码产品光效展示',
+    category: 'img2vid-shop',
+    description: '上传数码产品照片 → 蓝紫冷光流动',
+    prompt: '黑色背景中数码产品悬浮，蓝紫色冷光沿产品轮廓流动，粒子特效在屏幕周围扩散，科幻高级感',
+    duration: '5',
+    ratio: '16:9',
+    icon: '💻',
+  },
+
+  // ===== 📸 图生视频 - 旅行Vlog =====
+  {
+    inputType: 'image',
+    id: 'i2v-trv-01',
+    name: '风景照动态化',
+    category: 'img2vid-travel',
+    description: '上传风景照片 → 云动水流 + 延时摄影感',
+    prompt: '静态风景照变为动态，云层缓慢移动飘过天空，水面泛起微微涟漪，树叶轻轻摇曳，镜头极缓慢推进，电影级延时摄影感',
+    duration: '10',
+    ratio: '16:9',
+    icon: '🏞️',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-trv-02',
+    name: '旅行打卡转场',
+    category: 'img2vid-travel',
+    description: '上传打卡照片 → 光线流动 + 日夜切换',
+    prompt: '照片中的地标建筑，光线从清晨变为黄昏流动，人流在画面中快速穿梭，天空色彩渐变，慢动作延时效果，电影感调色',
+    duration: '10',
+    ratio: '16:9',
+    icon: '📸',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-trv-03',
+    name: '海边日落动态',
+    category: 'img2vid-travel',
+    description: '上传海边照片 → 海浪拍岸 + 日落渐变',
+    prompt: '海边日落场景，金色阳光在海面上形成流动光路，海浪轻轻拍打沙滩，天空从橙红渐变到紫色，治愈系画面',
+    duration: '8',
+    ratio: '16:9',
+    icon: '🌅',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-trv-04',
+    name: '城市夜景流光',
+    category: 'img2vid-travel',
+    description: '上传夜景照片 → 车流光河 + 霓虹灯闪',
+    prompt: '航拍繁华城市夜景，高楼灯火通明，车流形成光河，霓虹灯光闪烁流动，赛博朋克风格，慢动作效果',
+    duration: '8',
+    ratio: '9:16',
+    icon: '🌃',
+  },
+
+  // ===== 📸 图生视频 - 产品展示 (通用) =====
+  {
+    inputType: 'image',
+    id: 'i2v-prod-01',
+    name: '白底产品光影',
+    category: 'img2vid-product',
+    description: '上传产品照片 → 柔和光影扫过',
+    prompt: '产品在纯白背景中，柔和的自然光从不同角度缓缓扫过，光影在产品表面流动变化，极简干净，高级感',
+    duration: '5',
+    ratio: '1:1',
+    icon: '📷',
+  },
+  {
+    inputType: 'image',
+    id: 'i2v-prod-02',
+    name: '冷光粒子汇聚',
+    category: 'img2vid-product',
+    description: '上传产品照片 → 粒子从四周汇聚',
+    prompt: '无数发光粒子从四面八方汇聚成产品轮廓，冷色蓝紫光效，金属质感突出，粒子在产品周围持续环绕，科技感',
+    duration: '5',
+    ratio: '1:1',
+    icon: '💫',
   },
 ]
 
