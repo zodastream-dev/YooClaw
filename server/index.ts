@@ -4439,6 +4439,99 @@ const VIDEO_DIR = process.env.VIDEO_DIR || path.join(__dirname, '..', 'public', 
 // Ensure videos directory exists on startup
 if (!fs.existsSync(VIDEO_DIR)) {
   fs.mkdirSync(VIDEO_DIR, { recursive: true });
+
+// ========== Background Video Polling (5min x 60 = 5h max) ==========
+const videoPollingTasks = new Map<string, {
+  submitId: string;
+  polls: number;
+  maxPolls: number;
+  interval: number;
+  timer: NodeJS.Timeout | null;
+  status: string;
+  queueInfo: any;
+  result: any;
+}>();
+
+function stopVideoPolling(submitId: string) {
+  const task = videoPollingTasks.get(submitId);
+  if (task?.timer) {
+    clearInterval(task.timer);
+    task.timer = null;
+    console.log(`[VideoPoll] Stopped polling for ${submitId}`);
+  }
+}
+
+function startVideoPolling(submitId: string) {
+  const task = videoPollingTasks.get(submitId);
+  if (!task) return;
+
+  const poll = async () => {
+    task.polls++;
+    console.log(`[VideoPoll] Poll #${task.polls}/${task.maxPolls} for ${submitId}`);
+
+    try {
+      const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId}`;
+      const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+
+      const result = JSON.parse(queryOut);
+      task.status = result.gen_status || 'querying';
+      task.queueInfo = result.queue_info || null;
+
+      if (result.queue_info) {
+        const qi = result.queue_info;
+        console.log(`[VideoPoll] Queue: idx=${qi.queue_idx}/${qi.queue_length}, status=${qi.queue_status}`);
+      }
+
+      if (result.gen_status === 'success') {
+        task.result = result;
+        stopVideoPolling(submitId);
+        console.log(`[VideoPoll] SUCCESS: ${submitId}`);
+
+        // Download video to local
+        const videos = result.result_json?.videos || [];
+        const videoUrl = videos[0]?.video_url;
+        if (videoUrl) {
+          try {
+            const downloadRes = await fetch(videoUrl);
+            if (downloadRes.ok) {
+              const buffer = Buffer.from(await downloadRes.arrayBuffer());
+              const localFilename = `${submitId}.mp4`;
+              const localPath = path.join(VIDEO_DIR, localFilename);
+              fs.writeFileSync(localPath, buffer);
+              console.log(`[VideoPoll] Downloaded: ${localFilename} (${(buffer.length / 1024 / 1024).toFixed(1)} MB)`);
+            }
+          } catch (e: any) {
+            console.error('[VideoPoll] Download error:', e.message);
+          }
+        }
+        return;
+      }
+
+      if (result.gen_status === 'fail') {
+        task.status = 'fail';
+        stopVideoPolling(submitId);
+        console.error(`[VideoPoll] FAILED: ${submitId}, reason: ${result.fail_reason || 'unknown'}`);
+        return;
+      }
+
+      // Max polls reached
+      if (task.polls >= task.maxPolls) {
+        stopVideoPolling(submitId);
+        console.log(`[VideoPoll] TIMEOUT: ${submitId} after ${task.polls} polls`);
+      }
+    } catch (e: any) {
+      console.error(`[VideoPoll] Error polling ${submitId}:`, e.message);
+      if (task.polls >= task.maxPolls) {
+        stopVideoPolling(submitId);
+      }
+    }
+  };
+
+  // First poll immediately, then every interval
+  poll();
+  task.timer = setInterval(poll, task.interval);
+}
+
   console.log('[VideoGen] Created video directory:', VIDEO_DIR);
 }
 
@@ -4453,7 +4546,85 @@ app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
   }
 });
 
+// Get video generation task status (with queue position info)
+app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
+  try {
+    const { submitId } = req.params;
+    const task = videoPollingTasks.get(submitId);
+
+    if (!task) {
+      // Task not in memory — try direct query_result fallback
+      try {
+        const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId}`;
+        const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 15000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+        const result = JSON.parse(queryOut);
+
+        if (result.gen_status === 'success') {
+          const videos = result.result_json?.videos || [];
+          const videoUrl = videos[0]?.video_url || '';
+          return res.json({
+            data: {
+              id: submitId,
+              status: 'completed',
+              url: videoUrl,
+              queueInfo: result.queue_info || null,
+            },
+          });
+        }
+        return res.json({
+          data: {
+            id: submitId,
+            status: result.gen_status || 'unknown',
+            queueInfo: result.queue_info || null,
+          },
+        });
+      } catch {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Task not found' } });
+      }
+    }
+
+    // Format queue info for display
+    let queueMessage = '';
+    if (task.queueInfo) {
+      const qi = task.queueInfo;
+      if (qi.queue_status !== 'Finish') {
+        if (qi.queue_idx > 0 && qi.queue_length > 0) {
+          queueMessage = `排队中：前方 ${qi.queue_idx - 1} / 共 ${qi.queue_length} 个任务`;
+        } else {
+          queueMessage = `生成中...`;
+        }
+      }
+    }
+
+    const completed = task.status === 'success';
+    const failed = task.status === 'fail';
+    const isPolling = task.timer !== null;
+
+    return res.json({
+      data: {
+        id: submitId,
+        status: completed ? 'completed' : (failed ? 'failed' : 'processing'),
+        polls: task.polls,
+        maxPolls: task.maxPolls,
+        isPolling,
+        queueInfo: task.queueInfo,
+        queueMessage: queueMessage || (completed ? '生成完成' : (failed ? '生成失败' : '等待中...')),
+        elapsedMinutes: Math.round(task.polls * 5),
+        estimatedMaxMinutes: task.maxPolls * 5,
+        result: task.result ? {
+          videoUrl: task.result.result_json?.videos?.[0]?.video_url || null,
+        } : null,
+      },
+    });
+  } catch (err: any) {
+    console.error('[VideoStatus Error]', err.message);
+    res.status(500).json({ error: { code: 'STATUS_FAILED', message: err.message } });
+  }
+});
+
+
 // Generate video using dreamina CLI
+// Generate video using dreamina CLI (async submit + background polling)
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   try {
     const { prompt, duration, resolution, ratio } = req.body || {};
@@ -4467,7 +4638,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
     console.log(`[VideoGen] Submitting: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
 
-    // Phase 1: Submit the generation task (no polling)
+    // Submit the generation task (no polling, submit only)
     const submitCmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=0`;
     console.log('[VideoGen] Submit:', submitCmd.slice(0, 150));
 
@@ -4488,79 +4659,32 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: 'Failed to get submit_id from Dreamina' } });
     }
 
-    console.log(`[VideoGen] Task submitted: ${submitId}, polling for result...`);
+    console.log(`[VideoGen] Task submitted: ${submitId}, starting background polling (5min x 60 = 5h)`);
 
-    // Phase 2: Poll query_result until completed (max 10 min)
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
-    let result;
-    for (let i = 0; i < 120; i++) {
-      await new Promise(r => setTimeout(r, 5000)); // wait 5s between polls
+    // Stop any existing polling for this submitId (re-submit scenario)
+    stopVideoPolling(submitId);
 
-      const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId} --download_dir=${VIDEO_DIR}`;
-      const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+    // Start background polling: 60 polls @ 5-minute interval = max 5 hours
+    videoPollingTasks.set(submitId, {
+      submitId,
+      polls: 0,
+      maxPolls: 60,
+      interval: 5 * 60 * 1000, // 5 minutes
+      timer: null,
+      status: 'querying',
+      queueInfo: null,
+      result: null,
+    });
+    startVideoPolling(submitId);
 
-      try {
-        result = JSON.parse(queryOut);
-      } catch {
-        console.log(`[VideoGen] Poll #${i + 1}: invalid JSON, retrying...`);
-        continue;
-      }
-
-      console.log(`[VideoGen] Poll #${i + 1}: gen_status=${result.gen_status}`);
-
-      if (result.gen_status === 'success') {
-        break;
-      }
-      if (result.gen_status === 'failed') {
-        console.error('[VideoGen] Generation failed:', JSON.stringify(result).slice(0, 300));
-        return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败，即梦返回 gen_status=failed' } });
-      }
-      // Otherwise "running" or "querying" — continue polling
-    }
-
-    if (result?.gen_status === 'success') {
-      // Extract local file path from query_result output
-      const videos = result.result_json?.videos || [];
-      const localPath = videos[0]?.path || '';
-      const filename = localPath ? path.basename(localPath) : '';
-
-      if (localPath && filename) {
-        const localUrl = `${FRONTEND_URL}/videos/${filename}`;
-        console.log(`[VideoGen] Completed: ${localPath} → ${localUrl}`);
-        return res.json({
-          data: {
-            id: submitId,
-            title: prompt.trim().slice(0, 30),
-            url: localUrl,
-            status: 'completed',
-          },
-        });
-      }
-
-      // Fallback: try CDN URL if no local path
-      const videoUrl = videos[0]?.video_url || '';
-      if (videoUrl) {
-        console.log(`[VideoGen] Completed (CDN fallback): ${videoUrl.slice(0, 100)}`);
-        return res.json({
-          data: {
-            id: submitId,
-            title: prompt.trim().slice(0, 30),
-            url: videoUrl,
-            status: 'completed',
-          },
-        });
-      }
-    }
-
-    // Timeout or unknown status — return processing
-    console.log(`[VideoGen] Polling timeout for ${submitId}, status: ${result?.gen_status || 'unknown'}`);
+    // Return immediately — frontend polls /api/v1/videos/status/:submitId for progress
     return res.json({
       data: {
         id: submitId,
         title: prompt.trim().slice(0, 30),
         url: '',
         status: 'processing',
-        message: '视频生成时间较长，请稍后在即梦网站查看结果',
+        message: '视频已提交即梦生成，预计最长等待5小时',
       },
     });
   } catch (err: any) {
