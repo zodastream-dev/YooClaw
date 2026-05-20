@@ -90,46 +90,7 @@ function genId(prefix = 'w'): string {
 
 // ========== Initial State ==========
 
-const initialWidgets: Widget[] = [
-  {
-    id: 'w-1', type: 'report-generator', title: '行业分析报告', expanded: false,
-    config: {
-      defaultCompany: '',
-      analysisMethods: ['SWOT', 'PEST'],
-      searchPlatform: 'metaso',
-      searchApiKey: '',
-      sysPrompt: '你是一个行业研究分析师。',
-      userPrompt: '请用 HTML 格式输出行业研究报告。',
-    },
-  },
-  {
-    id: 'w-2', type: 'intel-monitor', title: '情报监控', expanded: false,
-    config: {
-      sources: [
-        {
-          id: 's-1', name: '行业信号', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-          apiKey: '', keywords: ['行业趋势', '政策法规', '技术突破', '市场规模', '产业动态'],
-          updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。',
-        },
-        {
-          id: 's-2', name: '目标客户情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-          apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'],
-          updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。',
-        },
-        {
-          id: 's-3', name: '竞争对手情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-          apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'],
-          updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。',
-        },
-        {
-          id: 's-4', name: '自身舆情监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash',
-          apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'],
-          updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。',
-        },
-      ],
-    },
-  },
-]
+const initialWidgets: Widget[] = []
 
 // ========== KeywordInput Subcomponent ==========
 
@@ -1009,43 +970,74 @@ export function PortalBuilderPage() {
         </div>
 
         {/* ========== Quick Start Confirm Modal ========== */}
-        {showQuickStartModal && (
+                {showQuickStartModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowQuickStartModal(false)}>
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-            <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-              <div className="px-6 py-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-lg">🚀</span>
+            <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-xl mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="px-7 py-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xl shadow-lg shadow-violet-500/20">🚀</span>
                   <div>
-                    <h3 className="text-sm font-semibold">快速开始</h3>
-                    <p className="text-[11px] text-muted-foreground">将创建 1 个情报监控组件，包含 4 个预配置源</p>
+                    <h3 className="text-base font-bold">快速开始</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">一键创建情报监控组件，包含 4 个预配置情报源</p>
                   </div>
                 </div>
-                <div className="bg-muted/50 rounded-xl p-4 mb-5">
-                  <p className="text-[11px] font-semibold text-muted-foreground mb-2">预配置情报源：</p>
-                  <div className="space-y-1.5">
+
+                <div className="bg-muted/40 rounded-xl p-4 mb-4">
+                  <p className="text-xs font-semibold text-muted-foreground mb-3">📡 预配置情报源：</p>
+                  <div className="grid grid-cols-2 gap-2.5">
                     {[
-                      { name: '行业信号', desc: '追踪行业趋势、政策法规、技术突破等' },
-                      { name: '目标客户情报', desc: '监控客户需求、采购意向、招标公告等' },
-                      { name: '竞争对手情报', desc: '跟踪竞争对手市场份额、产品发布、财报等' },
-                      { name: '自身舆情监控', desc: '监控品牌声誉、媒体报道、负面舆情等' },
+                      { icon: '📊', name: '行业信号', desc: '追踪行业趋势、政策法规、技术突破等' },
+                      { icon: '🎯', name: '目标客户情报', desc: '监控客户需求、采购意向、招标公告等' },
+                      { icon: '⚔️', name: '竞争对手情报', desc: '跟踪市场份额、产品发布、财报等' },
+                      { icon: '🛡️', name: '自身舆情监控', desc: '监控品牌声誉、媒体报道、负面舆情等' },
                     ].map((s) => (
-                      <div key={s.name} className="flex items-center gap-2 text-[11px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
-                        <span className="font-medium">{s.name}</span>
-                        <span className="text-muted-foreground hidden sm:inline">— {s.desc}</span>
+                      <div key={s.name} className="flex items-start gap-2.5 bg-background/60 rounded-lg px-3 py-2.5">
+                        <span className="text-sm flex-shrink-0 mt-0.5">{s.icon}</span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold">{s.name}</div>
+                          <div className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">{s.desc}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
+
+                <div className="bg-gradient-to-br from-violet-500/5 to-purple-500/5 border border-violet-500/20 rounded-xl p-4 mb-5">
+                  <p className="text-xs font-semibold mb-3 text-violet-600 dark:text-violet-400">💡 点击「一键创建」后将：</p>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-violet-500/15 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 text-violet-600 dark:text-violet-400">1</span>
+                      <div>
+                        <p className="text-xs font-medium">自动创建情报监控组件</p>
+                        <p className="text-[10px] text-muted-foreground">包含上述 4 个情报源，已预填关键词和 AI 提示词</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-violet-500/15 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 text-violet-600 dark:text-violet-400">2</span>
+                      <div>
+                        <p className="text-xs font-medium">自动打开编辑面板</p>
+                        <p className="text-[10px] text-muted-foreground">你可以按需修改关键词、调整提示词、增删情报源</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-violet-500/15 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 text-violet-600 dark:text-violet-400">3</span>
+                      <div>
+                        <p className="text-xs font-medium">配置完成后发布门户</p>
+                        <p className="text-[10px] text-muted-foreground">保存设置后点击「生成门户」即可部署上线</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2.5">
                   <button onClick={() => setShowQuickStartModal(false)}
-                    className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+                    className="px-5 py-2.5 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
                     取消
                   </button>
                   <button onClick={handleQuickStart}
-                    className="px-5 py-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm">
-                    一键创建
+                    className="px-6 py-2.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg">
+                    🚀 一键创建
                   </button>
                 </div>
               </div>
