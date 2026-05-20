@@ -6,6 +6,7 @@ dist/
 
 # Database (local SQLite — cloud uses Supabase)
 data/
+!src/data/
 
 # Runtime cache (portal intelligence cache persisted to file)
 cache/
