@@ -1,11 +1,12 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { deployPortalWithWidgets, mpSubscribe, mpUnsubscribe, mpGetSubscriptions } from '@/lib/api'
+import { deployPortalWithWidgets, mpSubscribe, mpUnsubscribe, mpGetSubscriptions, mpQrLogin, mpCheckLogin, mpSearchByName, mpSubscribeByName } from '@/lib/api'
 import {
   ArrowLeft, Globe, ExternalLink, Copy, Loader2,
   Plus, Trash2, X,
-  Settings, LayoutGrid, GripVertical,
-  Rss, BookOpen, AlertCircle, Check
+  Settings, GripVertical,
+  Rss, BookOpen, AlertCircle, Check,
+  QrCode, UserPlus, Search, Zap
 } from 'lucide-react'
 
 // ========== Types ==========
@@ -29,6 +30,7 @@ interface WidgetConfig {
   sysPrompt?: string
   userPrompt?: string
   sources?: WidgetSource[]
+  [key: string]: unknown
 }
 
 interface Widget {
@@ -37,6 +39,15 @@ interface Widget {
   title: string
   expanded: boolean
   config: WidgetConfig
+}
+
+interface MpCandidate {
+  id: string
+  mpName: string
+  mpCover: string
+  mpIntro: string
+  updateTime: number
+  wxsLink: string
 }
 
 interface DeployResult {
@@ -175,7 +186,6 @@ export function PortalBuilderPage() {
 
   // 三栏布局新增状态
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
-  const [rightTab, setRightTab] = useState<'site' | 'widget'>('site')
 
   // ========== MP Subscription State ==========
   const [mpLink, setMpLink] = useState('')
@@ -184,6 +194,27 @@ export function PortalBuilderPage() {
   const [mpSuccess, setMpSuccess] = useState<string | null>(null)
   const [mpSubscriptions, setMpSubscriptions] = useState<{ mpId: string; mpName: string; mpCover: string }[]>([])
   const [mpLoading, setMpLoading] = useState(true)
+
+  // ========== MP Login State ==========
+  const [mpLoggedIn, setMpLoggedIn] = useState(false)
+  const [mpLoginStep, setMpLoginStep] = useState<'idle' | 'loading' | 'qr' | 'polling' | 'success' | 'error'>('idle')
+  const [mpQrUrl, setMpQrUrl] = useState('')
+  const [mpQrUuid, setMpQrUuid] = useState('')
+  const [mpLoginError, setMpLoginError] = useState('')
+  const [mpLoginUsername, setMpLoginUsername] = useState('')
+
+  // ========== MP Search State ==========
+  const [mpSubscribeTab, setMpSubscribeTab] = useState<'link' | 'name'>('link')
+  const [mpSearchName, setMpSearchName] = useState('')
+  const [mpSearching, setMpSearching] = useState(false)
+  const [mpCandidates, setMpCandidates] = useState<MpCandidate[]>([])
+
+  // ========== Edit Modal State ==========
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null)
+
+  // ========== Quick Start State ==========
+  const [showQuickStartModal, setShowQuickStartModal] = useState(false)
 
   // ========== Add Widget Modal ==========
   const [showAddModal, setShowAddModal] = useState(false)
@@ -227,7 +258,7 @@ export function PortalBuilderPage() {
     const w = widgets.find((w) => w.id === id)
     if (!w || !window.confirm(`确定删除「${w.title}」？此操作不可撤销。`)) return
     setWidgets((prev) => prev.filter((w) => w.id !== id))
-    if (selectedWidgetId === id) { setSelectedWidgetId(null); setRightTab('site') }
+    if (selectedWidgetId === id) { setSelectedWidgetId(null); setEditingWidgetId(null); setShowEditModal(false) }
   }, [widgets, selectedWidgetId])
 
   const updateWidget = useCallback((id: string, updater: (w: Widget) => Widget) => {
@@ -244,10 +275,9 @@ export function PortalBuilderPage() {
 
   const handleWidgetClick = useCallback((id: string) => {
     setSelectedWidgetId(id)
-    setRightTab('widget')
+    setEditingWidgetId(id)
+    setShowEditModal(true)
   }, [])
-
-  const selectedWidget = useMemo(() => widgets.find((w) => w.id === selectedWidgetId) || null, [widgets, selectedWidgetId])
 
   // ========== Source Operations ==========
   const addMonitorSource = useCallback((widgetId: string) => {
@@ -364,6 +394,104 @@ export function PortalBuilderPage() {
     } finally { setMpSubscribing(false) }
   }
 
+  // ========== MP Login ==========
+  const handleMpLogin = async () => {
+    setMpLoginStep('loading')
+    setMpLoginError('')
+    try {
+      const data = await mpQrLogin() as { data: { uuid: string; scanUrl: string } }
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.data.scanUrl)}`
+      setMpQrUrl(qrUrl)
+      setMpQrUuid(data.data.uuid)
+      setMpLoginStep('qr')
+    } catch (e: any) {
+      setMpLoginError(e.message)
+      setMpLoginStep('error')
+    }
+  }
+
+  const handleMpStartPolling = useCallback(() => {
+    if (!mpQrUuid) return
+    setMpLoginStep('polling')
+    const poll = async () => {
+      try {
+        const res = await mpCheckLogin(mpQrUuid) as { data: { status: string; username?: string; message?: string } }
+        if (res.data.status === 'logged_in') {
+          setMpLoginUsername(res.data.username || 'WeRead User')
+          setMpLoginStep('success')
+          setMpLoggedIn(true)
+        } else if (res.data.status === 'timeout') {
+          setMpLoginError('登录超时，请重新获取二维码')
+          setMpLoginStep('error')
+        } else {
+          setTimeout(poll, 2000)
+        }
+      } catch (e: any) {
+        setMpLoginError(e.message)
+        setMpLoginStep('error')
+      }
+    }
+    setTimeout(poll, 1000)
+  }, [mpQrUuid])
+
+  // ========== MP Search ==========
+  const handleMpSearch = async () => {
+    if (!mpSearchName.trim()) return
+    setMpSearching(true)
+    setMpError(null)
+    setMpCandidates([])
+    try {
+      const res = await mpSearchByName(mpSearchName.trim()) as { data: { candidates: MpCandidate[] } }
+      setMpCandidates(res.data.candidates || [])
+      if (!res.data.candidates?.length) {
+        setMpError('未找到相关公众号，请尝试其他关键词')
+      }
+    } catch (e: any) {
+      setMpError(e.message)
+    } finally {
+      setMpSearching(false)
+    }
+  }
+
+  const handleMpSubscribeByName = async (c: MpCandidate) => {
+    setMpError(null)
+    setMpSuccess(null)
+    try {
+      const res = await mpSubscribeByName({
+        id: c.id, mpName: c.mpName, mpCover: c.mpCover, mpIntro: c.mpIntro, updateTime: c.updateTime,
+      }) as { data: { mpId: string; mpName: string } }
+      setMpSuccess(`已订阅「${res.data.mpName}」`)
+      setMpSubscriptions((prev) => [...prev, { mpId: res.data.mpId, mpName: res.data.mpName, mpCover: c.mpCover }])
+      setMpCandidates((prev) => prev.filter((x) => x.id !== c.id))
+    } catch (e: any) {
+      setMpError(e.message)
+    }
+  }
+
+  // ========== Quick Start ==========
+  const handleQuickStart = useCallback(() => {
+    const id = genId()
+    const newWidget: Widget = {
+      id, type: 'intel-monitor', title: '情报监控', expanded: false,
+      config: {
+        sources: [
+          { id: genId('s'), name: '行业信号', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['行业趋势', '政策法规', '技术突破', '市场规模', '产业动态'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
+          { id: genId('s'), name: '目标客户情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'], updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。' },
+          { id: genId('s'), name: '竞争对手情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'], updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。' },
+          { id: genId('s'), name: '自身舆情监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'], updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。' },
+        ],
+      },
+    }
+    setWidgets((prev) => [...prev, newWidget])
+    setShowQuickStartModal(false)
+    setSelectedWidgetId(id)
+    setEditingWidgetId(id)
+    setShowEditModal(true)
+  }, [])
+
+  // ========== Edit Widget ==========
+  const editingWidget = useMemo(() => widgets.find((w) => w.id === editingWidgetId) || null, [widgets, editingWidgetId])
+
   const handleMpUnsubscribe = async (mpId: string) => {
     try {
       await mpUnsubscribe(mpId)
@@ -415,6 +543,18 @@ export function PortalBuilderPage() {
 
           {/* ========== LEFT: Component Library + Widget List ========== */}
           <aside className="w-[280px] flex-shrink-0 flex flex-col border-r border-border bg-card overflow-hidden">
+
+            {/* Quick Start */}
+            <div className="flex-shrink-0 p-4 pb-0">
+              <button onClick={() => setShowQuickStartModal(true)}
+                className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white transition-all group">
+                <span className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-base group-hover:scale-110 transition-transform">🚀</span>
+                <div className="text-left">
+                  <div className="text-xs font-bold">快速开始</div>
+                  <div className="text-[10px] opacity-80">一键创建 4 个情报监控源</div>
+                </div>
+              </button>
+            </div>
 
             {/* Component Library */}
             <div className="flex-shrink-0 p-4 border-b border-border">
@@ -485,41 +625,143 @@ export function PortalBuilderPage() {
             </div>
 
             {/* MP Subscription Section */}
-            <div className="flex-shrink-0 border-t border-border p-4">
+            <div className="flex-shrink-0 border-t border-border p-4 overflow-y-auto">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">📡 公众号源</p>
 
-              {/* Subscribe Form */}
-              <form onSubmit={handleMpSubscribe} className="flex gap-1.5 mb-3">
-                <input
-                  type="url"
-                  value={mpLink}
-                  onChange={(e) => setMpLink(e.target.value)}
-                  placeholder="粘贴文章链接…"
-                  className="flex-1 px-2.5 py-1.5 bg-background border border-dashed border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all"
-                  disabled={mpSubscribing}
-                />
-                <button
-                  type="submit"
-                  disabled={mpSubscribing || !mpLink.trim()}
-                  className="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
-                >
-                  {mpSubscribing ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
-                  订阅
-                </button>
-              </form>
+              {/* Login Section */}
+              {!mpLoggedIn && mpLoginStep !== 'success' && (
+                <div className="border border-border rounded-xl p-3 bg-background/50 mb-3">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <UserPlus size={14} className="text-violet-500" />
+                    <span className="text-[11px] font-semibold">绑定微信读书</span>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground mb-3 leading-relaxed">绑定后可使用链接或搜索两种方式订阅公众号</p>
 
-              {/* Status Messages */}
-              {mpError && (
-                <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/20 text-red-600 dark:text-red-400 text-[10px]">
-                  <AlertCircle size={12} className="flex-shrink-0" />
-                  {mpError}
+                  {mpLoginStep === 'loading' ? (
+                    <div className="flex items-center justify-center gap-1.5 py-4 text-muted-foreground">
+                      <Loader2 size={12} className="animate-spin" /> <span className="text-[10px]">生成二维码...</span>
+                    </div>
+                  ) : (mpLoginStep === 'qr' || mpLoginStep === 'polling') ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="relative">
+                        <img src={mpQrUrl} alt="QR" className="w-[120px] h-[120px] rounded-lg border border-border bg-white" />
+                        {mpLoginStep === 'polling' && (
+                          <div className="absolute inset-0 bg-background/80 rounded-lg flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <Loader2 size={16} className="animate-spin text-violet-500" />
+                              <span className="text-[9px] text-muted-foreground">等待扫码...</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-muted-foreground text-center">请用微信读书 APP 扫码</p>
+                      <div className="flex gap-1.5">
+                        <button onClick={handleMpStartPolling} disabled={mpLoginStep === 'polling'}
+                          className="px-3 py-1.5 text-[10px] rounded-lg bg-violet-600 text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
+                          {mpLoginStep === 'polling' ? '等待中...' : '已扫码，检测'}
+                        </button>
+                        <button onClick={() => { setMpLoginStep('idle'); setMpQrUrl(''); setMpQrUuid('') }}
+                          className="px-3 py-1.5 text-[10px] rounded-lg border border-border hover:bg-muted transition-colors">
+                          重新获取
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={handleMpLogin}
+                      className="w-full py-2 rounded-lg bg-gradient-to-r from-violet-500 to-purple-500 text-white text-[11px] font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5">
+                      <QrCode size={12} /> 获取二维码登录
+                    </button>
+                  )}
+
+                  {mpLoginError && (
+                    <div className="flex items-center gap-1 mt-2 p-1.5 rounded bg-red-50 dark:bg-red-950/20 text-red-600 text-[9px]">
+                      <AlertCircle size={10} className="flex-shrink-0" /> {mpLoginError}
+                    </div>
+                  )}
                 </div>
               )}
-              {mpSuccess && (
-                <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/20 text-emerald-600 dark:text-emerald-400 text-[10px]">
-                  <Check size={12} className="flex-shrink-0" />
-                  {mpSuccess}
-                </div>
+
+              {/* Logged In: Tab + Subscribe */}
+              {(mpLoggedIn || mpLoginStep === 'success') && (
+                <>
+                  {/* Tab Switch */}
+                  <div className="flex rounded-lg border border-border bg-muted/50 p-0.5 mb-3">
+                    <button onClick={() => { setMpSubscribeTab('link'); setMpError(null); setMpSuccess(null) }}
+                      className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all ${mpSubscribeTab === 'link' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}>
+                      📎 链接
+                    </button>
+                    <button onClick={() => { setMpSubscribeTab('name'); setMpError(null); setMpCandidates([]) }}
+                      className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all ${mpSubscribeTab === 'name' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}>
+                      🔍 名称
+                    </button>
+                  </div>
+
+                  {/* Link Subscribe */}
+                  {mpSubscribeTab === 'link' && (
+                    <form onSubmit={handleMpSubscribe} className="flex gap-1.5 mb-3">
+                      <input type="url" value={mpLink} onChange={(e) => setMpLink(e.target.value)}
+                        placeholder="粘贴文章链接…"
+                        className="flex-1 px-2.5 py-1.5 bg-background border border-dashed border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all"
+                        disabled={mpSubscribing} />
+                      <button type="submit" disabled={mpSubscribing || !mpLink.trim()}
+                        className="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-[10px] font-semibold transition-colors flex items-center gap-1">
+                        {mpSubscribing ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                        订阅
+                      </button>
+                    </form>
+                  )}
+
+                  {/* Name Search */}
+                  {mpSubscribeTab === 'name' && (
+                    <div className="mb-3">
+                      <div className="flex gap-1.5 mb-2">
+                        <input type="text" value={mpSearchName} onChange={(e) => setMpSearchName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleMpSearch() }}
+                          placeholder="输入公众号名称..."
+                          className="flex-1 px-2.5 py-1.5 bg-background border border-dashed border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all"
+                          disabled={mpSearching} />
+                        <button onClick={handleMpSearch} disabled={mpSearching || !mpSearchName.trim()}
+                          className="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-[10px] font-semibold transition-colors flex items-center gap-1">
+                          {mpSearching ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}
+                          搜索
+                        </button>
+                      </div>
+                      {/* Search Results */}
+                      {mpCandidates.length > 0 && (
+                        <div className="space-y-1 max-h-[150px] overflow-y-auto mb-2">
+                          {mpCandidates.map((c) => (
+                            <div key={c.id} className="flex items-center gap-2 p-1.5 rounded-lg border border-border bg-background/50">
+                              <div className="w-7 h-7 rounded-md bg-gradient-to-br from-violet-400/20 to-violet-600/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                {c.mpCover ? <img src={c.mpCover} alt={c.mpName} className="w-full h-full object-cover" />
+                                : <BookOpen size={11} className="text-violet-500" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-medium truncate">{c.mpName}</div>
+                                <div className="text-[8px] text-muted-foreground truncate">{c.mpIntro}</div>
+                              </div>
+                              <button onClick={() => handleMpSubscribeByName(c)}
+                                className="px-2 py-1 text-[9px] rounded bg-violet-100 dark:bg-violet-900/20 text-violet-600 hover:bg-violet-200 transition-colors flex-shrink-0">
+                                订阅
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Status Messages */}
+                  {mpError && (
+                    <div className="flex items-center gap-1.5 mb-2 p-1.5 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/20 text-red-600 dark:text-red-400 text-[9px]">
+                      <AlertCircle size={10} className="flex-shrink-0" /> {mpError}
+                    </div>
+                  )}
+                  {mpSuccess && (
+                    <div className="flex items-center gap-1.5 mb-2 p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/20 text-emerald-600 dark:text-emerald-400 text-[9px]">
+                      <Check size={10} className="flex-shrink-0" /> {mpSuccess}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Subscription List */}
@@ -529,27 +771,22 @@ export function PortalBuilderPage() {
                   <span className="text-[10px]">加载订阅…</span>
                 </div>
               ) : mpSubscriptions.length === 0 ? (
-                <div className="text-center py-3">
-                  <Rss size={20} className="mx-auto text-muted-foreground/30 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">暂无公众号订阅</p>
+                <div className="text-center py-2">
+                  <Rss size={16} className="mx-auto text-muted-foreground/30 mb-1" />
+                  <p className="text-[9px] text-muted-foreground">暂无公众号订阅</p>
                 </div>
               ) : (
-                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                <div className="space-y-1 max-h-[150px] overflow-y-auto">
                   {mpSubscriptions.map((sub) => (
                     <div key={sub.mpId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors group">
                       <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-400/20 to-violet-600/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {sub.mpCover ? (
-                          <img src={sub.mpCover} alt={sub.mpName} className="w-full h-full object-cover" />
-                        ) : (
-                          <BookOpen size={11} className="text-violet-500" />
-                        )}
+                        {sub.mpCover ? <img src={sub.mpCover} alt={sub.mpName} className="w-full h-full object-cover" />
+                        : <BookOpen size={11} className="text-violet-500" />}
                       </div>
                       <span className="flex-1 text-[10px] font-medium truncate">{sub.mpName}</span>
-                      <button
-                        onClick={() => handleMpUnsubscribe(sub.mpId)}
+                      <button onClick={() => handleMpUnsubscribe(sub.mpId)}
                         className="p-0.5 rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all"
-                        title="取消订阅"
-                      >
+                        title="取消订阅">
                         <Trash2 size={11} />
                       </button>
                     </div>
@@ -716,188 +953,252 @@ export function PortalBuilderPage() {
           {/* ========== RIGHT: Configuration Panel ========== */}
           <aside className="w-[300px] flex-shrink-0 flex flex-col border-l border-border bg-card overflow-hidden">
 
-            {/* Tab Bar */}
-            <div className="flex-shrink-0 flex border-b border-border">
-              <button onClick={() => setRightTab('site')}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-semibold border-b-2 transition-colors ${rightTab === 'site' ? 'border-violet-500 text-violet-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                <Settings size={13} /> 站点配置
-              </button>
-              <button onClick={() => setRightTab('widget')}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-semibold border-b-2 transition-colors ${rightTab === 'widget' ? 'border-violet-500 text-violet-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                <LayoutGrid size={13} /> 组件属性
-              </button>
+            {/* Header */}
+            <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-border">
+              <Settings size={13} className="text-violet-500" />
+              <span className="text-xs font-semibold">站点配置</span>
             </div>
 
-            {/* Tab Content */}
+            {/* Content */}
             <div className="flex-1 overflow-y-auto p-4">
-
-              {/* ===== SITE CONFIG TAB ===== */}
-              {rightTab === 'site' && (
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">网站标题</label>
-                    <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
-                      placeholder="情报分析门户"
-                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">网站描述</label>
-                    <textarea value={siteDesc} onChange={(e) => setSiteDesc(e.target.value)} rows={2}
-                      placeholder="描述你的门户…"
-                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">自定义域名 <span className="text-[9px] text-muted-foreground font-normal">(选填)</span></label>
-                    <input type="text" value={customDomain} onChange={(e) => setCustomDomain(e.target.value)}
-                      placeholder="如：portal.example.com"
-                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-2">主题色</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {TEMPLATES.map((t) => (
-                        <button key={t.id} onClick={() => setSelectedTheme(t.id)}
-                          className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${selectedTheme === t.id ? 'border-violet-500' : 'border-border hover:border-muted-foreground/40'}`}>
-                          <div className="w-8 h-8 rounded-full border border-black/10" style={{ background: t.preview }} />
-                          <span className="text-[10px] font-medium">{t.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <button onClick={handleDeploy} disabled={isDeploying}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors">
-                    {isDeploying ? <><Loader2 size={13} className="animate-spin" /> 部署中…</> : <><Globe size={13} /> 一键部署</>}
-                  </button>
-                  {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">{error}</p>}
-                  {deploySuccess && (
-                    <div className="flex items-center justify-between gap-2 text-xs bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg px-3 py-2">
-                      <span>✅ 门户已成功部署！</span>
-                      <a href={deploySuccess.url} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:opacity-80">查看</a>
-                    </div>
-                  )}
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">网站标题</label>
+                  <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
+                    placeholder="情报分析门户"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
                 </div>
-              )}
-
-              {/* ===== WIDGET CONFIG TAB ===== */}
-              {rightTab === 'widget' && (
-                !selectedWidget ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <LayoutGrid size={32} className="mx-auto mb-3 opacity-20" />
-                    <p className="text-xs">从左侧选择一个组件</p>
-                    <p className="text-[11px] mt-1 opacity-60">点击组件列表中的任意项进行配置</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Widget header */}
-                    <div className="flex items-center gap-2 pb-3 border-b border-border">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${selectedWidget.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
-                        {selectedWidget.type === 'report-generator' ? '📊' : '🛰️'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold truncate">{selectedWidget.title}</div>
-                        <div className="text-[10px] text-muted-foreground">{selectedWidget.type === 'report-generator' ? '报告生成器' : '情报监控源'}</div>
-                      </div>
-                      <button onClick={() => deleteWidget(selectedWidget.id)}
-                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
-                        <Trash2 size={14} />
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">网站描述</label>
+                  <textarea value={siteDesc} onChange={(e) => setSiteDesc(e.target.value)} rows={2}
+                    placeholder="描述你的门户…"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">自定义域名 <span className="text-[9px] text-muted-foreground font-normal">(选填)</span></label>
+                  <input type="text" value={customDomain} onChange={(e) => setCustomDomain(e.target.value)}
+                    placeholder="如：portal.example.com"
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-2">主题色</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {TEMPLATES.map((t) => (
+                      <button key={t.id} onClick={() => setSelectedTheme(t.id)}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${selectedTheme === t.id ? 'border-violet-500' : 'border-border hover:border-muted-foreground/40'}`}>
+                        <div className="w-8 h-8 rounded-full border border-black/10" style={{ background: t.preview }} />
+                        <span className="text-[10px] font-medium">{t.name}</span>
                       </button>
-                    </div>
-
-                    {/* Widget Title */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">组件标题</label>
-                      <input type="text" value={selectedWidget.title}
-                        onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, title: e.target.value }))}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
-                    </div>
-
-                    {/* Report Generator Config */}
-                    {selectedWidget.type === 'report-generator' && (
-                      <>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">默认分析标的</label>
-                          <input type="text" value={selectedWidget.config.defaultCompany || ''}
-                            onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, config: { ...w.config, defaultCompany: e.target.value } }))}
-                            placeholder="如：阳光电源"
-                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">分析框架</label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {ANALYSIS_METHODS.map((m) => (
-                              <button key={m}
-                                onClick={() => toggleMethod(selectedWidget.id, m)}
-                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${(selectedWidget.config.analysisMethods || []).includes(m) ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-background border-border text-muted-foreground hover:border-indigo-300'}`}>{m}</button>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">搜索平台</label>
-                          <select value={selectedWidget.config.searchPlatform || ''}
-                            onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, config: { ...w.config, searchPlatform: e.target.value } }))}
-                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all">
-                            {SEARCH_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1.5">系统提示词</label>
-                          <textarea value={selectedWidget.config.sysPrompt || ''}
-                            onChange={(e) => updateWidget(selectedWidget.id, (w) => ({ ...w, config: { ...w.config, sysPrompt: e.target.value } }))}
-                            rows={3} placeholder="AI 系统指令…"
-                            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Intel Monitor Config */}
-                    {selectedWidget.type === 'intel-monitor' && (
-                      <div className="space-y-4">
-                        {(selectedWidget.config.sources || []).map((s) => (
-                          <div key={s.id} className="rounded-xl border border-border p-3 space-y-3 bg-background/50">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-semibold text-muted-foreground">{s.name}</span>
-                              <button onClick={() => deleteMonitorSource(selectedWidget.id, s.id)}
-                                className="text-[10px] text-red-500 hover:text-red-600">删除</button>
-                            </div>
-                            <input type="text" value={s.name}
-                              onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'name', e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all" />
-                            <div className="grid grid-cols-2 gap-2">
-                              <select value={s.aiProvider}
-                                onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'aiProvider', e.target.value)}
-                                className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all">
-                                {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                              </select>
-                              <input type="text" value={s.aiModel}
-                                onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'aiModel', e.target.value)}
-                                placeholder="模型"
-                                className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all" />
-                            </div>
-                            <KeywordInput
-                              keywords={s.keywords} sourceId={s.id} widgetId={selectedWidget.id}
-                              onAdd={addKeyword} onRemove={removeKeyword} />
-                            <select value={s.updateFrequency}
-                              onChange={(e) => updateSourceField(selectedWidget.id, s.id, 'updateFrequency', e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-[11px] outline-none focus:border-violet-400 transition-all">
-                              <option value="hourly">每小时</option>
-                              <option value="daily">每天</option>
-                              <option value="weekly">每周</option>
-                              <option value="monthly">每月</option>
-                            </select>
-                          </div>
-                        ))}
-                        <button onClick={() => addMonitorSource(selectedWidget.id)}
-                          className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-border rounded-xl text-[11px] text-muted-foreground hover:border-violet-400 hover:text-violet-600 transition-all">
-                          <Plus size={12} /> 添加监控源
-                        </button>
-                      </div>
-                    )}
+                    ))}
                   </div>
-                )
-              )}
+                </div>
+                <button onClick={handleDeploy} disabled={isDeploying}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors">
+                  {isDeploying ? <><Loader2 size={13} className="animate-spin" /> 部署中…</> : <><Globe size={13} /> 一键部署</>}
+                </button>
+                {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">{error}</p>}
+                {deploySuccess && (
+                  <div className="flex items-center justify-between gap-2 text-xs bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg px-3 py-2">
+                    <span>✅ 门户已成功部署！</span>
+                    <a href={deploySuccess.url} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:opacity-80">查看</a>
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
         </div>
+
+        {/* ========== Quick Start Confirm Modal ========== */}
+        {showQuickStartModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowQuickStartModal(false)}>
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-lg">🚀</span>
+                  <div>
+                    <h3 className="text-sm font-semibold">快速开始</h3>
+                    <p className="text-[11px] text-muted-foreground">将创建 1 个情报监控组件，包含 4 个预配置源</p>
+                  </div>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-4 mb-5">
+                  <p className="text-[11px] font-semibold text-muted-foreground mb-2">预配置情报源：</p>
+                  <div className="space-y-1.5">
+                    {[
+                      { name: '行业信号', desc: '追踪行业趋势、政策法规、技术突破等' },
+                      { name: '目标客户情报', desc: '监控客户需求、采购意向、招标公告等' },
+                      { name: '竞争对手情报', desc: '跟踪竞争对手市场份额、产品发布、财报等' },
+                      { name: '自身舆情监控', desc: '监控品牌声誉、媒体报道、负面舆情等' },
+                    ].map((s) => (
+                      <div key={s.name} className="flex items-center gap-2 text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-muted-foreground hidden sm:inline">— {s.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2.5">
+                  <button onClick={() => setShowQuickStartModal(false)}
+                    className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+                    取消
+                  </button>
+                  <button onClick={handleQuickStart}
+                    className="px-5 py-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm">
+                    一键创建
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========== Edit Widget Modal ========== */}
+        {showEditModal && editingWidget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEditModal(false); setEditingWidgetId(null) }}>
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <div className="relative bg-card border border-border rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto w-full mx-4 max-w-2xl"
+              onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl">
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${editingWidget.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
+                    {editingWidget.type === 'report-generator' ? '📊' : '🛰️'}
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold">编辑「{editingWidget.title}」</h3>
+                    <p className="text-[11px] text-muted-foreground">{editingWidget.type === 'report-generator' ? '报告生成器' : '情报监控源'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => deleteWidget(editingWidget.id)}
+                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors" title="删除组件">
+                    <Trash2 size={16} />
+                  </button>
+                  <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null) }}
+                    className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-4">
+                {/* Widget Title */}
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">组件标题</label>
+                  <input type="text" value={editingWidget.title}
+                    onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, title: e.target.value }))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                </div>
+
+                {/* Report Generator Config */}
+                {editingWidget.type === 'report-generator' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">默认分析标的</label>
+                      <input type="text" value={editingWidget.config.defaultCompany || ''}
+                        onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, defaultCompany: e.target.value } }))}
+                        placeholder="如：阳光电源"
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">分析框架</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ANALYSIS_METHODS.map((m) => (
+                          <button key={m}
+                            onClick={() => toggleMethod(editingWidget.id, m)}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${(editingWidget.config.analysisMethods || []).includes(m) ? 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-background border-border text-muted-foreground hover:border-indigo-300'}`}>{m}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">搜索平台</label>
+                      <select value={editingWidget.config.searchPlatform || ''}
+                        onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, searchPlatform: e.target.value } }))}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                        {SEARCH_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
+                      <textarea value={editingWidget.config.sysPrompt || ''}
+                        onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, sysPrompt: e.target.value } }))}
+                        rows={3} placeholder="AI 系统指令…"
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">用户提示词</label>
+                      <textarea value={editingWidget.config.userPrompt || ''}
+                        onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, userPrompt: e.target.value } }))}
+                        rows={3} placeholder="用户指令…"
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                    </div>
+                  </>
+                )}
+
+                {/* Intel Monitor Config */}
+                {editingWidget.type === 'intel-monitor' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {(editingWidget.config.sources || []).map((s) => (
+                        <div key={s.id} className="col-span-2 rounded-xl border border-border p-3 space-y-2.5 bg-background/50">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-muted-foreground">{s.name}</span>
+                            <button onClick={() => deleteMonitorSource(editingWidget.id, s.id)}
+                              className="text-[10px] text-red-500 hover:text-red-600">删除</button>
+                          </div>
+                          <input type="text" value={s.name}
+                            onChange={(e) => updateSourceField(editingWidget.id, s.id, 'name', e.target.value)}
+                            placeholder="监控源名称"
+                            className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <select value={s.aiProvider}
+                              onChange={(e) => updateSourceField(editingWidget.id, s.id, 'aiProvider', e.target.value)}
+                              className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all">
+                              {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                            </select>
+                            <input type="text" value={s.aiModel}
+                              onChange={(e) => updateSourceField(editingWidget.id, s.id, 'aiModel', e.target.value)}
+                              placeholder="模型"
+                              className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+                          </div>
+                          <KeywordInput
+                            keywords={s.keywords} sourceId={s.id} widgetId={editingWidget.id}
+                            onAdd={addKeyword} onRemove={removeKeyword} />
+                          <select value={s.updateFrequency}
+                            onChange={(e) => updateSourceField(editingWidget.id, s.id, 'updateFrequency', e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all">
+                            <option value="hourly">每小时</option>
+                            <option value="daily">每天</option>
+                            <option value="weekly">每周</option>
+                            <option value="monthly">每月</option>
+                          </select>
+                          <textarea value={s.customPrompt}
+                            onChange={(e) => updateSourceField(editingWidget.id, s.id, 'customPrompt', e.target.value)}
+                            rows={2} placeholder="自定义提示词…"
+                            className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => addMonitorSource(editingWidget.id)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-border rounded-xl text-xs text-muted-foreground hover:border-violet-400 hover:text-violet-600 transition-all">
+                      <Plus size={13} /> 添加监控源
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="sticky bottom-0 flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-card/95 backdrop-blur-sm rounded-b-2xl">
+                <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null) }}
+                  className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+                  关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ========== Add Widget Modal ========== */}
         {showAddModal && (

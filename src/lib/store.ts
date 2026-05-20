@@ -77,8 +77,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   fetchUserInfo: async () => {
     try {
       const res = await getMe()
-      if (res.data?.user) {
-        set({ user: res.data.user })
+      if (res.data) {
+        set({ user: res.data })
       }
     } catch {
       // Token might be invalid

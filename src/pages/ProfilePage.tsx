@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/lib/store'
+import { useAuthStore, useChatStore } from '@/lib/store'
 import { changePassword } from '@/lib/api'
 import { LayoutDashboard, User, HardDrive, Shield, KeyRound, Loader2, Check, X, LogOut } from 'lucide-react'
 import { formatBytes } from '@/lib/constants'
 
 export function ProfilePage() {
   const navigate = useNavigate()
-  const { user, storageInfo, clearToken, clearMessages, fetchStorage } = useAuthStore()
+  const { user, storageInfo, clearToken, fetchStorage } = useAuthStore()
+  const { clearMessages } = useChatStore()
 
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
