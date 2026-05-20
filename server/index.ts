@@ -4066,6 +4066,19 @@ if (!fs.existsSync(VIDEO_DIR)) {
 }
 
 
+// In-memory video task store (survives across requests, reset on server restart)
+interface VideoTask {
+  submitId: string;
+  status: 'processing' | 'completed' | 'failed';
+  prompt: string;
+  startTime: number;
+  polls: number;
+  videoUrl: string | null;
+  isImageMode: boolean;
+  tempImagePath: string; // for cleanup
+}
+const videoTasks = new Map<string, VideoTask>();
+
 // Check login status — admin token always active, no OAuth needed
 app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
   try {
@@ -4077,6 +4090,7 @@ app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
 });
 
 // Generate video using dreamina CLI (supports text-to-video and image-to-video)
+// Two-phase: Phase 1 submits with --poll=0, Phase 2 polls query_result in background
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   try {
     const { prompt, duration, resolution, ratio, image, inputType } = req.body || {};
@@ -4106,97 +4120,172 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     const reso = resolution || '720p';
     const rat = ratio || '16:9';
 
-    let cmd: string;
-
+    // Phase 1: Submit task (no polling — return immediately)
+    let submitCmd: string;
     if (isImageMode) {
-      console.log(`[VideoGen] Image-to-video: "${prompt.slice(0, 80)}..." (${dur}s, ${reso})`);
-      cmd = `${DREAMINA_BIN} image2video --image="${tempImagePath}" --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --video_resolution=${reso} --poll=300`;
+      console.log(`[VideoGen] Image-to-video submit: "${prompt.slice(0, 80)}..." (${dur}s, ${reso})`);
+      submitCmd = `${DREAMINA_BIN} image2video --image="${tempImagePath}" --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --video_resolution=${reso} --poll=0`;
     } else {
-      console.log(`[VideoGen] Text-to-video: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
-      cmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=300`;
+      console.log(`[VideoGen] Text-to-video submit: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
+      submitCmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=0`;
     }
 
-    console.log('[VideoGen] Running:', cmd.slice(0, 150));
-    
-    const { stdout } = await execAsync(cmd + ' 2>&1', { timeout: 360000, maxBuffer: 10 * 1024 * 1024, cwd: '/tmp' });
+    console.log('[VideoGen] Submit:', submitCmd.slice(0, 150));
+    const { stdout: submitOut } = await execAsync(submitCmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+    console.log('[VideoGen] Submit response:', submitOut.slice(0, 300));
 
-    // Cleanup temp image file
-    if (tempImagePath) {
-      try { fs.unlinkSync(tempImagePath); } catch {}
-    }
-
-    console.log('[VideoGen] Output:', stdout.slice(0, 500));
-
-    // Parse video output - look for video URL
-    let videoUrl = '';
+    // Extract submit_id
     let submitId = '';
-    
-    // Try JSON parsing first
-    const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+    const jsonMatch = submitOut.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
-        videoUrl = parsed.video_url || parsed.url || '';
-        submitId = parsed.submit_id || parsed.id || '';
+        submitId = parsed.submit_id || '';
       } catch {}
     }
-    
-    // Try URL patterns
-    if (!videoUrl) {
-      const urlMatch = stdout.match(/https?:\/\/[^\s"']+\.(mp4|mov|webm)[^\s"']*/i);
-      if (urlMatch) videoUrl = urlMatch[0];
+    if (!submitId) {
+      // Cleanup temp image
+      if (tempImagePath) { try { fs.unlinkSync(tempImagePath); } catch {} }
+      return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: 'Failed to get submit_id from Dreamina. Response: ' + submitOut.slice(0, 200) } });
     }
-    
-    if (videoUrl) {
-      const videoId = submitId || crypto.randomUUID();
-      const extMatch = videoUrl.match(/\.(mp4|webm|mov)/i);
-      const ext = extMatch ? extMatch[1] : 'mp4';
-      const localFilename = `${videoId}.${ext}`;
-      const localPath = path.join(VIDEO_DIR, localFilename);
-      
-      // Download video from Jimeng CDN to local server
-      let localUrl = videoUrl; // fallback to Jimeng URL
-      try {
-        console.log(`[VideoGen] Downloading video from Jimeng CDN...`);
-        const downloadRes = await fetch(videoUrl);
-        if (downloadRes.ok) {
-          const buffer = Buffer.from(await downloadRes.arrayBuffer());
-          fs.writeFileSync(localPath, buffer);
-          const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
-          console.log(`[VideoGen] Downloaded: ${localFilename} (${fileSizeMB} MB)`);
-          localUrl = `${process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com'}/videos/${localFilename}`;
-        } else {
-          console.error(`[VideoGen] Download failed: HTTP ${downloadRes.status}`);
+
+    // Store task in memory
+    const task: VideoTask = {
+      submitId,
+      status: 'processing',
+      prompt: prompt.trim(),
+      startTime: Date.now(),
+      polls: 0,
+      videoUrl: null,
+      isImageMode,
+      tempImagePath,
+    };
+    videoTasks.set(submitId, task);
+
+    // Return immediately to frontend
+    res.json({
+      data: {
+        id: submitId,
+        title: prompt.trim().slice(0, 30),
+        status: 'processing',
+      },
+    });
+
+    // Phase 2: Background polling loop (max 120 polls x 5s = 10 min)
+    console.log(`[VideoGen] Task ${submitId} submitted, starting background poll...`);
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
+    const MAX_POLLS = 120;
+
+    (async () => {
+      for (let i = 0; i < MAX_POLLS; i++) {
+        await new Promise(r => setTimeout(r, 5000)); // 5s between polls
+
+        try {
+          const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId} --download_dir=${VIDEO_DIR}`;
+          const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+
+          let result: any;
+          try { result = JSON.parse(queryOut); } catch { continue; }
+
+          const t = videoTasks.get(submitId);
+          if (!t) return; // task was cleaned up
+
+          t.polls = i + 1;
+          console.log(`[VideoGen] Poll #${i + 1}/${MAX_POLLS}: gen_status=${result.gen_status}`);
+
+          if (result.gen_status === 'success') {
+            const videos = result.result_json?.videos || [];
+            const localPath = videos[0]?.path || '';
+            const cdnUrl = videos[0]?.video_url || '';
+            const filename = localPath ? path.basename(localPath) : '';
+
+            if (localPath && filename) {
+              t.videoUrl = `${FRONTEND_URL}/videos/${filename}`;
+              console.log(`[VideoGen] Completed: ${localPath} → ${t.videoUrl}`);
+            } else if (cdnUrl) {
+              t.videoUrl = cdnUrl;
+              console.log(`[VideoGen] Completed (CDN fallback): ${cdnUrl.slice(0, 100)}`);
+            } else {
+              t.videoUrl = '';
+              console.warn(`[VideoGen] No video URL in success response`);
+            }
+            t.status = 'completed';
+            // Cleanup temp image
+            if (t.tempImagePath) { try { fs.unlinkSync(t.tempImagePath); } catch {} }
+            return;
+          }
+
+          if (result.gen_status === 'failed') {
+            console.error('[VideoGen] Generation failed:', JSON.stringify(result).slice(0, 300));
+            t.status = 'failed';
+            if (t.tempImagePath) { try { fs.unlinkSync(t.tempImagePath); } catch {} }
+            return;
+          }
+          // "running" or "querying" — continue polling
+        } catch (pollErr: any) {
+          console.error(`[VideoGen] Poll #${i + 1} error:`, pollErr.message);
         }
-      } catch (downloadErr: any) {
-        console.error('[VideoGen] Download error:', downloadErr.message);
-        // Fall through — use Jimeng URL as fallback
       }
-      
-      res.json({
-        data: {
-          id: videoId,
-          title: prompt.trim().slice(0, 30),
-          url: localUrl,
-          status: 'completed',
-        },
-      });
-    } else {
-      // Return the raw output as info
-      res.json({
-        data: {
-          id: crypto.randomUUID(),
-          title: prompt.trim().slice(0, 30),
-          url: '',
-          status: 'processing',
-          message: '视频已提交即梦生成，请稍后查看: ' + stdout.slice(0, 200),
-        },
-      });
-    }
+
+      // Timeout — mark as failed
+      const t = videoTasks.get(submitId);
+      if (t && t.status === 'processing') {
+        t.status = 'failed';
+        if (t.tempImagePath) { try { fs.unlinkSync(t.tempImagePath); } catch {} }
+        console.log(`[VideoGen] Task ${submitId} timed out after ${MAX_POLLS} polls`);
+      }
+    })();
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
     res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
   }
+});
+
+// Get video task status (polled by frontend every 30s)
+app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
+  const { submitId } = req.params;
+  const task = videoTasks.get(submitId);
+  if (!task) {
+    return res.json({
+      data: {
+        id: submitId,
+        status: 'unknown',
+        polls: 0,
+        maxPolls: 120,
+        isPolling: false,
+        queueInfo: null,
+        queueMessage: '',
+        elapsedMinutes: 0,
+        estimatedMaxMinutes: 10,
+        result: null,
+      },
+    });
+  }
+
+  const elapsedMinutes = Math.floor((Date.now() - task.startTime) / 60000);
+  const estimatedMaxMinutes = 10; // 120 polls x 5s = 10 min
+
+  let queueMessage = '';
+  if (task.status === 'processing') {
+    const remainingPolls = 120 - task.polls;
+    const estRemaining = Math.ceil((remainingPolls * 5) / 60);
+    queueMessage = `排队中 · 第 ${task.polls + 1}/120 次轮询 · 预计最长 ${estRemaining} 分钟`;
+  }
+
+  res.json({
+    data: {
+      id: submitId,
+      status: task.status,
+      polls: task.polls,
+      maxPolls: 120,
+      isPolling: task.status === 'processing',
+      queueInfo: { queue_idx: task.polls, queue_length: 120, queue_status: task.status },
+      queueMessage,
+      elapsedMinutes,
+      estimatedMaxMinutes,
+      result: task.videoUrl ? { videoUrl: task.videoUrl } : null,
+    },
+  });
 });
 // ======================== MP Subscription API Routes ========================
 
