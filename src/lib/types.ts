@@ -137,3 +137,20 @@ export interface WidgetConfig {
   title: string
   config: Record<string, unknown>
 }
+
+// ========= Video Types ==========
+
+export interface VideoData {
+  id: string
+  userId: string
+  title: string
+  prompt: string
+  duration: string
+  resolution: string
+  ratio: string
+  inputType: string
+  videoUrl: string
+  videoPath: string
+  submitId: string
+  createdAt: string
+}

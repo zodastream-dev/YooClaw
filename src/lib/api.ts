@@ -453,6 +453,14 @@ export async function mpSubscribeByName(params: { id: string; mpName: string; mp
 export async function mpLookupByUrl(url: string) {
   return apiRequest<MpCandidate>('POST', '/api/mp/lookup-by-url', { url })
 }
+// ========== Video Management ==========
+export async function getUserVideos() {
+  return apiRequest<{ items: VideoData[] }>('GET', '/api/v1/videos')
+}
+export async function deleteVideo(id: string) {
+  return apiRequest<void>('DELETE', `/api/v1/videos/${id}`)
+}
+
 // ========== Legacy compatibility ==========
 // These map to the new user-scoped APIs
 export const getSessions = getUserSessions

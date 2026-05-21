@@ -66,6 +66,21 @@ export interface DbWereadAccount {
   created_at: string;
 }
 
+export interface DbVideo {
+  id: string;
+  user_id: string;
+  title: string;
+  prompt: string;
+  duration: string;
+  resolution: string;
+  ratio: string;
+  input_type: string;
+  video_url: string;
+  video_path: string;
+  submit_id: string;
+  created_at: string;
+}
+
 // ========== Postgres Connection ==========
 let sql: postgres.Sql<{}>;
 
@@ -192,6 +207,24 @@ export async function initDatabase(): Promise<void> {
       max_feeds INTEGER DEFAULT 10,
       status VARCHAR(16) DEFAULT 'active',
       last_refresh TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  // ========== Videos Table ==========
+  await sql`
+    CREATE TABLE IF NOT EXISTS videos (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      duration TEXT NOT NULL,
+      resolution TEXT NOT NULL,
+      ratio TEXT NOT NULL,
+      input_type TEXT DEFAULT 'text',
+      video_url TEXT NOT NULL,
+      video_path TEXT DEFAULT '',
+      submit_id TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT now()
     )
   `;
@@ -636,4 +669,50 @@ export async function setWereadAccountStatus(
     UPDATE weread_account_pool SET status = ${status}, last_refresh = now()
     WHERE vid = ${vid}
   `;
+}
+
+// ======================== Video Operations ========================
+
+export async function saveVideo(video: {
+  userId: string;
+  title: string;
+  prompt: string;
+  duration: string;
+  resolution: string;
+  ratio: string;
+  inputType: string;
+  videoUrl: string;
+  videoPath: string;
+  submitId: string;
+}): Promise<DbVideo> {
+  const rows = await sql`
+    INSERT INTO videos (user_id, title, prompt, duration, resolution, ratio, input_type, video_url, video_path, submit_id)
+    VALUES (${video.userId}, ${video.title}, ${video.prompt}, ${video.duration}, ${video.resolution}, ${video.ratio}, ${video.inputType}, ${video.videoUrl}, ${video.videoPath}, ${video.submitId})
+    RETURNING *
+  `;
+  return rows[0] as unknown as DbVideo;
+}
+
+export async function getUserVideos(userId: string): Promise<DbVideo[]> {
+  const rows = await sql`
+    SELECT * FROM videos
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+  `;
+  return rows as unknown as DbVideo[];
+}
+
+export async function deleteVideo(id: string, userId: string): Promise<void> {
+  await sql`
+    DELETE FROM videos
+    WHERE id = ${id} AND user_id = ${userId}
+  `;
+}
+
+export async function getVideoById(id: string): Promise<DbVideo | undefined> {
+  const rows = await sql`
+    SELECT * FROM videos WHERE id = ${id}
+  `;
+  if (rows.length === 0) return undefined;
+  return rows[0] as unknown as DbVideo;
 }

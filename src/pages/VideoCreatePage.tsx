@@ -5,6 +5,7 @@ import type { VideoTaskStatus } from '@/lib/api'
 import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon } from 'lucide-react'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
 import type { VideoTemplate } from '@/data/videoTemplates'
+import { VideoHistory } from '@/components/VideoHistory'
 
 interface GeneratedVideo {
   id: string
@@ -339,7 +340,7 @@ export function VideoCreatePage() {
             <div className="bg-muted/60 rounded-lg p-4 space-y-3">
               {queueMessage && (<div className="flex items-center gap-2 text-sm"><Users size={16} className="text-orange-500" /><span className="text-foreground font-medium">{queueMessage}</span></div>)}
               <div className="flex items-center gap-2 text-sm text-muted-foreground"><Clock size={16} /><span>已等待 <strong className="text-foreground">{elapsedMinutes}</strong> 分钟</span>{estimatedMaxMinutes > 0 && (<span className="text-xs">（最长约 {estimatedMaxMinutes} 分钟）</span>)}</div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><span>轮询次数：{pollCount} / 60</span></div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground"><span>轮询次数：{pollCount} / {data?.maxPolls || 60}</span></div>
               <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                 <div className="h-full bg-gradient-to-r from-purple-400 via-indigo-400 to-blue-400 rounded-full transition-all duration-1000 animate-pulse" style={{ width: estimatedMaxMinutes > 0 ? `${Math.min((elapsedMinutes / estimatedMaxMinutes) * 100, 95)}%` : '10%' }} />
               </div>
@@ -425,6 +426,16 @@ export function VideoCreatePage() {
             )}
           </div>
         ) : null}
+
+        {/* 我的视频 */}
+        {!isPolling && (
+          <div className="mt-8 border border-border rounded-xl p-6 bg-card">
+            <h3 className="text-sm font-medium flex items-center gap-2 mb-4">
+              <Play size={16} className="text-primary" />我的视频
+            </h3>
+            <VideoHistory />
+          </div>
+        )}
       </div>
     </div>
   )

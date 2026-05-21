@@ -48,6 +48,11 @@ import {
   updateWereadAccountFeedCount,
   getAllActiveWereadAccounts,
   setWereadAccountStatus,
+  // Video Management
+  saveVideo,
+  getUserVideos,
+  deleteVideo,
+  getVideoById,
 } from './db.js';
 
 import { generateIntelStationHtml } from './templates/intel-station/index.js';
@@ -4171,14 +4176,14 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       },
     });
 
-    // Phase 2: Background polling loop (max 120 polls x 5s = 10 min)
+    // Phase 2: Background polling loop (max 60 polls x 5min = 5 hr)
     console.log(`[VideoGen] Task ${submitId} submitted, starting background poll...`);
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
-    const MAX_POLLS = 120;
+    const MAX_POLLS = 60;
 
     (async () => {
       for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise(r => setTimeout(r, 5000)); // 5s between polls
+        await new Promise(r => setTimeout(r, 300000)); // 5min between polls
 
         try {
           const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId} --download_dir=${VIDEO_DIR}`;
@@ -4186,6 +4191,11 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
           let result: any;
           try { result = JSON.parse(queryOut); } catch { continue; }
+
+          // Store real queue_info from dreamina
+          if (result?.queue_info) {
+            t.queueInfo = result.queue_info;
+          }
 
           const t = videoTasks.get(submitId);
           if (!t) return; // task was cleaned up
@@ -4210,6 +4220,23 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
               console.warn(`[VideoGen] No video URL in success response`);
             }
             t.status = 'completed';
+            // Save video to DB
+            try {
+              await saveVideo({
+                userId: t.userId || '',
+                title: t.prompt?.slice(0, 60) || '视频',
+                prompt: t.prompt || '',
+                duration: String(t.duration || '5'),
+                resolution: t.resolution || '720p',
+                ratio: t.ratio || '16:9',
+                inputType: t.isImageMode ? 'image' : 'text',
+                videoUrl: t.videoUrl || '',
+                videoPath: localPath || '',
+                submitId: submitId,
+              });
+            } catch (dbErr: any) {
+              console.error('[VideoGen] DB save failed:', dbErr.message);
+            }
             // Cleanup temp image
             if (t.tempImagePath) { try { fs.unlinkSync(t.tempImagePath); } catch {} }
             return;
@@ -4251,25 +4278,32 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
         id: submitId,
         status: 'unknown',
         polls: 0,
-        maxPolls: 120,
+        maxPolls: 60,
         isPolling: false,
         queueInfo: null,
         queueMessage: '',
         elapsedMinutes: 0,
-        estimatedMaxMinutes: 10,
+        estimatedMaxMinutes: 300,
         result: null,
       },
     });
   }
 
   const elapsedMinutes = Math.floor((Date.now() - task.startTime) / 60000);
-  const estimatedMaxMinutes = 10; // 120 polls x 5s = 10 min
+  const estimatedMaxMinutes = 60 * 5; // 60 polls x 5min = 5 hr
 
   let queueMessage = '';
   if (task.status === 'processing') {
-    const remainingPolls = 120 - task.polls;
+    const qi = task.queueInfo || {};
+    const queueIdx = qi.queue_idx ?? task.polls;
+    const queueLen = qi.queue_length ?? 60;
+    const remainingPolls = 60 - task.polls;
     const estRemaining = Math.ceil((remainingPolls * 5) / 60);
-    queueMessage = `排队中 · 第 ${task.polls + 1}/120 次轮询 · 预计最长 ${estRemaining} 分钟`;
+    if (queueLen > 0 && queueIdx > 0) {
+      queueMessage = `排队中 · 前面还有 ${queueLen - queueIdx} 人等候 · 预计还需 ${estRemaining} 分钟`;
+    } else {
+      queueMessage = `排队中 · 第 ${task.polls + 1}/60 次轮询 · 预计最长 ${estRemaining} 分钟`;
+    }
   }
 
   res.json({
@@ -4277,9 +4311,9 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
       id: submitId,
       status: task.status,
       polls: task.polls,
-      maxPolls: 120,
+      maxPolls: 60,
       isPolling: task.status === 'processing',
-      queueInfo: { queue_idx: task.polls, queue_length: 120, queue_status: task.status },
+      queueInfo: task.queueInfo || { queue_idx: task.polls, queue_length: 60, queue_status: task.status },
       queueMessage,
       elapsedMinutes,
       estimatedMaxMinutes,
@@ -4895,3 +4929,30 @@ start().catch((err) => {
 process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
 process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
 
+
+// ======================== Video Management API Routes ========================
+
+// List user's videos
+app.get('/api/v1/videos', authMiddleware, async (req: any, res) => {
+  try {
+    const user = req.user;
+    const videos = await getUserVideos(user.userId);
+    res.json({ data: { items: videos } });
+  } catch (err: any) {
+    console.error('[Video List Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list videos' } });
+  }
+});
+
+// Delete a video
+app.delete('/api/v1/videos/:id', authMiddleware, async (req: any, res) => {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+    await deleteVideo(id, user.userId);
+    res.json({ data: { deleted: true } });
+  } catch (err: any) {
+    console.error('[Video Delete Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete video' } });
+  }
+});
