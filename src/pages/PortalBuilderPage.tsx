@@ -119,12 +119,17 @@ function KeywordInput({
   onRemove: (widgetId: string, sourceId: string, keyword: string) => void
 }) {
   const [input, setInput] = useState('')
+  const addMultiple = (raw: string) => {
+    const trimmed = raw.trim(); if (!trimmed) return
+    const parts = trimmed.split(/[,，、\s]+/).filter(Boolean)
+    parts.forEach((k) => onAdd(widgetId, sourceId, k))
+  }
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') { e.preventDefault(); if (input.trim()) { onAdd(widgetId, sourceId, input); setInput('') } }
+    if (e.key === 'Enter') { e.preventDefault(); addMultiple(input); setInput('') }
   }
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">监控关键词 <span className="font-normal opacity-60">按 Enter 添加</span></label>
+      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔，回车添加</span></label>
       <div className="flex flex-wrap gap-1 mb-2">
         {keywords.map((k) => (
           <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[11px] font-medium">
@@ -1298,40 +1303,21 @@ export function PortalBuilderPage() {
                           </div>
                           {/* --- Object Management --- */}
                           <div className="space-y-2">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-semibold text-muted-foreground">📌 监控对象</span>
-                            </div>
+                            <span className="text-[11px] font-semibold text-muted-foreground">📌 监控对象</span>
                             <div className="flex flex-wrap gap-1.5">
-                              {(s.objects || []).map((obj) => (
-                                <div key={obj.name} className="space-y-1 w-full">
-                                  <div className="flex items-center gap-1">
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/20 text-[10px] font-medium text-violet-700 dark:text-violet-300">
-                                      {obj.name}
-                                      <button onClick={() => removeObjectFromSource(editingWidget.id, s.id, obj.name)}
-                                        className="ml-0.5 hover:text-red-500">&times;</button>
-                                    </span>
-                                    {/* Object keywords */}
-                                    <div className="flex flex-wrap gap-1 flex-1">
-                                      {(obj.keywords || []).map((kw) => (
-                                        <span key={kw} className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded bg-background border border-border text-[10px]">
-                                          {kw}
-                                          <button onClick={() => removeObjectKeyword(editingWidget.id, s.id, obj.name, kw)}
-                                            className="hover:text-red-500">&times;</button>
-                                        </span>
-                                      ))}
-                                      <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input'); if (inp) { addObjectKeyword(editingWidget.id, s.id, obj.name, inp.value); inp.value = ''; } }}
-                                        className="inline-flex">
-                                        <input placeholder="+关键词" className="w-14 px-1 py-0 text-[10px] bg-transparent border-b border-dashed border-muted-foreground/30 outline-none focus:border-violet-400" />
-                                      </form>
-                                    </div>
-                                  </div>
-                                </div>
+                              {(s.objects || []).filter(o => o.name).map((obj) => (
+                                <span key={obj.name} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/20 text-[11px] text-purple-700 dark:text-purple-300 font-medium">
+                                  {obj.name}
+                                  <button onClick={() => removeObjectFromSource(editingWidget.id, s.id, obj.name)}
+                                    className="hover:text-red-500 ml-0.5">&times;</button>
+                                </span>
                               ))}
-                              <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input'); if (inp) { addObjectToSource(editingWidget.id, s.id, inp.value); inp.value = ''; } }}
-                                className="inline-flex">
-                                <input placeholder="+ 添加对象" className="w-20 px-1.5 py-0.5 text-[10px] rounded border border-dashed border-muted-foreground/30 outline-none focus:border-violet-400 bg-transparent" />
-                              </form>
                             </div>
+                            <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input') as HTMLInputElement; if (inp && inp.value.trim()) { addObjectToSource(editingWidget.id, s.id, inp.value.trim()); inp.value = ''; } }}
+                              className="flex gap-2">
+                              <input placeholder="输入对象名称（如：星巴克）" className="flex-1 px-2.5 py-1 text-[11px] border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                              <button type="submit" className="px-2.5 py-1 text-[11px] font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">添加</button>
+                            </form>
                           </div>
                           {/* --- Keywords --- */}
                           <KeywordInput
@@ -1352,10 +1338,6 @@ export function PortalBuilderPage() {
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => addMonitorSource(editingWidget.id)}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-border rounded-xl text-xs text-muted-foreground hover:border-violet-400 hover:text-violet-600 transition-all">
-                      <Plus size={13} /> 添加监控源
-                    </button>
                   </div>
                 )}
               </div>
@@ -1505,20 +1487,21 @@ export function PortalBuilderPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控对象 (可选)</label>
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        {(addMonitorForm.sources[0]?.objects || []).map((obj) => (
-                          <span key={obj.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/20 text-[10px] text-purple-700 dark:text-purple-300">
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {(addMonitorForm.sources[0]?.objects || []).filter(o => o.name).map((obj) => (
+                          <span key={obj.name} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/20 text-[11px] text-purple-700 dark:text-purple-300 font-medium">
                             {obj.name}
                             <button onClick={() => setAddMonitorForm((f) => ({
                               ...f, sources: [{ ...f.sources[0], objects: (f.sources[0].objects || []).filter((o) => o.name !== obj.name) }],
-                            }))} className="hover:text-red-500">&times;</button>
+                            }))} className="hover:text-red-500 ml-0.5">&times;</button>
                           </span>
                         ))}
-                        <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input'); if (inp && inp.value.trim()) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), { name: inp.value.trim(), keywords: [] }] }] })); inp.value = ''; } }}
-                          className="inline-flex">
-                          <input placeholder="+ 对象名" className="w-20 px-1.5 py-0.5 text-[10px] rounded border border-dashed border-muted-foreground/30 outline-none focus:border-purple-400 bg-transparent" />
-                        </form>
                       </div>
+                      <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input') as HTMLInputElement; if (inp && inp.value.trim()) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), { name: inp.value.trim(), keywords: [] }] }] })); inp.value = ''; } }}
+                        className="flex gap-2">
+                        <input placeholder="输入对象名称（如：星巴克）" className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                        <button type="submit" className="px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">添加对象</button>
+                      </form>
                     </div>
                     <KeywordInput
                       keywords={addMonitorForm.sources[0]?.keywords || []}
