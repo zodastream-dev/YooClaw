@@ -3705,9 +3705,9 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
   const objects: Array<{ name: string; keywords?: string[] }> = src.objects || [];
   if (objects.length > 0) {
     const allResults: any[] = [];
-    // Process objects in chunks of 2 to limit concurrency
-    for (let i = 0; i < objects.length; i += 2) {
-      const chunk = objects.slice(i, i + 2);
+    // Process objects in chunks of 4 for faster first load
+    for (let i = 0; i < objects.length; i += 4) {
+      const chunk = objects.slice(i, i + 4);
       const chunkResults = await Promise.allSettled(chunk.map(async (obj) => {
         const objKwArr = (obj.keywords && obj.keywords.length > 0) ? obj.keywords : kwArr;
         const data = await callOnce(objKwArr, obj.name);
@@ -3839,11 +3839,11 @@ async function warmAllPortalCaches() {
 
     console.log(`[CacheWarmer] Warming ${toWarm.length} sources (${sourceMap.size - toWarm.length}/${sourceMap.size} already cached) from ${portalSites.length} portals`);
 
-    // Warm in chunks of 2 (less aggressive than request endpoint's 3)
+    // Warm in chunks of 3
     let warmed = 0;
     let failed = 0;
-    for (let i = 0; i < toWarm.length; i += 2) {
-      const chunk = toWarm.slice(i, i + 2);
+    for (let i = 0; i < toWarm.length; i += 3) {
+      const chunk = toWarm.slice(i, i + 3);
       const chunkResults = await Promise.allSettled(
         chunk.map(async ({ key, src }) => {
           const intelData = await fetchIntelForSource(src);
