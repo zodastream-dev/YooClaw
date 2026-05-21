@@ -38,17 +38,25 @@ export const PROMPT_REPORT_DEFAULT = '你是 YooClaw AI 助手，专门生成专
  * @param customPrompt - 用户自定义系统提示词（可选，覆盖默认）
  * @returns {{ systemPrompt: string, userPrompt: string }}
  */
-export function makeIntelPrompt(keywords: string[], customPrompt?: string, includeUrl?: boolean): { systemPrompt: string; userPrompt: string } {
+export function makeIntelPrompt(
+  keywords: string[],
+  customPrompt?: string,
+  includeUrl?: boolean,
+  objectName?: string,
+): { systemPrompt: string; userPrompt: string } {
   const kw = (keywords || []).join('、');
   const sp = customPrompt || '你是一个专业的情报分析助手。';
   const urlField = includeUrl ? '、url(原始链接，如有)' : '';
-  const urlSchema = includeUrl ? '"url":""' : '';
   const urlRule = includeUrl ? '4.如果无法提供真实url，url字段留空字符串。5.仅输出JSON数组，不要任何其他文字。' : '4.仅输出JSON数组，不要任何其他文字。';
-  const up =
-    '请搜索并整理关于【' + kw + '】的最新资讯，列出最重要的10条。' +
-    '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)' + urlField + '。' +
-    '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":""' +
-    (includeUrl ? ',"url":""' : '') + '}]。' + urlRule;
+  const up = objectName
+    ? '请搜索并整理关于【' + objectName + '】在【' + kw + '】方面的最新资讯，列出最重要的10条。' +
+      '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)' + urlField + '。' +
+      '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":""' +
+      (includeUrl ? ',"url":""' : '') + '}]。' + urlRule
+    : '请搜索并整理关于【' + kw + '】的最新资讯，列出最重要的10条。' +
+      '要求：1.每条包含标题、摘要(50字内)、来源/时间(如有)' + urlField + '。' +
+      '2.按重要性排序。3.输出严格JSON数组：[{"title":"","summary":"","source":""' +
+      (includeUrl ? ',"url":""' : '') + '}]。' + urlRule;
   return { systemPrompt: sp, userPrompt: up };
 }
 

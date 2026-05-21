@@ -3620,84 +3620,109 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
   const kwArr = Array.isArray(src.keywords)
     ? src.keywords
     : (typeof src.keywords === 'string' ? src.keywords.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : []);
-  const kw = kwArr.join('、');
-  const prompt = makeIntelPrompt(kwArr, src.customPrompt, true);
   const provider = src.aiProvider || 'deepseek';
   const apiKey = src.apiKey || (provider === 'metaso' ? process.env.METASO_API_KEY : process.env.DEEPSEEK_API_KEY) || '';
   const model = src.aiModel || 'deepseek-v4-flash';
   if (!apiKey) throw new Error('未配置API Key');
 
-  let results: any[];
-  if (provider === 'metaso') {
-    const apiUrl = 'https://metaso.cn/api/open/search/v2';
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 25000);
-    const response = await fetch(apiUrl, {
-      method: 'POST', signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ question: kwArr.join(' OR '), lang: 'zh' }),
-    });
-    clearTimeout(to);
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error('秘塔API错误: ' + response.status + ' ' + errText.substring(0, 200));
+  // -- Single-call helper (no caching, just API call) --
+  const callOnce = async (effectiveKwArr: string[], objectName?: string): Promise<any[]> => {
+    const prompt = makeIntelPrompt(effectiveKwArr, src.customPrompt, true, objectName || undefined);
+    let results: any[];
+    if (provider === 'metaso') {
+      const apiUrl = 'https://metaso.cn/api/open/search/v2';
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 25000);
+      const response = await fetch(apiUrl, {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ question: effectiveKwArr.join(' OR '), lang: 'zh' }),
+      });
+      clearTimeout(to);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('秘塔API错误: ' + response.status + ' ' + errText.substring(0, 200));
+      }
+      const data = await response.json();
+      const rawData = (data.data && data.data.references) ? data.data.references : (data.data || data.results || data.items || []);
+      results = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
+      results = results.slice(0, 10).map(function (r: any) {
+        return {
+          title: r.title || r.name || '',
+          summary: r.snippet || r.summary || r.content || r.aiSummary || '',
+          source: r.url || r.link || r.source || '秘塔搜索',
+          date: r.date || r.publishedAt || r.publishTime || '',
+          link: r.url || r.link || '',
+        };
+      });
+    } else {
+      const apiUrl = 'https://api.deepseek.com/chat/completions';
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 25000);
+      const response = await fetch(apiUrl, {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({
+          model, max_tokens: 4096, temperature: 0.7,
+          messages: [
+            { role: 'system', content: prompt.systemPrompt },
+            { role: 'user', content: prompt.userPrompt },
+          ],
+        }),
+      });
+      clearTimeout(to);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('API错误: ' + response.status);
+      }
+      const data = await response.json();
+      let content = data.choices[0].message.content;
+      content = content.replace('${TRIPLE_BACKTICK}json', '').replace(/${TRIPLE_BACKTICK}/g, '').trim();
+      try {
+        results = JSON.parse(content);
+      } catch (e) {
+        const match = content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);
+        if (match) {
+          try { results = JSON.parse(match[0]); } catch (e2) { results = []; }
+        } else {
+          throw new Error('无法解析AI返回数据');
+        }
+      }
+      results = (results || []).map(function (r: any) {
+        return {
+          title: r.title || '',
+          summary: r.summary || '',
+          source: r.source || '',
+          date: r.date || r.time || '',
+          link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''),
+        };
+      });
     }
-    const data = await response.json();
-    const rawData = (data.data && data.data.references) ? data.data.references : (data.data || data.results || data.items || []);
-    results = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
-    results = results.slice(0, 10).map(function (r: any) {
-      return {
-        title: r.title || r.name || '',
-        summary: r.snippet || r.summary || r.content || r.aiSummary || '',
-        source: r.url || r.link || r.source || '秘塔搜索',
-        date: r.date || r.publishedAt || r.publishTime || '',
-        link: r.url || r.link || '',
-      };
-    });
-  } else {
-    const apiUrl = 'https://api.deepseek.com/chat/completions';
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 25000);
-    const response = await fetch(apiUrl, {
-      method: 'POST', signal: ctrl.signal,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model, max_tokens: 4096, temperature: 0.7,
-        messages: [
-          { role: 'system', content: prompt.systemPrompt },
-          { role: 'user', content: prompt.userPrompt },
-        ],
-      }),
-    });
-    clearTimeout(to);
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error('API错误: ' + response.status);
-    }
-    const data = await response.json();
-    let content = data.choices[0].message.content;
-    content = content.replace('${TRIPLE_BACKTICK}json', '').replace(/${TRIPLE_BACKTICK}/g, '').trim();
-    try {
-      results = JSON.parse(content);
-    } catch (e) {
-      const match = content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);
-      if (match) {
-        try { results = JSON.parse(match[0]); } catch (e2) { results = []; }
-      } else {
-        throw new Error('无法解析AI返回数据');
+    return results;
+  };
+
+  // -- Objects expansion --
+  const objects: Array<{ name: string; keywords?: string[] }> = src.objects || [];
+  if (objects.length > 0) {
+    const allResults: any[] = [];
+    // Process objects in chunks of 2 to limit concurrency
+    for (let i = 0; i < objects.length; i += 2) {
+      const chunk = objects.slice(i, i + 2);
+      const chunkResults = await Promise.allSettled(chunk.map(async (obj) => {
+        const objKwArr = (obj.keywords && obj.keywords.length > 0) ? obj.keywords : kwArr;
+        const data = await callOnce(objKwArr, obj.name);
+        return data.map((item: any) => ({ ...item, _object: obj.name }));
+      }));
+      for (const r of chunkResults) {
+        if (r.status === 'fulfilled') allResults.push(...r.value);
+        else console.error('[fetchIntelForSource] Object failed:', r.reason?.message);
       }
     }
-    results = (results || []).map(function (r: any) {
-      return {
-        title: r.title || '',
-        summary: r.summary || '',
-        source: r.source || '',
-        date: r.date || r.time || '',
-        link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''),
-      };
-    });
+    return allResults;
   }
-  return results;
+
+  // -- No objects: single call --
+  return callOnce(kwArr);
 }
 
 // ========== POST /api/portal-intel ==========
@@ -3713,7 +3738,7 @@ app.post('/api/portal-intel', async (req, res) => {
     const now = Date.now();
 
     const processSource = async (src: any, idx: number) => {
-      const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider });
+      const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
       const cached = portalIntelCache.get(cacheKey);
       if (cached && cached.expiry > now) {
         return { sourceIdx: idx, data: cached.data, fromCache: true };

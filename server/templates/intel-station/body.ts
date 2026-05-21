@@ -41,6 +41,7 @@ export function intelStationBody(sn: string): string {
       <span class="status-text" id="feedStatus">加载中...</span>
     </div>
     <div class="intel-subfilters" id="intelSubFilters" style="display:none"></div>
+    <div class="intel-objfilters" id="intelObjFilters" style="display:none"></div>
     <div class="intel-loading" id="intelLoading">
       <div class="spinner"></div>正在获取情报数据...
     </div>

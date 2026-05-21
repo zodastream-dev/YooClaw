@@ -12,6 +12,11 @@ import {
 
 // ========== Types ==========
 
+interface IntelObject {
+  name: string
+  keywords?: string[]
+}
+
 interface WidgetSource {
   id: string
   name: string
@@ -19,6 +24,7 @@ interface WidgetSource {
   aiModel: string
   apiKey: string
   keywords: string[]
+  objects?: IntelObject[]
   updateFrequency: string
   customPrompt: string
 }
@@ -278,6 +284,37 @@ export function PortalBuilderPage() {
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
       return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? { ...s, keywords: s.keywords.filter((k) => k !== keyword) } : s) } }
+    })
+  }, [updateWidget])
+
+  // ===== Object Management =====
+  const addObjectToSource = useCallback((widgetId: string, sourceId: string, objectName: string) => {
+    const name = objectName.trim(); if (!name) return;
+    updateWidget(widgetId, (w) => {
+      if (w.type !== 'intel-monitor') return w
+      return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? { ...s, objects: [...(s.objects || []), { name, keywords: [] }] } : s) } }
+    })
+  }, [updateWidget])
+
+  const removeObjectFromSource = useCallback((widgetId: string, sourceId: string, objectName: string) => {
+    updateWidget(widgetId, (w) => {
+      if (w.type !== 'intel-monitor') return w
+      return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? { ...s, objects: (s.objects || []).filter((o) => o.name !== objectName) } : s) } }
+    })
+  }, [updateWidget])
+
+  const addObjectKeyword = useCallback((widgetId: string, sourceId: string, objectName: string, keyword: string) => {
+    const kw = keyword.trim(); if (!kw) return;
+    updateWidget(widgetId, (w) => {
+      if (w.type !== 'intel-monitor') return w
+      return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? { ...s, objects: (s.objects || []).map((o) => o.name === objectName ? { ...o, keywords: [...(o.keywords || []), kw].filter((k, i, arr) => arr.indexOf(k) === i) } : o) } : s) } }
+    })
+  }, [updateWidget])
+
+  const removeObjectKeyword = useCallback((widgetId: string, sourceId: string, objectName: string, keyword: string) => {
+    updateWidget(widgetId, (w) => {
+      if (w.type !== 'intel-monitor') return w
+      return { ...w, config: { ...w.config, sources: (w.config.sources || []).map((s) => s.id === sourceId ? { ...s, objects: (s.objects || []).map((o) => o.name === objectName ? { ...o, keywords: (o.keywords || []).filter((k) => k !== keyword) } : o) } : s) } }
     })
   }, [updateWidget])
 
@@ -1187,6 +1224,44 @@ export function PortalBuilderPage() {
                               placeholder="模型"
                               className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
                           </div>
+                          {/* --- Object Management --- */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-semibold text-muted-foreground">📌 监控对象</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(s.objects || []).map((obj) => (
+                                <div key={obj.name} className="space-y-1 w-full">
+                                  <div className="flex items-center gap-1">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/20 text-[10px] font-medium text-violet-700 dark:text-violet-300">
+                                      {obj.name}
+                                      <button onClick={() => removeObjectFromSource(editingWidget.id, s.id, obj.name)}
+                                        className="ml-0.5 hover:text-red-500">&times;</button>
+                                    </span>
+                                    {/* Object keywords */}
+                                    <div className="flex flex-wrap gap-1 flex-1">
+                                      {(obj.keywords || []).map((kw) => (
+                                        <span key={kw} className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded bg-background border border-border text-[10px]">
+                                          {kw}
+                                          <button onClick={() => removeObjectKeyword(editingWidget.id, s.id, obj.name, kw)}
+                                            className="hover:text-red-500">&times;</button>
+                                        </span>
+                                      ))}
+                                      <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input'); if (inp) { addObjectKeyword(editingWidget.id, s.id, obj.name, inp.value); inp.value = ''; } }}
+                                        className="inline-flex">
+                                        <input placeholder="+关键词" className="w-14 px-1 py-0 text-[10px] bg-transparent border-b border-dashed border-muted-foreground/30 outline-none focus:border-violet-400" />
+                                      </form>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input'); if (inp) { addObjectToSource(editingWidget.id, s.id, inp.value); inp.value = ''; } }}
+                                className="inline-flex">
+                                <input placeholder="+ 添加对象" className="w-20 px-1.5 py-0.5 text-[10px] rounded border border-dashed border-muted-foreground/30 outline-none focus:border-violet-400 bg-transparent" />
+                              </form>
+                            </div>
+                          </div>
+                          {/* --- Keywords --- */}
                           <KeywordInput
                             keywords={s.keywords} sourceId={s.id} widgetId={editingWidget.id}
                             onAdd={addKeyword} onRemove={removeKeyword} />

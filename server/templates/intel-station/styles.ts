@@ -63,6 +63,13 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .source-card:hover .sc-edit{opacity:1}
 .add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:10px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:4px}
 .add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.05)}
+/* Object tags on source cards */
+.source-card .sc-objects{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.source-card .sc-obj-tag{font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,0.12);color:var(--purple);font-weight:500}
+/* Object filter buttons */
+.intel-objfilters{display:flex;gap:4px;padding:4px 24px;flex-wrap:wrap}
+/* Object tag on intel cards */
+.intel-obj-tag{font-size:9px;padding:1px 6px;border-radius:3px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan);font-weight:500;margin-right:6px;white-space:nowrap;flex-shrink:0}
 
 /* ===== CENTER COLUMN - Intel Feed ===== */
 .center-col{grid-area:center;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}

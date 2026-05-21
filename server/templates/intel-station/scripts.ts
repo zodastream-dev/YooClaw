@@ -9,6 +9,7 @@ var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
 var WIDGETS=${wlistJson};
 var PORTAL_SLUG='${slug.replace(/'/g, "\\'")}';
 var currentSourceFilters=['全部'];
+var currentObjectFilter='全部';
 var allIntelData=[];
 var currentFilter='all';
 var aiChatHistory=[];
@@ -42,6 +43,7 @@ async function loadIntelData(){
         allIntelData=cachedData.data||[];
         renderSourceFilters(monitors);
         buildIntelSubFilters(monitors);
+        buildObjectFilters(monitors);
         renderIntelFeed(allIntelData);
         updateDashboard(allIntelData);
         $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报（缓存，后台更新中...）';
@@ -123,6 +125,15 @@ function renderSourceFilters(monitors){
     html+='<div class="sc-icon">&#x1F6F0;</div>';
     html+='<div class="sc-body">';
     html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
+    var objects=src.objects||[];
+    if(objects.length>0){
+      html+='<div class="sc-objects">';
+      for(var oi=0;oi<Math.min(objects.length,3);oi++){
+        html+='<span class="sc-obj-tag">'+escHtml(objects[oi].name)+'</span>';
+      }
+      if(objects.length>3)html+='<span class="sc-obj-tag">+'+(objects.length-3)+'</span>';
+      html+='</div>';
+    }
     html+='<div class="sc-meta">';
     html+='<span class="sc-provider'+(providerLabel==='metaso'?' metaso':'')+'">'+escHtml(providerLabel)+'</span>';
     html+='<span class="sc-kwcount">'+kws.length+' 关键词</span>';
@@ -146,6 +157,9 @@ function renderIntelFeed(data){
     var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
     html+='<div class="intel-card"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
+    if(item._object){
+      html+='<span class="intel-obj-tag">'+escHtml(item._object)+'</span>';
+    }
     if(url){
       html+='<span class="intel-card-title" style="color:var(--cyan);cursor:pointer">'+(item.title||'无标题')+'</span>';
     } else {
@@ -219,13 +233,21 @@ function filterBySource(sourceName){
     else b.classList.remove('active');
   });
   console.log('[filterBySource] after sync, currentSourceFilters=', JSON.stringify(currentSourceFilters));
-  if(currentSourceFilters.length===0||currentSourceFilters[0]==='全部'){
-    renderIntelFeed(allIntelData);
-    return;
+  // Rebuild object filters based on selected source
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  buildObjectFilters(monitors);
+  // Apply both source + object filters
+  var filtered=allIntelData;
+  if(!(currentSourceFilters.length===0||currentSourceFilters[0]==='全部')){
+    filtered=filtered.filter(function(item){
+      return currentSourceFilters.indexOf((item._sourceName||'').trim()) >= 0;
+    });
   }
-  var filtered=allIntelData.filter(function(item){
-    return currentSourceFilters.indexOf((item._sourceName||'').trim()) >= 0;
-  });
+  if(currentObjectFilter!=='全部'){
+    filtered=filtered.filter(function(item){
+      return (item._object||'')===currentObjectFilter;
+    });
+  }
   console.log('[filterBySource] filtered count=', filtered.length, 'allIntelData count=', allIntelData.length);
   renderIntelFeed(filtered);
   // 延迟检查：确认 DOM 没有被 loadIntelData 覆盖
@@ -235,6 +257,52 @@ function filterBySource(sourceName){
       console.warn('[filterBySource] DOM was overwritten! children=',feed.children.length,'expected=',filtered.length);
     }
   },1000);
+}
+
+/* ===== OBJECT FILTERS ===== */
+function buildObjectFilters(monitors){
+  var objectNames=['全部'];
+  monitors.forEach(function(mw){
+    var srcs=mw.config&&mw.config.sources||mw.sources||[];
+    srcs.forEach(function(src){
+      var objects=src.objects||[];
+      objects.forEach(function(obj){
+        if(objectNames.indexOf(obj.name)===-1)objectNames.push(obj.name);
+      });
+    });
+  });
+  var el=$('intelObjFilters');
+  if(!el)return;
+  if(objectNames.length<=1){el.style.display='none';return}
+  var html='';
+  objectNames.forEach(function(name,i){
+    var active=name===currentObjectFilter?' active':'';
+    html+='<button class="subfilter-btn'+active+'" data-obj="'+escHtml(name)+'" onclick="filterByObjectFromBtn(this)">'+escHtml(name)+'</button>';
+  });
+  el.innerHTML=html;
+  el.style.display='';
+}
+
+function filterByObjectFromBtn(btn){
+  var objName=btn.getAttribute('data-obj')||'全部';
+  filterByObject(objName);
+}
+
+function filterByObject(objName){
+  currentObjectFilter=objName;
+  // Sync UI
+  document.querySelectorAll('#intelObjFilters .subfilter-btn').forEach(function(b){
+    var on=(b.getAttribute('data-obj')||'').trim();
+    if(on===objName)b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  // Filter data
+  var filtered=allIntelData.filter(function(item){
+    var matchSource=currentSourceFilters[0]==='全部'||currentSourceFilters.indexOf((item._sourceName||'').trim())>=0;
+    var matchObject=objName==='全部'||(item._object||'')===objName;
+    return matchSource&&matchObject;
+  });
+  renderIntelFeed(filtered);
 }
 
 /* ===== CENTER TAB SWITCHING ===== */
@@ -248,6 +316,7 @@ function switchCenterTab(tab){
     tabs[0].classList.add('active');
     $('intelFeed').style.display='';$('reportFeed').style.display='none';$('aiChat').style.display='none';
     $('intelSubFilters').style.display='';
+    $('intelObjFilters').style.display='';
     $('feedStatus').textContent=allIntelData.length?'已加载 '+allIntelData.length+' 条情报':'加载中...';
     // 恢复底部输入框为普通模式
     var cmd=$('cmdInput');
@@ -256,6 +325,7 @@ function switchCenterTab(tab){
     tabs[1].classList.add('active');
     $('intelFeed').style.display='none';$('reportFeed').style.display='';$('aiChat').style.display='none';
     $('intelSubFilters').style.display='none';
+    $('intelObjFilters').style.display='none';
     $('feedStatus').textContent='报告中';
     var cmd=$('cmdInput');
     if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
@@ -264,6 +334,7 @@ function switchCenterTab(tab){
     tabs[2].classList.add('active');
     $('intelFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='';
     $('intelSubFilters').style.display='none';
+    $('intelObjFilters').style.display='none';
     $('feedStatus').textContent='AI助手';
     // 切换底部输入框为AI模式
     var cmd=$('cmdInput');
