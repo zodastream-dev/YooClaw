@@ -129,7 +129,7 @@ function KeywordInput({
   }
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔，回车添加</span></label>
+      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔批量添加</span></label>
       <div className="flex flex-wrap gap-1 mb-2">
         {keywords.map((k) => (
           <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[11px] font-medium">
@@ -140,8 +140,8 @@ function KeywordInput({
       <div className="flex gap-1.5">
         <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
           placeholder="输入关键词…" className="flex-1 px-3 py-1.5 bg-background border border-dashed border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
-        <button onClick={() => { if (input.trim()) { onAdd(widgetId, sourceId, input); setInput('') } }}
-          className="px-2 py-1.5 border border-border rounded-lg text-[11px] font-medium hover:border-violet-400 transition-all">+</button>
+        <button onClick={() => { addMultiple(input); setInput('') }}
+          className="px-2 py-1.5 border border-violet-300 text-violet-600 rounded-lg text-[11px] font-medium hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-all shrink-0">添加</button>
       </div>
     </div>
   )
@@ -197,6 +197,8 @@ export function PortalBuilderPage() {
   const [showQuickStartModal, setShowQuickStartModal] = useState(false)
 
   // ========== Add Widget Modal ==========
+  const [addModalObjectInput, setAddModalObjectInput] = useState('')
+  const [addModalKeywordInput, setAddModalKeywordInput] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalType, setAddModalType] = useState<'report-generator' | 'intel-monitor' | null>(null)
   const [addReportForm, setAddReportForm] = useState({
@@ -1486,7 +1488,7 @@ export function PortalBuilderPage() {
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控对象 (可选)</label>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控对象 (可选，空格/逗号分隔可批量添加)</label>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {(addMonitorForm.sources[0]?.objects || []).filter(o => o.name).map((obj) => (
                           <span key={obj.name} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/20 text-[11px] text-purple-700 dark:text-purple-300 font-medium">
@@ -1497,22 +1499,41 @@ export function PortalBuilderPage() {
                           </span>
                         ))}
                       </div>
-                      <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input') as HTMLInputElement; if (inp && inp.value.trim()) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), { name: inp.value.trim(), keywords: [] }] }] })); inp.value = ''; } }}
-                        className="flex gap-2">
-                        <input placeholder="输入对象名称（如：星巴克）" className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
-                        <button type="submit" className="px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">添加对象</button>
-                      </form>
+                      <div className="flex gap-2">
+                        <input value={addModalObjectInput}
+                          onChange={(e) => setAddModalObjectInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const names = addModalObjectInput.split(/[,，、\s]+/).filter(Boolean); if (names.length > 0) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), ...names.map(n => ({ name: n, keywords: [] }))] }] })); setAddModalObjectInput(''); } } }}
+                          placeholder="输入对象名称（如：星巴克 瑞幸 Manner）"
+                          className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                        <button onClick={() => { const names = addModalObjectInput.split(/[,，、\s]+/).filter(Boolean); if (names.length > 0) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), ...names.map(n => ({ name: n, keywords: [] }))] }] })); setAddModalObjectInput(''); } }}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors shrink-0">
+                          添加
+                        </button>
+                      </div>
                     </div>
-                    <KeywordInput
-                      keywords={addMonitorForm.sources[0]?.keywords || []}
-                      sourceId="modal" widgetId="modal"
-                      onAdd={(_, __, keyword) => {
-                        setAddMonitorForm((f) => { const s = f.sources[0]; if (s.keywords.includes(keyword)) return f; return { ...f, sources: [{ ...s, keywords: [...s.keywords, keyword] }] } })
-                      }}
-                      onRemove={(_, __, keyword) => {
-                        setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], keywords: f.sources[0].keywords.filter((k) => k !== keyword) }] }))
-                      }}
-                    />
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔批量添加</span></label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {(addMonitorForm.sources[0]?.keywords || []).map((kw) => (
+                          <span key={kw} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-violet-100 dark:bg-violet-900/20 text-[11px] text-violet-700 dark:text-violet-300 font-medium">
+                            {kw}
+                            <button onClick={() => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], keywords: f.sources[0].keywords.filter((k) => k !== kw) }] }))}
+                              className="hover:text-red-500 ml-0.5">&times;</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input value={addModalKeywordInput}
+                          onChange={(e) => setAddModalKeywordInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const parts = addModalKeywordInput.split(/[,，、\s]+/).filter(Boolean); if (parts.length > 0) { setAddMonitorForm((f) => { const s = f.sources[0]; const newKws = [...s.keywords]; parts.forEach((k) => { if (!newKws.includes(k)) newKws.push(k) }); return { ...f, sources: [{ ...s, keywords: newKws }] } }); setAddModalKeywordInput(''); } } }}
+                          placeholder="输入关键词（如：新品发布 财报 市场份额）"
+                          className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg outline-none focus:border-violet-400 transition-all bg-transparent" />
+                        <button onClick={() => { const parts = addModalKeywordInput.split(/[,，、\s]+/).filter(Boolean); if (parts.length > 0) { setAddMonitorForm((f) => { const s = f.sources[0]; const newKws = [...s.keywords]; parts.forEach((k) => { if (!newKws.includes(k)) newKws.push(k) }); return { ...f, sources: [{ ...s, keywords: newKws }] } }); setAddModalKeywordInput(''); } }}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-violet-300 text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors shrink-0">
+                          添加关键词
+                        </button>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
