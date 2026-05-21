@@ -403,7 +403,7 @@ function renderSourceForm(wi,si){
     s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+wi+','+si+',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
-  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\\\'Enter\\\\'){event.preventDefault();addKeyword('+wi+','+si+')}">';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}">';
   s+='<button class="kw-add-btn" onclick="addKeyword('+wi+','+si+')">+</button></div>';
   s+='</div>';
   s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
