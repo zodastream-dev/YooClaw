@@ -36,6 +36,7 @@ export function VideoCreatePage() {
   const [queueMessage, setQueueMessage] = useState('')
   const [elapsedMinutes, setElapsedMinutes] = useState(0)
   const [estimatedMaxMinutes, setEstimatedMaxMinutes] = useState(0)
+  const [maxPolls, setMaxPolls] = useState(60)
   const [result, setResult] = useState<GeneratedVideo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -66,6 +67,7 @@ export function VideoCreatePage() {
           setQueueMessage(res.data.queueMessage || '')
           setElapsedMinutes(res.data.elapsedMinutes)
           setEstimatedMaxMinutes(res.data.estimatedMaxMinutes)
+          setMaxPolls(res.data.maxPolls || 60)
           if (res.data.status === 'completed') {
             setIsPolling(false)
             setResult({ id: res.data.id, title: prompt.slice(0, 30) + ' 视频', url: res.data.result?.videoUrl || '' })
@@ -340,7 +342,7 @@ export function VideoCreatePage() {
             <div className="bg-muted/60 rounded-lg p-4 space-y-3">
               {queueMessage && (<div className="flex items-center gap-2 text-sm"><Users size={16} className="text-orange-500" /><span className="text-foreground font-medium">{queueMessage}</span></div>)}
               <div className="flex items-center gap-2 text-sm text-muted-foreground"><Clock size={16} /><span>已等待 <strong className="text-foreground">{elapsedMinutes}</strong> 分钟</span>{estimatedMaxMinutes > 0 && (<span className="text-xs">（最长约 {estimatedMaxMinutes} 分钟）</span>)}</div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><span>轮询次数：{pollCount} / {data?.maxPolls || 60}</span></div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground"><span>轮询次数：{pollCount} / {maxPolls}</span></div>
               <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                 <div className="h-full bg-gradient-to-r from-purple-400 via-indigo-400 to-blue-400 rounded-full transition-all duration-1000 animate-pulse" style={{ width: estimatedMaxMinutes > 0 ? `${Math.min((elapsedMinutes / estimatedMaxMinutes) * 100, 95)}%` : '10%' }} />
               </div>
