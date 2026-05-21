@@ -128,7 +128,7 @@ function renderSourceFilters(monitors){
     var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[src.updateFrequency]||'每日';
     html+='<div class="source-card'+(isSourceActive?' source-active':'')+'">';
     // Clickable header area
-    html+='<div class="sc-clickable" onclick="if('+hasObj+'){toggleSourceExpand(\'+escHtml(src.name)+\','+ws.widgetIndex+','+ws.sourceIndex+')}else{selectSourceFilter(\'+escHtml(src.name)+\','+ws.widgetIndex+','+ws.sourceIndex+')}">';
+    html+='<div class="sc-clickable" onclick="if('+hasObj+'){toggleSourceExpand(\\'+escHtml(src.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')}else{selectSourceFilter(\\'+escHtml(src.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')}">';
     html+='<div class="sc-icon">&#x1F6F0;</div>';
     html+='<div class="sc-body">';
     html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
@@ -145,7 +145,7 @@ function renderSourceFilters(monitors){
       html+='<div class="sc-objects-list">';
       objects.forEach(function(obj){
         var isObjActive=currentObjectFilter!=='全部'&&currentObjectFilter===obj.name;
-        html+='<div class="sc-obj-item'+(isObjActive?' sc-obj-active':'')+'" onclick="event.stopPropagation();selectObjectFilter(\'+escHtml(src.name)+\',\'+escHtml(obj.name)+\','+ws.widgetIndex+','+ws.sourceIndex+')">';
+        html+='<div class="sc-obj-item'+(isObjActive?' sc-obj-active':'')+'" onclick="event.stopPropagation();selectObjectFilter(\\'+escHtml(src.name)+\\',\\'+escHtml(obj.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')">';
         html+='<span class="sc-obj-dot"></span>';
         html+='<span class="sc-obj-name">'+escHtml(obj.name)+'</span>';
         html+='<span class="sc-obj-kwcount">'+(obj.keywords||[]).length+' kw</span>';
