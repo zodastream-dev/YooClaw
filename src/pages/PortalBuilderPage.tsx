@@ -587,54 +587,107 @@ export function PortalBuilderPage() {
                   className="relative aspect-square flex flex-col items-end justify-end p-3 rounded-2xl border-2 border-border hover:border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all text-center group">
                   <div className="absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center text-2xl font-bold shadow-md group-hover:scale-110 transition-transform z-10">+</div>
                   <div className="w-full">
-                    <div className="text-[11px] font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报监控源</div>
+                    <div className="text-[11px] font-semibold text-foreground group-hover:text-amber-700 dark:group-hover:text-amber-300">情报源</div>
                     <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">持续监控关键词情报</div>
                   </div>
                 </button>
               </div>
             </div>
 
-            {/* Widget List */}
+            {/* Intelligence Sources (flat, no widget container) */}
             <div className="flex-1 overflow-y-auto p-4">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">我的组件</p>
-              {widgets.length === 0 ? (
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">情报源</p>
+              {/* Intel source cards — flat list, no widget container */}
+              {(() => {
+                const intelWidget = widgets.find((w) => w.type === 'intel-monitor')
+                const sources = intelWidget ? (intelWidget.config.sources || []) : []
+                if (sources.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <div className="text-2xl mb-2 opacity-30">📡</div>
+                      <p className="text-[11px]">尚未添加情报源</p>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="space-y-2">
+                    {sources.map((s) => (
+                      <div key={s.id}
+                        className={`rounded-xl border p-2.5 cursor-pointer transition-all ${
+                          selectedWidgetId === intelWidget?.id ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/20' : 'border-border hover:border-violet-300 bg-background'
+                        }`}
+                        onClick={() => handleWidgetClick(intelWidget!.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${INTEL_CATEGORIES.includes(s.name) ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' : 'bg-muted text-muted-foreground'}`}>
+                              {INTEL_CATEGORIES.includes(s.name) ? '🛰️' : '📌'}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-semibold truncate">{s.name || '未命名'}</div>
+                              <div className="flex gap-2 text-[9px] text-muted-foreground mt-0.5">
+                                <span>{s.aiProvider || 'deepseek'}</span>
+                                <span>{(s.keywords || []).length} 关键词</span>
+                                {(s.objects || []).length > 0 && <span className="text-purple-600 font-medium">{(s.objects || []).length} 对象</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); deleteMonitorSource(intelWidget!.id, s.id) }}
+                            className="p-1 rounded text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all">
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                        {(s.objects || []).length > 0 && (
+                          <div className="flex gap-1 mt-1.5 flex-wrap">
+                            {(s.objects || []).slice(0, 4).map((o) => (
+                              <span key={o.name} className="px-1.5 py-0.5 rounded text-[9px] bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 font-medium">{o.name}</span>
+                            ))}
+                            {(s.objects || []).length > 4 && <span className="text-[9px] text-muted-foreground">+{(s.objects || []).length - 4}</span>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+              {/* Report generator cards — keep original */}
+              {widgets.filter((w) => w.type === 'report-generator').length > 0 && (
+                <>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 mt-4 text-center">报告组件</p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {widgets.filter((w) => w.type === 'report-generator').map((w, i) => {
+                      const realIdx = widgets.indexOf(w)
+                      return (
+                        <div key={w.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, realIdx)}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, realIdx)}
+                          className={`group rounded-2xl border-2 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1.5 p-2.5 relative ${
+                            selectedWidgetId === w.id ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 shadow-md' : 'border-border hover:border-muted-foreground/40 bg-background hover:bg-muted/40'
+                          }`}
+                          onClick={() => handleWidgetClick(w.id)}
+                        >
+                          <div className="absolute top-1.5 right-1.5 text-muted-foreground/25 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
+                            <GripVertical size={12} />
+                          </div>
+                          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600">📊</div>
+                          <div className="text-[11px] font-semibold text-center leading-tight line-clamp-2 px-1">{w.title}</div>
+                          <div className="text-[9px] text-muted-foreground text-center">{(w.config.analysisMethods || []).slice(0, 2).join(' · ')}</div>
+                          <button onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
+                            className="absolute bottom-1.5 right-1.5 p-1 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all">
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+              {widgets.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
                   <div className="text-2xl mb-2 opacity-30">🧩</div>
-                  <p className="text-[11px]">从上方添加组件</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2.5">
-                  {widgets.map((w, i) => (
-                    <div key={w.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, i)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, i)}
-                      className={`group rounded-2xl border-2 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-1.5 p-2.5 relative ${
-                        selectedWidgetId === w.id
-                          ? w.type === 'report-generator' ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 shadow-md' : 'border-amber-400 bg-amber-50 dark:bg-amber-950/20 shadow-md'
-                          : 'border-border hover:border-muted-foreground/40 bg-background hover:bg-muted/40'
-                      }`}
-                      onClick={() => handleWidgetClick(w.id)}
-                    >
-                      <div className="absolute top-1.5 right-1.5 text-muted-foreground/25 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
-                        <GripVertical size={12} />
-                      </div>
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm ${
-                        w.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'
-                      }`}>
-                        {w.type === 'report-generator' ? '📊' : '🛰️'}
-                      </div>
-                      <div className="text-[11px] font-semibold text-center leading-tight line-clamp-2 px-1">{w.title}</div>
-                      <div className="text-[9px] text-muted-foreground text-center">
-                        {w.type === 'report-generator' ? (w.config.analysisMethods || []).slice(0, 2).join(' · ') : `${(w.config.sources || []).length}个源`}
-                      </div>
-                      <button onClick={(e) => { e.stopPropagation(); deleteWidget(w.id) }}
-                        className="absolute bottom-1.5 right-1.5 p-1 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all">
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  ))}
+                  <p className="text-[11px]">从上方添加组件或情报源</p>
                 </div>
               )}
             </div>
