@@ -3109,7 +3109,7 @@ app.post('/api/v1/sites/portal/deploy', authMiddleware, async (req, res) => {
 
     console.log(`[Portal] User:${userId} Deploying "${name}" (slug: ${slug}, template: ${template})`);
 
-    const apiBase = process.env.FRONTEND_URL
+    const apiBase = process.env.API_URL || process.env.FRONTEND_URL
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
@@ -3148,7 +3148,7 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
 
     console.log(`[Portal] User:${userId} Re-deploying portal "${existing.title}" (slug: ${slug})`);
 
-    const apiBase = process.env.FRONTEND_URL
+    const apiBase = process.env.API_URL || process.env.FRONTEND_URL
       || (req.get('host') ? `https://${req.get('host')}` : null)
       || `http://localhost:${APP_PORT}`;
 
@@ -4001,7 +4001,7 @@ app.post('/api/p/config/:slug', async (req, res) => {
       return res.status(400).json({ error: 'Invalid widgetIdx' });
     }
 
-    const apiBase = process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
+    const apiBase = process.env.API_URL || process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
     const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, slug, widgets);
     await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
 
