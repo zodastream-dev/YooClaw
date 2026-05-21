@@ -59,13 +59,26 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .source-card .sc-provider.metaso{background:rgba(168,85,247,0.12);color:var(--purple)}
 .source-card .sc-kwcount{font-size:10px;color:var(--text-secondary)}
 .source-card .sc-freq{font-size:10px;color:var(--text-secondary)}
-.source-card .sc-edit{font-size:16px;color:var(--text-secondary);opacity:0;transition:opacity .2s;flex-shrink:0}
+.source-card .sc-edit{font-size:16px;color:var(--text-secondary);opacity:0;transition:opacity .2s;flex-shrink:0;position:absolute;top:8px;right:8px}
 .source-card:hover .sc-edit{opacity:1}
 .add-source-btn{width:100%;padding:10px;border:1px dashed var(--border);border-radius:10px;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit;margin-top:4px}
 .add-source-btn:hover{border-color:rgba(0,212,255,0.3);color:var(--cyan);background:rgba(0,212,255,0.05);box-shadow:0 0 8px rgba(0,212,255,0.05)}
-/* Object tags on source cards */
-.source-card .sc-objects{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
-.source-card .sc-obj-tag{font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,0.12);color:var(--purple);font-weight:500}
+/* Source card active state */
+.source-card.source-active{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.04)}
+/* Source card clickable header */
+.source-card .sc-clickable{display:flex;align-items:center;gap:8px;cursor:pointer}
+.source-card .sc-arrow{font-size:9px;color:var(--text-secondary);flex-shrink:0;width:12px;text-align:center}
+.source-card .sc-arrow.sc-has-children{color:var(--cyan)}
+.source-card .sc-objcount{font-size:10px;color:var(--purple)}
+/* Object list under expanded source */
+.source-card .sc-objects-list{border-top:1px solid var(--border);margin:0;padding:0}
+.source-card .sc-obj-item{display:flex;align-items:center;gap:6px;padding:5px 8px 5px 16px;cursor:pointer;transition:background .15s}
+.source-card .sc-obj-item:hover{background:rgba(168,85,247,0.06)}
+.source-card .sc-obj-active{background:rgba(168,85,247,0.1)}
+.source-card .sc-obj-dot{width:5px;height:5px;border-radius:50%;background:var(--text-secondary);flex-shrink:0}
+.source-card .sc-obj-active .sc-obj-dot{background:var(--purple)}
+.source-card .sc-obj-name{font-size:11px;color:var(--text-primary);flex:1}
+.source-card .sc-obj-kwcount{font-size:9px;color:var(--text-secondary)}
 /* Object filter buttons */
 .intel-objfilters{display:flex;gap:4px;padding:4px 24px;flex-wrap:wrap}
 /* Object tag on intel cards */

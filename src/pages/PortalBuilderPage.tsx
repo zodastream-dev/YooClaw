@@ -88,6 +88,12 @@ const SEARCH_PLATFORMS = [
 
 const ANALYSIS_METHODS = ['SWOT', 'PEST', 'PORTER', '3C', 'STOCK']
 const INTEL_CATEGORIES = ['行业信号', '目标客户情报', '竞争对手情报', '自身舆情监控']
+const INTEL_PROMPTS: Record<string, string> = {
+  '行业信号': '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。',
+  '目标客户情报': '你是客户情报分析师，擅长追踪目标客户的需求和动态。',
+  '竞争对手情报': '你是竞争情报分析师，擅长监控竞争对手的战略动向。',
+  '自身舆情监控': '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。',
+}
 
 // ========== Helpers ==========
 
@@ -216,11 +222,20 @@ export function PortalBuilderPage() {
     if (addModalType === 'report-generator') {
       setWidgets((prev) => [...prev, { id: genId(), type: 'report-generator', title: addReportForm.title || '行业分析报告', expanded: false, config: { defaultCompany: addReportForm.defaultCompany, analysisMethods: addReportForm.analysisMethods, searchPlatform: addReportForm.searchPlatform, searchApiKey: addReportForm.searchApiKey, sysPrompt: addReportForm.sysPrompt, userPrompt: addReportForm.userPrompt } }])
     } else if (addModalType === 'intel-monitor') {
-      setWidgets((prev) => [...prev, { id: genId(), type: 'intel-monitor', title: addMonitorForm.title || `情报监控源 #${widgets.filter((w) => w.type === 'intel-monitor').length + 1}`, expanded: false, config: { sources: addMonitorForm.sources.map((s) => ({ ...s, id: s.id || genId('s') })) } }])
+      // Flatten: add sources to first intel widget (auto-create if none)
+      setWidgets((prev) => {
+        const existing = prev.find((w) => w.type === 'intel-monitor')
+        if (existing) {
+          return prev.map((w) => w.id === existing.id
+            ? { ...w, config: { ...w.config, sources: [...(w.config.sources || []), ...addMonitorForm.sources.map((s) => ({ ...s, id: s.id || genId('s') }))] } }
+            : w)
+        }
+        return [...prev, { id: genId(), type: 'intel-monitor', title: '情报监控', expanded: false, config: { sources: addMonitorForm.sources.map((s) => ({ ...s, id: s.id || genId('s') })) } }]
+      })
     }
     setShowAddModal(false)
     setAddModalType(null)
-  }, [addModalType, addReportForm, addMonitorForm, widgets])
+  }, [addModalType, addReportForm, addMonitorForm])
 
   // ========== Widget Operations ==========
   const deleteWidget = useCallback((id: string) => {
@@ -1211,7 +1226,13 @@ export function PortalBuilderPage() {
                               className="text-[10px] text-red-500 hover:text-red-600">删除</button>
                           </div>
                           <select value={INTEL_CATEGORIES.includes(s.name) ? s.name : '__custom__'}
-                            onChange={(e) => updateSourceField(editingWidget.id, s.id, 'name', e.target.value === '__custom__' ? '' : e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value === '__custom__' ? '' : e.target.value;
+                              updateSourceField(editingWidget.id, s.id, 'name', val);
+                              if (val && INTEL_PROMPTS[val]) {
+                                updateSourceField(editingWidget.id, s.id, 'customPrompt', INTEL_PROMPTS[val]);
+                              }
+                            }}
                             className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all">
                             <option value="">-- 选择情报属性 --</option>
                             {INTEL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}

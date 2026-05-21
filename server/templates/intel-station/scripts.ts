@@ -103,7 +103,8 @@ async function loadIntelData(){
   }
 }
 
-/* ===== RENDER SOURCE FILTERS ===== */
+/* ===== RENDER SOURCE FILTERS (expandable tree) ===== */
+var expandedSources={};
 function renderSourceFilters(monitors){
   var widgetSources=[];
   monitors.forEach(function(mw,monitorIdx){
@@ -118,32 +119,87 @@ function renderSourceFilters(monitors){
   var html='';
   widgetSources.forEach(function(ws){
     var src=ws.source;
+    var objects=src.objects||[];
+    var hasObj=objects.length>0;
+    var expanded=!!expandedSources[src.name];
+    var isSourceActive=currentSourceFilters.length>0&&currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf(src.name)>=0;
     var providerLabel=src.aiProvider||'deepseek';
     var kws=(src.keywords||[]);
     var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[src.updateFrequency]||'每日';
-    html+='<div class="source-card" onclick="openSourceModal('+ws.widgetIndex+','+ws.sourceIndex+')" title="点击编辑此监控源">';
+    html+='<div class="source-card'+(isSourceActive?' source-active':'')+'">';
+    // Clickable header area
+    html+='<div class="sc-clickable" onclick="if('+hasObj+'){toggleSourceExpand(\''+escHtml(src.name)+'\','+ws.widgetIndex+','+ws.sourceIndex+')}else{selectSourceFilter(\''+escHtml(src.name)+'\','+ws.widgetIndex+','+ws.sourceIndex+')}">';
     html+='<div class="sc-icon">&#x1F6F0;</div>';
     html+='<div class="sc-body">';
     html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
-    var objects=src.objects||[];
-    if(objects.length>0){
-      html+='<div class="sc-objects">';
-      for(var oi=0;oi<Math.min(objects.length,3);oi++){
-        html+='<span class="sc-obj-tag">'+escHtml(objects[oi].name)+'</span>';
-      }
-      if(objects.length>3)html+='<span class="sc-obj-tag">+'+(objects.length-3)+'</span>';
-      html+='</div>';
-    }
     html+='<div class="sc-meta">';
     html+='<span class="sc-provider'+(providerLabel==='metaso'?' metaso':'')+'">'+escHtml(providerLabel)+'</span>';
     html+='<span class="sc-kwcount">'+kws.length+' 关键词</span>';
     html+='<span class="sc-freq">'+freqLabel+'</span>';
+    if(hasObj)html+='<span class="sc-objcount">'+objects.length+' 对象</span>';
     html+='</div></div>';
-    html+='<div class="sc-edit">&#x270E;</div>';
+    html+='<span class="sc-arrow'+(hasObj?' sc-has-children':'')+'">'+(hasObj?(expanded?'&#x25BC;':'&#x25B6;'):'')+'</span>';
+    html+='</div>';
+    // Object items (if expanded)
+    if(hasObj&&expanded){
+      html+='<div class="sc-objects-list">';
+      objects.forEach(function(obj){
+        var isObjActive=currentObjectFilter!=='全部'&&currentObjectFilter===obj.name;
+        html+='<div class="sc-obj-item'+(isObjActive?' sc-obj-active':'')+'" onclick="event.stopPropagation();selectObjectFilter(\''+escHtml(src.name)+'\',\''+escHtml(obj.name)+'\','+ws.widgetIndex+','+ws.sourceIndex+')">';
+        html+='<span class="sc-obj-dot"></span>';
+        html+='<span class="sc-obj-name">'+escHtml(obj.name)+'</span>';
+        html+='<span class="sc-obj-kwcount">'+(obj.keywords||[]).length+' kw</span>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+    // Edit button
+    html+='<div class="sc-edit" onclick="event.stopPropagation();openSourceModal('+ws.widgetIndex+','+ws.sourceIndex+')">&#x270E;</div>';
     html+='</div>';
   });
-  html+='<button class="add-source-btn" onclick="addNewSource()">+ 添加监控源</button>';
+  html+='<button class="add-source-btn" onclick="addNewSource()">+ 添加情报源</button>';
   $('sourceGroups').innerHTML=html;
+}
+
+/* ===== SOURCE TREE INTERACTIONS ===== */
+function toggleSourceExpand(srcName,wi,si){
+  if(expandedSources[srcName]){expandedSources[srcName]=false}else{expandedSources[srcName]=true}
+  if(currentSourceFilters[0]==='全部'||currentSourceFilters.indexOf(srcName)===-1){
+    selectSourceFilter(srcName,wi,si);
+  }else{
+    currentSourceFilters=['全部'];currentObjectFilter='全部';
+    renderIntelFeed(allIntelData);
+    var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+    renderSourceFilters(monitors);
+    buildIntelSubFilters(monitors);
+    buildObjectFilters(monitors);
+  }
+}
+
+function selectSourceFilter(srcName,wi,si){
+  currentSourceFilters=[srcName];
+  currentObjectFilter='全部';
+  expandedSources[srcName]=true;
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  var filtered=allIntelData.filter(function(item){return (item._sourceName||'').trim()===srcName});
+  renderIntelFeed(filtered);
+  renderSourceFilters(monitors);
+  buildIntelSubFilters(monitors);
+  buildObjectFilters(monitors);
+}
+
+function selectObjectFilter(srcName,objName,wi,si){
+  currentSourceFilters=[srcName];
+  currentObjectFilter=objName;
+  expandedSources[srcName]=true;
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  var filtered=allIntelData.filter(function(item){
+    return (item._sourceName||'').trim()===srcName&&(item._object||'')===objName;
+  });
+  renderIntelFeed(filtered);
+  renderSourceFilters(monitors);
+  buildIntelSubFilters(monitors);
+  buildObjectFilters(monitors);
 }
 
 /* ===== RENDER INTEL FEED ===== */
