@@ -203,7 +203,7 @@ export function PortalBuilderPage() {
   const [addMonitorForm, setAddMonitorForm] = useState({
     title: '', sources: [{
       id: '', name: '新建监控源', aiProvider: 'deepseek', aiModel: 'deepseek-v3.1',
-      apiKey: '', keywords: [] as string[], updateFrequency: 'daily', customPrompt: '',
+      apiKey: '', keywords: [] as string[], objects: [] as IntelObject[], updateFrequency: 'daily', customPrompt: '',
     }],
   })
 
@@ -213,7 +213,7 @@ export function PortalBuilderPage() {
     let defaultProvider = 'deepseek', defaultModel = 'deepseek-v3.1', defaultKeywords: string[] = []
     if (existingIntelCount === 0) { defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系'] }
     else if (existingIntelCount === 1) { defaultProvider = 'metaso'; defaultModel = 'metaso-pro'; defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车'] }
-    setAddMonitorForm({ title: `情报监控源 #${existingIntelCount + 1}`, sources: [{ id: genId('s'), name: '新建监控源', aiProvider: defaultProvider, aiModel: defaultModel, apiKey: '', keywords: defaultKeywords, updateFrequency: 'daily', customPrompt: '' }] })
+    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '', aiProvider: defaultProvider, aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: '' }] })
     setAddModalType(type)
     setShowAddModal(true)
   }, [widgets])
@@ -558,18 +558,6 @@ export function PortalBuilderPage() {
 
           {/* ========== LEFT: Component Library + Widget List ========== */}
           <aside className="w-[280px] flex-shrink-0 flex flex-col border-r border-border bg-card overflow-hidden">
-
-            {/* Quick Start */}
-            <div className="flex-shrink-0 p-4 pb-0">
-              <button onClick={() => setShowQuickStartModal(true)}
-                className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white transition-all group">
-                <span className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-base group-hover:scale-110 transition-transform">🚀</span>
-                <div className="text-left">
-                  <div className="text-xs font-bold">快速开始</div>
-                  <div className="text-[10px] opacity-80">一键创建 4 个情报监控源</div>
-                </div>
-              </button>
-            </div>
 
             {/* Component Library */}
             <div className="flex-shrink-0 p-4 border-b border-border">
@@ -1493,22 +1481,58 @@ export function PortalBuilderPage() {
                 {addModalType === 'intel-monitor' && (
                   <>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控源标题</label>
-                      <input type="text" value={addMonitorForm.title}
-                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, title: e.target.value }))}
-                        placeholder="情报监控源"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">情报属性</label>
+                      <select value={INTEL_CATEGORIES.includes(addMonitorForm.sources[0]?.name) ? addMonitorForm.sources[0].name : '__custom__'}
+                        onChange={(e) => {
+                          const val = e.target.value === '__custom__' ? '' : e.target.value;
+                          setAddMonitorForm((f) => ({
+                            ...f, sources: [{
+                              ...f.sources[0], name: val,
+                              customPrompt: val && INTEL_PROMPTS[val] ? INTEL_PROMPTS[val] : f.sources[0].customPrompt,
+                            }],
+                          }));
+                        }}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                        <option value="">-- 选择情报属性 --</option>
+                        {INTEL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        <option value="__custom__">自定义…</option>
+                      </select>
+                      {!INTEL_CATEGORIES.includes(addMonitorForm.sources[0]?.name) && (
+                        <input type="text" value={addMonitorForm.sources[0]?.name || ''}
+                          onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], name: e.target.value }] }))}
+                          placeholder="输入自定义属性名称" className="w-full px-3 py-2 mt-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                      )}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控源名称</label>
-                      <input type="text" value={addMonitorForm.sources[0]?.name || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], name: e.target.value }] }))}
-                        placeholder="如：光伏产业监控"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控对象 (可选)</label>
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {(addMonitorForm.sources[0]?.objects || []).map((obj) => (
+                          <span key={obj.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/20 text-[10px] text-purple-700 dark:text-purple-300">
+                            {obj.name}
+                            <button onClick={() => setAddMonitorForm((f) => ({
+                              ...f, sources: [{ ...f.sources[0], objects: (f.sources[0].objects || []).filter((o) => o.name !== obj.name) }],
+                            }))} className="hover:text-red-500">&times;</button>
+                          </span>
+                        ))}
+                        <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input'); if (inp && inp.value.trim()) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), { name: inp.value.trim(), keywords: [] }] }] })); inp.value = ''; } }}
+                          className="inline-flex">
+                          <input placeholder="+ 对象名" className="w-20 px-1.5 py-0.5 text-[10px] rounded border border-dashed border-muted-foreground/30 outline-none focus:border-purple-400 bg-transparent" />
+                        </form>
+                      </div>
                     </div>
+                    <KeywordInput
+                      keywords={addMonitorForm.sources[0]?.keywords || []}
+                      sourceId="modal" widgetId="modal"
+                      onAdd={(_, __, keyword) => {
+                        setAddMonitorForm((f) => { const s = f.sources[0]; if (s.keywords.includes(keyword)) return f; return { ...f, sources: [{ ...s, keywords: [...s.keywords, keyword] }] } })
+                      }}
+                      onRemove={(_, __, keyword) => {
+                        setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], keywords: f.sources[0].keywords.filter((k) => k !== keyword) }] }))
+                      }}
+                    />
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 提供商</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
                         <select value={addMonitorForm.sources[0]?.aiProvider || 'deepseek'}
                           onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }] }))}
                           className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
@@ -1517,43 +1541,19 @@ export function PortalBuilderPage() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
-                        <input type="text" value={addMonitorForm.sources[0]?.aiModel || ''}
+                        <input type="text" value={addMonitorForm.sources[0]?.aiModel || 'deepseek-v4-flash'}
                           onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiModel: e.target.value }] }))}
-                          placeholder="如：deepseek-v3.1"
+                          placeholder="deepseek-v4-flash"
                           className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key (可选)</label>
-                      <input type="text" value={addMonitorForm.sources[0]?.apiKey || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], apiKey: e.target.value }] }))}
-                        placeholder="输入自定义 API Key…"
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
-                    </div>
-                    <KeywordInput
-                      keywords={addMonitorForm.sources[0]?.keywords || []}
-                      sourceId={addMonitorForm.sources[0]?.id || 'modal'}
-                      widgetId="modal"
-                      onAdd={(_, __, keyword) => {
-                        setAddMonitorForm((f) => {
-                          const s = f.sources[0]
-                          if (s.keywords.includes(keyword)) return f
-                          return { ...f, sources: [{ ...s, keywords: [...s.keywords, keyword] }] }
-                        })
-                      }}
-                      onRemove={(_, __, keyword) => {
-                        setAddMonitorForm((f) => ({
-                          ...f, sources: [{ ...f.sources[0], keywords: f.sources[0].keywords.filter((k) => k !== keyword) }],
-                        }))
-                      }}
-                    />
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
                       <select value={addMonitorForm.sources[0]?.updateFrequency || 'daily'}
                         onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], updateFrequency: e.target.value }] }))}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
-                        <option value="hourly">每小时</option>
                         <option value="daily">每天</option>
+                        <option value="hourly">每小时</option>
                         <option value="weekly">每周</option>
                         <option value="monthly">每月</option>
                       </select>
@@ -1562,7 +1562,7 @@ export function PortalBuilderPage() {
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
                       <textarea value={addMonitorForm.sources[0]?.customPrompt || ''}
                         onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }] }))}
-                        rows={3} placeholder="描述情报监控的具体要求…"
+                        rows={2} placeholder={addMonitorForm.sources[0]?.name && INTEL_PROMPTS[addMonitorForm.sources[0].name] ? INTEL_PROMPTS[addMonitorForm.sources[0].name] : '描述情报监控的具体要求…'}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                   </>

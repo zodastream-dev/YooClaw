@@ -256,7 +256,8 @@ function buildIntelSubFilters(monitors){
   if(sourceNames.length<=1){el.style.display='none';return}
   var html='';
   sourceNames.forEach(function(name,i){
-    html+='<button class="subfilter-btn'+(i===0?' active':'')+'" data-source="'+escHtml(name)+'" onclick="filterBySourceFromBtn(this)">'+escHtml(name)+'</button>';
+    var active=name==='全部'?currentSourceFilters[0]==='全部':currentSourceFilters.indexOf(name)>=0;
+    html+='<button class="subfilter-btn'+(active?' active':'')+'" data-source="'+escHtml(name)+'" onclick="filterBySourceFromBtn(this)">'+escHtml(name)+'</button>';
   });
   el.innerHTML=html;
   if(currentCenterTab==='intel')el.style.display='';
