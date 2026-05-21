@@ -1507,7 +1507,7 @@ export function PortalBuilderPage() {
                           className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
                         <button onClick={() => { const names = addModalObjectInput.split(/[,，、\s]+/).filter(Boolean); if (names.length > 0) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), ...names.map(n => ({ name: n, keywords: [] }))] }] })); setAddModalObjectInput(''); } }}
                           className="px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors shrink-0">
-                          添加
+                          添加对象
                         </button>
                       </div>
                     </div>

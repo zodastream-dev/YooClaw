@@ -163,13 +163,14 @@ function renderSourceFilters(monitors){
 
 /* ===== SOURCE TREE INTERACTIONS ===== */
 function toggleSourceExpand(srcName,wi,si){
+  console.log('[toggleSourceExpand] srcName=',srcName,'expandedSources[srcName]=',expandedSources[srcName]);
   if(expandedSources[srcName]){expandedSources[srcName]=false}else{expandedSources[srcName]=true}
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   if(currentSourceFilters[0]==='全部'||currentSourceFilters.indexOf(srcName)===-1){
     selectSourceFilter(srcName,wi,si);
   }else{
     currentSourceFilters=['全部'];currentObjectFilter='全部';
     renderIntelFeed(allIntelData);
-    var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
     renderSourceFilters(monitors);
     buildIntelSubFilters(monitors);
     buildObjectFilters(monitors);
@@ -360,6 +361,9 @@ function filterByObject(objName){
     return matchSource&&matchObject;
   });
   renderIntelFeed(filtered);
+  // Sync left panel
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  renderSourceFilters(monitors);
 }
 
 /* ===== CENTER TAB SWITCHING ===== */
