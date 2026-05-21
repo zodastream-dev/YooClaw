@@ -4865,6 +4865,33 @@ app.use('/videos', express.static(VIDEO_DIR, {
   }
 }));
 
+// ======================== Video Management API Routes ========================
+
+// List user's videos
+app.get('/api/v1/videos', authMiddleware, async (req: any, res) => {
+  try {
+    const user = req.user;
+    const videos = await getUserVideos(user.userId);
+    res.json({ data: { items: videos } });
+  } catch (err: any) {
+    console.error('[Video List Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list videos' } });
+  }
+});
+
+// Delete a video
+app.delete('/api/v1/videos/:id', authMiddleware, async (req: any, res) => {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+    await deleteVideo(id, user.userId);
+    res.json({ data: { deleted: true } });
+  } catch (err: any) {
+    console.error('[Video Delete Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete video' } });
+  }
+});
+
 // ========== Serve Frontend (only in local dev mode) ==========
 if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'true') {
   const distPath = path.join(__dirname, '..', 'dist');
@@ -4928,31 +4955,3 @@ start().catch((err) => {
 // Cleanup on exit
 process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
 process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
-
-
-// ======================== Video Management API Routes ========================
-
-// List user's videos
-app.get('/api/v1/videos', authMiddleware, async (req: any, res) => {
-  try {
-    const user = req.user;
-    const videos = await getUserVideos(user.userId);
-    res.json({ data: { items: videos } });
-  } catch (err: any) {
-    console.error('[Video List Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list videos' } });
-  }
-});
-
-// Delete a video
-app.delete('/api/v1/videos/:id', authMiddleware, async (req: any, res) => {
-  try {
-    const user = req.user;
-    const { id } = req.params;
-    await deleteVideo(id, user.userId);
-    res.json({ data: { deleted: true } });
-  } catch (err: any) {
-    console.error('[Video Delete Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete video' } });
-  }
-});
