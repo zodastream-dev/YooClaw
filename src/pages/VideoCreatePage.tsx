@@ -37,7 +37,7 @@ export function VideoCreatePage() {
   const [duration, setDuration] = useState('5')
   const [resolution, setResolution] = useState('720p')
   const [ratio, setRatio] = useState('16:9')
-  const [genType, setGenType] = useState<GenType>('text2video')
+  const [genType, setGenType] = useState<GenType>('multimodal2video')
   const [modelVersion, setModelVersion] = useState('seedance2.0fast')
 
   const [activeCategory, setActiveCategory] = useState('all')
@@ -407,7 +407,7 @@ export function VideoCreatePage() {
             )}
 
             {/* ===== Main Input Box (Seedance Style) ===== */}
-            <div className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm shadow-sm overflow-hidden">
+            <div className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm shadow-sm">
               {/* Textarea */}
               <div className="relative">
                 <textarea
