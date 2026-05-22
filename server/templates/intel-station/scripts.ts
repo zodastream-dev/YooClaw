@@ -128,8 +128,9 @@ function renderSourceFilters(monitors){
     var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[src.updateFrequency]||'每日';
     html+='<div class="source-card'+(isSourceActive?' source-active':'')+'">';
     // Card body click → filter to this source
-    // Use JSON.stringify to safely embed string in onclick attribute
-    html+='<div class="sc-clickable" onclick="selectSourceFilter('+JSON.stringify(src.name)+','+ws.widgetIndex+','+ws.sourceIndex+')">';
+    // Manual quote escaping: output single-quoted strings in JS to avoid HTML attr quote conflict
+    var srcNameEsc=src.name.replace(/'/g,"\\'");
+    html+='<div class="sc-clickable" onclick="selectSourceFilter(\''+srcNameEsc+'\','+ws.widgetIndex+','+ws.sourceIndex+')">';
     html+='<div class="sc-icon">&#x1F6F0;</div>';
     html+='<div class="sc-body">';
     html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
@@ -140,14 +141,15 @@ function renderSourceFilters(monitors){
     if(hasObj)html+='<span class="sc-objcount">'+objects.length+' 对象</span>';
     html+='</div></div>';
     // Arrow → expand/collapse objects only (stop propagation so card click doesn't fire)
-    html+='<span class="sc-arrow'+(hasObj?' sc-has-children':'')+'" onclick="event.stopPropagation();'+(hasObj?'toggleSourceExpand('+JSON.stringify(src.name)+','+ws.widgetIndex+','+ws.sourceIndex+')':'selectSourceFilter('+JSON.stringify(src.name)+','+ws.widgetIndex+','+ws.sourceIndex+')')+'">'+(hasObj?(expanded?'&#x25BC;':'&#x25B6;'):'')+'</span>';
+    html+='<span class="sc-arrow'+(hasObj?' sc-has-children':'')+'" onclick="event.stopPropagation();'+(hasObj?'toggleSourceExpand(\''+srcNameEsc+'\','+ws.widgetIndex+','+ws.sourceIndex+')':'selectSourceFilter(\''+srcNameEsc+'\','+ws.widgetIndex+','+ws.sourceIndex+')')+'">'+(hasObj?(expanded?'&#x25BC;':'&#x25B6;'):'')+'</span>';
     html+='</div>';
     // Object items (if expanded)
     if(hasObj&&expanded){
       html+='<div class="sc-objects-list">';
       objects.forEach(function(obj){
         var isObjActive=currentObjectFilter!=='全部'&&currentObjectFilter===obj.name;
-        html+='<div class="sc-obj-item'+(isObjActive?' sc-obj-active':'')+'" onclick="event.stopPropagation();selectObjectFilter('+JSON.stringify(src.name)+','+JSON.stringify(obj.name)+','+ws.widgetIndex+','+ws.sourceIndex+')">';
+        var objNameEsc=obj.name.replace(/'/g,"\\'");
+        html+='<div class="sc-obj-item'+(isObjActive?' sc-obj-active':'')+'" onclick="event.stopPropagation();selectObjectFilter(\''+srcNameEsc+'\',\''+objNameEsc+'\','+ws.widgetIndex+','+ws.sourceIndex+')">';
         html+='<span class="sc-obj-dot"></span>';
         html+='<span class="sc-obj-name">'+escHtml(obj.name)+'</span>';
         html+='<span class="sc-obj-kwcount">'+(obj.keywords||[]).length+' kw</span>';
