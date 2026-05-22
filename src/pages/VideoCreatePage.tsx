@@ -253,6 +253,9 @@ export function VideoCreatePage() {
     { key: 'image', label: '图生视频', desc: '上传图片 + 描述', icon: ImageIcon, gradient: 'from-blue-500/20 via-cyan-500/20 to-teal-500/20', border: 'border-blue-400/30', text: 'text-blue-300', glow: 'shadow-blue-500/10' },
   ] as const
 
+  const genTypeConfig = GEN_TYPE_CONFIG.find(g => g.key === genType)!
+  const GenIcon = genTypeConfig.icon
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-3 sm:px-5 md:px-6 py-4 sm:py-6 md:py-8">
@@ -538,7 +541,7 @@ export function VideoCreatePage() {
                     : 'bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 hover:from-orange-600 hover:via-red-600 hover:to-pink-600 shadow-orange-500/25'
                   }`}
               >
-                {isSubmitting ? <><Loader2 size={18} className="animate-spin" />正在提交...</> : <>{GEN_TYPE_CONFIG.find(g => g.key === genType) ? <GEN_TYPE_CONFIG.find(g => g.key === genType)!.icon size={18} /> : null}{GEN_TYPE_CONFIG.find(g => g.key === genType)?.label || '开始生成'}</>}
+                {isSubmitting ? <><Loader2 size={18} className="animate-spin" />正在提交...</> : <><GenIcon size={18} />{genTypeConfig.label}</>}
               </button>
             </div>
 
@@ -560,7 +563,7 @@ export function VideoCreatePage() {
                   {genType === 'image_upscale' ? '图片放大中' : '视频生成中'}
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                  {GEN_TYPE_CONFIG.find(g => g.key === genType)?.label || genType} · {prompt.slice(0, 40)}{prompt.length > 40 ? '...' : ''}
+                  {genTypeConfig.label} · {prompt.slice(0, 40)}{prompt.length > 40 ? '...' : ''}
                 </p>
               </div>
             </div>
