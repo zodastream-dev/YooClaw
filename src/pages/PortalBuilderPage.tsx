@@ -198,7 +198,7 @@ export function PortalBuilderPage() {
 
   // ========== Add Widget Modal ==========
   const [addModalObjectInput, setAddModalObjectInput] = useState('')
-  const [addModalKeywordInput, setAddModalKeywordInput] = useState('')
+  const [editModalObjectInput, setEditModalObjectInput] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalType, setAddModalType] = useState<'report-generator' | 'intel-monitor' | null>(null)
   const [addReportForm, setAddReportForm] = useState({
@@ -1315,11 +1315,16 @@ export function PortalBuilderPage() {
                                 </span>
                               ))}
                             </div>
-                            <form onSubmit={(e) => { e.preventDefault(); const inp = (e.target as HTMLFormElement).querySelector('input') as HTMLInputElement; if (inp && inp.value.trim()) { addObjectToSource(editingWidget.id, s.id, inp.value.trim()); inp.value = ''; } }}
-                              className="flex gap-2">
-                              <input placeholder="输入对象名称（如：星巴克）" className="flex-1 px-2.5 py-1 text-[11px] border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
-                              <button type="submit" className="px-2.5 py-1 text-[11px] font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">添加</button>
-                            </form>
+                            <div className="flex gap-2">
+                              <input value={editModalObjectInput}
+                                onChange={(e) => setEditModalObjectInput(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, s.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } } }}
+                                placeholder="输入对象名称（如：星巴克）" className="flex-1 px-2.5 py-1 text-[11px] border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                              <button onClick={() => { if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, s.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } }}
+                                className="px-2.5 py-1 text-[11px] font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors shrink-0">
+                                添加
+                              </button>
+                            </div>
                           </div>
                           {/* --- Keywords --- */}
                           <KeywordInput
