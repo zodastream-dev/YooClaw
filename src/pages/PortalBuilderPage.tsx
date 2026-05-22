@@ -198,6 +198,7 @@ export function PortalBuilderPage() {
 
   // ========== Add Widget Modal ==========
   const [addModalObjectInput, setAddModalObjectInput] = useState('')
+  const [addModalKeywordInput, setAddModalKeywordInput] = useState('')
   const [editModalObjectInput, setEditModalObjectInput] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalType, setAddModalType] = useState<'report-generator' | 'intel-monitor' | null>(null)
