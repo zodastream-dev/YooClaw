@@ -1271,8 +1271,8 @@ export function PortalBuilderPage() {
                         <div key={s.id} className="col-span-2 rounded-xl border border-border p-3 space-y-2.5 bg-background/50">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-semibold text-muted-foreground">{s.name}</span>
-                            <button onClick={() => deleteMonitorSource(editingWidget.id, s.id)}
-                              className="text-[10px] text-red-500 hover:text-red-600">删除</button>
+                            <button onClick={() => { if (confirm(`确认删除情报源「${s.name}」？此操作不可撤销。`)) deleteMonitorSource(editingWidget.id, s.id) }}
+                              className="px-2 py-1 text-[11px] font-medium rounded-md border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">🗑 删除</button>
                           </div>
                           <select value={INTEL_CATEGORIES.includes(s.name) ? s.name : '__custom__'}
                             onChange={(e) => {

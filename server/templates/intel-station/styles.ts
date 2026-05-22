@@ -46,7 +46,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .left-header::after{content:'';position:absolute;bottom:-1px;left:0;width:60px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:1px}
 .left-header h3{font-size:13px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px}
 .source-groups{flex:1;overflow-y:auto;padding:12px}
-.source-card{display:flex;align-items:flex-start;gap:10px;padding:12px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .25s;background:rgba(15,23,42,0.4);position:relative;overflow:hidden}
+.source-card{display:flex;flex-direction:column;gap:0;padding:10px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .25s;background:rgba(15,23,42,0.4);position:relative;overflow:hidden}
 .source-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.15),transparent);opacity:0;transition:opacity .25s}
 .source-card:hover{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.05);box-shadow:0 0 16px rgba(0,212,255,0.1),inset 0 1px 0 rgba(255,255,255,0.03);transform:translateX(2px)}
 .source-card:hover::before{opacity:1}
@@ -66,19 +66,19 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 /* Source card active state */
 .source-card.source-active{border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.04)}
 /* Source card clickable header */
-.source-card .sc-clickable{display:flex;align-items:center;gap:8px;cursor:pointer}
+.source-card .sc-clickable{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px}
 .source-card .sc-arrow{font-size:9px;color:var(--text-secondary);flex-shrink:0;width:12px;text-align:center}
 .source-card .sc-arrow.sc-has-children{color:var(--cyan)}
 .source-card .sc-objcount{font-size:10px;color:var(--purple)}
 /* Object list under expanded source */
-.source-card .sc-objects-list{border-top:1px solid var(--border);margin:0;padding:0}
-.source-card .sc-obj-item{display:flex;align-items:center;gap:6px;padding:5px 8px 5px 16px;cursor:pointer;transition:background .15s}
+.source-card .sc-objects-list{margin-top:6px;padding:8px 2px 2px;border-top:1px solid var(--border)}
+.source-card .sc-obj-item{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;transition:background .15s;border-radius:6px}
 .source-card .sc-obj-item:hover{background:rgba(168,85,247,0.06)}
 .source-card .sc-obj-active{background:rgba(168,85,247,0.1)}
-.source-card .sc-obj-dot{width:5px;height:5px;border-radius:50%;background:var(--text-secondary);flex-shrink:0}
+.source-card .sc-obj-dot{width:6px;height:6px;border-radius:50%;background:var(--text-secondary);flex-shrink:0}
 .source-card .sc-obj-active .sc-obj-dot{background:var(--purple)}
-.source-card .sc-obj-name{font-size:11px;color:var(--text-primary);flex:1}
-.source-card .sc-obj-kwcount{font-size:9px;color:var(--text-secondary)}
+.source-card .sc-obj-name{font-size:13px;color:var(--text-primary);flex:1}
+.source-card .sc-obj-kwcount{font-size:10px;color:var(--text-secondary)}
 /* Object filter buttons */
 .intel-objfilters{display:flex;gap:4px;padding:4px 24px;flex-wrap:wrap}
 /* Object tag on intel cards */
