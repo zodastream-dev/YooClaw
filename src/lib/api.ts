@@ -374,12 +374,16 @@ export async function videoStatus() {
 }
 
 export async function generateVideo(params: {
+  genType: string
+  modelVersion: string
   prompt: string
   duration: string
   resolution: string
   ratio?: string
   image?: string
-  inputType?: string
+  images?: string[]
+  transitionPrompts?: string[]
+  transitionDurations?: string[]
 }) {
   return apiRequest<{ id: string; title?: string; url: string; status?: string; message?: string }>(
     'POST', '/api/v1/videos/generate', params
@@ -389,6 +393,7 @@ export async function generateVideo(params: {
 export interface VideoTaskStatus {
   id: string
   status: 'completed' | 'failed' | 'processing' | 'unknown'
+  genType: string
   polls: number
   maxPolls: number
   isPolling: boolean

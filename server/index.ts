@@ -4097,17 +4097,36 @@ if (!fs.existsSync(VIDEO_DIR)) {
 
 
 // In-memory video task store (survives across requests, reset on server restart)
+const VALID_GEN_TYPES = ['text2video', 'image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale'] as const;
+const VALID_MODEL_VERSIONS = ['seedance2.0fast', 'seedance2.0', 'seedance2.0_vip', 'seedance2.0fast_vip', '3.0', '3.5pro'] as const;
+
 interface VideoTask {
   submitId: string;
   status: 'processing' | 'completed' | 'failed';
+  genType: string;
   prompt: string;
   startTime: number;
   polls: number;
   videoUrl: string | null;
-  isImageMode: boolean;
-  tempImagePath: string; // for cleanup
+  userId: string;
+  duration: string;
+  resolution: string;
+  ratio: string;
+  modelVersion: string;
+  tempImagePaths: string[]; // for cleanup (single or multi)
+  queueInfo: any;
 }
 const videoTasks = new Map<string, VideoTask>();
+
+/** Save a base64 image string to a temp file, return the file path */
+function saveBase64TempImage(base64Str: string, prefix: string): string {
+  const base64Data = base64Str.replace(/^data:image\/\w+;base64,/, '');
+  const ext = (base64Str.match(/^data:image\/(\w+);base64,/) || [])[1] || 'png';
+  const tmpPath = path.join('/tmp', `${prefix}-${crypto.randomUUID()}.${ext}`);
+  fs.writeFileSync(tmpPath, Buffer.from(base64Data, 'base64'));
+  console.log(`[VideoGen] Saved temp image: ${tmpPath} (${(base64Data.length / 1024).toFixed(1)} KB)`);
+  return tmpPath;
+}
 
 // Check login status — admin token always active, no OAuth needed
 app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
@@ -4119,48 +4138,94 @@ app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
   }
 });
 
-// Generate video using dreamina CLI (supports text-to-video and image-to-video)
+// Multi-type generation (video, image upscale, etc.)
 // Two-phase: Phase 1 submits with --poll=0, Phase 2 polls query_result in background
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   try {
-    const { prompt, duration, resolution, ratio, image, inputType } = req.body || {};
-    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Video prompt is required' } });
-    }
+    const { genType, modelVersion, prompt, duration, resolution, ratio, image, images, transitionPrompts, transitionDurations } = req.body || {};
+    const user = (req as any).user;
 
-    const isImageMode = inputType === 'image';
-
-    // Image mode: validate and save base64 image to temp file
-    let tempImagePath = '';
-    if (isImageMode) {
-      if (!image || typeof image !== 'string') {
-        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Image is required for image-to-video mode' } });
-      }
-      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-      const imgExt = (image.match(/^data:image\/(\w+);base64,/) || [])[1] || 'png';
-      if (!base64Data) {
-        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid base64 image data' } });
-      }
-      tempImagePath = path.join('/tmp', `video-input-${crypto.randomUUID()}.${imgExt}`);
-      fs.writeFileSync(tempImagePath, Buffer.from(base64Data, 'base64'));
-      console.log(`[VideoGen] Saved image to ${tempImagePath} (${(base64Data.length / 1024).toFixed(1)} KB base64)`);
-    }
-
+    // Determine generation type
+    const gt = (genType && VALID_GEN_TYPES.includes(genType)) ? genType : (image || images ? 'image2video' : 'text2video');
+    const mv = (modelVersion && VALID_MODEL_VERSIONS.includes(modelVersion)) ? modelVersion : 'seedance2.0fast';
     const dur = Number(duration) || 5;
     const reso = resolution || '720p';
     const rat = ratio || '16:9';
+    const promptStr = (prompt && typeof prompt === 'string') ? prompt.trim() : '';
 
-    // Phase 1: Submit task (no polling — return immediately)
-    let submitCmd: string;
-    if (isImageMode) {
-      console.log(`[VideoGen] Image-to-video submit: "${prompt.slice(0, 80)}..." (${dur}s, ${reso})`);
-      submitCmd = `${DREAMINA_BIN} image2video --image="${tempImagePath}" --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --video_resolution=${reso} --poll=0`;
-    } else {
-      console.log(`[VideoGen] Text-to-video submit: "${prompt.slice(0, 80)}..." (${dur}s, ${reso}, ${rat})`);
-      submitCmd = `${DREAMINA_BIN} text2video --prompt="${prompt.trim().replace(/"/g, '\\"')}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --poll=0`;
+    // Validate prompt for types that need it
+    const needsPrompt = ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(gt);
+    if (needsPrompt && !promptStr) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Prompt is required for this generation type' } });
     }
 
-    console.log('[VideoGen] Submit:', submitCmd.slice(0, 150));
+    // Parse images array or single image
+    const imageList: string[] = [];
+    if (images && Array.isArray(images)) {
+      for (const img of images) {
+        if (typeof img === 'string' && img) imageList.push(img);
+      }
+    } else if (image && typeof image === 'string') {
+      imageList.push(image);
+    }
+
+    // Validate image count per type
+    const minImages: Record<string, number> = {
+      image2video: 1, multimodal2video: 1, multiframe2video: 2, frames2video: 2, image_upscale: 1,
+    };
+    const maxImages: Record<string, number> = {
+      image2video: 1, multimodal2video: 9, multiframe2video: 20, frames2video: 2, image_upscale: 1,
+    };
+    if (minImages[gt] && imageList.length < minImages[gt]) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `${gt} requires at least ${minImages[gt]} image(s)` } });
+    }
+    if (maxImages[gt] && imageList.length > maxImages[gt]) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `${gt} supports at most ${maxImages[gt]} image(s)` } });
+    }
+
+    // Save all images to temp files
+    const tempPaths: string[] = [];
+    for (let i = 0; i < imageList.length; i++) {
+      tempPaths.push(saveBase64TempImage(imageList[i], `gen-${gt}`));
+    }
+
+    // Build dreamina command
+    let submitCmd: string;
+    const escPrompt = promptStr.replace(/"/g, '\\"');
+    switch (gt) {
+      case 'text2video':
+        submitCmd = `${DREAMINA_BIN} text2video --prompt="${escPrompt}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --model_version=${mv} --poll=0`;
+        break;
+      case 'image2video':
+        submitCmd = `${DREAMINA_BIN} image2video --image="${tempPaths[0]}" --prompt="${escPrompt}" --duration=${dur} --video_resolution=${reso} --model_version=${mv} --poll=0`;
+        break;
+      case 'multimodal2video': {
+        const imgFlags = tempPaths.map(p => `--image "${p}"`).join(' ');
+        submitCmd = `${DREAMINA_BIN} multimodal2video ${imgFlags} --prompt="${escPrompt}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --model_version=${mv} --poll=0`;
+        break;
+      }
+      case 'multiframe2video': {
+        const imgList = tempPaths.join(',');
+        if (tempPaths.length === 2 && !transitionPrompts?.length) {
+          submitCmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} --prompt="${escPrompt}" --duration=${dur} --poll=0`;
+        } else {
+          const tpFlags = (transitionPrompts || []).map((tp: string) => `--transition-prompt "${tp.replace(/"/g, '\\"')}"`).join(' ');
+          const tdFlags = (transitionDurations || []).map((td: string) => `--transition-duration "${td}"`).join(' ');
+          submitCmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} ${tpFlags} ${tdFlags} --poll=0`;
+        }
+        break;
+      }
+      case 'frames2video':
+        submitCmd = `${DREAMINA_BIN} frames2video --first="${tempPaths[0]}" --last="${tempPaths[1]}" --prompt="${escPrompt}" --duration=${dur} --model_version=${mv} --poll=0`;
+        break;
+      case 'image_upscale':
+        submitCmd = `${DREAMINA_BIN} image_upscale --image="${tempPaths[0]}" --resolution_type=2k --poll=0`;
+        break;
+      default:
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `Unsupported generation type: ${gt}` } });
+    }
+
+    console.log(`[VideoGen] ${gt} submit:`, submitCmd.slice(0, 200));
     const { stdout: submitOut } = await execAsync(submitCmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
     console.log('[VideoGen] Submit response:', submitOut.slice(0, 300));
 
@@ -4168,128 +4233,106 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     let submitId = '';
     const jsonMatch = submitOut.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        submitId = parsed.submit_id || '';
-      } catch {}
+      try { const parsed = JSON.parse(jsonMatch[0]); submitId = parsed.submit_id || ''; } catch {}
     }
     if (!submitId) {
-      // Cleanup temp image
-      if (tempImagePath) { try { fs.unlinkSync(tempImagePath); } catch {} }
-      return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: 'Failed to get submit_id from Dreamina. Response: ' + submitOut.slice(0, 200) } });
+      for (const p of tempPaths) { try { fs.unlinkSync(p); } catch {} }
+      return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: 'Failed to get submit_id. Response: ' + submitOut.slice(0, 200) } });
     }
 
     // Store task in memory
     const task: VideoTask = {
       submitId,
       status: 'processing',
-      prompt: prompt.trim(),
+      genType: gt,
+      prompt: promptStr,
       startTime: Date.now(),
       polls: 0,
       videoUrl: null,
-      isImageMode,
-      tempImagePath,
+      userId: user.userId,
+      duration: String(dur),
+      resolution: reso,
+      ratio: rat,
+      modelVersion: mv,
+      tempImagePaths: tempPaths,
+      queueInfo: null,
     };
     videoTasks.set(submitId, task);
 
     // Return immediately to frontend
-    res.json({
-      data: {
-        id: submitId,
-        title: prompt.trim().slice(0, 30),
-        status: 'processing',
-      },
-    });
+    res.json({ data: { id: submitId, title: promptStr.slice(0, 30), status: 'processing' } });
 
-    // Phase 2: Background polling loop (max 60 polls x 5min = 5 hr)
-    console.log(`[VideoGen] Task ${submitId} submitted, starting background poll...`);
+    // Phase 2: Background polling
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
     const MAX_POLLS = 60;
 
     (async () => {
       for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise(r => setTimeout(r, 300000)); // 5min between polls
+        await new Promise(r => setTimeout(r, 300000));
+        const t = videoTasks.get(submitId);
+        if (!t) return;
+        t.polls = i + 1;
 
         try {
           const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId} --download_dir=${VIDEO_DIR}`;
           const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
-
           let result: any;
           try { result = JSON.parse(queryOut); } catch { continue; }
 
-          // Store real queue_info from dreamina
-          if (result?.queue_info) {
-            t.queueInfo = result.queue_info;
-          }
-
-          const t = videoTasks.get(submitId);
-          if (!t) return; // task was cleaned up
-
-          t.polls = i + 1;
+          if (result?.queue_info) t.queueInfo = result.queue_info;
           console.log(`[VideoGen] Poll #${i + 1}/${MAX_POLLS}: gen_status=${result.gen_status}`);
 
           if (result.gen_status === 'success') {
-            const videos = result.result_json?.videos || [];
-            const localPath = videos[0]?.path || '';
-            const cdnUrl = videos[0]?.video_url || '';
-            const filename = localPath ? path.basename(localPath) : '';
-
-            if (localPath && filename) {
-              t.videoUrl = `${FRONTEND_URL}/videos/${filename}`;
-              console.log(`[VideoGen] Completed: ${localPath} → ${t.videoUrl}`);
-            } else if (cdnUrl) {
-              t.videoUrl = cdnUrl;
-              console.log(`[VideoGen] Completed (CDN fallback): ${cdnUrl.slice(0, 100)}`);
+            // For image_upscale, result is an image URL; all others are video
+            if (gt === 'image_upscale') {
+              const imgs = result.result_json?.images || [];
+              t.videoUrl = imgs[0]?.url || imgs[0]?.video_url || '';
             } else {
-              t.videoUrl = '';
-              console.warn(`[VideoGen] No video URL in success response`);
+              const videos = result.result_json?.videos || [];
+              const localPath = videos[0]?.path || '';
+              const cdnUrl = videos[0]?.video_url || '';
+              const filename = localPath ? path.basename(localPath) : '';
+              t.videoUrl = (localPath && filename) ? `${FRONTEND_URL}/videos/${filename}` : (cdnUrl || '');
             }
             t.status = 'completed';
-            // Save video to DB
+            console.log(`[VideoGen] Completed: ${t.videoUrl?.slice(0, 80)}`);
+
             try {
               await saveVideo({
-                userId: t.userId || '',
-                title: t.prompt?.slice(0, 60) || '视频',
-                prompt: t.prompt || '',
-                duration: String(t.duration || '5'),
-                resolution: t.resolution || '720p',
-                ratio: t.ratio || '16:9',
-                inputType: t.isImageMode ? 'image' : 'text',
+                userId: t.userId,
+                title: t.prompt?.slice(0, 60) || (gt === 'image_upscale' ? '图片放大' : '视频'),
+                prompt: t.prompt || gt,
+                duration: t.duration,
+                resolution: t.resolution,
+                ratio: t.ratio,
+                inputType: gt,
                 videoUrl: t.videoUrl || '',
-                videoPath: localPath || '',
-                submitId: submitId,
+                videoPath: '',
+                submitId,
               });
-            } catch (dbErr: any) {
-              console.error('[VideoGen] DB save failed:', dbErr.message);
-            }
-            // Cleanup temp image
-            if (t.tempImagePath) { try { fs.unlinkSync(t.tempImagePath); } catch {} }
+            } catch (dbErr: any) { console.error('[VideoGen] DB save failed:', dbErr.message); }
+
+            for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
             return;
           }
 
           if (result.gen_status === 'failed') {
-            console.error('[VideoGen] Generation failed:', JSON.stringify(result).slice(0, 300));
             t.status = 'failed';
-            if (t.tempImagePath) { try { fs.unlinkSync(t.tempImagePath); } catch {} }
+            for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
             return;
           }
-          // "running" or "querying" — continue polling
-        } catch (pollErr: any) {
-          console.error(`[VideoGen] Poll #${i + 1} error:`, pollErr.message);
-        }
+        } catch (pollErr: any) { console.error(`[VideoGen] Poll error:`, pollErr.message); }
       }
 
-      // Timeout — mark as failed
       const t = videoTasks.get(submitId);
       if (t && t.status === 'processing') {
         t.status = 'failed';
-        if (t.tempImagePath) { try { fs.unlinkSync(t.tempImagePath); } catch {} }
-        console.log(`[VideoGen] Task ${submitId} timed out after ${MAX_POLLS} polls`);
+        for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
       }
     })();
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
-    res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成失败: ' + err.message } });
+    res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '生成失败: ' + err.message } });
   }
 });
 
@@ -4335,6 +4378,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
     data: {
       id: submitId,
       status: task.status,
+      genType: task.genType,
       polls: task.polls,
       maxPolls: 60,
       isPolling: task.status === 'processing',
