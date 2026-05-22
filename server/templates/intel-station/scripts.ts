@@ -127,8 +127,8 @@ function renderSourceFilters(monitors){
     var kws=(src.keywords||[]);
     var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[src.updateFrequency]||'每日';
     html+='<div class="source-card'+(isSourceActive?' source-active':'')+'">';
-    // Clickable header area
-    html+='<div class="sc-clickable" onclick="if('+hasObj+'){toggleSourceExpand(\\'+escHtml(src.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')}else{selectSourceFilter(\\'+escHtml(src.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')}">';
+    // Card body click → filter to this source
+    html+='<div class="sc-clickable" onclick="selectSourceFilter(\\'+escHtml(src.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')">';
     html+='<div class="sc-icon">&#x1F6F0;</div>';
     html+='<div class="sc-body">';
     html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
@@ -138,7 +138,8 @@ function renderSourceFilters(monitors){
     html+='<span class="sc-freq">'+freqLabel+'</span>';
     if(hasObj)html+='<span class="sc-objcount">'+objects.length+' 对象</span>';
     html+='</div></div>';
-    html+='<span class="sc-arrow'+(hasObj?' sc-has-children':'')+'">'+(hasObj?(expanded?'&#x25BC;':'&#x25B6;'):'')+'</span>';
+    // Arrow → expand/collapse objects only (stop propagation so card click doesn't fire)
+    html+='<span class="sc-arrow'+(hasObj?' sc-has-children':'')+'" onclick="event.stopPropagation();'+(hasObj?'toggleSourceExpand(\\'+escHtml(src.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')':'selectSourceFilter(\\'+escHtml(src.name)+\\','+ws.widgetIndex+','+ws.sourceIndex+')')+'">'+(hasObj?(expanded?'&#x25BC;':'&#x25B6;'):'')+'</span>';
     html+='</div>';
     // Object items (if expanded)
     if(hasObj&&expanded){
@@ -164,17 +165,10 @@ function renderSourceFilters(monitors){
 /* ===== SOURCE TREE INTERACTIONS ===== */
 function toggleSourceExpand(srcName,wi,si){
   console.log('[toggleSourceExpand] srcName=',srcName,'expandedSources[srcName]=',expandedSources[srcName]);
-  if(expandedSources[srcName]){expandedSources[srcName]=false}else{expandedSources[srcName]=true}
+  expandedSources[srcName]=expandedSources[srcName]?false:true
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
-  if(currentSourceFilters[0]==='全部'||currentSourceFilters.indexOf(srcName)===-1){
-    selectSourceFilter(srcName,wi,si);
-  }else{
-    currentSourceFilters=['全部'];currentObjectFilter='全部';
-    renderIntelFeed(allIntelData);
-    renderSourceFilters(monitors);
-    buildIntelSubFilters(monitors);
-    buildObjectFilters(monitors);
-  }
+  renderSourceFilters(monitors);
+  buildObjectFilters(monitors);
 }
 
 function selectSourceFilter(srcName,wi,si){
