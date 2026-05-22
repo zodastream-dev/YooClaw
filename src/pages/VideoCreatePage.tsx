@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { generateVideo, videoTaskStatus } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
-import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check } from 'lucide-react'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
 import type { VideoTemplate } from '@/data/videoTemplates'
 import { VideoHistory } from '@/components/VideoHistory'
@@ -41,6 +41,7 @@ export function VideoCreatePage() {
   const [modelVersion, setModelVersion] = useState('seedance2.0fast')
 
   const [activeCategory, setActiveCategory] = useState('all')
+  const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('all')
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null)
 
   // Image upload state — supports multiple images
@@ -253,7 +254,16 @@ export function VideoCreatePage() {
     finally { setDownloading(false); setDownloadProgress(0) }
   }
 
-  const filteredTemplates = getTemplatesByCategory(activeCategory)
+  let filteredTemplates = getTemplatesByCategory(activeCategory)
+  if (inputMode !== 'all') {
+    filteredTemplates = filteredTemplates.filter(t => t.inputType === inputMode)
+  }
+  // Sort: image templates first, then text templates
+  filteredTemplates = [...filteredTemplates].sort((a, b) => {
+    if (a.inputType === 'image' && b.inputType !== 'image') return -1
+    if (a.inputType !== 'image' && b.inputType === 'image') return 1
+    return 0
+  })
 
   const handleSelectTemplate = (template: VideoTemplate) => {
     setSelectedTemplate(template); setPrompt(template.prompt); setDuration(template.duration); setRatio(template.ratio)
@@ -273,6 +283,9 @@ export function VideoCreatePage() {
   const GenIcon = genTypeConfig.icon
   const modelLabel = MODEL_VERSIONS.find(m => m.value === modelVersion)?.label || modelVersion
 
+  const anyOpen = openGenType || openModel || openRatio || openDuration
+  const closeAll = () => { setOpenGenType(false); setOpenModel(false); setOpenRatio(false); setOpenDuration(false) }
+
   // Dropdown button component
   const DropdownBtn = ({ label, icon: Icon, onClick, open }: { label: string; icon?: any; onClick: () => void; open: boolean }) => (
     <button
@@ -284,6 +297,11 @@ export function VideoCreatePage() {
       <span>{label}</span>
       <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
+  )
+
+  // Dark overlay backdrop
+  const DropdownBackdrop = ({ show }: { show: boolean }) => (
+    show ? <div className="fixed inset-0 bg-black/40 z-40" onClick={closeAll} /> : null
   )
 
   return (
@@ -407,27 +425,43 @@ export function VideoCreatePage() {
               </div>
 
               {/* Bottom Control Bar */}
-              <div className="px-3 pb-3 pt-1">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="px-3 pb-3 pt-1 relative">
+                <DropdownBackdrop show={anyOpen} />
+                <div className="flex flex-wrap items-center gap-2 relative z-50">
                   {/* Generation Type Dropdown */}
                   <div className="relative" ref={genTypeRef}>
                     <DropdownBtn
                       label={genTypeConfig.short}
                       icon={GenIcon}
                       open={openGenType}
-                      onClick={() => { setOpenGenType(!openGenType); setOpenModel(false); setOpenRatio(false); setOpenDuration(false) }}
+                      onClick={() => { const v = !openGenType; closeAll(); setOpenGenType(v) }}
                     />
                     {openGenType && (
-                      <div className="absolute bottom-full left-0 mb-1 z-50 w-44 rounded-xl border border-border/60 bg-popover shadow-xl p-1.5 space-y-0.5">
+                      <div className="absolute bottom-full left-0 mb-2 z-50 w-72 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
                         {GEN_TYPE_CONFIG.map(opt => {
                           const OIcon = opt.icon
+                          const active = genType === opt.key
                           return (
                             <button
                               key={opt.key}
                               onClick={() => { setGenType(opt.key); clearAllImages(); setPrompt(''); setOpenGenType(false) }}
-                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all ${genType === opt.key ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
                             >
-                              <OIcon size={14} />{opt.label}<span className="text-muted-foreground ml-auto">{opt.short}</span>
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-primary/20 text-primary' : 'bg-white/5 text-foreground/60'}`}>
+                                <OIcon size={16} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-medium ${active ? 'text-foreground' : 'text-foreground/80'}`}>{opt.label}</div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {opt.key === 'text2video' && '文字描述生成视频'}
+                                  {opt.key === 'image2video' && '单张图片 + 描述生成视频'}
+                                  {opt.key === 'multimodal2video' && '多图/视频/音频参考生成'}
+                                  {opt.key === 'multiframe2video' && '多张图片连贯故事视频'}
+                                  {opt.key === 'frames2video' && '首帧到尾帧过渡视频'}
+                                  {opt.key === 'image_upscale' && '图片超分放大 2K/4K/8K'}
+                                </div>
+                              </div>
+                              {active && <Check size={16} className="text-primary flex-shrink-0" />}
                             </button>
                           )
                         })}
@@ -442,19 +476,29 @@ export function VideoCreatePage() {
                         label={modelLabel}
                         icon={Box}
                         open={openModel}
-                        onClick={() => { setOpenModel(!openModel); setOpenGenType(false); setOpenRatio(false); setOpenDuration(false) }}
+                        onClick={() => { const v = !openModel; closeAll(); setOpenModel(v) }}
                       />
                       {openModel && (
-                        <div className="absolute bottom-full left-0 mb-1 z-50 w-48 rounded-xl border border-border/60 bg-popover shadow-xl p-1.5 space-y-0.5">
-                          {MODEL_VERSIONS.map(m => (
-                            <button
-                              key={m.value}
-                              onClick={() => { setModelVersion(m.value); setOpenModel(false) }}
-                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all ${modelVersion === m.value ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}
-                            >
-                              <Diamond size={13} />{m.label}<span className="text-muted-foreground ml-auto">{m.desc}</span>
-                            </button>
-                          ))}
+                        <div className="absolute bottom-full left-0 mb-2 z-50 w-72 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                          {MODEL_VERSIONS.map(m => {
+                            const active = modelVersion === m.value
+                            return (
+                              <button
+                                key={m.value}
+                                onClick={() => { setModelVersion(m.value); setOpenModel(false) }}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                              >
+                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-primary/20 text-primary' : 'bg-white/5 text-foreground/60'}`}>
+                                  <Diamond size={16} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className={`text-sm font-medium ${active ? 'text-foreground' : 'text-foreground/80'}`}>{m.label}</div>
+                                  <div className="text-[11px] text-muted-foreground truncate">{m.desc}</div>
+                                </div>
+                                {active && <Check size={16} className="text-primary flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -466,13 +510,31 @@ export function VideoCreatePage() {
                       <DropdownBtn
                         label={ratio}
                         open={openRatio}
-                        onClick={() => { setOpenRatio(!openRatio); setOpenGenType(false); setOpenModel(false); setOpenDuration(false) }}
+                        onClick={() => { const v = !openRatio; closeAll(); setOpenRatio(v) }}
                       />
                       {openRatio && (
-                        <div className="absolute bottom-full left-0 mb-1 z-50 w-28 rounded-xl border border-border/60 bg-popover shadow-xl p-1 space-y-0.5">
-                          {['16:9', '9:16', '1:1', '4:3', '3:4'].map(r => (
-                            <button key={r} onClick={() => { setRatio(r); setOpenRatio(false) }} className={`w-full px-3 py-1.5 rounded-lg text-xs text-left transition-all ${ratio === r ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}>{r}</button>
-                          ))}
+                        <div className="absolute bottom-full left-0 mb-2 z-50 w-48 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-0.5">
+                          {[
+                            { value: '16:9', label: '16:9', desc: '横屏 · 电影/广告' },
+                            { value: '9:16', label: '9:16', desc: '竖屏 · 短视频' },
+                            { value: '1:1', label: '1:1', desc: '方形 · 社交媒体' },
+                            { value: '4:3', label: '4:3', desc: '标准 · 传统视频' },
+                            { value: '3:4', label: '3:4', desc: '竖方 · 图文内容' },
+                          ].map(r => {
+                            const active = ratio === r.value
+                            return (
+                              <button key={r.value} onClick={() => { setRatio(r.value); setOpenRatio(false) }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${active ? 'bg-primary/20 text-primary' : 'bg-white/5 text-foreground/60'}`}>
+                                  {r.value}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className={`text-sm font-medium ${active ? 'text-foreground' : 'text-foreground/80'}`}>{r.label}</div>
+                                  <div className="text-[11px] text-muted-foreground">{r.desc}</div>
+                                </div>
+                                {active && <Check size={16} className="text-primary flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -484,13 +546,31 @@ export function VideoCreatePage() {
                       <DropdownBtn
                         label={genType === 'multiframe2video' ? '过渡决定' : `${duration}s`}
                         open={openDuration}
-                        onClick={() => { setOpenDuration(!openDuration); setOpenGenType(false); setOpenModel(false); setOpenRatio(false) }}
+                        onClick={() => { const v = !openDuration; closeAll(); setOpenDuration(v) }}
                       />
                       {openDuration && genType !== 'multiframe2video' && (
-                        <div className="absolute bottom-full left-0 mb-1 z-50 w-28 rounded-xl border border-border/60 bg-popover shadow-xl p-1 space-y-0.5">
-                          {['4', '5', '8', '10', '15'].map(d => (
-                            <button key={d} onClick={() => { setDuration(d); setOpenDuration(false) }} className={`w-full px-3 py-1.5 rounded-lg text-xs text-left transition-all ${duration === d ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}>{d} 秒</button>
-                          ))}
+                        <div className="absolute bottom-full left-0 mb-2 z-50 w-48 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-0.5">
+                          {[
+                            { value: '4', label: '4 秒', desc: '快速预览' },
+                            { value: '5', label: '5 秒', desc: '短视频' },
+                            { value: '8', label: '8 秒', desc: '标准片段' },
+                            { value: '10', label: '10 秒', desc: '较长片段' },
+                            { value: '15', label: '15 秒', desc: '最长支持' },
+                          ].map(d => {
+                            const active = duration === d.value
+                            return (
+                              <button key={d.value} onClick={() => { setDuration(d.value); setOpenDuration(false) }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-primary/20 text-primary' : 'bg-white/5 text-foreground/60'}`}>
+                                  <Clock size={14} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className={`text-sm font-medium ${active ? 'text-foreground' : 'text-foreground/80'}`}>{d.label}</div>
+                                  <div className="text-[11px] text-muted-foreground">{d.desc}</div>
+                                </div>
+                                {active && <Check size={16} className="text-primary flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -503,7 +583,7 @@ export function VideoCreatePage() {
                   <button
                     onClick={handleSubmit}
                     disabled={isSubmitting || (needsPrompt && !prompt.trim()) || (needsImage && imageFiles.length < minImages)}
-                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 relative z-50"
                   >
                     {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                   </button>
@@ -516,6 +596,18 @@ export function VideoCreatePage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles size={15} className="text-primary" />视频模板库</h3>
                 {selectedTemplate && (<button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"><X size={12} />清空</button>)}
+              </div>
+              {/* Input mode filter */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
+                {[
+                  { key: 'all' as const, label: '全部' },
+                  { key: 'image' as const, label: '图生视频' },
+                  { key: 'text' as const, label: '文生视频' },
+                ].map(m => (
+                  <button key={m.key} onClick={() => setInputMode(m.key)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all flex-shrink-0 ${inputMode === m.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                    {m.label}
+                  </button>
+                ))}
               </div>
               <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
                 {templateCategories.map(cat => (
