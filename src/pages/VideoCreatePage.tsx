@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { generateVideo, videoTaskStatus } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
-import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond } from 'lucide-react'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
 import type { VideoTemplate } from '@/data/videoTemplates'
 import { VideoHistory } from '@/components/VideoHistory'
@@ -14,20 +14,20 @@ interface GeneratedVideo {
 }
 
 const GEN_TYPE_CONFIG = [
-  { key: 'text2video', label: '文生视频', icon: Wand2, desc: '文字描述生成', gradient: 'from-orange-500/20 via-red-500/20 to-pink-500/20', border: 'border-orange-400/30', text: 'text-orange-300' },
-  { key: 'image2video', label: '图生视频', icon: ImageIcon, desc: '单图 + 描述', gradient: 'from-blue-500/20 via-cyan-500/20 to-teal-500/20', border: 'border-blue-400/30', text: 'text-blue-300' },
-  { key: 'multimodal2video', label: '全能参考', icon: Sparkles, desc: '多图/视频/音频', gradient: 'from-purple-500/20 via-fuchsia-500/20 to-pink-500/20', border: 'border-purple-400/30', text: 'text-purple-300' },
-  { key: 'multiframe2video', label: '多图故事', icon: Film, desc: '2-20图连贯故事', gradient: 'from-emerald-500/20 via-teal-500/20 to-cyan-500/20', border: 'border-emerald-400/30', text: 'text-emerald-300' },
-  { key: 'frames2video', label: '首尾帧', icon: Grid3X3, desc: '首帧+尾帧过渡', gradient: 'from-amber-500/20 via-yellow-500/20 to-orange-500/20', border: 'border-amber-400/30', text: 'text-amber-300' },
-  { key: 'image_upscale', label: '图片放大', icon: Upload, desc: '超分 2K/4K/8K', gradient: 'from-sky-500/20 via-indigo-500/20 to-violet-500/20', border: 'border-sky-400/30', text: 'text-sky-300' },
+  { key: 'text2video', label: '文生视频', icon: Wand2, short: '文生' },
+  { key: 'image2video', label: '图生视频', icon: ImageIcon, short: '图生' },
+  { key: 'multimodal2video', label: '全能参考', icon: Sparkles, short: '参考' },
+  { key: 'multiframe2video', label: '多图故事', icon: Film, short: '故事' },
+  { key: 'frames2video', label: '首尾帧', icon: Grid3X3, short: '帧' },
+  { key: 'image_upscale', label: '图片放大', icon: Upload, short: '放大' },
 ] as const
 
 type GenType = typeof GEN_TYPE_CONFIG[number]['key']
 
 const MODEL_VERSIONS = [
-  { value: 'seedance2.0fast', label: 'Fast', desc: '默认·快速' },
+  { value: 'seedance2.0fast', label: 'Fast', desc: '快速' },
   { value: 'seedance2.0', label: '标准', desc: '标准质量' },
-  { value: 'seedance2.0_vip', label: 'VIP', desc: '1080p·高质量' },
+  { value: 'seedance2.0_vip', label: 'VIP', desc: '1080p' },
   { value: 'seedance2.0fast_vip', label: 'Fast VIP', desc: '快速·1080p' },
 ] as const
 
@@ -41,7 +41,6 @@ export function VideoCreatePage() {
   const [modelVersion, setModelVersion] = useState('seedance2.0fast')
 
   const [activeCategory, setActiveCategory] = useState('all')
-  const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('all')
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null)
 
   // Image upload state — supports multiple images
@@ -52,6 +51,17 @@ export function VideoCreatePage() {
   // Transition prompts for multiframe2video
   const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
   const [transitionDurations, setTransitionDurations] = useState<string[]>([])
+
+  // Dropdown popover refs
+  const [openGenType, setOpenGenType] = useState(false)
+  const [openModel, setOpenModel] = useState(false)
+  const [openRatio, setOpenRatio] = useState(false)
+  const [openDuration, setOpenDuration] = useState(false)
+
+  const genTypeRef = useRef<HTMLDivElement>(null)
+  const modelRef = useRef<HTMLDivElement>(null)
+  const ratioRef = useRef<HTMLDivElement>(null)
+  const durationRef = useRef<HTMLDivElement>(null)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitId, setSubmitId] = useState<string | null>(null)
@@ -73,6 +83,19 @@ export function VideoCreatePage() {
   const supportsModel = ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(genType)
   const minImages = genType === 'multiframe2video' ? 2 : genType === 'frames2video' ? 2 : 1
   const maxImages = genType === 'multiframe2video' ? 20 : genType === 'multimodal2video' ? 9 : genType === 'frames2video' ? 2 : 1
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (genTypeRef.current && !genTypeRef.current.contains(t)) setOpenGenType(false)
+      if (modelRef.current && !modelRef.current.contains(t)) setOpenModel(false)
+      if (ratioRef.current && !ratioRef.current.contains(t)) setOpenRatio(false)
+      if (durationRef.current && !durationRef.current.contains(t)) setOpenDuration(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => { return () => { if (pollingRef.current) clearInterval(pollingRef.current) } }, [])
@@ -231,13 +254,12 @@ export function VideoCreatePage() {
   }
 
   const filteredTemplates = getTemplatesByCategory(activeCategory)
-  const displayTemplates = inputMode === 'all' ? filteredTemplates : filteredTemplates.filter(t => t.inputType === inputMode)
 
   const handleSelectTemplate = (template: VideoTemplate) => {
     setSelectedTemplate(template); setPrompt(template.prompt); setDuration(template.duration); setRatio(template.ratio)
     clearAllImages()
     if (fileInputRef.current) fileInputRef.current.value = ''
-    document.getElementById('video-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    document.getElementById('video-input-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const handleClearTemplate = () => { setSelectedTemplate(null); setPrompt(''); clearAllImages() }
@@ -247,68 +269,275 @@ export function VideoCreatePage() {
     setPrompt(''); setSelectedTemplate(null); clearAllImages()
   }
 
-  const modeOptions = [
-    { key: 'all', label: '全部模板', desc: '浏览所有风格', icon: Grid3X3, gradient: 'from-violet-500/20 via-purple-500/20 to-fuchsia-500/20', border: 'border-violet-400/30', text: 'text-violet-300', glow: 'shadow-violet-500/10' },
-    { key: 'text', label: '文生视频', desc: '用文字描述生成', icon: Wand2, gradient: 'from-orange-500/20 via-red-500/20 to-pink-500/20', border: 'border-orange-400/30', text: 'text-orange-300', glow: 'shadow-orange-500/10' },
-    { key: 'image', label: '图生视频', desc: '上传图片 + 描述', icon: ImageIcon, gradient: 'from-blue-500/20 via-cyan-500/20 to-teal-500/20', border: 'border-blue-400/30', text: 'text-blue-300', glow: 'shadow-blue-500/10' },
-  ] as const
-
   const genTypeConfig = GEN_TYPE_CONFIG.find(g => g.key === genType)!
   const GenIcon = genTypeConfig.icon
+  const modelLabel = MODEL_VERSIONS.find(m => m.value === modelVersion)?.label || modelVersion
+
+  // Dropdown button component
+  const DropdownBtn = ({ label, icon: Icon, onClick, open }: { label: string; icon?: any; onClick: () => void; open: boolean }) => (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border
+        ${open ? 'bg-white/10 border-white/20 text-foreground' : 'bg-transparent border-white/10 text-foreground/80 hover:bg-white/5 hover:border-white/20'}`}
+    >
+      {Icon && <Icon size={13} />}
+      <span>{label}</span>
+      <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+    </button>
+  )
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-3 sm:px-5 md:px-6 py-4 sm:py-6 md:py-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <button onClick={() => navigate('/chat')} className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft size={16} />返回首页
           </button>
-          <button onClick={() => navigate('/chat')} className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <LayoutDashboard size={14} />回到对话
-          </button>
-        </div>
-
-        {/* Hero Title */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex items-center gap-2 sm:gap-3 mb-2">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <Clapperboard size={16} className="sm:size-18 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent">AI 视频创作</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 hidden sm:block">
-                使用即梦 Seedance 2.0 系列模型，多种生成方式随心所选
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/chat')} className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <LayoutDashboard size={14} />回到对话
+            </button>
           </div>
         </div>
 
-        {!result && !isPolling ? (
+        {/* ===== Main Input Area (Seedance Style) ===== */}
+        {!result && !isPolling && (
           <div className="space-y-4 sm:space-y-5">
-            {/* ===== Generation Type Selector ===== */}
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={16} className="text-muted-foreground" />
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">生成方式</h3>
+            {/* Hero Title */}
+            <div className="text-center sm:text-left mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent inline-flex items-center gap-2">
+                <Clapperboard size={22} className="text-purple-400" />
+                AI 视频创作
+              </h1>
+              <p className="text-xs text-muted-foreground mt-1">
+                使用即梦 Seedance 系列模型，文字、图片一键生成视频
+              </p>
+            </div>
+
+            {/* Image previews (above input) */}
+            {needsImage && imageFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {imagePreviews.map((preview, idx) => (
+                  <div key={idx} className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-border/50 group flex-shrink-0">
+                    <img src={preview} alt={`img-${idx}`} className="w-full h-full object-cover" />
+                    {genType === 'frames2video' && (
+                      <div className={`absolute top-1 left-1 px-1 py-0.5 rounded text-[10px] font-bold ${idx === 0 ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
+                        {idx === 0 ? '首帧' : '尾帧'}
+                      </div>
+                    )}
+                    <button onClick={() => handleRemoveImage(idx)} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X size={10} className="text-white" />
+                    </button>
+                  </div>
+                ))}
+                {imageFiles.length < maxImages && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg border-2 border-dashed border-border/40 flex flex-col items-center justify-center text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors flex-shrink-0"
+                  >
+                    <Plus size={18} />
+                    <span className="text-[10px] mt-0.5">添加</span>
+                  </button>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
-                {GEN_TYPE_CONFIG.map(opt => {
-                  const isActive = genType === opt.key
-                  const Icon = opt.icon
-                  return (
-                    <button
-                      key={opt.key}
-                      onClick={() => { setGenType(opt.key); clearAllImages(); setPrompt('') }}
-                      className={`relative rounded-lg sm:rounded-xl p-2 sm:p-3 border-2 transition-all duration-300 text-left overflow-hidden
-                        ${isActive ? `${opt.border} bg-gradient-to-br ${opt.gradient} scale-[1.03] shadow-md` : 'border-border/40 bg-card/50 hover:border-border hover:bg-card hover:shadow-sm'}`}
-                    >
-                      <div className="relative z-10 flex flex-col items-center text-center gap-0.5 sm:gap-1">
-                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all ${isActive ? `bg-gradient-to-br ${opt.gradient} ${opt.text}` : 'bg-muted text-muted-foreground'}`}>
-                          <Icon size={14} className="sm:size-16" />
+            )}
+
+            {/* Upload prompt (when no images yet) */}
+            {needsImage && imageFiles.length === 0 && (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Upload size={18} className="text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">点击上传图片</p>
+                  <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : genType === 'frames2video' ? '上传首帧和尾帧' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
+              </div>
+            )}
+
+            {/* Transition prompts */}
+            {genType === 'multiframe2video' && imageFiles.length >= 2 && (
+              <div className="space-y-2 p-3 rounded-xl bg-card/40 border border-border/30">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Film size={13} />过渡描述
+                </div>
+                {transitionPrompts.map((tp, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0 w-10">图{idx + 1}→{idx + 2}</span>
+                    <input
+                      value={tp}
+                      onChange={e => setTransitionPrompts(prev => { const n = [...prev]; n[idx] = e.target.value; return n })}
+                      placeholder={`描述变化...`}
+                      className="flex-1 min-w-0 px-2.5 py-1.5 bg-background border border-border/40 rounded-lg text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                    />
+                    <input
+                      type="number" min="0.5" max="8" step="0.5"
+                      value={transitionDurations[idx]}
+                      onChange={e => setTransitionDurations(prev => { const n = [...prev]; n[idx] = e.target.value; return n })}
+                      className="w-14 px-1.5 py-1.5 bg-background border border-border/40 rounded-lg text-xs text-center outline-none focus:ring-1 focus:ring-primary/30"
+                    />
+                    <span className="text-[10px] text-muted-foreground">秒</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ===== Main Input Box (Seedance Style) ===== */}
+            <div className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm shadow-sm overflow-hidden">
+              {/* Textarea */}
+              <div className="relative">
+                <textarea
+                  value={prompt}
+                  onChange={(e) => { setPrompt(e.target.value); if (selectedTemplate && e.target.value !== selectedTemplate.prompt) setSelectedTemplate(null) }}
+                  placeholder={
+                    genType === 'multimodal2video' ? '描述你想要的视频效果，如「镜头缓缓推进...」' :
+                    genType === 'frames2video' ? '描述首帧到尾帧的过渡效果...' :
+                    genType === 'multiframe2video' ? '描述整体故事风格...' :
+                    '描述你想要生成的视频内容...'
+                  }
+                  className="w-full min-h-[120px] sm:min-h-[140px] px-4 pt-4 pb-2 bg-transparent text-sm sm:text-base outline-none resize-none placeholder:text-muted-foreground/40 leading-relaxed"
+                  style={{ maxHeight: '240px' }}
+                />
+              </div>
+
+              {/* Bottom Control Bar */}
+              <div className="px-3 pb-3 pt-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Generation Type Dropdown */}
+                  <div className="relative" ref={genTypeRef}>
+                    <DropdownBtn
+                      label={genTypeConfig.short}
+                      icon={GenIcon}
+                      open={openGenType}
+                      onClick={() => { setOpenGenType(!openGenType); setOpenModel(false); setOpenRatio(false); setOpenDuration(false) }}
+                    />
+                    {openGenType && (
+                      <div className="absolute bottom-full left-0 mb-1 z-50 w-44 rounded-xl border border-border/60 bg-popover shadow-xl p-1.5 space-y-0.5">
+                        {GEN_TYPE_CONFIG.map(opt => {
+                          const OIcon = opt.icon
+                          return (
+                            <button
+                              key={opt.key}
+                              onClick={() => { setGenType(opt.key); clearAllImages(); setPrompt(''); setOpenGenType(false) }}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all ${genType === opt.key ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}
+                            >
+                              <OIcon size={14} />{opt.label}<span className="text-muted-foreground ml-auto">{opt.short}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Model Version Dropdown */}
+                  {supportsModel && (
+                    <div className="relative" ref={modelRef}>
+                      <DropdownBtn
+                        label={modelLabel}
+                        icon={Box}
+                        open={openModel}
+                        onClick={() => { setOpenModel(!openModel); setOpenGenType(false); setOpenRatio(false); setOpenDuration(false) }}
+                      />
+                      {openModel && (
+                        <div className="absolute bottom-full left-0 mb-1 z-50 w-48 rounded-xl border border-border/60 bg-popover shadow-xl p-1.5 space-y-0.5">
+                          {MODEL_VERSIONS.map(m => (
+                            <button
+                              key={m.value}
+                              onClick={() => { setModelVersion(m.value); setOpenModel(false) }}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all ${modelVersion === m.value ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}
+                            >
+                              <Diamond size={13} />{m.label}<span className="text-muted-foreground ml-auto">{m.desc}</span>
+                            </button>
+                          ))}
                         </div>
-                        <span className={`text-[10px] sm:text-xs font-semibold ${isActive ? 'text-foreground' : 'text-foreground/60'}`}>{opt.label}</span>
-                        <span className="text-[9px] text-muted-foreground hidden sm:block">{opt.desc}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Ratio Dropdown */}
+                  {genType === 'text2video' && (
+                    <div className="relative" ref={ratioRef}>
+                      <DropdownBtn
+                        label={ratio}
+                        open={openRatio}
+                        onClick={() => { setOpenRatio(!openRatio); setOpenGenType(false); setOpenModel(false); setOpenDuration(false) }}
+                      />
+                      {openRatio && (
+                        <div className="absolute bottom-full left-0 mb-1 z-50 w-28 rounded-xl border border-border/60 bg-popover shadow-xl p-1 space-y-0.5">
+                          {['16:9', '9:16', '1:1', '4:3', '3:4'].map(r => (
+                            <button key={r} onClick={() => { setRatio(r); setOpenRatio(false) }} className={`w-full px-3 py-1.5 rounded-lg text-xs text-left transition-all ${ratio === r ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}>{r}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Duration Dropdown */}
+                  {genType !== 'image_upscale' && (
+                    <div className="relative" ref={durationRef}>
+                      <DropdownBtn
+                        label={genType === 'multiframe2video' ? '过渡决定' : `${duration}s`}
+                        open={openDuration}
+                        onClick={() => { setOpenDuration(!openDuration); setOpenGenType(false); setOpenModel(false); setOpenRatio(false) }}
+                      />
+                      {openDuration && genType !== 'multiframe2video' && (
+                        <div className="absolute bottom-full left-0 mb-1 z-50 w-28 rounded-xl border border-border/60 bg-popover shadow-xl p-1 space-y-0.5">
+                          {['4', '5', '8', '10', '15'].map(d => (
+                            <button key={d} onClick={() => { setDuration(d); setOpenDuration(false) }} className={`w-full px-3 py-1.5 rounded-lg text-xs text-left transition-all ${duration === d ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'}`}>{d} 秒</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Spacer */}
+                  <div className="flex-1" />
+
+                  {/* Submit Button */}
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || (needsPrompt && !prompt.trim()) || (needsImage && imageFiles.length < minImages)}
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                  >
+                    {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Template Library */}
+            <div className="rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 sm:p-5 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles size={15} className="text-primary" />视频模板库</h3>
+                {selectedTemplate && (<button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"><X size={12} />清空</button>)}
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
+                {templateCategories.map(cat => (
+                  <button key={cat.key} onClick={() => setActiveCategory(cat.key)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all flex-shrink-0 ${activeCategory === cat.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                    <span className="mr-1">{cat.icon}</span>{cat.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5 max-h-[300px] overflow-y-auto pr-0.5 scrollbar-thin">
+                {filteredTemplates.map(tpl => {
+                  const isSelected = selectedTemplate?.id === tpl.id
+                  return (
+                    <button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-2.5 rounded-xl border transition-all group ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'}`}>
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-base flex-shrink-0">{tpl.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-semibold truncate">{tpl.name}</div>
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.duration}s</span>
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.ratio}</span>
+                          </div>
+                        </div>
                       </div>
                     </button>
                   )
@@ -316,247 +545,20 @@ export function VideoCreatePage() {
               </div>
             </div>
 
-            {/* ===== Template Library ===== */}
-            <div className="rounded-xl sm:rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2"><Sparkles size={16} className="text-primary" />视频模板库</h3>
-                {selectedTemplate && (<button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"><X size={13} />清空模板</button>)}
-              </div>
-              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-                {templateCategories.map(cat => (
-                  <button key={cat.key} onClick={() => setActiveCategory(cat.key)} className={`whitespace-nowrap px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 flex-shrink-0 ${activeCategory === cat.key ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                    <span className="mr-1">{cat.icon}</span>{cat.label}
-                  </button>
-                ))}
-              </div>
-              {displayTemplates.length === 0 ? (
-                <div className="py-12 text-center">
-                  <Grid3X3 size={32} className="mx-auto mb-3 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">该模式下没有匹配的模板</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 max-h-[360px] sm:max-h-[400px] overflow-y-auto pr-0.5 scrollbar-thin">
-                  {displayTemplates.map(tpl => {
-                    const isSelected = selectedTemplate?.id === tpl.id
-                    return (
-                      <button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-2.5 sm:p-3 rounded-lg sm:rounded-xl border-2 transition-all duration-200 group ${isSelected ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md shadow-primary/10 scale-[1.02]' : 'border-border/40 bg-background/50 hover:border-primary/30 hover:bg-muted/30 hover:shadow-sm'}`}>
-                        <div className="flex items-start gap-1.5 sm:gap-2">
-                          <span className="text-base sm:text-lg flex-shrink-0">{tpl.icon}</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[11px] sm:text-xs font-semibold truncate">{tpl.name}</div>
-                            <div className="flex items-center gap-1 sm:gap-1.5 mt-1 sm:mt-1.5 flex-wrap">
-                              <span className="text-[9px] sm:text-[10px] px-1 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-medium">{tpl.duration}s</span>
-                              <span className="text-[9px] sm:text-[10px] px-1 py-0.5 rounded-md bg-muted/60 text-muted-foreground font-medium">{tpl.ratio}</span>
-                              {tpl.inputType === 'image' && (<span className="text-[9px] sm:text-[10px] px-1 py-0.5 rounded-md bg-blue-500/10 text-blue-400 font-medium">📸</span>)}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* ===== Create Form ===== */}
-            <div id="video-form" className="rounded-xl sm:rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm p-4 sm:p-5 md:p-6 space-y-4 sm:space-y-5 shadow-sm">
-              <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2"><Wand2 size={16} className="text-primary" />创作配置</h3>
-
-              {/* Image upload area */}
-              {needsImage && (
-                <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border ${genType === 'image_upscale' ? 'bg-gradient-to-r from-sky-500/5 to-indigo-500/5 border-sky-500/10' : 'bg-gradient-to-r from-blue-500/5 via-cyan-500/5 to-teal-500/5 border-blue-500/10'}`}>
-                  <div className="flex items-center justify-between mb-2 sm:mb-3">
-                    <label className="text-xs sm:text-sm font-semibold flex items-center gap-1.5">
-                      <ImageIcon size={14} className={genType === 'image_upscale' ? 'text-sky-400' : 'text-blue-400'} />
-                      {genType === 'frames2video' ? '首帧 + 尾帧' : genType === 'multiframe2video' ? `图片 (${imageFiles.length}/${maxImages})` : '上传图片'}
-                      <span className="text-destructive">*</span>
-                    </label>
-                    {imageFiles.length < maxImages && (
-                      <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-[10px] sm:text-xs text-primary hover:underline">
-                        <Plus size={14} />添加图片
-                      </button>
-                    )}
-                  </div>
-
-                  {imageFiles.length > 0 ? (
-                    <div className={`grid gap-2 sm:gap-3 ${imageFiles.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'}`}>
-                      {imagePreviews.map((preview, idx) => (
-                        <div key={idx} className="relative rounded-lg overflow-hidden border-2 border-border/60 bg-muted/30 group">
-                          <img src={preview} alt={`Image ${idx + 1}`} className="w-full aspect-square object-cover" />
-                          {genType === 'frames2video' && (
-                            <div className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-semibold ${idx === 0 ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
-                              {idx === 0 ? '首帧' : '尾帧'}
-                            </div>
-                          )}
-                          <button onClick={() => handleRemoveImage(idx)} className="absolute top-1 right-1 w-6 h-6 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center hover:bg-destructive hover:text-white transition-all opacity-0 group-hover:opacity-100">
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-blue-300/30 rounded-lg sm:rounded-xl p-6 sm:p-8 text-center cursor-pointer hover:border-blue-400/50 hover:bg-blue-500/5 transition-all duration-300 group">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Upload size={20} className="text-blue-400" />
-                      </div>
-                      <p className="text-sm text-muted-foreground font-medium">点击上传{minImages > 1 ? ` ${minImages}-${maxImages} 张` : ''}图片</p>
-                      <p className="text-xs text-muted-foreground mt-1">支持 JPG/PNG/WebP，最大 20MB</p>
-                    </div>
-                  )}
-                  <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
-                </div>
-              )}
-
-              {/* Transition prompts (multiframe2video only) */}
-              {genType === 'multiframe2video' && imageFiles.length >= 2 && (
-                <div className="space-y-2 sm:space-y-3 p-3 sm:p-4 rounded-lg bg-muted/30 border border-border/30">
-                  <label className="text-xs sm:text-sm font-semibold flex items-center gap-1.5">
-                    <Film size={14} className="text-emerald-400" />过渡描述
-                  </label>
-                  {transitionPrompts.map((tp, idx) => (
-                    <div key={idx} className="flex items-start gap-2">
-                      <div className="flex-shrink-0 w-12 text-[10px] text-muted-foreground mt-2.5">
-                        图{idx + 1}→{idx + 2}
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <input
-                          value={tp}
-                          onChange={e => setTransitionPrompts(prev => { const n = [...prev]; n[idx] = e.target.value; return n })}
-                          placeholder={`描述从图${idx + 1}到图${idx + 2}的变化...`}
-                          className="w-full px-3 py-2 bg-background border border-border/60 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                        />
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground">时长:</span>
-                          <input
-                            type="number"
-                            min="0.5" max="8" step="0.5"
-                            value={transitionDurations[idx]}
-                            onChange={e => setTransitionDurations(prev => { const n = [...prev]; n[idx] = e.target.value; return n })}
-                            className="w-16 px-2 py-1 bg-background border border-border/60 rounded text-xs text-center outline-none focus:ring-1 focus:ring-primary/30"
-                          />
-                          <span className="text-[10px] text-muted-foreground">秒</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Prompt */}
-              {needsPrompt && (
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold mb-2">
-                    {genType === 'image2video' || genType === 'multimodal2video' ? '🎬 视频描述' : '✨ 生成描述'} <span className="text-destructive">*</span>
-                  </label>
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => { setPrompt(e.target.value); if (selectedTemplate && e.target.value !== selectedTemplate.prompt) setSelectedTemplate(null) }}
-                    placeholder={genType === 'multimodal2video' ? '描述你想要的视频效果，如「镜头缓缓推进，人物转身微笑...」' : '描述你想要生成的视频内容...'}
-                    className="w-full min-h-[90px] sm:min-h-[110px] px-3 sm:px-4 py-3 bg-background border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200 resize-vertical placeholder:text-muted-foreground/50"
-                  />
-                </div>
-              )}
-
-              {/* Model Version + Controls */}
-              <div className={`grid gap-3 sm:gap-4 ${supportsModel ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1'}`}>
-                {supportsModel && (
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1.5">🧠 模型版本</label>
-                    <select value={modelVersion} onChange={(e) => setModelVersion(e.target.value)} className="w-full px-2 sm:px-3 py-2.5 sm:py-3 bg-background border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer">
-                      {MODEL_VERSIONS.map(m => (
-                        <option key={m.value} value={m.value}>{m.label} — {m.desc}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {genType !== 'image_upscale' && (
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1.5">⏱ 时长</label>
-                    <select value={duration} onChange={(e) => setDuration(e.target.value)} className="w-full px-2 sm:px-3 py-2.5 sm:py-3 bg-background border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer">
-                      {genType === 'multiframe2video' ? (
-                        <option value="5">由过渡决定</option>
-                      ) : (
-                        <>
-                          <option value="4">4 秒</option>
-                          <option value="5">5 秒</option>
-                          <option value="8">8 秒</option>
-                          <option value="10">10 秒</option>
-                          <option value="15">15 秒</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-                )}
-                {genType === 'text2video' && (
-                  <>
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1.5">📐 分辨率</label>
-                      <select value={resolution} onChange={(e) => setResolution(e.target.value)} className="w-full px-2 sm:px-3 py-2.5 sm:py-3 bg-background border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer">
-                        <option value="720p">720p</option>
-                        <option value="1080p">1080p</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1.5">📏 比例</label>
-                      <select value={ratio} onChange={(e) => setRatio(e.target.value)} className="w-full px-2 sm:px-3 py-2.5 sm:py-3 bg-background border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer">
-                        <option value="16:9">16:9</option>
-                        <option value="9:16">9:16</option>
-                        <option value="1:1">1:1</option>
-                        <option value="4:3">4:3</option>
-                        <option value="3:4">3:4</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-                {['image2video', 'multimodal2video', 'frames2video'].includes(genType) && (
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1.5">📐 分辨率</label>
-                    <select value={resolution} onChange={(e) => setResolution(e.target.value)} className="w-full px-2 sm:px-3 py-2.5 sm:py-3 bg-background border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer">
-                      <option value="720p">720p</option>
-                      {modelVersion.includes('vip') && <option value="1080p">1080p</option>}
-                    </select>
-                  </div>
-                )}
-                {genType === 'image_upscale' && (
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1.5">📐 分辨率</label>
-                    <select value={resolution} onChange={(e) => setResolution(e.target.value)} className="w-full px-2 sm:px-3 py-2.5 sm:py-3 bg-background border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer">
-                      <option value="2k">2K</option>
-                      <option value="4k">4K (VIP)</option>
-                      <option value="8k">8K (VIP)</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || (needsPrompt && !prompt.trim()) || (needsImage && imageFiles.length < minImages)}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-3 sm:py-3.5 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-lg hover:shadow-xl active:scale-[0.98]
-                  ${genType === 'image_upscale' ? 'bg-gradient-to-r from-sky-500 via-indigo-500 to-violet-500 hover:from-sky-600 hover:via-indigo-600 hover:to-violet-600 shadow-sky-500/25'
-                    : genType === 'multimodal2video' ? 'bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 hover:from-purple-600 hover:via-fuchsia-600 hover:to-pink-600 shadow-purple-500/25'
-                    : genType === 'multiframe2video' ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600 shadow-emerald-500/25'
-                    : genType === 'frames2video' ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-600 hover:via-yellow-600 hover:to-orange-600 shadow-amber-500/25'
-                    : 'bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 hover:from-orange-600 hover:via-red-600 hover:to-pink-600 shadow-orange-500/25'
-                  }`}
-              >
-                {isSubmitting ? <><Loader2 size={18} className="animate-spin" />正在提交...</> : <><GenIcon size={18} />{genTypeConfig.label}</>}
-              </button>
-            </div>
-
             {error && (
-              <div className="p-3 sm:p-4 bg-destructive/10 border border-destructive/20 rounded-xl sm:rounded-2xl text-xs sm:text-sm text-destructive flex items-start gap-2">
-                <X size={16} className="flex-shrink-0 mt-0.5" /><span>{error}</span>
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs text-destructive flex items-start gap-2">
+                <X size={14} className="flex-shrink-0 mt-0.5" /><span>{error}</span>
               </div>
             )}
           </div>
-        ) : isPolling ? (
-          /* ===== Polling UI ===== */
-          <div className="rounded-xl sm:rounded-2xl border-2 border-yellow-500/20 bg-card/80 backdrop-blur-sm p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 shadow-lg shadow-yellow-500/5">
+        )}
+
+        {/* ===== Polling UI ===== */}
+        {isPolling && (
+          <div className="rounded-2xl border-2 border-yellow-500/20 bg-card/80 backdrop-blur-sm p-5 sm:p-6 md:p-8 space-y-5 sm:space-y-6 shadow-lg shadow-yellow-500/5">
             <div className="flex items-center gap-3 sm:gap-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-500/10 flex items-center justify-center animate-pulse">
-                <Loader2 size={22} className="text-yellow-500 animate-spin sm:size-24" />
+                <Loader2 size={22} className="text-yellow-500 animate-spin" />
               </div>
               <div>
                 <h2 className="text-sm sm:text-base font-semibold text-yellow-500">
@@ -567,7 +569,7 @@ export function VideoCreatePage() {
                 </p>
               </div>
             </div>
-            <div className="bg-muted/40 rounded-lg sm:rounded-xl p-3 sm:p-5 space-y-3 sm:space-y-4">
+            <div className="bg-muted/40 rounded-xl p-3 sm:p-5 space-y-3 sm:space-y-4">
               {queueMessage && (
                 <div className="flex items-center gap-2 sm:gap-3 text-sm sm:text-base">
                   <Users size={18} className="text-orange-400 flex-shrink-0" />
@@ -590,16 +592,18 @@ export function VideoCreatePage() {
                 任务 ID：<code className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{submitId?.slice(0, 12)}...</code>
               </p>
             </div>
-            <button onClick={handleReset} className="w-full px-4 py-2.5 sm:py-3 border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200">
+            <button onClick={handleReset} className="w-full px-4 py-2.5 sm:py-3 border border-border/60 rounded-xl text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all">
               取消等待，返回创作
             </button>
           </div>
-        ) : result ? (
-          /* ===== Result UI ===== */
-          <div className="rounded-xl sm:rounded-2xl border-2 border-green-500/20 bg-card/80 backdrop-blur-sm p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 shadow-lg shadow-green-500/5">
+        )}
+
+        {/* ===== Result UI ===== */}
+        {result && (
+          <div className="rounded-2xl border-2 border-green-500/20 bg-card/80 backdrop-blur-sm p-5 sm:p-6 md:p-8 space-y-5 sm:space-y-6 shadow-lg shadow-green-500/5">
             <div className="flex items-center gap-3 sm:gap-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                <Play size={22} className="text-green-400 sm:size-24" />
+                <Play size={22} className="text-green-400" />
               </div>
               <div>
                 <h2 className="text-sm sm:text-base font-semibold text-green-400">生成成功!</h2>
@@ -608,52 +612,52 @@ export function VideoCreatePage() {
             </div>
             {result.url ? (
               <div className="space-y-4 sm:space-y-5">
-                <div className="relative rounded-lg sm:rounded-xl overflow-hidden border-2 border-border/40 bg-black shadow-xl">
+                <div className="relative rounded-xl overflow-hidden border-2 border-border/40 bg-black shadow-xl">
                   {genType === 'image_upscale' ? (
                     <img src={result.url} alt="Upscaled" className="w-full object-contain" />
                   ) : (
                     <>
-                      <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-b from-black/0 via-black/0 to-black/60 pointer-events-none z-10" />
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-black/0 via-black/0 to-black/60 pointer-events-none z-10" />
                       <video src={result.url} controls playsInline className="w-full aspect-video object-contain">
                         您的浏览器不支持视频播放
                       </video>
                     </>
                   )}
                 </div>
-                <div className="flex items-center gap-2 bg-muted/40 rounded-lg sm:rounded-xl p-2.5 sm:p-3">
+                <div className="flex items-center gap-2 bg-muted/40 rounded-xl p-2.5 sm:p-3">
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <ExternalLink size={14} className="text-muted-foreground flex-shrink-0" />
                     <span className="text-[10px] sm:text-xs text-muted-foreground truncate select-all">{result.url}</span>
                   </div>
-                  <button onClick={handleCopy} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-primary text-primary-foreground rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm">
+                  <button onClick={handleCopy} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-primary text-primary-foreground rounded-lg text-[10px] sm:text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm">
                     {copied ? '✓ 已复制' : <><Copy size={12} /> 复制</>}
                   </button>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                  <button onClick={handleDownload} disabled={downloading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 disabled:opacity-60 disabled:cursor-wait shadow-lg shadow-emerald-500/20">
+                  <button onClick={handleDownload} disabled={downloading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl text-xs sm:text-sm font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all disabled:opacity-60 disabled:cursor-wait shadow-lg shadow-emerald-500/20">
                     {downloading ? <><Loader2 size={16} className="animate-spin" />下载中 {downloadProgress > 0 ? `${downloadProgress}%` : ''}</> : <><Download size={16} />下载</>}
                   </button>
-                  <button onClick={() => window.open(result.url, '_blank')} className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium hover:bg-muted/50 transition-all">
+                  <button onClick={() => window.open(result.url, '_blank')} className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 border border-border/60 rounded-xl text-xs sm:text-sm font-medium hover:bg-muted/50 transition-all">
                     <ExternalLink size={14} />新窗口
                   </button>
-                  <button onClick={handleReset} className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 border border-border/60 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium hover:bg-muted/50 transition-all">
+                  <button onClick={handleReset} className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 border border-border/60 rounded-xl text-xs sm:text-sm font-medium hover:bg-muted/50 transition-all">
                     <Sparkles size={14} />重新生成
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg sm:rounded-xl p-4">
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
                 <p className="text-xs sm:text-sm text-yellow-400">生成完成，但未获取到结果地址，请稍后重试</p>
               </div>
             )}
           </div>
-        ) : null}
+        )}
 
         {/* ===== My Videos ===== */}
         {!isPolling && (
-          <div className="mt-6 sm:mt-8 rounded-xl sm:rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm p-4 sm:p-5 md:p-6 shadow-sm">
-            <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2 mb-4">
-              <Play size={16} className="text-primary" />我的视频
+          <div className="mt-6 sm:mt-8 rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 sm:p-5 shadow-sm">
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+              <Play size={15} className="text-primary" />我的视频
             </h3>
             <VideoHistory />
           </div>
