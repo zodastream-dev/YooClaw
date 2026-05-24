@@ -4336,9 +4336,9 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             return;
           }
 
-          if (result.gen_status === 'failed') {
+          if (result.gen_status === 'fail') {
             t.status = 'failed';
-            t.errorMessage = result.gen_message || result.error_message || result.msg || '生成失败';
+            t.errorMessage = result.fail_reason || result.gen_message || result.error_message || result.msg || '生成失败';
             for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
             return;
           }
