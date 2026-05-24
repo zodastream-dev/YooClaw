@@ -4232,15 +4232,32 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     const { stdout: submitOut } = await execAsync(submitCmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
     console.log('[VideoGen] Submit response:', submitOut.slice(0, 300));
 
-    // Extract submit_id
+    // Extract submit_id and check for errors
     let submitId = '';
+    let submitFailReason = '';
+    let submitLogId = '';
     const jsonMatch = submitOut.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      try { const parsed = JSON.parse(jsonMatch[0]); submitId = parsed.submit_id || ''; } catch {}
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        submitId = parsed.submit_id || '';
+        submitFailReason = parsed.fail_reason || '';
+        submitLogId = parsed.logid || '';
+      } catch {}
     }
     if (!submitId) {
       for (const p of tempPaths) { try { fs.unlinkSync(p); } catch {} }
       return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: 'Failed to get submit_id. Response: ' + submitOut.slice(0, 200) } });
+    }
+    // Check if submit failed (dreamina returned fail_reason or no logid)
+    if (submitFailReason) {
+      console.error(`[VideoGen] Submit failed for ${submitId}: ${submitFailReason}`);
+      for (const p of tempPaths) { try { fs.unlinkSync(p); } catch {} }
+      return res.status(500).json({ error: { code: 'SUBMIT_FAILED', message: submitFailReason || '图片上传失败，请重试' } });
+    }
+    if (!submitLogId && gt !== 'text2video') {
+      console.warn(`[VideoGen] Submit ${submitId} missing logid — task may not be properly registered`);
+      // Still accept but log warning; text2video sometimes omits logid
     }
 
     // Store task in memory
