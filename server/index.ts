@@ -552,6 +552,7 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
         aiModel: (s.aiModel || '默认').replace(/'/g,'\\x27'),
         updateFrequency: s.updateFrequency || 'daily',
         keywords: (s.keywords || []).map((k: string) => k.replace(/'/g,'\\x27')),
+        objects: (s.objects || []).map((o: any) => ({ name: (o.name || '').replace(/'/g,'\\x27'), keywords: (o.keywords || []).map((k: string) => k.replace(/'/g,'\\x27')) })),
         customPrompt: (s.customPrompt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'\\x27'),
         apiKey: (s.apiKey || '').replace(/'/g,'\\x27'),
       }));
