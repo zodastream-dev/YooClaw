@@ -71,9 +71,24 @@ export function VideoCreatePage() {
   const ratioRef = useRef<HTMLDivElement>(null)
   const durationRef = useRef<HTMLDivElement>(null)
 
+  // Restore active task from localStorage on first render
+  const getSavedTask = (): { sid: string | null; polling: boolean } => {
+    try {
+      const saved = localStorage.getItem('yooclaw_active_video_task')
+      if (!saved) return { sid: null, polling: false }
+      const { submitId, startTime } = JSON.parse(saved)
+      if (!submitId) return { sid: null, polling: false }
+      if (Date.now() - startTime > 5 * 3600 * 1000) {
+        localStorage.removeItem('yooclaw_active_video_task')
+        return { sid: null, polling: false }
+      }
+      return { sid: submitId, polling: true }
+    } catch { return { sid: null, polling: false } }
+  }
+  const savedTask = getSavedTask()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitId, setSubmitId] = useState<string | null>(null)
-  const [isPolling, setIsPolling] = useState(false)
+  const [submitId, setSubmitId] = useState<string | null>(savedTask.sid)
+  const [isPolling, setIsPolling] = useState(savedTask.polling)
   const [pollCount, setPollCount] = useState(0)
   const [queueMessage, setQueueMessage] = useState('')
   const [elapsedMinutes, setElapsedMinutes] = useState(0)
@@ -107,24 +122,6 @@ export function VideoCreatePage() {
 
   // Cleanup on unmount
   useEffect(() => { return () => { if (pollingRef.current) clearInterval(pollingRef.current) } }, [])
-
-  // Restore generation state on page load (refresh resilience)
-  useEffect(() => {
-    const saved = localStorage.getItem('yooclaw_active_video_task')
-    if (!saved) return
-    try {
-      const { submitId: sid, startTime } = JSON.parse(saved)
-      if (!sid) return
-      // Don't restore if task is too old (>5 hours)
-      if (Date.now() - startTime > 5 * 3600 * 1000) {
-        localStorage.removeItem('yooclaw_active_video_task')
-        return
-      }
-      setSubmitId(sid)
-      startTimeRef.current = startTime
-      setIsPolling(true)
-    } catch {}
-  }, [])
 
   // Sync transition prompts count with images
   useEffect(() => {

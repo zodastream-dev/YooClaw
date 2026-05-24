@@ -4367,11 +4367,12 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
   let queueMessage = '';
   if (task.status === 'processing') {
     const qi = task.queueInfo || {};
-    const queueIdx = qi.queue_idx ?? task.polls;
-    const queueLen = qi.queue_length ?? 60;
+    // Only use real queue_info from dreamina; don't fabricate default numbers
+    const queueIdx = qi.queue_idx;
+    const queueLen = qi.queue_length;
     const remainingPolls = 60 - task.polls;
     const estRemaining = Math.ceil((remainingPolls * 5) / 60);
-    if (queueLen > 0 && queueIdx > 0) {
+    if (typeof queueIdx === 'number' && typeof queueLen === 'number' && queueLen > 0 && queueIdx > 0) {
       queueMessage = `排队中 · 前面还有 ${queueLen - queueIdx} 人等候 · 预计还需 ${estRemaining} 分钟`;
     } else {
       queueMessage = `排队中 · 预计最长 ${estRemaining} 分钟`;
@@ -4386,7 +4387,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
       polls: task.polls,
       maxPolls: 60,
       isPolling: task.status === 'processing',
-      queueInfo: task.queueInfo || { queue_idx: task.polls, queue_length: 60, queue_status: task.status },
+      queueInfo: task.queueInfo || null,
       queueMessage,
       elapsedMinutes,
       estimatedMaxMinutes,
