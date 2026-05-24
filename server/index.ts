@@ -4104,7 +4104,7 @@ const VALID_MODEL_VERSIONS = ['seedance2.0fast', 'seedance2.0', 'seedance2.0_vip
 
 interface VideoTask {
   submitId: string;
-  status: 'processing' | 'completed' | 'failed';
+  status: 'processing' | 'completed' | 'failed' | 'cancelled';
   genType: string;
   prompt: string;
   startTime: number;
@@ -4960,6 +4960,21 @@ app.delete('/api/v1/videos/:id', authMiddleware, async (req: any, res) => {
   } catch (err: any) {
     console.error('[Video Delete Error]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete video' } });
+  }
+});
+
+// Cancel a running video generation task
+app.post('/api/v1/videos/cancel/:submitId', authMiddleware, (req: any, res) => {
+  try {
+    const { submitId } = req.params;
+    const task = videoTasks.get(submitId);
+    if (task) {
+      task.status = 'cancelled';
+      console.log(`[Video Cancel] Task ${submitId.slice(0, 8)}... marked as cancelled`);
+    }
+    res.json({ data: { cancelled: true } });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel' } });
   }
 });
 

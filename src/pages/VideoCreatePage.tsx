@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { generateVideo, videoTaskStatus } from '@/lib/api'
+import { generateVideo, videoTaskStatus, cancelVideoTask } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
 import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check } from 'lucide-react'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
@@ -392,9 +392,8 @@ export function VideoCreatePage() {
           </div>
         </div>
 
-        {/* ===== Main Input Area (Seedance Style) ===== */}
-        {!result && !isPolling && (
-          <div className="space-y-4 sm:space-y-5">
+        {/* ===== Main Input / Status / Result Area ===== */}
+        <div className="space-y-4 sm:space-y-5">
             {/* Hero Title */}
             <div className="text-center sm:text-left mb-2">
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent inline-flex items-center gap-2">
@@ -770,6 +769,60 @@ export function VideoCreatePage() {
               </div>
             </div>
 
+            {/* ===== Inline Generation Status ===== */}
+            {isPolling && (
+              <div className="rounded-2xl border border-yellow-500/30 bg-card/60 backdrop-blur-sm p-4 sm:p-5 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-yellow-500/10 flex items-center justify-center animate-pulse">
+                      <Loader2 size={18} className="text-yellow-500 animate-spin" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-yellow-500">
+                        {genType === 'image_upscale' ? '图片放大中' : '视频生成中'}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">{genTypeConfig.label}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (pollingRef.current) clearInterval(pollingRef.current)
+                      if (submitId) {
+                        try { await cancelVideoTask(submitId) } catch {}
+                      }
+                      setIsPolling(false)
+                      setShowMentions(false)
+                    }}
+                    className="px-3 py-1.5 text-xs border border-border/50 rounded-lg text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all"
+                  >
+                    取消生成
+                  </button>
+                </div>
+                <div className="bg-muted/30 rounded-xl p-3 space-y-2">
+                  {queueMessage && (
+                    <div className="flex items-center gap-2 text-xs sm:text-sm">
+                      <Users size={15} className="text-orange-400 flex-shrink-0" />
+                      <span className="text-foreground font-medium">{queueMessage}</span>
+                    </div>
+                  )}
+                  {!queueMessage && (
+                    <div className="flex items-center gap-2 text-xs sm:text-sm">
+                      <Clock size={15} className="text-orange-400 flex-shrink-0" />
+                      <span className="text-foreground font-medium">排队中 · 预计最长 {estimatedMaxMinutes > 0 ? estimatedMaxMinutes : '300'} 分钟</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <Clock size={13} className="flex-shrink-0" />
+                    <span>已等待 <strong className="text-foreground">{elapsedMinutes}</strong> 分钟</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-full transition-all duration-1000 animate-pulse"
+                      style={{ width: estimatedMaxMinutes > 0 ? `${Math.min((elapsedMinutes / estimatedMaxMinutes) * 100, 95)}%` : '10%' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Template Library */}
             <div className="rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 sm:p-5 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
@@ -822,54 +875,8 @@ export function VideoCreatePage() {
               </div>
             )}
           </div>
-        )}
 
-        {/* ===== Polling UI ===== */}
-        {isPolling && (
-          <div className="rounded-2xl border-2 border-yellow-500/20 bg-card/80 backdrop-blur-sm p-5 sm:p-6 md:p-8 space-y-5 sm:space-y-6 shadow-lg shadow-yellow-500/5">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-yellow-500/10 flex items-center justify-center animate-pulse">
-                <Loader2 size={22} className="text-yellow-500 animate-spin" />
-              </div>
-              <div>
-                <h2 className="text-sm sm:text-base font-semibold text-yellow-500">
-                  {genType === 'image_upscale' ? '图片放大中' : '视频生成中'}
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                  {genTypeConfig.label} · {prompt.slice(0, 40)}{prompt.length > 40 ? '...' : ''}
-                </p>
-              </div>
-            </div>
-            <div className="bg-muted/40 rounded-xl p-3 sm:p-5 space-y-3 sm:space-y-4">
-              {queueMessage && (
-                <div className="flex items-center gap-2 sm:gap-3 text-sm sm:text-base">
-                  <Users size={18} className="text-orange-400 flex-shrink-0" />
-                  <span className="text-foreground font-semibold">{queueMessage}</span>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-                <Clock size={16} className="flex-shrink-0" />
-                <span>已等待 <strong className="text-foreground">{elapsedMinutes}</strong> 分钟</span>
-                {estimatedMaxMinutes > 0 && (<span className="text-xs">（最长约 {estimatedMaxMinutes} 分钟）</span>)}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><span>轮询次数：{pollCount} / {maxPolls}</span></div>
-              <div className="w-full bg-muted rounded-full h-2.5 sm:h-3 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-full transition-all duration-1000 animate-pulse"
-                  style={{ width: estimatedMaxMinutes > 0 ? `${Math.min((elapsedMinutes / estimatedMaxMinutes) * 100, 95)}%` : '10%' }} />
-              </div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
-                生成可能需要较长时间（最长 5 小时）。
-                <br className="hidden sm:block" />
-                任务 ID：<code className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{submitId?.slice(0, 12)}...</code>
-              </p>
-            </div>
-            <button onClick={handleReset} className="w-full px-4 py-2.5 sm:py-3 border border-border/60 rounded-xl text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all">
-              取消等待，返回创作
-            </button>
-          </div>
-        )}
-
-        {/* ===== Result UI ===== */}
+        {/* ===== Result UI (inline) ===== */}
         {result && (
           <div className="rounded-2xl border-2 border-green-500/20 bg-card/80 backdrop-blur-sm p-5 sm:p-6 md:p-8 space-y-5 sm:space-y-6 shadow-lg shadow-green-500/5">
             <div className="flex items-center gap-3 sm:gap-4">

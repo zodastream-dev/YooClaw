@@ -465,6 +465,9 @@ export async function getUserVideos() {
 export async function deleteVideo(id: string) {
   return apiRequest<void>('DELETE', `/api/v1/videos/${id}`)
 }
+export async function cancelVideoTask(submitId: string) {
+  return apiRequest<{ cancelled: boolean }>('POST', `/api/v1/videos/cancel/${submitId}`)
+}
 
 // ========== Legacy compatibility ==========
 // These map to the new user-scoped APIs
