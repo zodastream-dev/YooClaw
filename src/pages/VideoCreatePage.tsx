@@ -267,8 +267,6 @@ export function VideoCreatePage() {
 
   const handleSelectTemplate = (template: VideoTemplate) => {
     setSelectedTemplate(template); setPrompt(template.prompt); setDuration(template.duration); setRatio(template.ratio)
-    clearAllImages()
-    if (fileInputRef.current) fileInputRef.current.value = ''
     document.getElementById('video-input-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -448,7 +446,7 @@ export function VideoCreatePage() {
                   {/* Generation Type Dropdown */}
                   <div className="relative" ref={genTypeRef}>
                     <DropdownBtn
-                      label={genTypeConfig.short}
+                      label={genTypeConfig.label}
                       icon={GenIcon}
                       open={openGenType}
                       onClick={() => { const v = !openGenType; closeAll(); setOpenGenType(v) }}
