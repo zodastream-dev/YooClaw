@@ -108,6 +108,24 @@ export function VideoCreatePage() {
   // Cleanup on unmount
   useEffect(() => { return () => { if (pollingRef.current) clearInterval(pollingRef.current) } }, [])
 
+  // Restore generation state on page load (refresh resilience)
+  useEffect(() => {
+    const saved = localStorage.getItem('yooclaw_active_video_task')
+    if (!saved) return
+    try {
+      const { submitId: sid, startTime } = JSON.parse(saved)
+      if (!sid) return
+      // Don't restore if task is too old (>5 hours)
+      if (Date.now() - startTime > 5 * 3600 * 1000) {
+        localStorage.removeItem('yooclaw_active_video_task')
+        return
+      }
+      setSubmitId(sid)
+      startTimeRef.current = startTime
+      setIsPolling(true)
+    } catch {}
+  }, [])
+
   // Sync transition prompts count with images
   useEffect(() => {
     if (genType === 'multiframe2video') {
@@ -142,12 +160,15 @@ export function VideoCreatePage() {
           setMaxPolls(res.data.maxPolls || 60)
           if (res.data.status === 'completed') {
             setIsPolling(false)
+            localStorage.removeItem('yooclaw_active_video_task')
             setResult({ id: res.data.id, title: prompt.slice(0, 30) + (genType === 'image_upscale' ? ' 放大' : ' 视频'), url: res.data.result?.videoUrl || '' })
           } else if (res.data.status === 'cancelled') {
             setIsPolling(false)
+            localStorage.removeItem('yooclaw_active_video_task')
             setError('视频生成已取消')
           } else if (res.data.status === 'failed') {
             setIsPolling(false)
+            localStorage.removeItem('yooclaw_active_video_task')
             setError(res.data.errorMessage || '生成失败，请稍后重试')
             setIsPolling(false)
             setError(res.data.errorMessage || '生成失败，请稍后重试')
@@ -291,6 +312,7 @@ export function VideoCreatePage() {
         setSubmitId(res.data.id)
         startTimeRef.current = Date.now()
         setIsPolling(true)
+        localStorage.setItem('yooclaw_active_video_task', JSON.stringify({ submitId: res.data.id, startTime: Date.now() }))
       } else { setError(res.error?.message || '提交失败') }
     } catch (e: any) { setError(e.message || '提交失败，请稍后重试') }
     finally { setIsSubmitting(false) }
@@ -355,6 +377,7 @@ export function VideoCreatePage() {
     setResult(null); setSubmitId(null); setIsPolling(false); setQueueMessage('')
     setPollCount(0); setElapsedMinutes(0); setError(null); setCopied(false)
     setPrompt(''); setSelectedTemplate(null); clearAllImages()
+    localStorage.removeItem('yooclaw_active_video_task')
   }
 
   const genTypeConfig = GEN_TYPE_CONFIG.find(g => g.key === genType)!
