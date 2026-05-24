@@ -363,7 +363,7 @@ export function VideoCreatePage() {
             {/* Upload prompt + mode guide */}
             {needsImage && imageFiles.length === 0 && (
               <div className="flex gap-3">
-                <div className="flex-1">
+                <div className="w-[40%] flex-shrink-0">
                   {genType === 'frames2video' ? (
                     <div className="grid grid-cols-2 gap-3">
                       <div
@@ -408,7 +408,7 @@ export function VideoCreatePage() {
                   <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
                 </div>
                 {/* Mode guide card */}
-                <div className="w-56 flex-shrink-0 p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-muted-foreground leading-relaxed self-stretch">
+                <div className="flex-1 p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-muted-foreground leading-relaxed self-stretch">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <GenIcon size={13} className="text-primary" />
                     <span className="font-medium text-foreground">{genTypeConfig.label}</span>
