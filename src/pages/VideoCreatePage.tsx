@@ -167,8 +167,6 @@ export function VideoCreatePage() {
             setIsPolling(false)
             localStorage.removeItem('yooclaw_active_video_task')
             setError(res.data.errorMessage || '生成失败，请稍后重试')
-            setIsPolling(false)
-            setError(res.data.errorMessage || '生成失败，请稍后重试')
           }
         }
       } catch (e: any) { console.warn('Poll error:', e.message) }
@@ -940,10 +938,10 @@ export function VideoCreatePage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 bg-muted/40 rounded-xl p-2.5 sm:p-3">
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <a href={result.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 flex items-center gap-2 hover:opacity-80 transition-opacity">
                     <ExternalLink size={14} className="text-muted-foreground flex-shrink-0" />
                     <span className="text-[10px] sm:text-xs text-muted-foreground truncate select-all">{result.url}</span>
-                  </div>
+                  </a>
                   <button onClick={handleCopy} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-primary text-primary-foreground rounded-lg text-[10px] sm:text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm">
                     {copied ? '✓ 已复制' : <><Copy size={12} /> 复制</>}
                   </button>

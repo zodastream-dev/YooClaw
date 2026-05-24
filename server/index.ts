@@ -4387,8 +4387,11 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
     // Only use real queue_info from dreamina; don't fabricate default numbers
     const queueIdx = qi.queue_idx;
     const queueLen = qi.queue_length;
+    const queueStatus = qi.queue_status;
     if (typeof queueIdx === 'number' && typeof queueLen === 'number' && queueLen > 0 && queueIdx > 0) {
       queueMessage = `排队中 · 当前排位 ${queueIdx}/${queueLen}`;
+    } else if (queueStatus === 'generating' || queueStatus === 'processing' || (typeof queueIdx === 'number' && queueIdx === 0)) {
+      queueMessage = `视频正在生成中，请稍候`;
     } else {
       queueMessage = `排队中 · 等待资源分配`;
     }
@@ -4962,7 +4965,22 @@ app.get('/api/v1/videos', authMiddleware, async (req: any, res) => {
   try {
     const user = req.user;
     const videos = await getUserVideos(user.userId);
-    res.json({ data: { items: videos } });
+    // Convert snake_case DB fields to camelCase for frontend
+    const items = videos.map(v => ({
+      id: v.id,
+      userId: v.user_id,
+      title: v.title,
+      prompt: v.prompt,
+      duration: v.duration,
+      resolution: v.resolution,
+      ratio: v.ratio,
+      inputType: v.input_type,
+      videoUrl: v.video_url,
+      videoPath: v.video_path,
+      submitId: v.submit_id,
+      createdAt: v.created_at,
+    }));
+    res.json({ data: { items } });
   } catch (err: any) {
     console.error('[Video List Error]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list videos' } });

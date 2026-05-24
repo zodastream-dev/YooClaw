@@ -392,7 +392,7 @@ export async function generateVideo(params: {
 
 export interface VideoTaskStatus {
   id: string
-  status: 'completed' | 'failed' | 'processing' | 'unknown'
+  status: 'completed' | 'failed' | 'processing' | 'cancelled' | 'unknown'
   genType: string
   polls: number
   maxPolls: number
