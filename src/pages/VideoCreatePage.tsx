@@ -54,6 +54,7 @@ export function VideoCreatePage() {
   const [showMentions, setShowMentions] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
   const [mentionAnchorIdx, setMentionAnchorIdx] = useState(-1) // position of "@" in prompt
+  const [selectedMentionIdx, setSelectedMentionIdx] = useState(0)
 
   // Transition prompts for multiframe2video
   const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
@@ -209,6 +210,7 @@ export function VideoCreatePage() {
         setShowMentions(true)
         setMentionFilter(afterAt)
         setMentionAnchorIdx(atIdx)
+        setSelectedMentionIdx(0)
         return
       }
     }
@@ -222,12 +224,41 @@ export function VideoCreatePage() {
     const newPrompt = before + `@${refLabel} ` + after
     setPrompt(newPrompt)
     setShowMentions(false)
+    setSelectedMentionIdx(0)
     // Restore focus
     setTimeout(() => {
       textareaRef.current?.focus()
-      const newCursorPos = before.length + refLabel.length + 3
+      const newCursorPos = before.length + refLabel.length + 2
       textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos)
     }, 0)
+  }
+
+  // Get filtered mention file list
+  const getMentionFiles = () => {
+    return imagePreviews
+      .map((preview, i) => ({ preview, label: `参考图${i + 1}`, index: i }))
+      .filter(f => !mentionFilter || f.label.includes(mentionFilter))
+  }
+
+  // Keyboard handler for @-mention navigation
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!showMentions) return
+    const files = getMentionFiles()
+    if (files.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedMentionIdx(prev => (prev + 1) % files.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedMentionIdx(prev => (prev - 1 + files.length) % files.length)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      handleInsertMention(files[selectedMentionIdx].label)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setShowMentions(false)
+    }
   }
 
   const handleSubmit = async () => {
@@ -404,61 +435,77 @@ export function VideoCreatePage() {
               </div>
             )}
 
-            {/* Upload prompt + mode guide */}
-            {needsImage && (
+            {/* Upload prompt (no images yet) */}
+            {needsImage && imageFiles.length === 0 && (
               <div className="flex gap-3">
-                {imageFiles.length === 0 && (
-                  <div className="w-[40%] flex-shrink-0">
-                    {genType === 'frames2video' ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div
-                          onClick={() => fileInputRef.current?.click()}
-                          className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all min-h-[90px]"
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                            <Upload size={20} className="text-emerald-400" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs font-medium text-emerald-400">首帧</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">起始画面</p>
-                          </div>
-                        </div>
-                        <div
-                          onClick={() => fileInputRef.current?.click()}
-                          className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/50 transition-all min-h-[90px]"
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                            <Upload size={20} className="text-amber-400" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs font-medium text-amber-400">尾帧</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">结束画面</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
+                <div className="w-[40%] flex-shrink-0">
+                  {genType === 'frames2video' ? (
+                    <div className="grid grid-cols-2 gap-3">
                       <div
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all h-full"
+                        className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all min-h-[90px]"
                       >
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Upload size={18} className="text-primary" />
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                          <Upload size={20} className="text-emerald-400" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">点击上传图片</p>
-                          <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
+                        <div className="text-center">
+                          <p className="text-xs font-medium text-emerald-400">首帧</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">起始画面</p>
                         </div>
                       </div>
-                    )}
-                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
-                  </div>
-                )}
-                {/* Mode guide card — always visible when mode needs images */}
-                <div className="flex-1 p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-muted-foreground leading-relaxed self-stretch">
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/50 transition-all min-h-[90px]"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                          <Upload size={20} className="text-amber-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-medium text-amber-400">尾帧</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">结束画面</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all h-full"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Upload size={18} className="text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">点击上传图片</p>
+                        <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
+                      </div>
+                    </div>
+                  )}
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
+                </div>
+                {/* Guide next to upload */}
+                <div className="flex-1 p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-muted-foreground leading-relaxed">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <GenIcon size={13} className="text-primary" />
                     <span className="font-medium text-foreground">{genTypeConfig.label}</span>
                   </div>
+                  {genType === 'image2video' && '上传 1 张图片，搭配文字描述让图片动起来。'}
+                  {genType === 'multimodal2video' && '最多 9 张图/视频/音频参考。在提示词中输入 @ 引用已上传文件。'}
+                  {genType === 'multiframe2video' && '2–20 张图片串联故事，可添加过渡描述。'}
+                  {genType === 'frames2video' && '上传首尾帧两张图片，AI 自动补间。比例自动匹配。'}
+                  {genType === 'image_upscale' && '上传 1 张图片，超分放大至 2K/4K/8K。'}
+                </div>
+              </div>
+            )}
+
+            {/* Mode guide — always visible when mode needs images (shown after upload) */}
+            {needsImage && imageFiles.length > 0 && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <GenIcon size={15} className="text-primary" />
+                </div>
+                <div className="text-xs text-muted-foreground leading-relaxed">
+                  <span className="font-medium text-foreground">{genTypeConfig.label}</span>
+                  {' — '}
                   {genType === 'image2video' && '上传 1 张图片，搭配文字描述让图片动起来。'}
                   {genType === 'multimodal2video' && '最多 9 张图/视频/音频参考。在提示词中输入 @ 引用已上传文件。'}
                   {genType === 'multiframe2video' && '2–20 张图片串联故事，可添加过渡描述。'}
@@ -516,6 +563,7 @@ export function VideoCreatePage() {
                   ref={textareaRef}
                   value={prompt}
                   onChange={handlePromptChange}
+                  onKeyDown={handleTextareaKeyDown}
                   placeholder={
                     genType === 'multimodal2video' ? '描述你想要的视频效果，输入 @ 引用已上传的参考文件...' :
                     genType === 'frames2video' ? '描述首帧到尾帧的过渡效果...' :
@@ -526,36 +574,33 @@ export function VideoCreatePage() {
                   style={{ maxHeight: '240px' }}
                 />
                 {/* @-mention dropdown */}
-                {showMentions && imagePreviews.length > 0 && (
+                {showMentions && imagePreviews.length > 0 && (() => {
+                  const files = getMentionFiles()
+                  if (files.length === 0) return null
+                  return (
                   <div className="absolute left-4 right-4 bottom-2 z-50 bg-[#1e1e2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 space-y-1 max-h-[200px] overflow-y-auto">
                     <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground">
-                      <span>引用已上传的参考文件</span>
-                      <span className="text-primary">@</span>
+                      <span>引用已上传的参考文件（↑↓选择 Enter确认 Esc关闭）</span>
                     </div>
-                    {imagePreviews.filter((_, i) => {
-                      const label = `参考图${i + 1}`
-                      if (!mentionFilter) return true
-                      return label.includes(mentionFilter)
-                    }).map((preview, idx, filtered) => {
-                      const realIdx = imagePreviews.indexOf(preview)
-                      return (
+                    {files.map((f, idx) => (
                         <button
-                          key={idx}
-                          onClick={() => handleInsertMention(`参考图${realIdx + 1}`)}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-all text-left"
+                          key={f.index}
+                          onClick={() => handleInsertMention(f.label)}
+                          onMouseEnter={() => setSelectedMentionIdx(idx)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left ${idx === selectedMentionIdx ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-white/5'}`}
                         >
                           <div className="w-10 h-10 rounded-md overflow-hidden border border-white/10 flex-shrink-0 bg-black/20">
-                            <img src={preview} alt="" className="w-full h-full object-cover" />
+                            <img src={f.preview} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div>
-                            <div className="text-xs font-medium text-foreground">@参考图{realIdx + 1}</div>
+                            <div className="text-xs font-medium text-foreground">@{f.label}</div>
                             <div className="text-[10px] text-muted-foreground">图片参考</div>
                           </div>
                         </button>
-                      )
-                    })}
+                    ))}
                   </div>
-                )}
+                  )
+                })()}
               </div>
 
               {/* Bottom Control Bar */}
