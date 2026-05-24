@@ -841,7 +841,7 @@ export function VideoCreatePage() {
                   {isPolling && !queueMessage && (
                     <div className="flex items-center gap-2 text-xs sm:text-sm">
                       <Clock size={15} className="text-orange-400 flex-shrink-0" />
-                      <span className="text-foreground font-medium">排队中 · 预计最长 {estimatedMaxMinutes > 0 ? estimatedMaxMinutes : '300'} 分钟</span>
+                      <span className="text-foreground font-medium">排队中 · 5分钟后显示目前排队进度</span>
                     </div>
                   )}
                   {isPolling && (
