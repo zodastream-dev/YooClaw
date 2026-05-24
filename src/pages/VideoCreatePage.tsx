@@ -41,7 +41,7 @@ export function VideoCreatePage() {
   const [modelVersion, setModelVersion] = useState('seedance2.0fast')
 
   const [activeCategory, setActiveCategory] = useState('all')
-  const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('all')
+  const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('image')
   const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null)
 
   // Image upload state — supports multiple images
@@ -405,53 +405,55 @@ export function VideoCreatePage() {
             )}
 
             {/* Upload prompt + mode guide */}
-            {needsImage && imageFiles.length === 0 && (
+            {needsImage && (
               <div className="flex gap-3">
-                <div className="w-[40%] flex-shrink-0">
-                  {genType === 'frames2video' ? (
-                    <div className="grid grid-cols-2 gap-3">
+                {imageFiles.length === 0 && (
+                  <div className="w-[40%] flex-shrink-0">
+                    {genType === 'frames2video' ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all min-h-[90px]"
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                            <Upload size={20} className="text-emerald-400" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-medium text-emerald-400">首帧</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">起始画面</p>
+                          </div>
+                        </div>
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/50 transition-all min-h-[90px]"
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                            <Upload size={20} className="text-amber-400" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-medium text-amber-400">尾帧</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">结束画面</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
                       <div
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all min-h-[90px]"
+                        className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all h-full"
                       >
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                          <Upload size={20} className="text-emerald-400" />
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Upload size={18} className="text-primary" />
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs font-medium text-emerald-400">首帧</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">起始画面</p>
-                        </div>
-                      </div>
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/50 transition-all min-h-[90px]"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                          <Upload size={20} className="text-amber-400" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs font-medium text-amber-400">尾帧</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">结束画面</p>
+                        <div>
+                          <p className="text-sm font-medium">点击上传图片</p>
+                          <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all h-full"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Upload size={18} className="text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">点击上传图片</p>
-                        <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
-                      </div>
-                    </div>
-                  )}
-                  <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
-                </div>
-                {/* Mode guide card */}
+                    )}
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
+                  </div>
+                )}
+                {/* Mode guide card — always visible when mode needs images */}
                 <div className="flex-1 p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-muted-foreground leading-relaxed self-stretch">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <GenIcon size={13} className="text-primary" />
