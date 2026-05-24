@@ -4294,7 +4294,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         t.polls = i + 1;
 
         try {
-          const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId} --download_dir=${VIDEO_DIR}`;
+          const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId}`;
           const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
           let result: any;
           try { result = JSON.parse(queryOut); } catch { continue; }
@@ -4309,10 +4309,30 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
               t.videoUrl = imgs[0]?.url || imgs[0]?.video_url || '';
             } else {
               const videos = result.result_json?.videos || [];
-              const localPath = videos[0]?.path || '';
+              // Manual download via fetch()
               const cdnUrl = videos[0]?.video_url || '';
-              const filename = localPath ? path.basename(localPath) : '';
-              t.videoUrl = (localPath && filename) ? `${FRONTEND_URL}/videos/${filename}` : (cdnUrl || '');
+              if (cdnUrl) {
+                try {
+                  const d = await fetch(cdnUrl, { signal: AbortSignal.timeout(120000) as any });
+                  if (d.ok) {
+                    const buf = Buffer.from(await d.arrayBuffer());
+                    const ext = (cdnUrl.match(/\.(mp4|webm|mov)/i) || ['.mp4'])[0];
+                    const localFn = submitId + ext;
+                    const lp = path.join(VIDEO_DIR, localFn);
+                    fs.writeFileSync(lp, buf);
+                    console.log(`[VideoGen] Downloaded: ${localFn} (${(buf.length/1024/1024).toFixed(1)}MB)`);
+                    t.videoUrl = `${FRONTEND_URL}/videos/${localFn}`;
+                  } else {
+                    console.warn(`[VideoGen] CDN HTTP ${d.status}, using CDN URL`);
+                    t.videoUrl = cdnUrl;
+                  }
+                } catch(dlErr: any) {
+                  console.warn('[VideoGen] Manual download failed:', dlErr.message);
+                  t.videoUrl = cdnUrl || '';
+                }
+              } else {
+                t.videoUrl = '';
+              }
             }
             t.status = 'completed';
             console.log(`[VideoGen] Completed: ${t.videoUrl?.slice(0, 80)}`);
