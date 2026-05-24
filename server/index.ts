@@ -3637,7 +3637,7 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
       const response = await fetch(apiUrl, {
         method: 'POST', signal: ctrl.signal,
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({ question: effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || effectiveKwArr.join(' OR ')), lang: 'zh' }),
+        body: JSON.stringify({ question: effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || ''), lang: 'zh' }),
       });
       clearTimeout(to);
       if (!response.ok) {
