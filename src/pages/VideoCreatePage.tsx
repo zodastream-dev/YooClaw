@@ -267,8 +267,7 @@ export function VideoCreatePage() {
 
   const handleSelectTemplate = (template: VideoTemplate) => {
     setSelectedTemplate(template); setPrompt(template.prompt); setDuration(template.duration); setRatio(template.ratio)
-    clearAllImages()
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    // 不清除已上传的图片，保留用户的上传
     document.getElementById('video-input-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -363,7 +362,7 @@ export function VideoCreatePage() {
             )}
 
             {/* Upload prompt (when no images yet) */}
-            {needsImage && imageFiles.length === 0 && (
+            {needsImage && imageFiles.length === 0 && genType !== 'frames2video' && (
               <div
                 onClick={() => fileInputRef.current?.click()}
                 className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all"
@@ -373,7 +372,38 @@ export function VideoCreatePage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium">点击上传图片</p>
-                  <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : genType === 'frames2video' ? '上传首帧和尾帧' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
+                  <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
+              </div>
+            )}
+
+            {/* Frames2video: dual upload slots */}
+            {genType === 'frames2video' && imageFiles.length === 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all min-h-[100px]"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                    <Upload size={22} className="text-emerald-400" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-emerald-400">首帧</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">点击上传起始画面</p>
+                  </div>
+                </div>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/50 transition-all min-h-[100px]"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <Upload size={22} className="text-amber-400" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-amber-400">尾帧</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">点击上传结束画面</p>
+                  </div>
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
               </div>
@@ -431,7 +461,7 @@ export function VideoCreatePage() {
                   {/* Generation Type Dropdown */}
                   <div className="relative" ref={genTypeRef}>
                     <DropdownBtn
-                      label={genTypeConfig.short}
+                      label={genTypeConfig.label}
                       icon={GenIcon}
                       open={openGenType}
                       onClick={() => { const v = !openGenType; closeAll(); setOpenGenType(v) }}
@@ -505,7 +535,7 @@ export function VideoCreatePage() {
                   )}
 
                   {/* Ratio Dropdown */}
-                  {genType === 'text2video' && (
+                  {['text2video', 'multimodal2video', 'image2video', 'frames2video'].includes(genType) && (
                     <div className="relative" ref={ratioRef}>
                       <DropdownBtn
                         label={ratio}
