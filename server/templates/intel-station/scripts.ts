@@ -152,7 +152,8 @@ function renderSourceFilters(monitors){
         html+='<div class="sc-obj-item'+(isObjActive?' sc-obj-active':'')+'" onclick="event.stopPropagation();selectObjectFilter(\\''+srcNameEsc+'\\',\\''+objNameEsc+'\\','+ws.widgetIndex+','+ws.sourceIndex+')">';
         html+='<span class="sc-obj-dot"></span>';
         html+='<span class="sc-obj-name">'+escHtml(obj.name)+'</span>';
-        html+='<span class="sc-obj-kwcount">'+(obj.keywords||[]).length+' kw</span>';
+        var objIntelCount=allIntelData.filter(function(item){return (item._sourceName||'').trim()===src.name.trim()&&(item._object||'')===obj.name;}).length;
+        html+='<span class="sc-obj-kwcount">'+(objIntelCount||0)+' 条</span>';
         html+='</div>';
       });
       html+='</div>';
