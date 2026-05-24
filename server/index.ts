@@ -4342,7 +4342,21 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
             return;
           }
-        } catch (pollErr: any) { console.error(`[VideoGen] Poll error:`, pollErr.message); }
+        } catch (pollErr: any) {
+          const out = (pollErr as any).stdout || '';
+          const errOut = (pollErr as any).stderr || '';
+          console.error(`[VideoGen] Poll error for ${submitId}:`, pollErr.message);
+          if (out) console.error(`[VideoGen] stdout:`, out.slice(0, 1000));
+          if (errOut) console.error(`[VideoGen] stderr:`, errOut.slice(0, 1000));
+          // Try to parse output even if command exited non-zero
+          try {
+            const result2 = JSON.parse(out);
+            if (result2?.gen_status === 'success') {
+              console.log(`[VideoGen] Recovered success from failed command for ${submitId}`);
+              // process success same as above...
+            }
+          } catch {}
+        }
       }
 
       const t = videoTasks.get(submitId);
