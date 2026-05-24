@@ -1435,7 +1435,8 @@ async function fetchSourceIntel(src){
     var msResponse=await fetch(apiUrl,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-      body:JSON.stringify({question:_kwArr.join(' OR '),lang:'zh'})
+      body:JSON.stringify({question:_kwArr.length>0?_kwArr.join(' OR '):src.name.split(/[、，, ]/)
+.filter(Boolean).slice(0,3).join(' OR '),lang:'zh'})
     });
     if(!msResponse.ok){var msErr=await msResponse.text();throw new Error('秘塔API错误: '+msResponse.status+' '+msErr.substring(0,200))}
     var msData=await msResponse.json();
@@ -3636,7 +3637,7 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
       const response = await fetch(apiUrl, {
         method: 'POST', signal: ctrl.signal,
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({ question: effectiveKwArr.join(' OR '), lang: 'zh' }),
+        body: JSON.stringify({ question: effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || effectiveKwArr.join(' OR ')), lang: 'zh' }),
       });
       clearTimeout(to);
       if (!response.ok) {
