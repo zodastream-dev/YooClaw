@@ -290,12 +290,12 @@ export function VideoCreatePage() {
   const DropdownBtn = ({ label, icon: Icon, onClick, open }: { label: string; icon?: any; onClick: () => void; open: boolean }) => (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border
         ${open ? 'bg-white/10 border-white/20 text-foreground' : 'bg-transparent border-white/10 text-foreground/80 hover:bg-white/5 hover:border-white/20'}`}
     >
-      {Icon && <Icon size={13} />}
+      {Icon && <Icon size={15} />}
       <span>{label}</span>
-      <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
   )
 
@@ -331,6 +331,23 @@ export function VideoCreatePage() {
               <p className="text-xs text-muted-foreground mt-1">
                 使用即梦 Seedance 系列模型，文字、图片一键生成视频
               </p>
+            </div>
+
+            {/* Mode usage guide */}
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/5 border border-white/5">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <GenIcon size={15} className="text-primary" />
+              </div>
+              <div className="text-xs text-muted-foreground leading-relaxed">
+                <span className="font-medium text-foreground">{genTypeConfig.label}</span>
+                {' — '}
+                {genType === 'text2video' && '输入文字描述，AI 即可生成视频。支持设置画面比例和时长。'}
+                {genType === 'image2video' && '上传 1 张图片作为参考，搭配文字描述，AI 将图片动起来生成视频。'}
+                {genType === 'multimodal2video' && '可上传最多 9 张图片/视频/音频作为参考素材，输入文字描述效果，AI 综合参考生成视频。'}
+                {genType === 'multiframe2video' && '上传 2–20 张图片，可添加每段过渡描述，AI 将它们串联成连贯故事视频。过渡时长由图片数量自动决定。'}
+                {genType === 'frames2video' && '上传首帧和尾帧两张图片，描述过渡效果，AI 自动补间生成视频。画面比例自动匹配原图。'}
+                {genType === 'image_upscale' && '上传 1 张图片，AI 超分放大至 2K/4K/8K 高清分辨率。'}
+              </div>
             </div>
 
             {/* Image previews (above input) */}
@@ -505,7 +522,7 @@ export function VideoCreatePage() {
                   )}
 
                   {/* Ratio Dropdown */}
-                  {genType === 'text2video' && (
+                  {['text2video', 'multimodal2video', 'image2video'].includes(genType) && (
                     <div className="relative" ref={ratioRef}>
                       <DropdownBtn
                         label={ratio}
@@ -616,18 +633,18 @@ export function VideoCreatePage() {
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5 max-h-[300px] overflow-y-auto pr-0.5 scrollbar-thin">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-h-[360px] overflow-y-auto pr-0.5 scrollbar-thin">
                 {filteredTemplates.map(tpl => {
                   const isSelected = selectedTemplate?.id === tpl.id
                   return (
-                    <button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-2.5 rounded-xl border transition-all group ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'}`}>
-                      <div className="flex items-start gap-1.5">
-                        <span className="text-base flex-shrink-0">{tpl.icon}</span>
+                    <button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-3 rounded-xl border transition-all group ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'}`}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg flex-shrink-0">{tpl.icon}</span>
                         <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-semibold truncate">{tpl.name}</div>
-                          <div className="flex items-center gap-1 mt-1 flex-wrap">
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.duration}s</span>
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.ratio}</span>
+                          <div className="text-xs font-semibold truncate">{tpl.name}</div>
+                          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.duration}s</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.ratio}</span>
                           </div>
                         </div>
                       </div>
