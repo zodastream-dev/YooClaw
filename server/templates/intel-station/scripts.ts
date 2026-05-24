@@ -321,6 +321,8 @@ function buildObjectFilters(monitors){
   monitors.forEach(function(mw){
     var srcs=mw.config&&mw.config.sources||mw.sources||[];
     srcs.forEach(function(src){
+      // Only include objects from currently selected source(s); show all when "全部" is selected
+      if(currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf((src.name||'').trim())<0)return;
       var objects=src.objects||[];
       objects.forEach(function(obj){
         if(objectNames.indexOf(obj.name)===-1)objectNames.push(obj.name);
