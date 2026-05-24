@@ -331,23 +331,6 @@ export function VideoCreatePage() {
               </p>
             </div>
 
-            {/* Mode usage guide */}
-            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/5 border border-white/5">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <GenIcon size={15} className="text-primary" />
-              </div>
-              <div className="text-xs text-muted-foreground leading-relaxed">
-                <span className="font-medium text-foreground">{genTypeConfig.label}</span>
-                {' — '}
-                {genType === 'text2video' && '输入文字描述，AI 即可生成视频。支持设置画面比例和时长。'}
-                {genType === 'image2video' && '上传 1 张图片作为参考，搭配文字描述，AI 将图片动起来生成视频。'}
-                {genType === 'multimodal2video' && '可上传最多 9 张图片/视频/音频作为参考素材，输入文字描述效果，AI 综合参考生成视频。'}
-                {genType === 'multiframe2video' && '上传 2–20 张图片，可添加每段过渡描述，AI 将它们串联成连贯故事视频。过渡时长由图片数量自动决定。'}
-                {genType === 'frames2video' && '上传首帧和尾帧两张图片，描述过渡效果，AI 自动补间生成视频。画面比例自动匹配原图。'}
-                {genType === 'image_upscale' && '上传 1 张图片，AI 超分放大至 2K/4K/8K 高清分辨率。'}
-              </div>
-            </div>
-
             {/* Image previews (above input) */}
             {needsImage && imageFiles.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -377,20 +360,78 @@ export function VideoCreatePage() {
               </div>
             )}
 
-            {/* Upload prompt (when no images yet) */}
+            {/* Upload prompt + mode guide */}
             {needsImage && imageFiles.length === 0 && (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Upload size={18} className="text-primary" />
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  {genType === 'frames2video' ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all min-h-[90px]"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                          <Upload size={20} className="text-emerald-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-medium text-emerald-400">首帧</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">起始画面</p>
+                        </div>
+                      </div>
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/50 transition-all min-h-[90px]"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                          <Upload size={20} className="text-amber-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-medium text-amber-400">尾帧</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">结束画面</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/40 bg-card/40 cursor-pointer hover:bg-card/60 hover:border-primary/30 transition-all h-full"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Upload size={18} className="text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">点击上传图片</p>
+                        <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
+                      </div>
+                    </div>
+                  )}
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium">点击上传图片</p>
-                  <p className="text-xs text-muted-foreground">{genType === 'multiframe2video' ? '至少 2 张，最多 20 张' : genType === 'frames2video' ? '上传首帧和尾帧' : '支持 JPG/PNG/WebP，最大 20MB'}</p>
+                {/* Mode guide card */}
+                <div className="w-56 flex-shrink-0 p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-muted-foreground leading-relaxed self-stretch">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <GenIcon size={13} className="text-primary" />
+                    <span className="font-medium text-foreground">{genTypeConfig.label}</span>
+                  </div>
+                  {genType === 'image2video' && '上传 1 张图片，搭配文字描述让图片动起来。'}
+                  {genType === 'multimodal2video' && '最多 9 张图/视频/音频参考，AI 综合生成视频。'}
+                  {genType === 'multiframe2video' && '2–20 张图片串联故事，可添加过渡描述。'}
+                  {genType === 'frames2video' && '上传首尾帧两张图片，AI 自动补间。比例自动匹配。'}
+                  {genType === 'image_upscale' && '上传 1 张图片，超分放大至 2K/4K/8K。'}
                 </div>
-                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageChange} className="hidden" />
+              </div>
+            )}
+
+            {/* Mode guide for text-only modes */}
+            {!needsImage && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <GenIcon size={15} className="text-primary" />
+                </div>
+                <div className="text-xs text-muted-foreground leading-relaxed">
+                  <span className="font-medium text-foreground">{genTypeConfig.label}</span>
+                  {' — 输入文字描述，AI 即可生成视频。支持设置画面比例和时长。'}
+                </div>
               </div>
             )}
 
