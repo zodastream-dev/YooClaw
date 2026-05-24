@@ -4387,12 +4387,10 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
     // Only use real queue_info from dreamina; don't fabricate default numbers
     const queueIdx = qi.queue_idx;
     const queueLen = qi.queue_length;
-    const remainingPolls = 60 - task.polls;
-    const estRemaining = Math.ceil((remainingPolls * 5) / 60);
     if (typeof queueIdx === 'number' && typeof queueLen === 'number' && queueLen > 0 && queueIdx > 0) {
-      queueMessage = `排队中 · 当前排位 ${queueIdx}/${queueLen} · 预计还需 ${estRemaining} 分钟`;
+      queueMessage = `排队中 · 当前排位 ${queueIdx}/${queueLen}`;
     } else {
-      queueMessage = `排队中 · 预计最长 ${estRemaining} 分钟`;
+      queueMessage = `排队中 · 等待资源分配`;
     }
   }
 
