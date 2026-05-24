@@ -48,6 +48,12 @@ export function VideoCreatePage() {
   const [imageFiles, setImageFiles] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // @-mention state
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionFilter, setMentionFilter] = useState('')
+  const [mentionAnchorIdx, setMentionAnchorIdx] = useState(-1) // position of "@" in prompt
 
   // Transition prompts for multiframe2video
   const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
@@ -184,6 +190,44 @@ export function VideoCreatePage() {
     imagePreviews.forEach(url => URL.revokeObjectURL(url))
     setImageFiles([])
     setImagePreviews([])
+  }
+
+  // @-mention: detect "@" in prompt
+  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    setPrompt(value)
+    if (selectedTemplate && value !== selectedTemplate.prompt) setSelectedTemplate(null)
+
+    // Check for "@" mention trigger
+    const cursorPos = e.target.selectionStart
+    const textBeforeCursor = value.slice(0, cursorPos)
+    const atIdx = textBeforeCursor.lastIndexOf('@')
+    if (atIdx >= 0 && imagePreviews.length > 0) {
+      const afterAt = textBeforeCursor.slice(atIdx + 1)
+      // Don't show if "@" is followed by space or is part of existing reference
+      if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
+        setShowMentions(true)
+        setMentionFilter(afterAt)
+        setMentionAnchorIdx(atIdx)
+        return
+      }
+    }
+    setShowMentions(false)
+  }
+
+  // Insert @-reference into prompt
+  const handleInsertMention = (refLabel: string) => {
+    const before = prompt.slice(0, mentionAnchorIdx)
+    const after = prompt.slice(textareaRef.current?.selectionStart || mentionAnchorIdx + 1 + mentionFilter.length)
+    const newPrompt = before + `@${refLabel} ` + after
+    setPrompt(newPrompt)
+    setShowMentions(false)
+    // Restore focus
+    setTimeout(() => {
+      textareaRef.current?.focus()
+      const newCursorPos = before.length + refLabel.length + 3
+      textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos)
+    }, 0)
   }
 
   const handleSubmit = async () => {
@@ -414,7 +458,7 @@ export function VideoCreatePage() {
                     <span className="font-medium text-foreground">{genTypeConfig.label}</span>
                   </div>
                   {genType === 'image2video' && '上传 1 张图片，搭配文字描述让图片动起来。'}
-                  {genType === 'multimodal2video' && '最多 9 张图/视频/音频参考，AI 综合生成视频。'}
+                  {genType === 'multimodal2video' && '最多 9 张图/视频/音频参考。在提示词中输入 @ 引用已上传文件。'}
                   {genType === 'multiframe2video' && '2–20 张图片串联故事，可添加过渡描述。'}
                   {genType === 'frames2video' && '上传首尾帧两张图片，AI 自动补间。比例自动匹配。'}
                   {genType === 'image_upscale' && '上传 1 张图片，超分放大至 2K/4K/8K。'}
@@ -467,10 +511,11 @@ export function VideoCreatePage() {
               {/* Textarea */}
               <div className="relative">
                 <textarea
+                  ref={textareaRef}
                   value={prompt}
-                  onChange={(e) => { setPrompt(e.target.value); if (selectedTemplate && e.target.value !== selectedTemplate.prompt) setSelectedTemplate(null) }}
+                  onChange={handlePromptChange}
                   placeholder={
-                    genType === 'multimodal2video' ? '描述你想要的视频效果，如「镜头缓缓推进...」' :
+                    genType === 'multimodal2video' ? '描述你想要的视频效果，输入 @ 引用已上传的参考文件...' :
                     genType === 'frames2video' ? '描述首帧到尾帧的过渡效果...' :
                     genType === 'multiframe2video' ? '描述整体故事风格...' :
                     '描述你想要生成的视频内容...'
@@ -478,6 +523,37 @@ export function VideoCreatePage() {
                   className="w-full min-h-[120px] sm:min-h-[140px] px-4 pt-4 pb-2 bg-transparent text-sm sm:text-base outline-none resize-none placeholder:text-muted-foreground/40 leading-relaxed"
                   style={{ maxHeight: '240px' }}
                 />
+                {/* @-mention dropdown */}
+                {showMentions && imagePreviews.length > 0 && (
+                  <div className="absolute left-4 right-4 bottom-2 z-50 bg-[#1e1e2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 space-y-1 max-h-[200px] overflow-y-auto">
+                    <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground">
+                      <span>引用已上传的参考文件</span>
+                      <span className="text-primary">@</span>
+                    </div>
+                    {imagePreviews.filter((_, i) => {
+                      const label = `参考图${i + 1}`
+                      if (!mentionFilter) return true
+                      return label.includes(mentionFilter)
+                    }).map((preview, idx, filtered) => {
+                      const realIdx = imagePreviews.indexOf(preview)
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => handleInsertMention(`参考图${realIdx + 1}`)}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-all text-left"
+                        >
+                          <div className="w-10 h-10 rounded-md overflow-hidden border border-white/10 flex-shrink-0 bg-black/20">
+                            <img src={preview} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium text-foreground">@参考图{realIdx + 1}</div>
+                            <div className="text-[10px] text-muted-foreground">图片参考</div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Bottom Control Bar */}
