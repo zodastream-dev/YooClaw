@@ -4117,6 +4117,7 @@ interface VideoTask {
   modelVersion: string;
   tempImagePaths: string[]; // for cleanup (single or multi)
   queueInfo: any;
+  errorMessage?: string;
 }
 const videoTasks = new Map<string, VideoTask>();
 
@@ -4320,6 +4321,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
           if (result.gen_status === 'failed') {
             t.status = 'failed';
+            t.errorMessage = result.gen_message || result.error_message || result.msg || '生成失败';
             for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
             return;
           }
@@ -4372,7 +4374,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
     if (queueLen > 0 && queueIdx > 0) {
       queueMessage = `排队中 · 前面还有 ${queueLen - queueIdx} 人等候 · 预计还需 ${estRemaining} 分钟`;
     } else {
-      queueMessage = `排队中 · 第 ${task.polls + 1}/60 次轮询 · 预计最长 ${estRemaining} 分钟`;
+      queueMessage = `排队中 · 预计最长 ${estRemaining} 分钟`;
     }
   }
 
@@ -4389,6 +4391,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
       elapsedMinutes,
       estimatedMaxMinutes,
       result: task.videoUrl ? { videoUrl: task.videoUrl } : null,
+      errorMessage: task.errorMessage || null,
     },
   });
 });

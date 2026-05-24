@@ -402,6 +402,7 @@ export interface VideoTaskStatus {
   elapsedMinutes: number
   estimatedMaxMinutes: number
   result: { videoUrl: string | null } | null
+  errorMessage: string | null
 }
 
 export async function videoTaskStatus(submitId: string) {

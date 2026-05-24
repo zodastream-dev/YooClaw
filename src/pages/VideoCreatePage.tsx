@@ -143,9 +143,14 @@ export function VideoCreatePage() {
           if (res.data.status === 'completed') {
             setIsPolling(false)
             setResult({ id: res.data.id, title: prompt.slice(0, 30) + (genType === 'image_upscale' ? ' 放大' : ' 视频'), url: res.data.result?.videoUrl || '' })
+          } else if (res.data.status === 'cancelled') {
+            setIsPolling(false)
+            setError('视频生成已取消')
           } else if (res.data.status === 'failed') {
             setIsPolling(false)
-            setError('生成失败，请稍后重试')
+            setError(res.data.errorMessage || '生成失败，请稍后重试')
+            setIsPolling(false)
+            setError(res.data.errorMessage || '生成失败，请稍后重试')
           }
         }
       } catch (e: any) { console.warn('Poll error:', e.message) }
@@ -770,7 +775,7 @@ export function VideoCreatePage() {
             </div>
 
             {/* ===== Inline Generation Status ===== */}
-            {isPolling && (
+            {(isSubmitting || isPolling) && (
               <div className="rounded-2xl border border-yellow-500/30 bg-card/60 backdrop-blur-sm p-4 sm:p-5 space-y-3 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -779,11 +784,12 @@ export function VideoCreatePage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-yellow-500">
-                        {genType === 'image_upscale' ? '图片放大中' : '视频生成中'}
+                        {isSubmitting ? '提交中...' : genType === 'image_upscale' ? '图片放大中' : '视频生成中'}
                       </p>
                       <p className="text-[11px] text-muted-foreground">{genTypeConfig.label}</p>
                     </div>
                   </div>
+                  {isPolling && (
                   <button
                     onClick={async () => {
                       if (pollingRef.current) clearInterval(pollingRef.current)
@@ -797,28 +803,39 @@ export function VideoCreatePage() {
                   >
                     取消生成
                   </button>
+                  )}
                 </div>
                 <div className="bg-muted/30 rounded-xl p-3 space-y-2">
-                  {queueMessage && (
+                  {isSubmitting && (
+                    <div className="flex items-center gap-2 text-xs sm:text-sm">
+                      <Loader2 size={15} className="text-yellow-500 animate-spin flex-shrink-0" />
+                      <span className="text-muted-foreground">正在提交视频生成任务...</span>
+                    </div>
+                  )}
+                  {isPolling && queueMessage && (
                     <div className="flex items-center gap-2 text-xs sm:text-sm">
                       <Users size={15} className="text-orange-400 flex-shrink-0" />
                       <span className="text-foreground font-medium">{queueMessage}</span>
                     </div>
                   )}
-                  {!queueMessage && (
+                  {isPolling && !queueMessage && (
                     <div className="flex items-center gap-2 text-xs sm:text-sm">
                       <Clock size={15} className="text-orange-400 flex-shrink-0" />
                       <span className="text-foreground font-medium">排队中 · 预计最长 {estimatedMaxMinutes > 0 ? estimatedMaxMinutes : '300'} 分钟</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <Clock size={13} className="flex-shrink-0" />
-                    <span>已等待 <strong className="text-foreground">{elapsedMinutes}</strong> 分钟</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-full transition-all duration-1000 animate-pulse"
-                      style={{ width: estimatedMaxMinutes > 0 ? `${Math.min((elapsedMinutes / estimatedMaxMinutes) * 100, 95)}%` : '10%' }} />
-                  </div>
+                  {isPolling && (
+                    <>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <Clock size={13} className="flex-shrink-0" />
+                        <span>已等待 <strong className="text-foreground">{elapsedMinutes}</strong> 分钟</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-full transition-all duration-1000 animate-pulse"
+                          style={{ width: estimatedMaxMinutes > 0 ? `${Math.min((elapsedMinutes / estimatedMaxMinutes) * 100, 95)}%` : '10%' }} />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
