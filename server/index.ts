@@ -4368,6 +4368,17 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
           console.error(`[VideoGen] Poll error for ${submitId}:`, pollErr.message);
           if (out) console.error(`[VideoGen] stdout:`, out.slice(0, 1000));
           if (errOut) console.error(`[VideoGen] stderr:`, errOut.slice(0, 1000));
+          // If dreamina says 'record not found', mark as failed immediately
+          if (out.includes('record not found') || errOut.includes('record not found')) {
+            const t = videoTasks.get(submitId);
+            if (t) {
+              t.status = 'failed';
+              t.errorMessage = '即梦服务器端已找不到任务记录，可能已过期';
+              console.error(`[VideoGen] Task ${submitId} record not found, marking failed`);
+              for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
+              return;
+            }
+          }
           // Try to parse output even if command exited non-zero
           try {
             const result2 = JSON.parse(out);
