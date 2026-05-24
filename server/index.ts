@@ -4284,11 +4284,11 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
     // Phase 2: Background polling
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
-    const MAX_POLLS = 60;
+    const MAX_POLLS = 120;
 
     (async () => {
       for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise(r => setTimeout(r, 300000));
+        await new Promise(r => setTimeout(r, 180000));
         const t = videoTasks.get(submitId);
         if (!t) return;
         t.polls = i + 1;
@@ -4367,7 +4367,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
         id: submitId,
         status: 'unknown',
         polls: 0,
-        maxPolls: 60,
+        maxPolls: 120,
         isPolling: false,
         queueInfo: null,
         queueMessage: '',
@@ -4379,7 +4379,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
   }
 
   const elapsedMinutes = Math.floor((Date.now() - task.startTime) / 60000);
-  const estimatedMaxMinutes = 60 * 5; // 60 polls x 5min = 5 hr
+  const estimatedMaxMinutes = 120 * 3; // 120 polls x 3min = 6 hr
 
   let queueMessage = '';
   if (task.status === 'processing') {
@@ -4400,7 +4400,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
       status: task.status,
       genType: task.genType,
       polls: task.polls,
-      maxPolls: 60,
+      maxPolls: 120,
       isPolling: task.status === 'processing',
       queueInfo: task.queueInfo || null,
       queueMessage,

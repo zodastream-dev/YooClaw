@@ -93,7 +93,7 @@ export function VideoCreatePage() {
   const [queueMessage, setQueueMessage] = useState('')
   const [elapsedMinutes, setElapsedMinutes] = useState(0)
   const [estimatedMaxMinutes, setEstimatedMaxMinutes] = useState(0)
-  const [maxPolls, setMaxPolls] = useState(60)
+  const [maxPolls, setMaxPolls] = useState(120)
   const [result, setResult] = useState<GeneratedVideo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -154,7 +154,7 @@ export function VideoCreatePage() {
           setQueueMessage(res.data.queueMessage || '')
           setElapsedMinutes(res.data.elapsedMinutes)
           setEstimatedMaxMinutes(res.data.estimatedMaxMinutes)
-          setMaxPolls(res.data.maxPolls || 60)
+          setMaxPolls(res.data.maxPolls || 120)
           if (res.data.status === 'completed') {
             setIsPolling(false)
             localStorage.removeItem('yooclaw_active_video_task')
@@ -841,7 +841,7 @@ export function VideoCreatePage() {
                   {isPolling && !queueMessage && (
                     <div className="flex items-center gap-2 text-xs sm:text-sm">
                       <Clock size={15} className="text-orange-400 flex-shrink-0" />
-                      <span className="text-foreground font-medium">排队中 · 5分钟后显示目前排队进度</span>
+                      <span className="text-foreground font-medium">排队中 · 3分钟后显示目前排队进度</span>
                     </div>
                   )}
                   {isPolling && (
