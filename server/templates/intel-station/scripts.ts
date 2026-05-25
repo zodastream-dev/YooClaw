@@ -67,6 +67,10 @@ async function loadIntelData(){
       var knownProviders={metaso:DEFAULT_METASO_KEY,tavily:DEFAULT_TAVILY_KEY,deepseek:DEFAULT_DEEPSEEK_KEY,codebuddy:DEFAULT_DEEPSEEK_KEY};
       if(knownProviders[src.aiProvider])src.apiKey=knownProviders[src.aiProvider];
       else if(!src.apiKey)src.apiKey=DEFAULT_DEEPSEEK_KEY;
+      // Fix invalid model names — override clearly wrong ones
+      var validModels=['deepseek-v','deepseek-r','deepseek-c','gpt-','claude-','qwen-'];
+      var hasValidModel=validModels.some(function(prefix){return (src.aiModel||'').indexOf(prefix)===0;});
+      if(!src.aiModel||!hasValidModel)src.aiModel='deepseek-v4-flash';
     });
     var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources})});
     if(!result.ok)throw new Error('API error: '+result.status);
@@ -688,7 +692,7 @@ function addNewSource(){
     return;
   }
   var srcs=w.sources||(w.config&&w.config.sources)||[];
-  srcs.push({name:'',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:''});
+  srcs.push({name:'',aiProvider:'deepseek',aiModel:'deepseek-v4-flash',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:''});
   if(w.config&&w.config.sources)w.config.sources=srcs;
   w.sources=srcs;
   var newSi=srcs.length-1;
