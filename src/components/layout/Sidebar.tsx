@@ -22,7 +22,7 @@ export function Sidebar() {
   const { clearMessages, currentSessionId: chatSessionId, setCurrentSessionId } = useChatStore()
   const setLoadingHistory = useChatStore((s) => s.setLoadingHistory)
   const { theme, resolvedTheme, setTheme } = useThemeStore()
-  const { clearToken, user, storageInfo, fetchStorage } = useAuthStore()
+  const { clearToken, user, storageInfo, fetchStorage, fetchUserInfo } = useAuthStore()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -32,6 +32,10 @@ export function Sidebar() {
   useEffect(() => {
     loadSessions()
     fetchStorage()
+    // Ensure user info is fresh (persist may have stale data)
+    if (!user || !user.username) {
+      fetchUserInfo()
+    }
   }, [])
 
   const loadSessions = async () => {
