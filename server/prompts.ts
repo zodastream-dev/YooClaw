@@ -45,7 +45,8 @@ export function makeIntelPrompt(
   objectName?: string,
 ): { systemPrompt: string; userPrompt: string } {
   const kw = (keywords || []).join('、');
-  const sp = customPrompt || '你是一个专业的情报分析助手。';
+  const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const sp = (customPrompt || '你是一个专业的情报分析助手。') + '\n当前日期：' + today + '。请基于此日期判断信息时效性，优先提供最近30天内的资讯。';
   const urlField = includeUrl ? '、url(原始链接，如有)' : '';
   const urlRule = includeUrl ? '4.如果无法提供真实url，url字段留空字符串。5.仅输出JSON数组，不要任何其他文字。' : '4.仅输出JSON数组，不要任何其他文字。';
   const up = objectName
