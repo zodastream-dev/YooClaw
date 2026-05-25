@@ -193,6 +193,7 @@ export function PortalBuilderPage() {
   // ========== Edit Modal State ==========
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null)
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
 
   // ========== Quick Start State ==========
   const [showQuickStartModal, setShowQuickStartModal] = useState(false)
@@ -251,7 +252,7 @@ export function PortalBuilderPage() {
     const w = widgets.find((w) => w.id === id)
     if (!w || !window.confirm(`确定删除「${w.title}」？此操作不可撤销。`)) return
     setWidgets((prev) => prev.filter((w) => w.id !== id))
-    if (selectedWidgetId === id) { setSelectedWidgetId(null); setEditingWidgetId(null); setShowEditModal(false) }
+    if (selectedWidgetId === id) { setSelectedWidgetId(null); setEditingWidgetId(null); setEditingSourceId(null); setShowEditModal(false) }
   }, [widgets, selectedWidgetId])
 
   const updateWidget = useCallback((id: string, updater: (w: Widget) => Widget) => {
@@ -515,6 +516,10 @@ export function PortalBuilderPage() {
 
   // ========== Edit Widget ==========
   const editingWidget = useMemo(() => widgets.find((w) => w.id === editingWidgetId) || null, [widgets, editingWidgetId])
+  const editingSource = useMemo(() => {
+    if (!editingWidget || !editingSourceId) return null
+    return (editingWidget.config?.sources || []).find((s: WidgetSource) => s.id === editingSourceId) || null
+  }, [editingWidget, editingSourceId])
 
   const handleMpUnsubscribe = async (mpId: string) => {
     try {
@@ -613,7 +618,7 @@ export function PortalBuilderPage() {
                         className={`rounded-xl border p-2.5 cursor-pointer transition-all ${
                           selectedWidgetId === intelWidget?.id ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/20' : 'border-border hover:border-violet-300 bg-background'
                         }`}
-                        onClick={() => handleWidgetClick(intelWidget!.id)}
+                        onClick={() => { setEditingWidgetId(intelWidget!.id); setEditingSourceId(s.id); setShowEditModal(true) }}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 min-w-0">
@@ -1168,7 +1173,7 @@ export function PortalBuilderPage() {
         {/* ========== Edit Widget Modal ========== */}
         <AnimatePresence>
           {showEditModal && editingWidget && (
-            <motion.div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEditModal(false); setEditingWidgetId(null) }}
+            <motion.div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEditModal(false); setEditingWidgetId(null); setEditingSourceId(null) }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -1189,20 +1194,24 @@ export function PortalBuilderPage() {
               {/* Header */}
               <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl">
                 <div className="flex items-center gap-2.5">
-                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${editingWidget.type === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
-                    {editingWidget.type === 'report-generator' ? '📊' : '🛰️'}
+                  <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm bg-amber-100 dark:bg-amber-900/20">
+                    {editingSource ? '🛰️' : (editingWidget.type === 'report-generator' ? '📊' : '🛰️')}
                   </span>
                   <div>
-                    <h3 className="text-sm font-semibold">编辑「{editingWidget.title}」</h3>
-                    <p className="text-[11px] text-muted-foreground">{editingWidget.type === 'report-generator' ? '报告生成器' : '情报监控源'}</p>
+                    <h3 className="text-sm font-semibold">
+                      {editingSource ? `编辑情报源「${editingSource.name || '未命名'}」` : `编辑「${editingWidget.title}」`}
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">{editingSource ? '情报监控源' : (editingWidget.type === 'report-generator' ? '报告生成器' : '情报监控源')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => deleteWidget(editingWidget.id)}
-                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors" title="删除组件">
-                    <Trash2 size={16} />
-                  </button>
-                  <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null) }}
+                  {editingSource && (
+                    <button onClick={() => { if (confirm(`确认删除情报源「${editingSource.name}」？此操作不可撤销。`)) { deleteMonitorSource(editingWidget.id, editingSource.id); setShowEditModal(false); setEditingWidgetId(null); setEditingSourceId(null) } }}
+                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors" title="删除此情报源">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null); setEditingSourceId(null) }}
                     className="p-1.5 rounded-lg hover:bg-muted transition-colors">
                     <X size={18} />
                   </button>
@@ -1211,6 +1220,107 @@ export function PortalBuilderPage() {
 
               {/* Body */}
               <div className="px-6 py-5 space-y-4">
+                {/* ===== FLATTENED: Single Source Edit ===== */}
+                {editingSource ? (
+                  <div className="space-y-4">
+                    {/* Source Name */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">情报属性</label>
+                      <select value={INTEL_CATEGORIES.includes(editingSource.name) ? editingSource.name : '__custom__'}
+                        onChange={(e) => {
+                          const val = e.target.value === '__custom__' ? '' : e.target.value;
+                          updateSourceField(editingWidget.id, editingSource.id, 'name', val);
+                          if (val && INTEL_PROMPTS[val]) {
+                            updateSourceField(editingWidget.id, editingSource.id, 'customPrompt', INTEL_PROMPTS[val]);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                        <option value="">-- 选择情报属性 --</option>
+                        {INTEL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        <option value="__custom__">自定义…</option>
+                      </select>
+                      {!INTEL_CATEGORIES.includes(editingSource.name) && (
+                        <input type="text" value={editingSource.name}
+                          onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'name', e.target.value)}
+                          placeholder="输入自定义属性名称" className="w-full mt-2 px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                      )}
+                    </div>
+
+                    {/* AI Provider + Model */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
+                        <select value={editingSource.aiProvider}
+                          onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiProvider', e.target.value)}
+                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                          {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
+                        <input type="text" value={editingSource.aiModel}
+                          onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiModel', e.target.value)}
+                          placeholder="deepseek-v4-flash" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                      </div>
+                    </div>
+
+                    {/* Objects */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">📌 监控对象</label>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {(editingSource.objects || []).filter(o => o.name).map((obj: any) => (
+                          <span key={obj.name} className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-purple-100 dark:bg-purple-900/20 text-xs text-purple-700 dark:text-purple-300 font-medium">
+                            {obj.name}
+                            <button onClick={() => removeObjectFromSource(editingWidget.id, editingSource.id, obj.name)} className="hover:text-red-500 ml-0.5">&times;</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input value={editModalObjectInput}
+                          onChange={(e) => setEditModalObjectInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, editingSource.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } } }}
+                          placeholder="输入对象名称（如：星巴克）" className="flex-1 px-3 py-1.5 text-sm border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                        <button onClick={() => { if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, editingSource.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } }}
+                          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors shrink-0">添加</button>
+                      </div>
+                    </div>
+
+                    {/* Keywords */}
+                    <KeywordInput
+                      keywords={editingSource.keywords} sourceId={editingSource.id} widgetId={editingWidget.id}
+                      onAdd={addKeyword} onRemove={removeKeyword} />
+
+                    {/* Update Frequency */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
+                      <select value={editingSource.updateFrequency}
+                        onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'updateFrequency', e.target.value)}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                        <option value="hourly">每小时</option>
+                        <option value="daily">每天</option>
+                        <option value="weekly">每周</option>
+                        <option value="monthly">每月</option>
+                      </select>
+                    </div>
+
+                    {/* Custom Prompt */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
+                      <textarea value={editingSource.customPrompt}
+                        onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'customPrompt', e.target.value)}
+                        rows={3} placeholder="自定义提示词…" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                    </div>
+
+                    {/* API Key */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
+                      <input type="text" value={editingSource.apiKey || ''}
+                        onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'apiKey', e.target.value)}
+                        placeholder="留空使用默认密钥" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                    </div>
+                  </div>
+                ) : (
+                <>
                 {/* Widget Title */}
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5">组件标题</label>
@@ -1349,15 +1459,17 @@ export function PortalBuilderPage() {
                     </div>
                   </div>
                 )}
+                </>
+                )}
               </div>
 
               {/* Footer */}
               <div className="sticky bottom-0 flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-card/95 backdrop-blur-sm rounded-b-2xl">
-                <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null) }}
+                <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null); setEditingSourceId(null) }}
                   className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
                   取消
                 </button>
-                <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null) }}
+                <button onClick={() => { setShowEditModal(false); setEditingWidgetId(null); setEditingSourceId(null) }}
                   className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
                   保存
                 </button>
