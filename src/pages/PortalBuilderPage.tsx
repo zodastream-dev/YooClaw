@@ -75,7 +75,7 @@ const TEMPLATES = [
 const AI_PROVIDERS = [
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'metaso', label: '秘塔 (Metaso)' },
-  { value: 'brave', label: 'Brave Search' },
+  { value: 'tavily', label: 'Tavily Search' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'custom', label: '自定义 API' },
 ]
