@@ -874,6 +874,7 @@ var API='${apiBase}';
 var REPORT_INDICES=${reportIndicesJson};
 var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
 var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
+var DEFAULT_BRAVE_KEY='${process.env.BRAVE_API_KEY || ""}';
 var WIDGETS=${widgetConfigsJs};
 var METHOD_NAMES={SWOT:'SWOT分析',PEST:'PEST分析',PORTER:'波特五力分析','3C':'3C分析',STOCK:'股价预测'};
 
@@ -1427,7 +1428,7 @@ async function fetchAllIntel(){
 async function fetchSourceIntel(src){
   var prompt=makeIntelPrompt(src.keywords,src.customPrompt);
   var provider=src.aiProvider||'deepseek';
-  var apiKey=src.apiKey||(provider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY)||'';
+  var apiKey=src.apiKey||(provider==='metaso'?DEFAULT_METASO_KEY:provider==='brave'?DEFAULT_BRAVE_KEY:DEFAULT_DEEPSEEK_KEY)||'';
   var _kwArr=Array.isArray(src.keywords)?src.keywords:(typeof src.keywords==='string'?src.keywords.split(/[,，、]/).map(function(s){return s.trim()}).filter(Boolean):[]);
   var model=src.aiModel||'deepseek-v4-flash';
   if(!apiKey)throw new Error('未配置API Key');
@@ -1444,6 +1445,14 @@ async function fetchSourceIntel(src){
     var rawData=(msData.data&&msData.data.references)?msData.data.references:(msData.data||msData.results||msData.items||[]);
     var results=Array.isArray(rawData)?rawData:(rawData.results||rawData.items||rawData.references||[rawData]);
     return results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||r.aiSummary||'',source:r.url||r.link||r.source||'秘塔搜索',date:r.date||r.publishedAt||r.publishTime||'',link:r.url||r.link||''};});
+  } else if(provider==='brave'){
+    var bQuery=_kwArr.length>0?_kwArr.join(' '):src.name.split(/[、，, ]/).filter(Boolean).slice(0,3).join(' ');
+    var bApiUrl='https://api.search.brave.com/res/v1/web/search?q='+encodeURIComponent(bQuery)+'&count=10&search_lang=zh';
+    var bResponse=await fetch(bApiUrl,{method:'GET',headers:{'Accept':'application/json','Accept-Encoding':'gzip','X-Subscription-Token':apiKey}});
+    if(!bResponse.ok){var bErr=await bResponse.text();throw new Error('Brave API错误: '+bResponse.status+' '+bErr.substring(0,200))}
+    var bData=await bResponse.json();
+    var bResults=(bData.web&&bData.web.results)?bData.web.results:(bData.results||[]);
+    return Array.isArray(bResults)?bResults.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.description||r.snippet||'',source:r.url||r.link||'Brave Search',date:r.age||r.page_age||'',link:r.url||r.link||''};}):[];
   } else {
     var apiUrl='https://api.deepseek.com/chat/completions';
     var response=await fetch(apiUrl,{
@@ -3623,7 +3632,7 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
     ? src.keywords
     : (typeof src.keywords === 'string' ? src.keywords.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : []);
   const provider = src.aiProvider || 'deepseek';
-  const apiKey = src.apiKey || (provider === 'metaso' ? process.env.METASO_API_KEY : process.env.DEEPSEEK_API_KEY) || '';
+  const apiKey = src.apiKey || (provider === 'metaso' ? process.env.METASO_API_KEY : provider === 'brave' ? process.env.BRAVE_API_KEY : process.env.DEEPSEEK_API_KEY) || '';
   const model = src.aiModel || 'deepseek-v4-flash';
   if (!apiKey) throw new Error('未配置API Key');
 
@@ -3657,6 +3666,31 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
           link: r.url || r.link || '',
         };
       });
+    } else if (provider === 'brave') {
+      const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' ') : (objectName || src.name || '');
+      const apiUrl = 'https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(query) + '&count=10&search_lang=zh';
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 25000);
+      const response = await fetch(apiUrl, {
+        method: 'GET', signal: ctrl.signal,
+        headers: { 'Accept': 'application/json', 'Accept-Encoding': 'gzip', 'X-Subscription-Token': apiKey },
+      });
+      clearTimeout(to);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('Brave API错误: ' + response.status + ' ' + errText.substring(0, 200));
+      }
+      const data = await response.json();
+      const rawResults = (data.web && data.web.results) ? data.web.results : (data.results || []);
+      results = Array.isArray(rawResults) ? rawResults.slice(0, 10).map(function (r: any) {
+        return {
+          title: r.title || r.name || '',
+          summary: r.description || r.snippet || '',
+          source: r.url || r.link || 'Brave Search',
+          date: r.age || r.page_age || '',
+          link: r.url || r.link || '',
+        };
+      }) : [];
     } else {
       const apiUrl = 'https://api.deepseek.com/chat/completions';
       const ctrl = new AbortController();
