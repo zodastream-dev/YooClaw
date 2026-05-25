@@ -1,4 +1,4 @@
-import type { APIResponse, RunData, SessionData, User, StorageInfo, AdminUser, AdminStats, ReportSite, WidgetConfig } from './types'
+import type { APIResponse, RunData, SessionData, User, StorageInfo, AdminUser, AdminStats, ReportSite, WidgetConfig, VideoData } from './types'
 import { API_BASE, TOKEN_KEY } from './constants'
 
 function getToken(): string | null {
