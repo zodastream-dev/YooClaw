@@ -55,7 +55,8 @@ import {
   getVideoById,
 } from './db.js';
 
-import { generateIntelStationHtml } from './templates/intel-station/index.js';
+import { generateIntelStationHtml };
+import { getSearchModule } from "./search-sources/index.js" from './templates/intel-station/index.js';
 
 import {
   TRIPLE_BACKTICK,
@@ -3643,104 +3644,43 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
   if (!apiKey) throw new Error('未配置API Key');
 
   // -- Single-call helper (no caching, just API call) --
-  const callOnce = async (effectiveKwArr: string[], objectName?: string): Promise<any[]> => {
-    const prompt = makeIntelPrompt(effectiveKwArr, src.customPrompt, true, objectName || undefined);
-    let results: any[];
-    if (provider === 'metaso') {
-      const apiUrl = 'https://metaso.cn/api/open/search/v2';
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 25000);
-      const response = await fetch(apiUrl, {
-        method: 'POST', signal: ctrl.signal,
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({ question: effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || ''), lang: 'zh' }),
-      });
-      clearTimeout(to);
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error('秘塔API错误: ' + response.status + ' ' + errText.substring(0, 200));
-      }
-      const data = await response.json();
-      const rawData = (data.data && data.data.references) ? data.data.references : (data.data || data.results || data.items || []);
-      results = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
-      results = results.slice(0, 10).map(function (r: any) {
-        return {
-          title: r.title || r.name || '',
-          summary: r.snippet || r.summary || r.content || r.aiSummary || '',
-          source: r.url || r.link || r.source || '秘塔搜索',
-          date: r.date || r.publishedAt || r.publishTime || '',
-          link: r.url || r.link || '',
-        };
-      });
-    } else if (provider === 'tavily') {
-      const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
-      const apiUrl = 'https://api.tavily.com/search';
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 25000);
-      const response = await fetch(apiUrl, {
-        method: 'POST', signal: ctrl.signal,
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({ query, search_depth: 'basic', max_results: 10, topic: 'news', include_answer: false }),
-      });
-      clearTimeout(to);
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error('Tavily API错误: ' + response.status + ' ' + errText.substring(0, 200));
-      }
-      const data = await response.json();
-      results = (data.results || []).slice(0, 10).map(function (r: any) {
-        return {
-          title: r.title || r.name || '',
-          summary: r.content || r.snippet || '',
-          source: r.url || r.link || 'Tavily',
-          date: r.published_date || '',
-          link: r.url || r.link || '',
-        };
-      });
-    } else {
-      const apiUrl = 'https://api.deepseek.com/chat/completions';
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 25000);
-      const response = await fetch(apiUrl, {
-        method: 'POST', signal: ctrl.signal,
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({
-          model, max_tokens: 4096, temperature: 0.7,
-          messages: [
-            { role: 'system', content: prompt.systemPrompt },
-            { role: 'user', content: prompt.userPrompt },
-          ],
-        }),
-      });
-      clearTimeout(to);
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error('API错误: ' + response.status);
-      }
-      const data = await response.json();
-      let content = data.choices[0].message.content;
-      content = content.replace('${TRIPLE_BACKTICK}json', '').replace(/${TRIPLE_BACKTICK}/g, '').trim();
-      try {
-        results = JSON.parse(content);
-      } catch (e) {
-        const match = content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);
-        if (match) {
-          try { results = JSON.parse(match[0]); } catch (e2) { results = []; }
-        } else {
-          throw new Error('无法解析AI返回数据');
-        }
-      }
-      results = (results || []).map(function (r: any) {
-        return {
-          title: r.title || '',
-          summary: r.summary || '',
-          source: r.source || '',
-          date: r.date || r.time || '',
-          link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''),
-        };
-      });
+  const callOnce = async (effectiveKwArr, objectName) => {
+    var query = effectiveKwArr.length > 0 ? effectiveKwArr.join(" OR ") : (objectName || src.name || "");
+    var rawItems=[];var searchMod=getSearchModule(provider);
+    if(searchMod){try{rawItems=await searchMod.search(query,apiKey)}catch(e){console.error("[Search]",e.message)}}
+    var today=new Date().toLocaleDateString("zh-CN",{year:"numeric",month:"long",day:"numeric",weekday:"long"});
+    var sp=(src.customPrompt||"你是专业情报分析助手。")+"
+当前日期："+today+"。优先提供最近30天内的资讯。";
+    var kwText=effectiveKwArr.join("、")||"相关";var up;
+    if(objectName){
+      up="以下是关于【"+objectName+"】在【"+kwText+"】方面的搜索结果。提取30条。
+"+"要求：1.标题+摘要(80字)+来源+时间+url
+2.去重过滤无关
+3.30天优先
+"+"4.JSON:[{\"title\":\"\",\"summary\":\"\",\"source\":\"\",\"date\":\"\",\"url\":\"\",\"_object\":\""+objectName+"\"}]
+"+"5.无url留空 6.仅JSON
+
+原始搜索结果：
+"+JSON.stringify(rawItems.slice(0,50)).substring(0,8000);
+    }else{
+      up="请搜索整理【"+kwText+"】的最新资讯30条。
+"+"要求：1.标题+摘要(80字)+来源+时间+url
+2.按重要性排序，30天优先
+"+"3.JSON:[{\"title\":\"\",\"summary\":\"\",\"source\":\"\",\"date\":\"\",\"url\":\"\"}]
+"+"4.无url留空 5.仅JSON
+
+参考：
+"+JSON.stringify(rawItems.slice(0,30)).substring(0,6000);
     }
-    return results;
+    var resp=await fetch("https://api.deepseek.com/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+(process.env.DEEPSEEK_API_KEY||"")},body:JSON.stringify({model,max_tokens:8192,temperature:0.5,messages:[{role:"system",content:sp},{role:"user",content:up}]}),signal:AbortSignal.timeout(60000)});
+    if(!resp.ok){var t=await resp.text();throw new Error("DeepSeek:"+resp.status+" "+t.substring(0,200))}
+    var data=await resp.json(),content=data.choices[0].message.content;
+    content=content.replace("```json","").replace(/```/g,"").trim();var results;
+    try{results=JSON.parse(content)}catch(e){var m=content.match(/[s*(?:{[sS]*?}|[[sS]*?])+s*]/);results=m?JSON.parse(m[0]):(rawItems.length>0?rawItems:[])}
+    results=(results||[]).map(function(r){return{title:r.title||"",summary:r.summary||r.snippet||"",source:r.source||r.url||"",date:r.date||r.time||"",link:r.url||r.link||"https://www.baidu.com/s?wd="+encodeURIComponent(r.title||"")}});
+    var cutoff=Date.now()-30*86400000;
+    results=results.filter(function(r){return!r.date||isNaN(new Date(r.date).getTime())||new Date(r.date).getTime()>cutoff});
+    return results.slice(0,30);
   };
 
   // -- Objects expansion --
