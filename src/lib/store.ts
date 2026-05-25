@@ -60,44 +60,28 @@ interface AuthState {
   fetchStorage: () => Promise<void>
 }
 
-// Persist user in localStorage so it survives page refresh
-const USER_KEY = 'codebuddy_user'
-const loadUser = (): User | null => {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
-}
-const saveUser = (user: User | null) => {
-  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
-  else localStorage.removeItem(USER_KEY)
-}
-
 export const useAuthStore = create<AuthState>((set) => ({
   token: localStorage.getItem('codebuddy_token'),
   isAuthenticated: !!localStorage.getItem('codebuddy_token'),
-  user: loadUser(),
+  user: null,
   storageInfo: null,
-  setUser: (user) => { saveUser(user); set({ user }) },
+  setUser: (user) => set({ user }),
   setToken: (token, user) => {
     localStorage.setItem('codebuddy_token', token)
-    saveUser(user)
     set({ token, isAuthenticated: true, user })
   },
   clearToken: () => {
     localStorage.removeItem('codebuddy_token')
-    saveUser(null)
     set({ token: null, isAuthenticated: false, user: null, storageInfo: null })
   },
   fetchUserInfo: async () => {
     try {
       const res = await getMe()
       if (res.data) {
-        saveUser(res.data)
         set({ user: res.data })
       }
     } catch {
-      // Token might be invalid — keep persisted user as fallback
+      // Token might be invalid
     }
   },
   fetchStorage: async () => {
