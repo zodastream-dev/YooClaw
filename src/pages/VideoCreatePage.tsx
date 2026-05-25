@@ -146,6 +146,8 @@ export function VideoCreatePage() {
 
   // Fetch user info on mount; re-init task state when user is known
   useEffect(() => {
+    // Always clean legacy shared key first (prevents cross-user task pollution)
+    localStorage.removeItem('yooclaw_active_video_task')
     fetchUserInfo().then(() => {
       const uid = useAuthStore.getState().user?.id
       if (uid) {
