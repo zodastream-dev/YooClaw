@@ -61,7 +61,7 @@ export async function login(username: string, password: string) {
 }
 
 export async function getMe() {
-  return apiRequest<User>('GET', '/api/v1/auth/me')
+  return apiRequest<{ user: User }>('GET', '/api/v1/auth/me')
 }
 
 export async function getAuthStatus() {
