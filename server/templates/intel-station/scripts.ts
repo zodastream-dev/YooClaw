@@ -164,6 +164,7 @@ function renderSourceFilters(monitors){
     html+='</div>';
   });
   html+='<button class="add-source-btn" onclick="addNewSource()">+ 添加情报源</button>';
+  html+='<button class="add-source-btn" onclick="refreshAllIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);margin-top:4px">🔄 更新情报</button>';
   $('sourceGroups').innerHTML=html;
 }
 
@@ -693,6 +694,18 @@ function addNewSource(){
   if(wi===-1)wi=0;
   renderSourceFilters(allMonitors);
   setTimeout(function(){openSourceModal(wi,newSi)},100);
+}
+
+function refreshAllIntel(){
+  // Clear localStorage cache to force re-fetch
+  var cacheKey='portal-intel-'+PORTAL_SLUG;
+  try{localStorage.removeItem(cacheKey)}catch(e){}
+  allIntelData=[];
+  $('intelLoading').style.display='block';
+  $('feedStatus').textContent='强制更新中...';
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  renderSourceFilters(monitors);
+  loadIntelData();
 }
 
 function deleteSource(wi,si){
