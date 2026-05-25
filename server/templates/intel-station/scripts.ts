@@ -6,6 +6,7 @@ export function intelStationScripts(apiBase: string, slug: string, wlistJson: st
 var API='${apiBase}';
 var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
 var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
+var DEFAULT_TAVILY_KEY='${process.env.TAVILY_API_KEY || ""}';
 var WIDGETS=${wlistJson};
 var PORTAL_SLUG='${slug.replace(/'/g, "\\'")}';
 var currentSourceFilters=['全部'];
@@ -62,7 +63,7 @@ async function loadIntelData(){
       return;
     }
     sources.forEach(function(src){
-      if(!src.apiKey)src.apiKey=src.aiProvider==='metaso'?DEFAULT_METASO_KEY:DEFAULT_DEEPSEEK_KEY;
+      if(!src.apiKey)src.apiKey=src.aiProvider==='metaso'?DEFAULT_METASO_KEY:src.aiProvider==='tavily'?DEFAULT_TAVILY_KEY:DEFAULT_DEEPSEEK_KEY;
     });
     var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources})});
     if(!result.ok)throw new Error('API error: '+result.status);
