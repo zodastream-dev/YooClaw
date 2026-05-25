@@ -1717,9 +1717,17 @@ interface JwtPayload {
 function verifyToken(token: string): JwtPayload | null {
   try {
     const [h, b, s] = token.split('.');
-    if (crypto.createHmac('sha256', JWT_SECRET).update(`${h}.${b}`).digest('base64url') !== s) return null;
-    return JSON.parse(Buffer.from(b, 'base64url').toString()) as JwtPayload;
-  } catch { return null; }
+    if (!h || !b || !s) { console.warn('[JWT] Token missing parts'); return null; }
+    if (crypto.createHmac('sha256', JWT_SECRET).update(`${h}.${b}`).digest('base64url') !== s) {
+      console.warn('[JWT] Signature mismatch — token may be from a different secret or tampered');
+      return null;
+    }
+    const payload = JSON.parse(Buffer.from(b, 'base64url').toString()) as JwtPayload;
+    return payload;
+  } catch (e: any) {
+    console.warn('[JWT] verifyToken error:', e.message);
+    return null;
+  }
 }
 
 async function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -4229,7 +4237,17 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     }
 
     console.log(`[VideoGen] ${gt} submit:`, submitCmd.slice(0, 200));
-    const { stdout: submitOut } = await execAsync(submitCmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+
+    // Execute dreamina CLI; if it exits non-zero, still try to recover submit_id from stdout
+    let submitOut = '';
+    try {
+      const { stdout } = await execAsync(submitCmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+      submitOut = stdout;
+    } catch (execErr: any) {
+      submitOut = execErr.stdout || '';
+      console.error(`[VideoGen] Submit command exited non-zero:`, execErr.message);
+      if (submitOut) console.error(`[VideoGen] stdout from failed command:`, submitOut.slice(0, 500));
+    }
     console.log('[VideoGen] Submit response:', submitOut.slice(0, 300));
 
     // Extract submit_id and check for errors
@@ -4247,7 +4265,8 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     }
     if (!submitId) {
       for (const p of tempPaths) { try { fs.unlinkSync(p); } catch {} }
-      return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: 'Failed to get submit_id. Response: ' + submitOut.slice(0, 200) } });
+      console.error(`[VideoGen] No submit_id in output:`, submitOut.slice(0, 500));
+      return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成服务暂时不可用，请稍后重试' } });
     }
     // Check if submit failed (dreamina returned fail_reason or no logid)
     if (submitFailReason) {
@@ -4398,7 +4417,8 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     })();
   } catch (err: any) {
     console.error('[VideoGen Error]', err.message);
-    res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '生成失败: ' + err.message } });
+    // Don't expose internal command details or stack traces to frontend
+    res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成服务暂时不可用，请稍后重试' } });
   }
 });
 
