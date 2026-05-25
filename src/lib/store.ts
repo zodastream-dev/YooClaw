@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Message, Session, ChatMode, User, StorageInfo } from './types'
 import { THEME_KEY } from './constants'
 import { getMe, getStorage } from './api'
@@ -60,41 +61,49 @@ interface AuthState {
   fetchStorage: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  token: localStorage.getItem('codebuddy_token'),
-  isAuthenticated: !!localStorage.getItem('codebuddy_token'),
-  user: null,
-  storageInfo: null,
-  setUser: (user) => set({ user }),
-  setToken: (token, user) => {
-    localStorage.setItem('codebuddy_token', token)
-    set({ token, isAuthenticated: true, user })
-  },
-  clearToken: () => {
-    localStorage.removeItem('codebuddy_token')
-    set({ token: null, isAuthenticated: false, user: null, storageInfo: null })
-  },
-  fetchUserInfo: async () => {
-    try {
-      const res = await getMe()
-      if (res.data) {
-        set({ user: res.data })
-      }
-    } catch {
-      // Token might be invalid
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      token: localStorage.getItem('codebuddy_token'),
+      isAuthenticated: !!localStorage.getItem('codebuddy_token'),
+      user: null,
+      storageInfo: null,
+      setUser: (user) => set({ user }),
+      setToken: (token, user) => {
+        localStorage.setItem('codebuddy_token', token)
+        set({ token, isAuthenticated: true, user })
+      },
+      clearToken: () => {
+        localStorage.removeItem('codebuddy_token')
+        set({ token: null, isAuthenticated: false, user: null, storageInfo: null })
+      },
+      fetchUserInfo: async () => {
+        try {
+          const res = await getMe()
+          if (res.data) {
+            set({ user: res.data })
+          }
+        } catch {
+          // Token might be invalid
+        }
+      },
+      fetchStorage: async () => {
+        try {
+          const res = await getStorage()
+          if (res.data) {
+            set({ storageInfo: res.data as StorageInfo })
+          }
+        } catch {
+          // ignore
+        }
+      },
+    }),
+    {
+      name: 'codebuddy_auth',
+      partialize: (state) => ({ user: state.user }),
     }
-  },
-  fetchStorage: async () => {
-    try {
-      const res = await getStorage()
-      if (res.data) {
-        set({ storageInfo: res.data as StorageInfo })
-      }
-    } catch {
-      // ignore
-    }
-  },
-}))
+  )
+)
 
 // Sidebar store
 interface SidebarState {
