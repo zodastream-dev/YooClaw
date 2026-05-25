@@ -76,6 +76,8 @@ const AI_PROVIDERS = [
   { value: 'deepseek', label: 'DeepSeek' },
   { value: 'metaso', label: '秘塔 (Metaso)' },
   { value: 'tavily', label: 'Tavily Search' },
+  { value: 'multi-engine', label: '多引擎搜索' },
+  { value: 'wechat', label: '微信公众号' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'custom', label: '自定义 API' },
 ]

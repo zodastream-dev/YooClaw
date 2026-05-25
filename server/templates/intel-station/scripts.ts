@@ -536,7 +536,7 @@ function renderSourceForm(wi,si){
   // AI Provider + Model
   s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
   s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
-  ['deepseek','metaso','tavily','codebuddy','custom'].forEach(function(p){
+  ['deepseek','metaso','tavily','multi-engine','wechat','codebuddy','custom'].forEach(function(p){
     s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
   });
   s+='</select></div>';
