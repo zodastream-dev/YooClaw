@@ -52,7 +52,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     results = m ? JSON.parse(m[0]) : (rawItems.length > 0 ? rawItems : []);
   }
   results = (results || []).map(function (r: any) {
-    return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || '') };
+    return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || "https://www.baidu.com/s?wd=" + encodeURIComponent(r.title || ""), _provider: provider };
   });
   const cutoff = Date.now() - 30 * 86400000;
   results = results.filter(function (r: any) { return !r.date || isNaN(new Date(r.date).getTime()) || new Date(r.date).getTime() > cutoff; });

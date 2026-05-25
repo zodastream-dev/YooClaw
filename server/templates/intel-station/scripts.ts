@@ -236,6 +236,9 @@ function renderIntelFeed(data){
     var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
     html+='<div class="intel-card"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
+    if(item._provider){
+      html+='<span class="intel-provider-tag">'+escHtml(item._provider)+'</span>';
+    }
     if(item._object){
       html+='<span class="intel-obj-tag">'+escHtml(item._object)+'</span>';
     }

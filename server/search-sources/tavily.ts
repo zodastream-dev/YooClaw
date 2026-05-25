@@ -7,7 +7,7 @@ const tavilyModule: SearchModule = {
     const resp = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ query, search_depth: 'basic', max_results: 20, topic: 'news', include_answer: false }),
+      body: JSON.stringify({ query, search_depth: 'basic', max_results: 30, topic: 'news', include_answer: false }),
       signal: AbortSignal.timeout(25000),
     });
     if (!resp.ok) {
@@ -15,7 +15,7 @@ const tavilyModule: SearchModule = {
       throw new Error('Tavily API错误: ' + resp.status + ' ' + errText.substring(0, 200));
     }
     const data = await resp.json();
-    return (data.results || []).slice(0, 20).map((r: any) => ({
+    return (data.results || []).slice(0, 30).map((r: any) => ({
       title: r.title || r.name || '',
       url: r.url || r.link || '',
       snippet: r.content || r.snippet || '',

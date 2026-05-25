@@ -83,6 +83,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .intel-objfilters{display:flex;gap:4px;padding:4px 24px;flex-wrap:wrap}
 /* Object tag on intel cards */
 .intel-obj-tag{font-size:9px;padding:1px 6px;border-radius:3px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan);font-weight:500;margin-right:6px;white-space:nowrap;flex-shrink:0}
+.intel-provider-tag{font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(251,191,36,0.12);color:var(--monitorAccent);font-weight:500;margin-right:6px;white-space:nowrap;flex-shrink:0}
 
 /* ===== CENTER COLUMN - Intel Feed ===== */
 .center-col{grid-area:center;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}

@@ -17,7 +17,7 @@ const metasoModule: SearchModule = {
     const data = await resp.json();
     const rawData = (data.data?.references) ? data.data.references : (data.data || data.results || data.items || []);
     const results: any[] = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
-    return results.slice(0, 20).map((r: any) => ({
+    return results.slice(0, 30).map((r: any) => ({
       title: r.title || r.name || '',
       url: r.url || r.link || '',
       snippet: r.snippet || r.summary || r.content || r.aiSummary || '',
