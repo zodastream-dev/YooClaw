@@ -111,6 +111,21 @@ async function loadIntelData(){
   }
 }
 
+// Auto-refresh based on updateFrequency
+(function scheduleRefresh(){
+  var freqMap={hourly:60*60*1000,daily:24*60*60*1000,weekly:7*24*60*60*1000,monthly:30*24*60*60*1000};
+  var minInterval=24*60*60*1000; // default daily
+  var monitors=WIDGETS.filter(function(w){return w.type==="intel-monitor"||w.type==="monitor"});
+  monitors.forEach(function(mw){
+    var srcs=mw.sources||(mw.config&&mw.config.sources)||[];
+    srcs.forEach(function(src){
+      var ms=freqMap[src.updateFrequency]||freqMap.daily;
+      if(ms<minInterval)minInterval=ms;
+    });
+  });
+  setTimeout(function(){loadIntelData();scheduleRefresh();},minInterval);
+})();
+
 /* ===== RENDER SOURCE FILTERS (expandable tree) ===== */
 var expandedSources={};
 function renderSourceFilters(monitors){
