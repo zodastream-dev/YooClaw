@@ -549,7 +549,7 @@ function renderSourceForm(wi,si){
   s+='<div class="mb-group"><label class="mb-label">📌 监控对象</label>';
   s+='<div class="obj-tags" id="objTags_'+wi+'_'+si+'">';
   objects.forEach(function(o){
-    s+='<span class="obj-t">'+escHtml(o.name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\''+escHtml(o.name)+'\',this.parentElement)" title="移除">&times;</button></span>';
+    s+='<span class="obj-t">'+escHtml(o.name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(o.name)+'\\',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
   s+='<div class="kw-add-row"><input class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}">';
@@ -596,7 +596,7 @@ function addObject(wi,si){
   if(!tags)return;
   var span=document.createElement('span');
   span.className='obj-t';
-  span.innerHTML=escHtml(name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\''+escHtml(name)+'\',this.parentElement)" title="移除">&times;</button>';
+  span.innerHTML=escHtml(name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(name)+'\\',this.parentElement)" title="移除">&times;</button>';
   tags.appendChild(span);
 }
 
