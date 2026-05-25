@@ -1446,7 +1446,7 @@ async function fetchSourceIntel(src){
     var results=Array.isArray(rawData)?rawData:(rawData.results||rawData.items||rawData.references||[rawData]);
     return results.slice(0,10).map(function(r){return{title:r.title||r.name||'',summary:r.snippet||r.summary||r.content||r.aiSummary||'',source:r.url||r.link||r.source||'秘塔搜索',date:r.date||r.publishedAt||r.publishTime||'',link:r.url||r.link||''};});
   } else if(provider==='tavily'){
-    var tQuery=_kwArr.length>0?_kwArr.join(' '):src.name.split(/[、，, ]/).filter(Boolean).slice(0,3).join(' ');
+    var tQuery=_kwArr.length>0?_kwArr.join(' OR '):src.name.split(/[、，, ]/).filter(Boolean).slice(0,3).join(' OR ');
     var tResponse=await fetch('https://api.tavily.com/search',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({query:tQuery,search_depth:'basic',max_results:10,topic:'news',include_answer:false})});
     if(!tResponse.ok){var tErr=await tResponse.text();throw new Error('Tavily API错误: '+tResponse.status+' '+tErr.substring(0,200))}
     var tData=await tResponse.json();
@@ -3673,7 +3673,7 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
         };
       });
     } else if (provider === 'tavily') {
-      const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' ') : (objectName || src.name || '');
+      const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
       const apiUrl = 'https://api.tavily.com/search';
       const ctrl = new AbortController();
       const to = setTimeout(() => ctrl.abort(), 25000);
