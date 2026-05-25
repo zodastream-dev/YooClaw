@@ -579,25 +579,35 @@ function renderSourceForm(wi,si){
 }
 
 function onSourceCatChange(wi,si,val){
+  var w=WIDGETS[wi];if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];if(!srcs[si])return;
   if(val==='__custom__'){
     $('srcCustomNameGroup_'+wi+'_'+si).style.display='';
     $('srcName_'+wi+'_'+si).value='';
   } else {
     $('srcCustomNameGroup_'+wi+'_'+si).style.display='none';
+    srcs[si].name=val;  // Update name immediately
+    $('modalTitle').textContent=val||'编辑监控源';  // Update modal title
   }
 }
 
 function addObject(wi,si){
   var inp=$('objInput_'+wi+'_'+si);
   if(!inp||!inp.value.trim())return;
-  var name=inp.value.trim();
+  var raw=inp.value.trim();
   inp.value='';
   var tags=$('objTags_'+wi+'_'+si);
   if(!tags)return;
-  var span=document.createElement('span');
-  span.className='obj-t';
-  span.innerHTML=escHtml(name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(name)+'\\',this.parentElement)" title="移除">&times;</button>';
-  tags.appendChild(span);
+  var names=raw.split(/[\\s,，、]+/).map(function(s){return s.trim()}).filter(Boolean);
+  var w=WIDGETS[wi];
+  var srcs=w&&w.config&&w.config.sources||[];var src=srcs&&srcs[si];
+  names.forEach(function(name){
+    if(src&&src.objects&&src.objects.some(function(o){return o.name===name}))return; // skip duplicates
+    var span=document.createElement('span');
+    span.className='obj-t';
+    span.innerHTML=escHtml(name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(name)+'\\',this.parentElement)" title="移除">&times;</button>';
+    tags.appendChild(span);
+  });
 }
 
 function removeObject(wi,si,objName,tagEl){
@@ -618,6 +628,7 @@ function saveSourceConfig(wi,si){
   } else {
     name=catVal||'';
   }
+  if(!name){alert('请选择情报属性或输入自定义名称');return;}
   var provider=($('srcProvider_'+wi+'_'+si)||{}).value||'deepseek';
   var model=($('srcModel_'+wi+'_'+si)||{}).value||'';
   var apiKey=($('srcApiKey_'+wi+'_'+si)||{}).value||'';
@@ -670,7 +681,7 @@ function addNewSource(){
     return;
   }
   var srcs=w.config&&w.config.sources||w.sources||[];
-  srcs.push({name:'新监控源',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:''});
+  srcs.push({name:'',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:''});
   if(w.config&&w.config.sources)w.config.sources=srcs;
   else w.sources=srcs;
   var newSi=srcs.length-1;
@@ -697,14 +708,18 @@ function deleteSource(wi,si){
 function addKeyword(wi,si){
   var inp=$('kwInput_'+wi+'_'+si);
   if(!inp)return;
-  var kw=inp.value.trim();
-  if(!kw)return;
+  var raw=inp.value.trim();
+  if(!raw)return;
+  inp.value='';
   var w=WIDGETS[wi];
   if(!w)return;
   var srcs=w.config&&w.config.sources||w.sources||[];
   if(!srcs[si])return;
   if(!srcs[si].keywords)srcs[si].keywords=[];
-  if(srcs[si].keywords.indexOf(kw)===-1)srcs[si].keywords.push(kw);
+  var kws=raw.split(/[\\s,，、]+/).map(function(s){return s.trim()}).filter(Boolean);
+  kws.forEach(function(kw){
+    if(srcs[si].keywords.indexOf(kw)===-1)srcs[si].keywords.push(kw);
+  });
   renderSourceForm(wi,si);
 }
 
