@@ -442,7 +442,7 @@ export function Sidebar() {
               className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground rounded-lg hover:bg-muted transition-colors"
             >
               <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">
-                {user.username[0].toUpperCase()}
+                {(user.username || 'U')[0].toUpperCase()}
               </div>
               <span className="truncate font-medium">{user.username}</span>
               {user.role === 'admin' && (
