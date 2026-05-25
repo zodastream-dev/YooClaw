@@ -56,7 +56,7 @@ async function loadIntelData(){
   try {
     var sources=[];
     monitors.forEach(function(mw){
-      (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){sources.push(src)});
+      (mw.sources||(mw.config&&mw.config.sources)||[]).forEach(function(src){sources.push(src)});
     });
     if(sources.length===0){
       if(!cachedData) $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源</p>';
@@ -110,7 +110,7 @@ function renderSourceFilters(monitors){
   var widgetSources=[];
   monitors.forEach(function(mw,monitorIdx){
     var wi=WIDGETS.indexOf(mw);if(wi===-1)wi=monitorIdx;
-    var srcs=mw.config&&mw.config.sources||mw.sources||[];
+    var srcs=mw.sources||(mw.config&&mw.config.sources)||[];
     srcs.forEach(function(src,si){widgetSources.push({widgetIndex:wi,sourceIndex:si,source:src})});
   });
   if(widgetSources.length===0){
@@ -247,7 +247,7 @@ function renderIntelFeed(data){
 function buildIntelSubFilters(monitors){
   var sourceNames=['全部'];
   monitors.forEach(function(mw){
-    (mw.config&&mw.config.sources||mw.sources||[]).forEach(function(src){
+    (mw.sources||(mw.config&&mw.config.sources)||[]).forEach(function(src){
       var name=(src.name||'未命名').trim();
       if(sourceNames.indexOf(name)===-1)sourceNames.push(name);
     });
@@ -321,7 +321,7 @@ function filterBySource(sourceName){
 function buildObjectFilters(monitors){
   var objectNames=['全部'];
   monitors.forEach(function(mw){
-    var srcs=mw.config&&mw.config.sources||mw.sources||[];
+    var srcs=mw.sources||(mw.config&&mw.config.sources)||[];
     srcs.forEach(function(src){
       // Only include objects from currently selected source(s); show all when "全部" is selected
       if(currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf((src.name||'').trim())<0)return;
@@ -474,7 +474,7 @@ function openSourceModal(wi,si){
   _activeWi=wi;_activeSi=si;
   var w=WIDGETS[wi];
   if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];
   var src=srcs[si];
   if(!src){closeSourceModalDirect();return}
   $('modalIcon').textContent='\\uD83D\\uDEE0';
@@ -504,7 +504,7 @@ document.addEventListener('keydown',function(e){
 function renderSourceForm(wi,si){
   var w=WIDGETS[wi];
   if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];
   var src=srcs[si];
   if(!src)return;
   var kws=src.keywords||[];
@@ -581,7 +581,7 @@ function renderSourceForm(wi,si){
 
 function onSourceCatChange(wi,si,val){
   var w=WIDGETS[wi];if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];if(!srcs[si])return;
+  var srcs=w.sources||(w.config&&w.config.sources)||[];if(!srcs[si])return;
   if(val==='__custom__'){
     $('srcCustomNameGroup_'+wi+'_'+si).style.display='';
     $('srcName_'+wi+'_'+si).value='';
@@ -599,7 +599,7 @@ function addObject(wi,si){
   inp.value='';
   var names=raw.split(/[\\s,，、]+/).map(function(s){return s.trim()}).filter(Boolean);
   var w=WIDGETS[wi];if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];var src=srcs[si];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];var src=srcs[si];
   if(!src)return;
   if(!src.objects)src.objects=[];
   names.forEach(function(name){
@@ -611,7 +611,7 @@ function addObject(wi,si){
 
 function removeObject(wi,si,objName,tagEl){
   var w=WIDGETS[wi];if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];var src=srcs[si];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];var src=srcs[si];
   if(!src)return;
   if(!src.objects)src.objects=[];
   src.objects=src.objects.filter(function(o){return o.name!==objName});
@@ -621,7 +621,7 @@ function removeObject(wi,si,objName,tagEl){
 function saveSourceConfig(wi,si){
   var w=WIDGETS[wi];
   if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];
   if(!srcs[si])return;
   // Name: from category dropdown or custom input
   var catSel=$('srcCat_'+wi+'_'+si);
@@ -664,7 +664,7 @@ function saveSourceConfig(wi,si){
   srcs[si].keywords=keywords;
   srcs[si].objects=objects;
   if(w.config&&w.config.sources)w.config.sources=srcs;
-  else w.sources=srcs;
+  w.sources=srcs;
   var slug=window.location.pathname.split('/').pop();
   var monitorWidget={type:'intel-monitor',idx:wi,title:w.title,sources:srcs};
   fetch(API+'/api/p/config/'+slug,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgetIdx:wi,widget:{type:'monitor',idx:wi,title:w.title||'情报监控',sources:srcs}})}).then(function(r){
@@ -684,10 +684,10 @@ function addNewSource(){
     alert('请先在建站页面添加情报监控组件');
     return;
   }
-  var srcs=w.config&&w.config.sources||w.sources||[];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];
   srcs.push({name:'',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:''});
   if(w.config&&w.config.sources)w.config.sources=srcs;
-  else w.sources=srcs;
+  w.sources=srcs;
   var newSi=srcs.length-1;
   var allMonitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   var wi=WIDGETS.indexOf(w);
@@ -712,10 +712,10 @@ function deleteSource(wi,si){
   if(!confirm('确定要删除这个监控源吗？此操作不可撤销。'))return;
   var w=WIDGETS[wi];
   if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];
   srcs.splice(si,1);
   if(w.config&&w.config.sources)w.config.sources=srcs;
-  else w.sources=srcs;
+  w.sources=srcs;
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   renderSourceFilters(monitors);
   closeSourceModalDirect();
@@ -729,7 +729,7 @@ function addKeyword(wi,si){
   inp.value='';
   var w=WIDGETS[wi];
   if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];
   if(!srcs[si])return;
   if(!srcs[si].keywords)srcs[si].keywords=[];
   var kws=raw.split(/[\\s,，、]+/).map(function(s){return s.trim()}).filter(Boolean);
@@ -742,7 +742,7 @@ function addKeyword(wi,si){
 function removeKeyword(wi,si,el){
   var w=WIDGETS[wi];
   if(!w)return;
-  var srcs=w.config&&w.config.sources||w.sources||[];
+  var srcs=w.sources||(w.config&&w.config.sources)||[];
   if(!srcs[si])return;
   var kwText=el.childNodes[0]?el.childNodes[0].textContent.replace('\\u00d7','').trim():'';
   var kws=srcs[si].keywords||[];
