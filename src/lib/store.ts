@@ -80,8 +80,9 @@ export const useAuthStore = create<AuthState>()(
       fetchUserInfo: async () => {
         try {
           const res = await getMe()
-          if (res.data) {
-            set({ user: res.data })
+          // Backend returns { data: { user: {...} } }, apiRequest returns the whole JSON
+          if (res.data?.user) {
+            set({ user: res.data.user })
           }
         } catch {
           // Token might be invalid
