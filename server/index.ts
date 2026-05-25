@@ -3644,30 +3644,1568 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
   if (!apiKey) throw new Error('未配置API Key');
 
   // -- Single-call helper (no caching, just API call) --
-// -- Single-call helper: Search Module + DeepSeek Analysis --
   const callOnce = async (effectiveKwArr: string[], objectName?: string): Promise<any[]> => {
-    const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
+    const prompt = makeIntelPrompt(effectiveKwArr, src.customPrompt, true, objectName || undefined);
+    let results: any[];
+    if (provider === 'metaso') {
+      const apiUrl = 'https://metaso.cn/api/open/search/v2';
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 25000);
+      const response = await fetch(apiUrl, {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ question: effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || ''), lang: 'zh' }),
+      });
+      clearTimeout(to);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('秘塔API错误: ' + response.status + ' ' + errText.substring(0, 200));
+      }
+      const data = await response.json();
+      const rawData = (data.data && data.data.references) ? data.data.references : (data.data || data.results || data.items || []);
+      results = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
+      results = results.slice(0, 10).map(function (r: any) {
+        return {
+          title: r.title || r.name || '',
+          summary: r.snippet || r.summary || r.content || r.aiSummary || '',
+          source: r.url || r.link || r.source || '秘塔搜索',
+          date: r.date || r.publishedAt || r.publishTime || '',
+          link: r.url || r.link || '',
+        };
+      });
+    } else if (provider === 'tavily') {
+      const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
+      const apiUrl = 'https://api.tavily.com/search';
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 25000);
+      const response = await fetch(apiUrl, {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ query, search_depth: 'basic', max_results: 10, topic: 'news', include_answer: false }),
+      });
+      clearTimeout(to);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('Tavily API错误: ' + response.status + ' ' + errText.substring(0, 200));
+      }
+      const data = await response.json();
+      results = (data.results || []).slice(0, 10).map(function (r: any) {
+        return {
+          title: r.title || r.name || '',
+          summary: r.content || r.snippet || '',
+          source: r.url || r.link || 'Tavily',
+          date: r.published_date || '',
+          link: r.url || r.link || '',
+        };
+      });
+    } else {
+      const apiUrl = 'https://api.deepseek.com/chat/completions';
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 25000);
+      const response = await fetch(apiUrl, {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({
+          model, max_tokens: 4096, temperature: 0.7,
+          messages: [
+            { role: 'system', content: prompt.systemPrompt },
+            { role: 'user', content: prompt.userPrompt },
+          ],
+        }),
+      });
+      clearTimeout(to);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error('API错误: ' + response.status);
+      }
+      const data = await response.json();
+      let content = data.choices[0].message.content;
+      content = content.replace('${TRIPLE_BACKTICK}json', '').replace(/${TRIPLE_BACKTICK}/g, '').trim();
+      try {
+        results = JSON.parse(content);
+      } catch (e) {
+        const match = content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);
+        if (match) {
+          try { results = JSON.parse(match[0]); } catch (e2) { results = []; }
+        } else {
+          throw new Error('无法解析AI返回数据');
+        }
+      }
+      results = (results || []).map(function (r: any) {
+        return {
+          title: r.title || '',
+          summary: r.summary || '',
+          source: r.source || '',
+          date: r.date || r.time || '',
+          link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''),
+        };
+      });
+    }
+    return results;
+  };
 
-    let rawItems: any[] = [];
+  // -- Objects expansion --
+  const objects: Array<{ name: string; keywords?: string[] }> = src.objects || [];
+  if (objects.length > 0) {
+    const allResults: any[] = [];
+    // Process objects in chunks of 4 for faster first load
+    for (let i = 0; i < objects.length; i += 4) {
+      const chunk = objects.slice(i, i + 4);
+      const chunkResults = await Promise.allSettled(chunk.map(async (obj) => {
+        const objKwArr = (obj.keywords && obj.keywords.length > 0) ? obj.keywords : kwArr;
+        const data = await callOnce(objKwArr, obj.name);
+        return data.map((item: any) => ({ ...item, _object: obj.name }));
+      }));
+      for (const r of chunkResults) {
+        if (r.status === 'fulfilled') allResults.push(...r.value);
+        else console.error('[fetchIntelForSource] Object failed:', r.reason?.message);
+      }
+    }
+    return allResults;
+  }
+
+  // -- No objects: single call --
+  return callOnce(kwArr);
+}
+
+// ========== POST /api/portal-intel ==========
+// Returns intelligence data for requested sources. Uses 30-min in-memory cache.
+app.post('/api/portal-intel', async (req, res) => {
+  try {
+    const { sources } = req.body || {};
+    if (!Array.isArray(sources) || sources.length === 0) {
+      return res.status(400).json({ error: 'sources array is required' });
+    }
+
+    const results: any[] = [];
+    const now = Date.now();
+
+    const processSource = async (src: any, idx: number) => {
+      const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
+      const cached = portalIntelCache.get(cacheKey);
+      if (cached && cached.expiry > now) {
+        return { sourceIdx: idx, data: cached.data, fromCache: true };
+      }
+      try {
+        const intelData = await fetchIntelForSource(src);
+        portalIntelCache.set(cacheKey, { data: intelData, expiry: now + PORTAL_INTEL_CACHE_TTL });
+        setTimeout(() => savePortalIntelCache(), 100);
+        return { sourceIdx: idx, data: intelData, fromCache: false };
+      } catch (err: any) {
+        console.error('[PortalIntel] Source fetch failed:', err.message);
+        return { sourceIdx: idx, error: err.message, data: [] };
+      }
+    };
+
+    // Process in chunks of 3 (concurrency control)
+    for (let i = 0; i < sources.length; i += 3) {
+      const chunk = sources.slice(i, i + 3).map((src: any, chunkIdx: number) => processSource(src, i + chunkIdx));
+      const chunkResults = await Promise.all(chunk);
+      results.push(...chunkResults);
+    }
+
+    res.json({ success: true, results });
+  } catch (err: any) {
+    console.error('[PortalIntel Error]', err.message);
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// ========== Background Cache Warmer ==========
+// Collects all unique intel sources across all portal sites and pre-warms the cache.
+// Runs on startup + every 20 minutes. Uses max 2 concurrent API calls (less aggressive
+// than the request-time endpoint which uses 3).
+let cacheWarmingActive = false;
+
+async function warmAllPortalCaches() {
+  if (cacheWarmingActive) {
+    console.log('[CacheWarmer] Already in progress, skipping...');
+    return;
+  }
+  cacheWarmingActive = true;
+  try {
+    const portalSites = await getAllPortalSites();
+    if (portalSites.length === 0) {
+      console.log('[CacheWarmer] No portal sites found');
+      cacheWarmingActive = false;
+      return;
+    }
+
+    // Collect unique sources across all portals
+    const sourceMap = new Map<string, any>();
+    portalSites.forEach((site: any) => {
+      const match = site.html_content?.match(/var WIDGETS=(\[[\s\S]*?\]);/);
+      if (!match) return;
+      try {
+        const widgets = JSON.parse(match[1]);
+        widgets.forEach((w: any) => {
+          if (w.type === 'intel-monitor' || w.type === 'monitor') {
+            const sources = w.config?.sources || w.sources || [];
+            sources.forEach((src: any) => {
+              const cacheKey = JSON.stringify({
+                name: src.name,
+                keywords: src.keywords,
+                aiProvider: src.aiProvider,
+              });
+              if (!sourceMap.has(cacheKey)) {
+                sourceMap.set(cacheKey, src);
+              }
+            });
+          }
+        });
+      } catch (e) {
+        // Skip sites with corrupted WIDGETS JSON
+      }
+    });
+
+    if (sourceMap.size === 0) {
+      console.log('[CacheWarmer] No intel sources found in any portal');
+      cacheWarmingActive = false;
+      return;
+    }
+
+    // Skip already-cached sources
+    const now = Date.now();
+    const toWarm: { key: string; src: any }[] = [];
+    sourceMap.forEach((src, key) => {
+      const cached = portalIntelCache.get(key);
+      if (!cached || cached.expiry <= now) {
+        toWarm.push({ key, src });
+      }
+    });
+
+    if (toWarm.length === 0) {
+      console.log(`[CacheWarmer] All ${sourceMap.size} sources already cached, nothing to warm`);
+      cacheWarmingActive = false;
+      return;
+    }
+
+    console.log(`[CacheWarmer] Warming ${toWarm.length} sources (${sourceMap.size - toWarm.length}/${sourceMap.size} already cached) from ${portalSites.length} portals`);
+
+    // Warm in chunks of 3
+    let warmed = 0;
+    let failed = 0;
+    for (let i = 0; i < toWarm.length; i += 3) {
+      const chunk = toWarm.slice(i, i + 3);
+      const chunkResults = await Promise.allSettled(
+        chunk.map(async ({ key, src }) => {
+          const intelData = await fetchIntelForSource(src);
+          portalIntelCache.set(key, { data: intelData, expiry: Date.now() + PORTAL_INTEL_CACHE_TTL });
+          return { key, src, count: intelData.length };
+        })
+      );
+      chunkResults.forEach((r) => {
+        if (r.status === 'fulfilled') {
+          warmed++;
+          console.log(`[CacheWarmer] Warmed: ${r.value.src.name || 'unnamed'} (${r.value.count} items)`);
+        } else {
+          failed++;
+          console.warn(`[CacheWarmer] Failed: ${r.reason?.message || r.reason}`);
+        }
+      });
+    }
+
+    savePortalIntelCache();
+    console.log(`[CacheWarmer] Complete. Warmed ${warmed}, failed ${failed}. Total cache entries: ${portalIntelCache.size}`);
+  } catch (err: any) {
+    console.error('[CacheWarmer] Error:', err.message);
+  } finally {
+    cacheWarmingActive = false;
+  }
+}
+
+// AI Chat endpoint for portal AI assistant
+// Flow: 1) search web via curl (free, no key) → 2) feed results to DeepSeek → 3) return answer
+app.post('/api/ai-chat', async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    const deepseekApiKey = process.env.DEEPSEEK_API_KEY;
+    if (!deepseekApiKey) {
+      return res.status(500).json({ error: 'AI service not configured' });
+    }
+
+    // Step 1: Web search via DuckDuckGo using curl (more reliable than fetch on this server)
+    let searchContext = '';
+    try {
+      const query = encodeURIComponent(message);
+      const ddgUrl = 'https://html.duckduckgo.com/html/?q=' + query;
+      const curlCmd = `curl -s -m 10 "${ddgUrl}" -H "User-Agent: Mozilla/5.0" -H "Accept-Language: zh-CN"`;
+      const { stdout: html, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        exec(curlCmd, { maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
+          if (err) reject(err);
+          else resolve({ stdout, stderr });
+        });
+      });
+      if (html && html.length > 100) {
+        // Parse DuckDuckGo HTML results
+        const results: { title: string; url: string }[] = [];
+        const linkRegex = /<a class="result__a" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+        let match;
+        while ((match = linkRegex.exec(html)) !== null && results.length < 6) {
+          const rawUrl = decodeURIComponent(match[1].replace(/^\/\/duckduckgo\.com\/l\/\?uddg=/, ''));
+          const title = match[2].replace(/<[^>]+>/g, '').trim();
+          if (title) results.push({ title, url: rawUrl });
+        }
+        if (results.length === 0) {
+          // Try alternate DuckDuckGo result format
+          const linkRegex2 = /<a rel="nofollow" class="result__snippet" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+          while ((match = linkRegex2.exec(html)) !== null && results.length < 6) {
+            const title = match[2].replace(/<[^>]+>/g, '').trim();
+            if (title) results.push({ title, url: match[1] });
+          }
+        }
+        if (results.length > 0) {
+          searchContext = '\n\n【网络搜索结果】\n' + results.map((r, i) => `[${i + 1}] ${r.title}\n链接: ${r.url}`).join('\n\n') + '\n';
+          console.log(`[AiChat Search] DuckDuckGo returned ${results.length} results`);
+        }
+      }
+    } catch (e: any) {
+      console.error('[AiChat Search] DuckDuckGo failed:', e.message);
+    }
+
+    // Step 1b: Try Metaso as additional fallback (if key exists and curl available)
+    if (!searchContext) {
+      const metasoApiKey = process.env.METASO_API_KEY;
+      if (metasoApiKey) {
+      let tmpFile = '';
+        try {
+          const jsonBody = JSON.stringify({ question: message, lang: 'zh' });
+          tmpFile = `/tmp/metaso_search_${Date.now()}.json`;
+          fs.writeFileSync(tmpFile, jsonBody);
+          const curlCmd = `curl -s -m 15 -X POST "https://metaso.cn/api/open/search/v2" -H "Content-Type: application/json" -H "Authorization: Bearer ${metasoApiKey}" -d @${tmpFile}`;
+          const { stdout: searchJson, stderr: curlStderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+            exec(curlCmd, { maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
+              if (err) { console.error('[AiChat Search] Curl error:', err.message, curlStderr); reject(err); }
+              else resolve({ stdout, stderr });
+            });
+          });
+          console.log('[AiChat Search] Metaso raw response:', searchJson.substring(0, 200));
+          const searchData = JSON.parse(searchJson);
+          // Extract AI-generated answer (PRIMARY content with actual data)
+          if (searchData.data && searchData.data.text) {
+            searchContext = '\n\n【网络搜索结果】\n' + searchData.data.text + '\n\n';
+          }
+          // Also include references (sources)
+          const rawResults = searchData.data.references || [];
+          const results = Array.isArray(rawResults) ? rawResults.slice(0, 6) : [];
+          if (results.length > 0) {
+            searchContext += '【参考来源】\n' + results.map((r: any, i: number) => {
+              const title = r.title || r.name || '';
+              const url = r.url || r.link || '';
+              return `[${i + 1}] ${title}\n链接: ${url}`;
+            }).join('\n\n') + '\n';
+          }
+          if (searchContext) {
+            console.log(`[AiChat Search] Metaso returned answer + ${results.length} references`);
+          }
+        } catch (e2: any) {
+          console.error('[AiChat Search] Metaso failed:', e2.message);
+        } finally {
+          if (tmpFile) { try { fs.unlinkSync(tmpFile); console.log('[AiChat Search] Cleaned up temp file:', tmpFile); } catch (e3) { console.error('[AiChat Search] Failed to cleanup:', e3.message); } }
+        }
+      }
+    }
+
+    // Step 2: Build messages with date + search context
+    const chatHistory = Array.isArray(history) ? history.slice(-8) : [];
+    const now = new Date();
+    const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+    const dateStr = now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + weekDays[now.getDay()];
+
+    const systemContent = buildAiChatSystemPrompt(dateStr, searchContext);
+
+    const messages = [
+      { role: 'system', content: systemContent },
+      ...chatHistory,
+      { role: 'user', content: message }
+    ];
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + deepseekApiKey },
+      body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7 })
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[AiChat Error]', response.status, errText.substring(0, 200));
+      return res.status(response.status).json({ error: 'AI service error' });
+    }
+    const data = await response.json();
+    const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，未能生成回复。';
+    res.json({ reply });
+  } catch (err: any) {
+    console.error('[AiChat Error]', err.message);
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// Save widget config from live portal (public, no auth)
+app.post('/api/p/config/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { widgetIdx, widget } = req.body || {};
+
+    if (typeof widgetIdx !== 'number' || !widget) {
+      return res.status(400).json({ error: 'widgetIdx and widget are required' });
+    }
+
+    const site = await getReportSiteBySlug(slug, 'portal');
+    if (!site) {
+      return res.status(404).json({ error: 'Portal not found' });
+    }
+
+    let widgets: any[] = [];
+    try {
+      const match = site.html_content.match(/var WIDGETS=(\[[\s\S]*?\]);/);
+      if (match) { widgets = JSON.parse(match[1]); }
+    } catch (e) { /* keep empty */ }
+
+    if (widgetIdx >= 0 && widgetIdx < widgets.length) {
+      widgets[widgetIdx] = { ...widgets[widgetIdx], ...widget };
+    } else {
+      return res.status(400).json({ error: 'Invalid widgetIdx' });
+    }
+
+    const apiBase = process.env.API_URL || process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
+    const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, slug, widgets);
+    await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
+
+    res.json({ data: { success: true, slug } });
+  } catch (err: any) {
+    console.error('[Portal Config Save Error]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== CodeBuddy Proxy Route ==========
+// Compatibility: acts like OpenAI chat/completions, routes through local CodeBuddy CLI
+app.post('/v2/chat/completions', async (req, res) => {
+  const { messages = [], stream = true } = req.body || {};
+  const systemMsg = messages.find((m: any) => m.role === 'system')?.content || 'You are a helpful AI assistant.';
+  const userMsg = messages.find((m: any) => m.role === 'user')?.content || messages.map((m: any) => m.content).join('\n');
+
+  if (stream) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    try {
+      for await (const ev of streamCodebuddy(systemMsg, userMsg)) {
+        if (ev.content) {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: ev.content } }] })}\n\n`);
+        }
+      }
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch (err: any) {
+      console.error('[CodeBuddy Proxy Error]', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: { message: err.message } });
+      } else {
+        res.write(`data: ${JSON.stringify({ error: { message: err.message } })}\n\n`);
+        res.end();
+      }
+    }
+  } else {
+    try {
+      const result = await fetchCodebuddyNonStream(systemMsg, userMsg);
+      res.json({ choices: [{ message: { role: 'assistant', content: result } }] });
+    } catch (err: any) {
+      console.error('[CodeBuddy Proxy Error]', err.message);
+      res.status(500).json({ error: { message: err.message } });
+    }
+  }
+});
+
+// ========== Video Generation (dreamina CLI) ==========
+
+const DREAMINA_BIN = '/root/.local/bin/dreamina';
+const execAsync = promisify(exec);
+const VIDEO_DIR = process.env.VIDEO_DIR || path.join(__dirname, '..', 'public', 'videos');
+
+// Ensure videos directory exists on startup
+if (!fs.existsSync(VIDEO_DIR)) {
+  fs.mkdirSync(VIDEO_DIR, { recursive: true });
+  console.log('[VideoGen] Created video directory:', VIDEO_DIR);
+}
+
+
+// In-memory video task store (survives across requests, reset on server restart)
+const VALID_GEN_TYPES = ['text2video', 'image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale'] as const;
+const VALID_MODEL_VERSIONS = ['seedance2.0fast', 'seedance2.0', 'seedance2.0_vip', 'seedance2.0fast_vip', '3.0', '3.5pro'] as const;
+
+interface VideoTask {
+  submitId: string;
+  status: 'processing' | 'completed' | 'failed' | 'cancelled';
+  genType: string;
+  prompt: string;
+  startTime: number;
+  polls: number;
+  videoUrl: string | null;
+  userId: string;
+  duration: string;
+  resolution: string;
+  ratio: string;
+  modelVersion: string;
+  tempImagePaths: string[]; // for cleanup (single or multi)
+  queueInfo: any;
+  errorMessage?: string;
+}
+const videoTasks = new Map<string, VideoTask>();
+
+/** Save a base64 image string to a temp file, return the file path */
+function saveBase64TempImage(base64Str: string, prefix: string): string {
+  const base64Data = base64Str.replace(/^data:image\/\w+;base64,/, '');
+  const ext = (base64Str.match(/^data:image\/(\w+);base64,/) || [])[1] || 'png';
+  const tmpPath = path.join('/tmp', `${prefix}-${crypto.randomUUID()}.${ext}`);
+  fs.writeFileSync(tmpPath, Buffer.from(base64Data, 'base64'));
+  console.log(`[VideoGen] Saved temp image: ${tmpPath} (${(base64Data.length / 1024).toFixed(1)} KB)`);
+  return tmpPath;
+}
+
+// Check login status — admin token always active, no OAuth needed
+app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
+  try {
+    const { stdout } = await execAsync(`${DREAMINA_BIN} user_credit 2>&1`, { timeout: 10000, cwd: "/tmp" });
+    res.json({ data: { loggedIn: true, credit: stdout.trim() } });
+  } catch {
+    res.json({ data: { loggedIn: true, credit: "" } });
+  }
+});
+
+// Multi-type generation (video, image upscale, etc.)
+// Two-phase: Phase 1 submits with --poll=0, Phase 2 polls query_result in background
+app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
+  try {
+    const { genType, modelVersion, prompt, duration, resolution, ratio, image, images, transitionPrompts, transitionDurations } = req.body || {};
+    const user = (req as any).user;
+
+    // Determine generation type
+    const gt = (genType && VALID_GEN_TYPES.includes(genType)) ? genType : (image || images ? 'image2video' : 'text2video');
+    const mv = (modelVersion && VALID_MODEL_VERSIONS.includes(modelVersion)) ? modelVersion : 'seedance2.0fast';
+    const dur = Number(duration) || 5;
+    const reso = resolution || '720p';
+    const rat = ratio || '16:9';
+    const promptStr = (prompt && typeof prompt === 'string') ? prompt.trim() : '';
+
+    // Validate prompt for types that need it
+    const needsPrompt = ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(gt);
+    if (needsPrompt && !promptStr) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Prompt is required for this generation type' } });
+    }
+
+    // Parse images array or single image
+    const imageList: string[] = [];
+    if (images && Array.isArray(images)) {
+      for (const img of images) {
+        if (typeof img === 'string' && img) imageList.push(img);
+      }
+    } else if (image && typeof image === 'string') {
+      imageList.push(image);
+    }
+
+    // Validate image count per type
+    const minImages: Record<string, number> = {
+      image2video: 1, multimodal2video: 1, multiframe2video: 2, frames2video: 2, image_upscale: 1,
+    };
+    const maxImages: Record<string, number> = {
+      image2video: 1, multimodal2video: 9, multiframe2video: 20, frames2video: 2, image_upscale: 1,
+    };
+    if (minImages[gt] && imageList.length < minImages[gt]) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `${gt} requires at least ${minImages[gt]} image(s)` } });
+    }
+    if (maxImages[gt] && imageList.length > maxImages[gt]) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `${gt} supports at most ${maxImages[gt]} image(s)` } });
+    }
+
+    // Save all images to temp files
+    const tempPaths: string[] = [];
+    for (let i = 0; i < imageList.length; i++) {
+      tempPaths.push(saveBase64TempImage(imageList[i], `gen-${gt}`));
+    }
+
+    // Build dreamina command
+    let submitCmd: string;
+    const escPrompt = promptStr.replace(/"/g, '\\"');
+    switch (gt) {
+      case 'text2video':
+        submitCmd = `${DREAMINA_BIN} text2video --prompt="${escPrompt}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --model_version=${mv} --poll=0`;
+        break;
+      case 'image2video':
+        submitCmd = `${DREAMINA_BIN} image2video --image="${tempPaths[0]}" --prompt="${escPrompt}" --duration=${dur} --video_resolution=${reso} --model_version=${mv} --poll=0`;
+        break;
+      case 'multimodal2video': {
+        const imgFlags = tempPaths.map(p => `--image "${p}"`).join(' ');
+        submitCmd = `${DREAMINA_BIN} multimodal2video ${imgFlags} --prompt="${escPrompt}" --duration=${dur} --ratio=${rat} --video_resolution=${reso} --model_version=${mv} --poll=0`;
+        break;
+      }
+      case 'multiframe2video': {
+        const imgList = tempPaths.join(',');
+        if (tempPaths.length === 2 && !transitionPrompts?.length) {
+          submitCmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} --prompt="${escPrompt}" --duration=${dur} --poll=0`;
+        } else {
+          const tpFlags = (transitionPrompts || []).map((tp: string) => `--transition-prompt "${tp.replace(/"/g, '\\"')}"`).join(' ');
+          const tdFlags = (transitionDurations || []).map((td: string) => `--transition-duration "${td}"`).join(' ');
+          submitCmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} ${tpFlags} ${tdFlags} --poll=0`;
+        }
+        break;
+      }
+      case 'frames2video':
+        submitCmd = `${DREAMINA_BIN} frames2video --first="${tempPaths[0]}" --last="${tempPaths[1]}" --prompt="${escPrompt}" --duration=${dur} --model_version=${mv} --poll=0`;
+        break;
+      case 'image_upscale':
+        submitCmd = `${DREAMINA_BIN} image_upscale --image="${tempPaths[0]}" --resolution_type=2k --poll=0`;
+        break;
+      default:
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `Unsupported generation type: ${gt}` } });
+    }
+
+    console.log(`[VideoGen] ${gt} submit:`, submitCmd.slice(0, 200));
+
+    // Execute dreamina CLI; if it exits non-zero, still try to recover submit_id from stdout
+    let submitOut = '';
+    try {
+      const { stdout } = await execAsync(submitCmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+      submitOut = stdout;
+    } catch (execErr: any) {
+      submitOut = execErr.stdout || '';
+      console.error(`[VideoGen] Submit command exited non-zero:`, execErr.message);
+      if (submitOut) console.error(`[VideoGen] stdout from failed command:`, submitOut.slice(0, 500));
+    }
+    console.log('[VideoGen] Submit response:', submitOut.slice(0, 300));
+
+    // Extract submit_id and check for errors
+    let submitId = '';
+    let submitFailReason = '';
+    let submitLogId = '';
+    const jsonMatch = submitOut.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        submitId = parsed.submit_id || '';
+        submitFailReason = parsed.fail_reason || '';
+        submitLogId = parsed.logid || '';
+      } catch {}
+    }
+    if (!submitId) {
+      for (const p of tempPaths) { try { fs.unlinkSync(p); } catch {} }
+      console.error(`[VideoGen] No submit_id in output:`, submitOut.slice(0, 500));
+      return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成服务暂时不可用，请稍后重试' } });
+    }
+    // Check if submit failed (dreamina returned fail_reason or no logid)
+    if (submitFailReason) {
+      console.error(`[VideoGen] Submit failed for ${submitId}: ${submitFailReason}`);
+      for (const p of tempPaths) { try { fs.unlinkSync(p); } catch {} }
+      return res.status(500).json({ error: { code: 'SUBMIT_FAILED', message: submitFailReason || '图片上传失败，请重试' } });
+    }
+    if (!submitLogId && gt !== 'text2video') {
+      console.warn(`[VideoGen] Submit ${submitId} missing logid — task may not be properly registered`);
+      // Still accept but log warning; text2video sometimes omits logid
+    }
+
+    // Store task in memory
+    const task: VideoTask = {
+      submitId,
+      status: 'processing',
+      genType: gt,
+      prompt: promptStr,
+      startTime: Date.now(),
+      polls: 0,
+      videoUrl: null,
+      userId: user.userId,
+      duration: String(dur),
+      resolution: reso,
+      ratio: rat,
+      modelVersion: mv,
+      tempImagePaths: tempPaths,
+      queueInfo: null,
+    };
+    videoTasks.set(submitId, task);
+
+    // Return immediately to frontend
+    res.json({ data: { id: submitId, title: promptStr.slice(0, 30), status: 'processing' } });
+
+    // Phase 2: Background polling
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
+    const MAX_POLLS = 120;
+
+    (async () => {
+      for (let i = 0; i < MAX_POLLS; i++) {
+        await new Promise(r => setTimeout(r, 180000));
+        const t = videoTasks.get(submitId);
+        if (!t) return;
+        // Stop polling if user cancelled (dreamina CLI has no cancel API)
+        if (t.status === 'cancelled') {
+          console.log(`[VideoGen] Task ${submitId.slice(0, 8)}... cancelled by user, stopping background poll`);
+          return;
+        }
+        t.polls = i + 1;
+
+        try {
+          const queryCmd = `${DREAMINA_BIN} query_result --submit_id=${submitId}`;
+          const { stdout: queryOut } = await execAsync(queryCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+          let result: any;
+          try { result = JSON.parse(queryOut); } catch { continue; }
+
+          if (result?.queue_info) t.queueInfo = result.queue_info;
+          console.log(`[VideoGen] Poll #${i + 1}/${MAX_POLLS}: gen_status=${result.gen_status}`);
+
+          if (result.gen_status === 'success') {
+            // For image_upscale, result is an image URL; all others are video
+            if (gt === 'image_upscale') {
+              const imgs = result.result_json?.images || [];
+              t.videoUrl = imgs[0]?.url || imgs[0]?.video_url || '';
+            } else {
+              const videos = result.result_json?.videos || [];
+              // Manual download via fetch()
+              const cdnUrl = videos[0]?.video_url || '';
+              if (cdnUrl) {
+                try {
+                  const d = await fetch(cdnUrl, { signal: AbortSignal.timeout(120000) as any });
+                  if (d.ok) {
+                    const buf = Buffer.from(await d.arrayBuffer());
+                    const ext = (cdnUrl.match(/\.(mp4|webm|mov)/i) || ['.mp4'])[0];
+                    const localFn = submitId + ext;
+                    const lp = path.join(VIDEO_DIR, localFn);
+                    fs.writeFileSync(lp, buf);
+                    console.log(`[VideoGen] Downloaded: ${localFn} (${(buf.length/1024/1024).toFixed(1)}MB)`);
+                    t.videoUrl = `${FRONTEND_URL}/videos/${localFn}`;
+                  } else {
+                    console.warn(`[VideoGen] CDN HTTP ${d.status}, using CDN URL`);
+                    t.videoUrl = cdnUrl;
+                  }
+                } catch(dlErr: any) {
+                  console.warn('[VideoGen] Manual download failed:', dlErr.message);
+                  t.videoUrl = cdnUrl || '';
+                }
+              } else {
+                t.videoUrl = '';
+              }
+            }
+            t.status = 'completed';
+            console.log(`[VideoGen] Completed: ${t.videoUrl?.slice(0, 80)}`);
+
+            try {
+              await saveVideo({
+                userId: t.userId,
+                title: t.prompt?.slice(0, 60) || (gt === 'image_upscale' ? '图片放大' : '视频'),
+                prompt: t.prompt || gt,
+                duration: t.duration,
+                resolution: t.resolution,
+                ratio: t.ratio,
+                inputType: gt,
+                videoUrl: t.videoUrl || '',
+                videoPath: '',
+                submitId,
+              });
+            } catch (dbErr: any) { console.error('[VideoGen] DB save failed:', dbErr.message); }
+
+            for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
+            return;
+          }
+
+          if (result.gen_status === 'fail') {
+            t.status = 'failed';
+            t.errorMessage = result.fail_reason || result.gen_message || result.error_message || result.msg || '生成失败';
+            for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
+            return;
+          }
+        } catch (pollErr: any) {
+          const out = (pollErr as any).stdout || '';
+          const errOut = (pollErr as any).stderr || '';
+          console.error(`[VideoGen] Poll error for ${submitId}:`, pollErr.message);
+          if (out) console.error(`[VideoGen] stdout:`, out.slice(0, 1000));
+          if (errOut) console.error(`[VideoGen] stderr:`, errOut.slice(0, 1000));
+          // If dreamina says 'record not found', mark as failed immediately
+          if (out.includes('record not found') || errOut.includes('record not found')) {
+            const t = videoTasks.get(submitId);
+            if (t) {
+              t.status = 'failed';
+              t.errorMessage = '即梦服务器端已找不到任务记录，可能已过期';
+              console.error(`[VideoGen] Task ${submitId} record not found, marking failed`);
+              for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
+              return;
+            }
+          }
+          // Try to parse output even if command exited non-zero
+          try {
+            const result2 = JSON.parse(out);
+            if (result2?.gen_status === 'success') {
+              console.log(`[VideoGen] Recovered success from failed command for ${submitId}`);
+              // process success same as above...
+            }
+          } catch {}
+        }
+      }
+
+      const t = videoTasks.get(submitId);
+      if (t && t.status === 'processing') {
+        t.status = 'failed';
+        for (const p of t.tempImagePaths) { try { fs.unlinkSync(p); } catch {} }
+      }
+    })();
+  } catch (err: any) {
+    console.error('[VideoGen Error]', err.message);
+    // Don't expose internal command details or stack traces to frontend
+    res.status(500).json({ error: { code: 'GENERATE_FAILED', message: '视频生成服务暂时不可用，请稍后重试' } });
+  }
+});
+
+// Get video task status (polled by frontend every 30s)
+app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
+  const { submitId } = req.params;
+  const task = videoTasks.get(submitId);
+  if (!task) {
+    return res.json({
+      data: {
+        id: submitId,
+        status: 'unknown',
+        polls: 0,
+        maxPolls: 120,
+        isPolling: false,
+        queueInfo: null,
+        queueMessage: '',
+        elapsedMinutes: 0,
+        estimatedMaxMinutes: 300,
+        result: null,
+      },
+    });
+  }
+
+  const elapsedMinutes = Math.floor((Date.now() - task.startTime) / 60000);
+  const estimatedMaxMinutes = 120 * 3; // 120 polls x 3min = 6 hr
+
+  let queueMessage = '';
+  if (task.status === 'processing') {
+    const qi = task.queueInfo || {};
+    // Only use real queue_info from dreamina; don't fabricate default numbers
+    const queueIdx = qi.queue_idx;
+    const queueLen = qi.queue_length;
+    const queueStatus = qi.queue_status;
+    if (typeof queueIdx === 'number' && typeof queueLen === 'number' && queueLen > 0 && queueIdx > 0) {
+      queueMessage = `排队中 · 当前排位 ${queueIdx}/${queueLen}`;
+    } else if (queueStatus === 'generating' || queueStatus === 'processing' || (typeof queueIdx === 'number' && queueIdx === 0)) {
+      queueMessage = `视频正在生成中，请稍候`;
+    } else {
+      queueMessage = `排队中 · 等待资源分配`;
+    }
+  }
+
+  res.json({
+    data: {
+      id: submitId,
+      status: task.status,
+      genType: task.genType,
+      polls: task.polls,
+      maxPolls: 120,
+      isPolling: task.status === 'processing',
+      queueInfo: task.queueInfo || null,
+      queueMessage,
+      elapsedMinutes,
+      estimatedMaxMinutes,
+      result: task.videoUrl ? { videoUrl: task.videoUrl } : null,
+      errorMessage: task.errorMessage || null,
+    },
+  });
+});
+// ======================== MP Subscription API Routes ========================
+
+// Get QR code URL for WeRead login
+app.post('/api/mp/qr-login', authMiddleware, async (req, res) => {
+  try {
+    const response = await fetch(`${WEWE_RSS_URL}/trpc/platform.createLoginUrl`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': WEWE_RSS_AUTH,
+      },
+      body: '{}',
+    });
+    const data = await response.json() as any;
+    const uuid = data?.result?.data?.uuid;
+    const scanUrl = data?.result?.data?.scanUrl;
+
+    if (!uuid || !scanUrl) {
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to create login URL' } });
+    }
+
+    res.json({ success: true, data: { uuid, scanUrl } });
+  } catch (err: any) {
+    console.error('[MP QR Login]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Check QR login result (long-polling, 60s timeout)
+app.get('/api/mp/check-login/:uuid', authMiddleware, async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const encodedInput = encodeURIComponent(JSON.stringify({ id: uuid }));
+    const tRPCUrl = `${WEWE_RSS_URL}/trpc/platform.getLoginResult?input=${encodedInput}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(tRPCUrl, {
+      headers: { 'Authorization': WEWE_RSS_AUTH },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    const data = await response.json() as any;
+
+    if (data?.result?.data) {
+      const dataList = Array.isArray(data.result.data) ? data.result.data : [data.result.data];
+      const { vid, token, username } = dataList[0] || {};
+      if (vid && token) {
+        // Save to YooClaw's Supabase
+        await addWereadAccount(String(vid), username || 'WeRead Account');
+        // Also sync to WeWe-RSS's own accounts table so it can fetch articles
+        try {
+          await fetch(`${WEWE_RSS_URL}/trpc/account.add`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': WEWE_RSS_AUTH,
+            },
+            body: JSON.stringify({ id: String(vid), token, name: username || 'WeRead Account', status: 1 }),
+          });
+        } catch (e: any) {
+          console.warn('[MP Check Login] Failed to sync account to WeWe-RSS:', e.message);
+        }
+        res.json({ success: true, data: { vid, token, username, status: 'logged_in' } });
+        return;
+      }
+    }
+
+    res.json({ success: true, data: { status: 'waiting', message: 'Waiting for scan...' } });
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      return res.json({ success: true, data: { status: 'timeout', message: 'Login timeout, please try again' } });
+    }
+    console.error('[MP Check Login]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Subscribe to a WeChat MP by article link
+app.post('/api/mp/subscribe', authMiddleware, async (req, res) => {
+  try {
+    const { wxsLink } = req.body || {};
+    const userId = (req as any).user.userId;
+
+    if (!wxsLink || typeof wxsLink !== 'string') {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Article link is required' } });
+    }
+    if (!wxsLink.startsWith('https://mp.weixin.qq.com/s/')) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid WeChat article link' } });
+    }
+
+    const count = await getUserMpSubscriptionCount(userId);
+    if (count >= 10) {
+      return res.status(400).json({ error: { code: 'LIMIT_EXCEEDED', message: 'Max 10 subscriptions reached' } });
+    }
+
+    // Get MP info via WeWe-RSS tRPC
+    const mpRes = await fetch(`${WEWE_RSS_URL}/trpc/platform.getMpInfo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': WEWE_RSS_AUTH,
+      },
+      body: JSON.stringify({ wxsLink }),
+    });
+    const mpData = await mpRes.json() as any;
+
+    if (!mpData?.result?.data) {
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to get MP info' } });
+    }
+
+    // WeWe-RSS returns an array, e.g. [{"name":"...","id":"...","cover":"..."}]
+    const dataList = Array.isArray(mpData.result.data) ? mpData.result.data : [mpData.result.data];
+    if (dataList.length === 0) {
+      console.error('[MP Subscribe] Empty MP info list from WeWe-RSS:', JSON.stringify(mpData.result.data));
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Failed to get MP info' } });
+    }
+    const { id, name, cover } = dataList[0];
+
+    // Validate required fields from upstream
+    if (!id || !name) {
+      console.error('[MP Subscribe] Incomplete MP info from WeWe-RSS:', JSON.stringify(mpData.result.data));
+      return res.status(502).json({ error: { code: 'UPSTREAM_ERROR', message: 'Incomplete MP info from upstream' } });
+    }
+    const mpId = id;
+    const mpName = name || '未知公众号';
+    const mpCover = cover || '';
+
+    // Register feed in WeWe-RSS if not exists
+    try {
+      const checkRes = await fetch(
+        `${WEWE_RSS_URL}/trpc/feed.byId?input=${encodeURIComponent(JSON.stringify(mpId))}`,
+        { headers: { 'Authorization': WEWE_RSS_AUTH } }
+      );
+      if (!checkRes.ok) {
+        await fetch(`${WEWE_RSS_URL}/trpc/feed.add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': WEWE_RSS_AUTH,
+          },
+          body: JSON.stringify({
+            id: mpId,
+            mpName,
+            mpCover,
+            mpIntro: '',
+            updateTime: Math.floor(Date.now() / 1000),
+          }),
+        });
+      }
+
+      // Trigger article fetch for the newly subscribed MP
+      await fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': WEWE_RSS_AUTH,
+        },
+        body: JSON.stringify({ mpId }),
+      });
+    } catch (e) {
+      console.warn('[MP Subscribe] Feed registration warning:', e);
+    }
+
+    const result = await subscribeMp(userId, mpId, mpName, mpCover);
+    if (!result.success) {
+      return res.status(400).json({ error: { code: 'CONFLICT', message: result.message } });
+    }
+
+    res.json({
+      success: true,
+      data: { mpId, mpName, mpCover, subscribedAt: new Date().toISOString() },
+    });
+  } catch (err: any) {
+    console.error('[MP Subscribe] Error:', err.message, '| stack:', err.stack?.split('\n')[1]?.trim());
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Unsubscribe from a WeChat MP
+app.delete('/api/mp/subscribe/:mpId', authMiddleware, async (req, res) => {
+  try {
+    const { mpId } = req.params;
+    const userId = (req as any).user.userId;
+
+    const result = await unsubscribeMp(userId, mpId);
+
+    if (result.deleted) {
+      try {
+        await fetch(`${WEWE_RSS_URL}/trpc/feed.delete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': WEWE_RSS_AUTH,
+          },
+          body: JSON.stringify(mpId),
+        });
+      } catch (e) {
+        console.warn('[MP Unsubscribe] Failed to delete feed from WeWe-RSS:', e);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[MP Unsubscribe]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Get my MP subscriptions
+app.get('/api/mp/subscriptions', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const subscriptions = await getUserMpSubscriptions(userId);
+
+    res.json({
+      success: true,
+      data: {
+        items: subscriptions.map((s: any) => ({
+          mpId: s.mp_id,
+          mpName: s.mp_name,
+          mpCover: s.mp_cover,
+          subscribedAt: s.created_at,
+        })),
+        count: subscriptions.length,
+        limit: 10,
+      },
+    });
+  } catch (err: any) {
+    console.error('[MP Subscriptions]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Get articles for a specific MP (must be subscribed)
+app.get('/api/mp/articles/:mpId', authMiddleware, async (req, res) => {
+  try {
+    const { mpId } = req.params;
+    const userId = (req as any).user.userId;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const page = parseInt(req.query.page as string) || 1;
+
+    const isSubscribed = await checkUserSubscribed(userId, mpId);
+    if (!isSubscribed) {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Please subscribe first' } });
+    }
+
+    const feedRes = await fetch(`${WEWE_RSS_URL}/feeds/${mpId}.json?limit=${limit}&page=${page}`, {
+      headers: { 'Authorization': WEWE_RSS_AUTH },
+    });
+
+    if (!feedRes.ok) {
+      return res.json({ success: true, data: { articles: [], total: 0, page } });
+    }
+
+    const feedData = await feedRes.json() as any;
+    const articles = (feedData?.items || []).map((item: any) => ({
+      id: item.id || item.guid,
+      title: item.title,
+      url: item.link || item.url,
+      summary: item.description || item.summary || '',
+      publishTime: item.pubDate || item.published || item.date_published,
+      author: item.author || feedData?.title || '',
+    }));
+
+    res.json({ success: true, data: { articles, total: articles.length, page } });
+  } catch (err: any) {
+    console.error('[MP Articles]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// Get aggregated articles feed from all subscriptions
+app.get('/api/mp/articles', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const subscriptions = await getUserMpSubscriptions(userId);
+    if (subscriptions.length === 0) {
+      return res.json({ success: true, data: { articles: [], total: 0 } });
+    }
+
+    const feedPromises = subscriptions.map(async (sub: any) => {
+      try {
+        const response = await fetch(`${WEWE_RSS_URL}/feeds/${sub.mp_id}.json?limit=10`, {
+          headers: { 'Authorization': WEWE_RSS_AUTH },
+        });
+        if (!response.ok) return [];
+        const data = await response.json() as any;
+        return (data?.items || []).map((item: any) => ({
+          id: item.id || item.guid,
+          title: item.title,
+          url: item.link || item.url,
+          summary: item.description || item.summary || '',
+          publishTime: item.pubDate || item.published || item.date_published,
+          author: sub.mp_name,
+          mpId: sub.mp_id,
+        }));
+      } catch {
+        return [];
+      }
+    });
+
+    const allArticles = (await Promise.all(feedPromises)).flat();
+    allArticles.sort((a: any, b: any) => {
+      const dateA = new Date(a.publishTime).getTime() || 0;
+      const dateB = new Date(b.publishTime).getTime() || 0;
+      return dateB - dateA;
+    });
+
+    res.json({
+      success: true,
+      data: { articles: allArticles.slice(0, limit), total: allArticles.length },
+    });
+  } catch (err: any) {
+    console.error('[MP Aggregated Feed]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+
+// Manual refresh: trigger WeWe-RSS to re-fetch all subscribed MP articles
+app.post('/api/mp/refresh', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { mpId } = req.body || {};
+
+    // Get user's subscriptions
+    const subscriptions = await getUserMpSubscriptions(userId);
+
+    if (mpId) {
+      // Refresh a specific MP
+      const isSubscribed = await checkUserSubscribed(userId, mpId);
+      if (!isSubscribed) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Please subscribe first' } });
+      }
+      await fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': WEWE_RSS_AUTH,
+        },
+        body: JSON.stringify({ mpId }),
+      });
+      res.json({ success: true, data: { mpId, status: 'refreshed' } });
+    } else {
+      // Refresh all user's subscriptions one by one
+      const results = await Promise.allSettled(
+        subscriptions.map((sub: any) =>
+          fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': WEWE_RSS_AUTH,
+            },
+            body: JSON.stringify({ mpId: sub.mp_id }),
+          }).then(r => r.json())
+        )
+      );
+
+      const refreshed = results.filter(r => r.status === 'fulfilled').length;
+      res.json({
+        success: true,
+        data: { status: 'all_refreshed', total: subscriptions.length, refreshed },
+      });
+    }
+  } catch (err: any) {
+    console.error('[MP Refresh]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// ========== MP: Search by Name (Baidu + WeWe-RSS) ==========
+
+// Helper: unified tRPC mutation call
+async function weweTrpcCall(procedure: string, input: unknown): Promise<any> {
+  const res = await fetch(`${WEWE_RSS_URL}/trpc/${procedure}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': WEWE_RSS_AUTH,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'Unknown error');
+    throw new Error(`WeWe-RSS ${procedure} failed: HTTP ${res.status} - ${errText}`);
+  }
+  const json = await res.json();
+  return json?.result?.data || json;
+}
+
+// POST /api/mp/search-by-name — Search MPs by name via Baidu
+app.post('/api/mp/search-by-name', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '公众号名称不能为空' } });
+    }
+
+    const searchName = name.trim();
+    console.log(`[MP Search] Searching for: "${searchName}"`);
+
+    // Step 1: Baidu search for weixin articles
+    const baiduQuery = `site:mp.weixin.qq.com "${searchName}"`;
+    const baiduUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(baiduQuery)}&rn=20`;
+
+    const baiduRes = await fetch(baiduUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+      },
+    });
+
+    if (!baiduRes.ok) {
+      return res.status(502).json({ error: { code: 'SEARCH_FAILED', message: `百度搜索失败: HTTP ${baiduRes.status}` } });
+    }
+
+    const html = await baiduRes.text();
+    const $ = cheerio.load(html);
+
+    const articleUrls = new Set<string>();
+    $('a').each((_, el) => {
+      const href = $(el).attr('href');
+      if (!href) return;
+      const match = href.match(/mp\.weixin\.qq\.com\/s\/[^\s&"']+/);
+      if (match) articleUrls.add('https://' + match[0]);
+    });
+
+    const urls = Array.from(articleUrls).slice(0, 10);
+    console.log(`[MP Search] Found ${urls.length} article URLs from Baidu`);
+
+    if (urls.length === 0) {
+      return res.json({ success: true, data: { candidates: [], message: '未找到匹配的公众号文章，请尝试更精确的名称' } });
+    }
+
+    const mpMap = new Map<string, { id: string; name: string; cover: string; intro: string; updateTime: number }>();
+    for (const url of urls) {
+      try {
+        const results = await weweTrpcCall('platform.getMpInfo', { wxsLink: url });
+        const mpList = Array.isArray(results) ? results : (results?.data || [results]).filter(Boolean);
+        for (const mp of mpList) {
+          if (mp?.id && !mpMap.has(mp.id)) {
+            mpMap.set(mp.id, {
+              id: mp.id,
+              name: mp.name || '',
+              cover: mp.cover || '',
+              intro: mp.intro || '',
+              updateTime: mp.updateTime || 0,
+            });
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[MP Search] Failed to get MP info for ${url}:`, err.message);
+      }
+    }
+
+    const candidates = Array.from(mpMap.values());
+    console.log(`[MP Search] Found ${candidates.length} unique MPs`);
+    res.json({ success: true, data: { candidates } });
+  } catch (err: any) {
+    console.error('[MP Search Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: `搜索失败: ${err.message}` } });
+  }
+});
+
+// POST /api/mp/subscribe-by-name — Subscribe by MP info (from search results)
+app.post('/api/mp/subscribe-by-name', authMiddleware, async (req, res) => {
+  try {
+    const { id, mpName, mpCover, mpIntro, updateTime } = req.body || {};
+    if (!id || !mpName) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '公众号ID和名称不能为空' } });
+    }
+
+    console.log(`[MP Subscribe-By-Name] Subscribing to: ${mpName} (${id})`);
+    await weweTrpcCall('feed.add', {
+      id, mpName, mpCover: mpCover || '', mpIntro: mpIntro || '', updateTime: updateTime || Date.now(),
+    });
+    console.log(`[MP Subscribe-By-Name] Success: ${mpName}`);
+
+    // Auto-refresh articles after subscribing
+    try {
+      await fetch(`${WEWE_RSS_URL}/trpc/feed.refreshArticles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': WEWE_RSS_AUTH },
+        body: JSON.stringify({ mpId: id }),
+      });
+    } catch (e: any) {
+      console.warn(`[MP Subscribe-By-Name] Refresh articles failed (non-fatal):`, e.message);
+    }
+
+    res.json({ success: true, data: { success: true, message: `已成功订阅「${mpName}」` } });
+  } catch (err: any) {
+    console.error('[MP Subscribe-By-Name Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: `订阅失败: ${err.message}` } });
+  }
+});
+
+// POST /api/mp/lookup-by-url — Get MP info from a WeChat article URL
+app.post('/api/mp/lookup-by-url', authMiddleware, async (req, res) => {
+  try {
+    const { url } = req.body || {};
+    if (!url || !url.trim()) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '文章链接不能为空' } });
+    }
+
+    console.log(`[MP Lookup] Looking up MP from URL: ${url.trim()}`);
+    const results = await weweTrpcCall('platform.getMpInfo', { wxsLink: url.trim() });
+    const mpList = Array.isArray(results) ? results : (results?.data || [results]).filter(Boolean);
+
+    if (!mpList.length) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: '无法从该链接识别公众号信息' } });
+    }
+
+    const mp = mpList[0];
+    res.json({
+      success: true,
+      data: {
+        id: mp.id, name: mp.name || '', cover: mp.cover || '',
+        intro: mp.intro || '', updateTime: mp.updateTime || 0,
+      },
+    });
+  } catch (err: any) {
+    console.error('[MP Lookup Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: `查找失败: ${err.message}` } });
+  }
+});
+
+// ========== Serve generated videos as static files ==========
+app.use('/videos', express.static(VIDEO_DIR, {
+  maxAge: '7d',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.mp4')) {
+      res.setHeader('Content-Type', 'video/mp4');
+    } else if (filePath.endsWith('.webm')) {
+      res.setHeader('Content-Type', 'video/webm');
+    }
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+  }
+}));
+
+// ======================== Video Management API Routes ========================
+
+// List user's videos
+app.get('/api/v1/videos', authMiddleware, async (req: any, res) => {
+  try {
+    const user = req.user;
+    const videos = await getUserVideos(user.userId);
+    // Convert snake_case DB fields to camelCase for frontend
+    const items = videos.map(v => ({
+      id: v.id,
+      userId: v.user_id,
+      title: v.title,
+      prompt: v.prompt,
+      duration: v.duration,
+      resolution: v.resolution,
+      ratio: v.ratio,
+      inputType: v.input_type,
+      videoUrl: v.video_url,
+      videoPath: v.video_path,
+      submitId: v.submit_id,
+      createdAt: v.created_at,
+    }));
+    res.json({ data: { items } });
+  } catch (err: any) {
+    console.error('[Video List Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list videos' } });
+  }
+});
+
+// Delete a video
+app.delete('/api/v1/videos/:id', authMiddleware, async (req: any, res) => {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+    await deleteVideo(id, user.userId);
+    res.json({ data: { deleted: true } });
+  } catch (err: any) {
+    console.error('[Video Delete Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete video' } });
+  }
+});
+
+// Cancel a running video generation task
+app.post('/api/v1/videos/cancel/:submitId', authMiddleware, (req: any, res) => {
+  try {
+    const { submitId } = req.params;
+    const task = videoTasks.get(submitId);
+    if (task) {
+      task.status = 'cancelled';
+      console.log(`[Video Cancel] Task ${submitId.slice(0, 8)}... marked as cancelled`);
+    }
+    res.json({ data: { cancelled: true } });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel' } });
+  }
+});
+
+// ========== Serve Frontend (only in local dev mode) ==========
+if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'true') {
+  const distPath = path.join(__dirname, '..', 'dist');
+  if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api')) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
+    });
+    console.log('[Static] Serving frontend from', distPath);
+  } else {
+    console.log('[Static] No dist/ directory found. Run "npm run build".');
+  }
+}
+
+// ========== Start ==========
+async function start() {
+  await initDatabase();
+
+  // Start CodeBuddy persistent serve mode for AI
+  if (CODEBUDDY_API_KEY) {
+    try {
+      await startCodeBuddyCLI();
+    } catch (err: any) {
+      console.error('[Startup] CodeBuddy CLI failed:', err.message);
+    }
+  } else {
+    console.warn('[Startup] CODEBUDDY_API_KEY not set. AI features disabled.');
+  }
+
+  // Load persisted intelligence cache from file
+  loadPortalIntelCache();
+  // Periodic cache save every 5 minutes
+  setInterval(() => savePortalIntelCache(), 5 * 60 * 1000);
+  // Background cache warming: startup (deferred 30s) + every 20 minutes
+  setTimeout(() => warmAllPortalCaches(), 30000);
+  setInterval(() => warmAllPortalCaches(), 20 * 60 * 1000);
+
+  app.listen(APP_PORT, '0.0.0.0', () => {
+    console.log('');
+    console.log('  =======================================');
+    console.log('');
+    console.log('   YooClaw - Cloud Deployment (HTTP API)');
+    console.log('');
+    console.log(`   URL:      http://localhost:${APP_PORT}`);
+    console.log(`   AI Mode:  CodeBuddy CLI serve (port ${CB_SERVE_PORT})`);
+    console.log(`   CLI:      ${codebuddyProcess ? 'running' : 'NOT RUNNING'}`);
+    console.log(`   DB:       PostgreSQL (Supabase)`);
+    console.log('');
+    console.log('  =======================================');
+    console.log('');
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start:', err);
+  process.exit(1);
+});
+
+// Cleanup on exit
+process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
+process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
+
+  // -- Single-call helper: Search + DeepSeek Analysis --
+  const callOnce = async (effectiveKwArr, objectName) => {
+    const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(" OR ") : (objectName || src.name || "");
+
+    let rawItems = [];
     const searchMod = getSearchModule(provider);
     if (searchMod) {
       try { rawItems = await searchMod.search(query, apiKey); }
-      catch (e: any) { console.error('[Search ' + provider + '] Failed:', e.message); }
+      catch (e) { console.error("[Search " + provider + "] Failed:", e.message); }
     }
 
-    const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-    const sp = (src.customPrompt || '你是专业情报分析助手。') + '
-当前日期：' + today + '。请基于此日期判断信息时效性。';
-    const kwText = effectiveKwArr.join('、') || '相关';
-    let up: string;
+    const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+    const sp = (src.customPrompt || "你是专业情报分析助手。") + "
+当前日期：" + today + "。优先提供最近30天内的资讯。";
+    const kwText = effectiveKwArr.join("、") || "相关";
+    let up;
     if (objectName) {
-      up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取最重要的30条情报，输出标准JSON。
-' +
-        '搜索结果不足时请基于知识补充。
+      up = "以下是关于【" + objectName + "】在【" + kwText + "】方面的搜索结果。提取最重要的30条情报，输出标准JSON。
+" +
+        "搜索结果不足时请基于知识补充。
 要求：1.标题+摘要(80字)+来源+时间+url
 2.去重过滤无关
 3.最近30天优先
-' +
+" +
         '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '"}]
 ' +
         '5.无url留空 6.仅输出JSON数组
@@ -3675,37 +5213,41 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
 原始搜索结果：
 ' + JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000);
     } else {
-      up = '请搜索整理【' + kwText + '】的最新资讯30条。
-' +
-        '要求：1.标题+摘要(80字)+来源+时间+url
+      up = "请搜索并整理关于【" + kwText + "】的最新资讯，列出最重要的30条。
+" +
+        "要求：1.标题+摘要(80字)+来源+时间+url
 2.按重要性排序，最近30天优先
-' +
+" +
         '3.JSON: [{"title":"","summary":"","source":"","date":"","url":""}]
 ' +
         '4.无url留空 5.仅输出JSON数组
 
-参考：
+参考知识：
 ' + JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000);
     }
 
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || '') },
-      body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.5, messages: [{ role: 'system', content: sp }, { role: 'user', content: up }] }),
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (process.env.DEEPSEEK_API_KEY || "") },
+      body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.5, messages: [{ role: "system", content: sp }, { role: "user", content: up }] }),
       signal: AbortSignal.timeout(60000),
     });
-    if (!response.ok) { const t = await response.text(); throw new Error('DeepSeek error: ' + response.status + ' ' + t.substring(0,200)); }
+    if (!response.ok) { const t = await response.text(); throw new Error("DeepSeek: " + response.status + " " + t.substring(0,200)); }
     const data = await response.json();
-    let content = data.choices[0].message.content.replace('```json', '').replace(/```/g, '').trim();
-    let results: any[];
+    let content = data.choices[0].message.content;
+    content = content.replace("```json", "").replace(/```/g, "").trim();
+    let results;
     try { results = JSON.parse(content); }
     catch (e) {
       const m = content.match(/[s*(?:{[sS]*?}|[[sS]*?])+s*]/);
-      results = m ? (() => { try { return JSON.parse(m[0]); } catch { return []; } })() : (rawItems.length > 0 ? rawItems : []);
+      results = m ? JSON.parse(m[0]) : (rawItems.length > 0 ? rawItems : []);
     }
-    results = (results || []).map((r: any) => ({ title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || '') }));
-    const cutoff = Date.now() - 30*86400000;
-    results = results.filter((r: any) => !r.date || isNaN(new Date(r.date).getTime()) || new Date(r.date).getTime() > cutoff);
+    results = (results || []).map(function(r) {
+      return { title: r.title || "", summary: r.summary || r.snippet || "", source: r.source || r.url || "",
+        date: r.date || r.time || "", link: r.url || r.link || "https://www.baidu.com/s?wd=" + encodeURIComponent(r.title || "") };
+    });
+    const cutoff = Date.now() - 30 * 86400000;
+    results = results.filter(function(r) { return !r.date || isNaN(new Date(r.date).getTime()) || new Date(r.date).getTime() > cutoff; });
     return results.slice(0, 30);
   };
 import express from 'express';
