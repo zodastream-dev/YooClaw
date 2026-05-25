@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { generateVideo, videoTaskStatus, cancelVideoTask } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
 import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check } from 'lucide-react'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
 import type { VideoTemplate } from '@/data/videoTemplates'
@@ -33,6 +34,9 @@ const MODEL_VERSIONS = [
 
 export function VideoCreatePage() {
   const navigate = useNavigate()
+  const { user, fetchUserInfo } = useAuthStore()
+  const userId = user?.id || ''
+  const TASK_KEY = userId ? `yooclaw_active_video_task_${userId}` : ''
   const [prompt, setPrompt] = useState('')
   const [duration, setDuration] = useState('5')
   const [resolution, setResolution] = useState('720p')
@@ -71,24 +75,24 @@ export function VideoCreatePage() {
   const ratioRef = useRef<HTMLDivElement>(null)
   const durationRef = useRef<HTMLDivElement>(null)
 
-  // Restore active task from localStorage on first render
-  const getSavedTask = (): { sid: string | null; polling: boolean } => {
+  // Restore active task from localStorage (per-user key)
+  const readSavedTask = (key: string): { sid: string | null; polling: boolean } => {
     try {
-      const saved = localStorage.getItem('yooclaw_active_video_task')
+      const saved = localStorage.getItem(key)
       if (!saved) return { sid: null, polling: false }
       const { submitId, startTime } = JSON.parse(saved)
       if (!submitId) return { sid: null, polling: false }
       if (Date.now() - startTime > 5 * 3600 * 1000) {
-        localStorage.removeItem('yooclaw_active_video_task')
+        localStorage.removeItem(key)
         return { sid: null, polling: false }
       }
       return { sid: submitId, polling: true }
     } catch { return { sid: null, polling: false } }
   }
-  const savedTask = getSavedTask()
+  const initialTask = TASK_KEY ? readSavedTask(TASK_KEY) : { sid: null, polling: false }
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitId, setSubmitId] = useState<string | null>(savedTask.sid)
-  const [isPolling, setIsPolling] = useState(savedTask.polling)
+  const [submitId, setSubmitId] = useState<string | null>(initialTask.sid)
+  const [isPolling, setIsPolling] = useState(initialTask.polling)
   const [pollCount, setPollCount] = useState(0)
   const [queueMessage, setQueueMessage] = useState('')
   const [elapsedMinutes, setElapsedMinutes] = useState(0)
@@ -140,6 +144,45 @@ export function VideoCreatePage() {
     }
   }, [genType, imageFiles.length])
 
+  // Fetch user info on mount; re-init task state when user is known
+  useEffect(() => {
+    fetchUserInfo().then(() => {
+      const uid = useAuthStore.getState().user?.id
+      if (uid) {
+        const key = `yooclaw_active_video_task_${uid}`
+        const saved = localStorage.getItem(key)
+        if (saved) {
+          try {
+            const { submitId: sid, startTime } = JSON.parse(saved)
+            if (sid && Date.now() - startTime <= 5 * 3600 * 1000) {
+              setSubmitId(sid)
+              setIsPolling(true)
+              startTimeRef.current = startTime
+            } else {
+              localStorage.removeItem(key)
+            }
+          } catch { localStorage.removeItem(key) }
+        }
+      }
+    })
+  }, [])
+
+  // Reset polling state when user changes (prevent seeing another user's task)
+  useEffect(() => {
+    if (!userId) return
+    const key = `yooclaw_active_video_task_${userId}`
+    const saved = localStorage.getItem(key)
+    if (!saved && (submitId || isPolling)) {
+      setSubmitId(null)
+      setIsPolling(false)
+      setQueueMessage('')
+      setPollCount(0)
+      setElapsedMinutes(0)
+      setResult(null)
+      setError(null)
+    }
+  }, [userId])
+
   // Polling effect
   useEffect(() => {
     if (!isPolling || !submitId) return
@@ -157,15 +200,15 @@ export function VideoCreatePage() {
           setMaxPolls(res.data.maxPolls || 120)
           if (res.data.status === 'completed') {
             setIsPolling(false)
-            localStorage.removeItem('yooclaw_active_video_task')
+            if (TASK_KEY) localStorage.removeItem(TASK_KEY)
             setResult({ id: res.data.id, title: prompt.slice(0, 30) + (genType === 'image_upscale' ? ' 放大' : ' 视频'), url: res.data.result?.videoUrl || '' })
           } else if (res.data.status === 'cancelled') {
             setIsPolling(false)
-            localStorage.removeItem('yooclaw_active_video_task')
+            if (TASK_KEY) localStorage.removeItem(TASK_KEY)
             setError('视频生成已取消')
           } else if (res.data.status === 'failed') {
             setIsPolling(false)
-            localStorage.removeItem('yooclaw_active_video_task')
+            if (TASK_KEY) localStorage.removeItem(TASK_KEY)
             setError(res.data.errorMessage || '生成失败，请稍后重试')
           }
         }
@@ -307,7 +350,7 @@ export function VideoCreatePage() {
         setSubmitId(res.data.id)
         startTimeRef.current = Date.now()
         setIsPolling(true)
-        localStorage.setItem('yooclaw_active_video_task', JSON.stringify({ submitId: res.data.id, startTime: Date.now() }))
+        if (TASK_KEY) localStorage.setItem(TASK_KEY, JSON.stringify({ submitId: res.data.id, startTime: Date.now() }))
       } else { setError(res.error?.message || '提交失败') }
     } catch (e: any) { setError(e.message || '提交失败，请稍后重试') }
     finally { setIsSubmitting(false) }
@@ -372,6 +415,8 @@ export function VideoCreatePage() {
     setResult(null); setSubmitId(null); setIsPolling(false); setQueueMessage('')
     setPollCount(0); setElapsedMinutes(0); setError(null); setCopied(false)
     setPrompt(''); setSelectedTemplate(null); clearAllImages()
+    if (TASK_KEY) localStorage.removeItem(TASK_KEY)
+    // Also clear legacy shared key to fix existing cross-user pollution
     localStorage.removeItem('yooclaw_active_video_task')
   }
 
