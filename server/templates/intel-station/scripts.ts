@@ -63,7 +63,10 @@ async function loadIntelData(){
       return;
     }
     sources.forEach(function(src){
-      if(!src.apiKey)src.apiKey=src.aiProvider==='metaso'?DEFAULT_METASO_KEY:src.aiProvider==='tavily'?DEFAULT_TAVILY_KEY:DEFAULT_DEEPSEEK_KEY;
+      // Always use default key for known providers; only use custom key for 'custom' provider
+      var knownProviders={metaso:DEFAULT_METASO_KEY,tavily:DEFAULT_TAVILY_KEY,deepseek:DEFAULT_DEEPSEEK_KEY,codebuddy:DEFAULT_DEEPSEEK_KEY};
+      if(knownProviders[src.aiProvider])src.apiKey=knownProviders[src.aiProvider];
+      else if(!src.apiKey)src.apiKey=DEFAULT_DEEPSEEK_KEY;
     });
     var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources})});
     if(!result.ok)throw new Error('API error: '+result.status);
