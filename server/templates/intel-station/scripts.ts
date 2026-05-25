@@ -596,22 +596,25 @@ function addObject(wi,si){
   if(!inp||!inp.value.trim())return;
   var raw=inp.value.trim();
   inp.value='';
-  var tags=$('objTags_'+wi+'_'+si);
-  if(!tags)return;
   var names=raw.split(/[\\s,，、]+/).map(function(s){return s.trim()}).filter(Boolean);
-  var w=WIDGETS[wi];
-  var srcs=w&&w.config&&w.config.sources||[];var src=srcs&&srcs[si];
+  var w=WIDGETS[wi];if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];var src=srcs[si];
+  if(!src)return;
+  if(!src.objects)src.objects=[];
   names.forEach(function(name){
-    if(src&&src.objects&&src.objects.some(function(o){return o.name===name}))return; // skip duplicates
-    var span=document.createElement('span');
-    span.className='obj-t';
-    span.innerHTML=escHtml(name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(name)+'\\',this.parentElement)" title="移除">&times;</button>';
-    tags.appendChild(span);
+    if(src.objects.some(function(o){return o.name===name}))return;
+    src.objects.push({name:name,keywords:[]});
   });
+  renderSourceForm(wi,si);
 }
 
 function removeObject(wi,si,objName,tagEl){
-  if(tagEl)tagEl.remove();
+  var w=WIDGETS[wi];if(!w)return;
+  var srcs=w.config&&w.config.sources||w.sources||[];var src=srcs[si];
+  if(!src)return;
+  if(!src.objects)src.objects=[];
+  src.objects=src.objects.filter(function(o){return o.name!==objName});
+  renderSourceForm(wi,si);
 }
 
 function saveSourceConfig(wi,si){
