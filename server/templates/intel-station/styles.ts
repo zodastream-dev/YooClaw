@@ -194,7 +194,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
 .modal-overlay.open{opacity:1;pointer-events:auto}
 .modal-bg{position:absolute;inset:0;background:rgba(2,6,23,0.85);backdrop-filter:blur(8px)}
-.modal-panel{position:relative;width:100%;max-width:560px;max-height:88vh;background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(255,255,255,0.12);border-top:3px solid var(--cyan);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,0.6),0 0 40px rgba(0,212,255,0.1)}
+.modal-panel{position:relative;width:100%;max-width:640px;max-height:88vh;background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(255,255,255,0.12);border-top:3px solid var(--cyan);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,0.6),0 0 40px rgba(0,212,255,0.1)}
 .modal-overlay.open .modal-panel{transform:scale(1) translateY(0)}
 .modal-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
 .mh-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:rgba(0,212,255,0.12);box-shadow:0 0 12px rgba(0,212,255,0.1)}
@@ -231,7 +231,15 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .kw-add-input:focus{border-color:var(--cyan)}
 .kw-add-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:rgba(0,212,255,0.05);color:var(--cyan);cursor:pointer;font-size:14px;font-weight:700;transition:all .2s}
 .kw-add-btn:hover{background:rgba(0,212,255,0.15);border-color:rgba(0,212,255,0.3)}
-/* Delete source button */
+/* Object tags (purple theme) */
+.obj-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.obj-t{display:flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.2);border-radius:10px;font-size:11px;color:var(--purple);box-shadow:0 0 6px rgba(168,85,247,0.05)}
+.obj-x{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:13px;padding:0 2px;transition:color .2s}
+.obj-x:hover{color:#ef4444}
+/* Delete source button in form footer */
+.src-del-btn{padding:6px 14px;border:1px solid rgba(239,68,68,0.3);border-radius:8px;background:rgba(239,68,68,0.05);color:#ef4444;cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit}
+.src-del-btn:hover{background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.5)}
+/* Source top row */
 .src-del{font-size:11px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:4px;transition:all .2s}
 .src-del:hover{color:#ef4444;background:rgba(239,68,68,0.1)}
 .btn-add-src{width:100%;margin-top:8px;padding:10px;border:1px dashed var(--border);border-radius:8px;background:transparent;color:var(--cyan);cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;font-family:inherit}

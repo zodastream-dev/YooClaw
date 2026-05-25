@@ -507,18 +507,33 @@ function renderSourceForm(wi,si){
   var src=srcs[si];
   if(!src)return;
   var kws=src.keywords||[];
+  var objects=src.objects||[];
+  var INTEL_CATS=['行业信号','目标客户情报','竞争对手情报','自身舆情监控'];
   var s='';
   s+='<div class="src-mini">';
-  s+='<div class="src-top"><input class="st-name-input" id="srcName_'+wi+'_'+si+'" value="'+escHtml(src.name||'')+'" placeholder="监控源名称">';
-  s+='<span class="src-del" onclick="deleteSource('+wi+','+si+')" title="删除此监控源">\\u2715 删除</span></div>';
+  // Category dropdown
+  s+='<div class="mb-group"><label class="mb-label">情报属性</label>';
+  s+='<select class="mb-select" id="srcCat_'+wi+'_'+si+'" onchange="onSourceCatChange('+wi+','+si+',this.value)">';
+  s+='<option value="">-- 选择情报属性 --</option>';
+  INTEL_CATS.forEach(function(c){
+    s+='<option value="'+c+'"'+(src.name===c?' selected':'')+'>'+c+'</option>';
+  });
+  s+='<option value="__custom__"'+(INTEL_CATS.indexOf(src.name||'')===-1&&src.name?' selected':'')+'>自定义…</option>';
+  s+='</select></div>';
+  // Custom name input (shown when not a preset category)
+  var isCustom=INTEL_CATS.indexOf(src.name||'')===-1&&src.name;
+  s+='<div class="mb-group" id="srcCustomNameGroup_'+wi+'_'+si+'" style="'+(isCustom?'':'display:none')+'">';
+  s+='<input class="mb-input" id="srcName_'+wi+'_'+si+'" value="'+escHtml(src.name||'')+'" placeholder="输入自定义属性名称">';
+  s+='</div>';
+  // AI Provider + Model
   s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
   s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
-  ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
+  ['deepseek','metaso','tavily','codebuddy','custom'].forEach(function(p){
     s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
   });
   s+='</select></div>';
   s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
-  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v3.1">';
+  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v4-flash">';
   s+='</div></div>';
   s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
   s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
@@ -530,6 +545,17 @@ function renderSourceForm(wi,si){
     s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+freqLabels[f]+'</option>';
   });
   s+='</select></div></div>';
+  // Monitoring Objects
+  s+='<div class="mb-group"><label class="mb-label">📌 监控对象</label>';
+  s+='<div class="obj-tags" id="objTags_'+wi+'_'+si+'">';
+  objects.forEach(function(o){
+    s+='<span class="obj-t">'+escHtml(o.name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\''+escHtml(o.name)+'\',this.parentElement)" title="移除">&times;</button></span>';
+  });
+  s+='</div>';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}">';
+  s+='<button class="kw-add-btn" onclick="addObject('+wi+','+si+')">+</button></div>';
+  s+='</div>';
+  // Keywords
   s+='<div class="mb-group"><label class="mb-label">监控关键词</label>';
   s+='<div class="kw-tags" id="kwTags_'+wi+'_'+si+'">';
   kws.forEach(function(k){
@@ -539,12 +565,43 @@ function renderSourceForm(wi,si){
   s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}">';
   s+='<button class="kw-add-btn" onclick="addKeyword('+wi+','+si+')">+</button></div>';
   s+='</div>';
+  // Custom prompt
   s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
   s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:80px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
+  s+='</div>';
+  // Delete button at bottom
+  s+='<div style="text-align:right;padding-top:8px">';
+  s+='<button class="src-del-btn" onclick="deleteSource('+wi+','+si+')">🗑 删除此情报源</button>';
   s+='</div>';
   s+='</div>';
   $('modalBody').innerHTML=s;
   $('modalBody').scrollTop=0;
+}
+
+function onSourceCatChange(wi,si,val){
+  if(val==='__custom__'){
+    $('srcCustomNameGroup_'+wi+'_'+si).style.display='';
+    $('srcName_'+wi+'_'+si).value='';
+  } else {
+    $('srcCustomNameGroup_'+wi+'_'+si).style.display='none';
+  }
+}
+
+function addObject(wi,si){
+  var inp=$('objInput_'+wi+'_'+si);
+  if(!inp||!inp.value.trim())return;
+  var name=inp.value.trim();
+  inp.value='';
+  var tags=$('objTags_'+wi+'_'+si);
+  if(!tags)return;
+  var span=document.createElement('span');
+  span.className='obj-t';
+  span.innerHTML=escHtml(name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\''+escHtml(name)+'\',this.parentElement)" title="移除">&times;</button>';
+  tags.appendChild(span);
+}
+
+function removeObject(wi,si,objName,tagEl){
+  if(tagEl)tagEl.remove();
 }
 
 function saveSourceConfig(wi,si){
@@ -552,7 +609,15 @@ function saveSourceConfig(wi,si){
   if(!w)return;
   var srcs=w.config&&w.config.sources||w.sources||[];
   if(!srcs[si])return;
-  var name=($('srcName_'+wi+'_'+si)||{}).value||'';
+  // Name: from category dropdown or custom input
+  var catSel=$('srcCat_'+wi+'_'+si);
+  var catVal=catSel?catSel.value:'';
+  var name;
+  if(catVal==='__custom__'){
+    name=($('srcName_'+wi+'_'+si)||{}).value||'';
+  } else {
+    name=catVal||'';
+  }
   var provider=($('srcProvider_'+wi+'_'+si)||{}).value||'deepseek';
   var model=($('srcModel_'+wi+'_'+si)||{}).value||'';
   var apiKey=($('srcApiKey_'+wi+'_'+si)||{}).value||'';
@@ -566,6 +631,15 @@ function saveSourceConfig(wi,si){
       if(kwText)keywords.push(kwText);
     });
   }
+  // Collect objects
+  var objects=[];
+  var objContainer=$('objTags_'+wi+'_'+si);
+  if(objContainer){
+    objContainer.querySelectorAll('.obj-t').forEach(function(tag){
+      var objName=tag.childNodes[0]?tag.childNodes[0].textContent.replace('\\u00d7','').trim():'';
+      if(objName)objects.push({name:objName,keywords:[]});
+    });
+  }
   srcs[si].name=name;
   srcs[si].aiProvider=provider;
   srcs[si].aiModel=model;
@@ -573,6 +647,7 @@ function saveSourceConfig(wi,si){
   srcs[si].updateFrequency=freq;
   srcs[si].customPrompt=prompt;
   srcs[si].keywords=keywords;
+  srcs[si].objects=objects;
   if(w.config&&w.config.sources)w.config.sources=srcs;
   else w.sources=srcs;
   var slug=window.location.pathname.split('/').pop();
@@ -595,7 +670,7 @@ function addNewSource(){
     return;
   }
   var srcs=w.config&&w.config.sources||w.sources||[];
-  srcs.push({name:'新监控源',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],updateFrequency:'daily',customPrompt:''});
+  srcs.push({name:'新监控源',aiProvider:'deepseek',aiModel:'',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:''});
   if(w.config&&w.config.sources)w.config.sources=srcs;
   else w.sources=srcs;
   var newSi=srcs.length-1;
