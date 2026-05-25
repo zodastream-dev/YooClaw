@@ -4310,6 +4310,11 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         await new Promise(r => setTimeout(r, 180000));
         const t = videoTasks.get(submitId);
         if (!t) return;
+        // Stop polling if user cancelled (dreamina CLI has no cancel API)
+        if (t.status === 'cancelled') {
+          console.log(`[VideoGen] Task ${submitId.slice(0, 8)}... cancelled by user, stopping background poll`);
+          return;
+        }
         t.polls = i + 1;
 
         try {
