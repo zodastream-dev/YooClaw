@@ -1015,7 +1015,6 @@ export function VideoCreatePage() {
               </div>
             </div>
             </div>
-          </div>
 
           {/* Multi-Clip Panel */}
           <div className={mode === 'single' ? 'hidden' : ''}>
@@ -1338,6 +1337,7 @@ export function VideoCreatePage() {
           </div>
         )}
 
+          </div>
         </main>
 
         {/* Right sidebar */}
