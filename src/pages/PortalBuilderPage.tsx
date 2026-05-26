@@ -593,6 +593,7 @@ export function PortalBuilderPage() {
               <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
                 className="bg-transparent text-sm font-semibold border-none outline-none hover:bg-muted px-2 py-1 rounded-md transition-colors w-48"
                 placeholder="站点名称" />
+              <span data-v="0527-0035" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0035</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1289,11 +1290,8 @@ export function PortalBuilderPage() {
 
               {/* Body */}
               <div className="px-6 py-5 space-y-4">
-                <div style={{background:'red',color:'#fff',padding:'4px 8px',fontSize:12,fontWeight:'bold',borderRadius:4,marginBottom:8}}>🔴 弹窗诊断: editingSource={editingSource ? 'YES' : 'NO'} | expanded={expandedModelConfigs.size}</div>
-                {/* ===== FLATTENED: Single Source Edit ===== */}
                 {editingSource ? (
                   <div className="space-y-4">
-                    <div style={{background:'#4f46e5',color:'#fff',padding:'2px 6px',fontSize:11,borderRadius:3}}>🔵 单源编辑路径 (rows=6 + 模型配置高级)</div>
                     {/* Source Name */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">情报属性</label>
@@ -1400,7 +1398,6 @@ export function PortalBuilderPage() {
                   </div>
                 ) : (
                 <>
-                <div style={{background:'#059669',color:'#fff',padding:'2px 6px',fontSize:11,borderRadius:3,marginBottom:12}}>🟢 组件级编辑路径 (widget={editingWidget.type})</div>
                 {/* Widget Title */}
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5">组件标题</label>
@@ -1521,7 +1518,7 @@ export function PortalBuilderPage() {
                           </select>
                           <textarea value={s.customPrompt}
                             onChange={(e) => updateSourceField(editingWidget.id, s.id, 'customPrompt', e.target.value)}
-                            rows={5} placeholder="自定义提示词…"
+                            rows={6} placeholder="自定义提示词…"
                             className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                           {/* Model Config (collapsed) */}
                           <div className="border-t border-border pt-2">
