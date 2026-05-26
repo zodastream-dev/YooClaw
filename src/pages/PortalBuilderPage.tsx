@@ -579,7 +579,7 @@ export function PortalBuilderPage() {
   // ========== Build Mode ==========
   if (!result) {
     return (
-      <div className="flex flex-col h-full overflow-hidden" data-build="0526-2355">
+      <div className="flex flex-col h-full overflow-hidden">
 
         {/* ========== Top Bar ========== */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
