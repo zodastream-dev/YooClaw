@@ -57,7 +57,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 /* Floating toggle when panel is collapsed */
 .btn-toggle-left-float{position:fixed;top:80px;left:8px;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:rgba(15,23,42,0.95);color:var(--cyan);cursor:pointer;font-size:18px;display:none;align-items:center;justify-content:center;transition:all .2s;z-index:200;box-shadow:0 2px 12px rgba(0,0,0,0.4),0 0 8px rgba(0,212,255,0.1);backdrop-filter:blur(8px)}
 .btn-toggle-left-float:hover{background:rgba(0,212,255,0.12);border-color:rgba(0,212,255,0.4);box-shadow:0 4px 16px rgba(0,0,0,0.5),0 0 16px rgba(0,212,255,0.2)}
-.main-layout.left-collapsed .btn-toggle-left-float{display:flex}
+.main-layout.left-collapsed+.btn-toggle-left-float{display:flex}
 .source-groups{flex:1;overflow-y:auto;padding:14px 13px}
 .source-card{display:flex;flex-direction:column;gap:0;padding:14px;margin-bottom:10px;border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:all .25s;background:rgba(15,23,42,0.4);position:relative;overflow:hidden}
 .source-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.15),transparent);opacity:0;transition:opacity .25s}
@@ -210,6 +210,8 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .modal-bg{position:absolute;inset:0;background:rgba(2,6,23,0.85);backdrop-filter:blur(8px)}
 .modal-panel{position:relative;width:100%;max-width:640px;max-height:88vh;background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid rgba(255,255,255,0.12);border-top:3px solid var(--cyan);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transform:scale(.92) translateY(20px);transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 24px 64px rgba(0,0,0,0.6),0 0 40px rgba(0,212,255,0.1)}
 .modal-overlay.open .modal-panel{transform:scale(1) translateY(0)}
+.modal-panel.modal-dragging{transition:none!important;box-shadow:0 32px 80px rgba(0,0,0,0.7),0 0 50px rgba(0,212,255,0.15)!important}
+.modal-hd{cursor:move;user-select:none}
 .modal-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
 .mh-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:rgba(0,212,255,0.12);box-shadow:0 0 12px rgba(0,212,255,0.1)}
 .mh-info{flex:1;min-width:0}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { deployPortalWithWidgets, mpSubscribe, mpUnsubscribe, mpGetSubscriptions, mpQrLogin, mpCheckLogin, mpSearchByName, mpSubscribeByName } from '@/lib/api'
@@ -197,6 +197,25 @@ export function PortalBuilderPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null)
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
+  const editModalPanelRef = useRef<HTMLDivElement>(null)
+  const editModalDragRef = useRef({ active: false, startX: 0, startY: 0, left: 0, top: 0 })
+  const [expandedModelConfigs, setExpandedModelConfigs] = useState<Set<string>>(new Set())
+  const toggleModelConfig = (id: string) => {
+    setExpandedModelConfigs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const resetEditModalPosition = () => {
+    if (editModalPanelRef.current) {
+      editModalPanelRef.current.style.position = '';
+      editModalPanelRef.current.style.left = '';
+      editModalPanelRef.current.style.top = '';
+      editModalPanelRef.current.style.transform = '';
+      editModalPanelRef.current.style.margin = '';
+    }
+  }
 
   // ========== Quick Start State ==========
   const [showQuickStartModal, setShowQuickStartModal] = useState(false)
@@ -399,6 +418,27 @@ export function PortalBuilderPage() {
   }, [])
 
   useEffect(() => { loadMpSubscriptions() }, [loadMpSubscriptions])
+
+  // Edit modal drag handlers
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!editModalDragRef.current.active) return;
+      const panel = editModalPanelRef.current;
+      if (!panel) return;
+      const dx = e.clientX - editModalDragRef.current.startX;
+      const dy = e.clientY - editModalDragRef.current.startY;
+      panel.style.left = (editModalDragRef.current.left + dx) + 'px';
+      panel.style.top = (editModalDragRef.current.top + dy) + 'px';
+    };
+    const onUp = () => { editModalDragRef.current.active = false; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, []);
+  // Reset modal position when closed
+  useEffect(() => {
+    if (!showEditModal) resetEditModalPosition();
+  }, [showEditModal]);
 
   const handleMpSubscribe = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1075,6 +1115,10 @@ export function PortalBuilderPage() {
                     ))}
                   </div>
                 </div>
+                <button onClick={handleDeploy} disabled={isDeploying}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors">
+                  {isDeploying ? <><Loader2 size={13} className="animate-spin" /> 部署中…</> : <><Globe size={13} /> 一键部署</>}
+                </button>
                 {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">{error}</p>}
                 {deploySuccess && (
                   <div className="flex items-center justify-between gap-2 text-xs bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg px-3 py-2">
@@ -1194,6 +1238,7 @@ export function PortalBuilderPage() {
                 exit={{ opacity: 0 }}
               />
             <motion.div className="relative bg-card border border-border rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto w-full mx-4 max-w-2xl"
+              ref={editModalPanelRef}
               onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1201,7 +1246,22 @@ export function PortalBuilderPage() {
               transition={{ duration: 0.25, ease: 'easeOut' }}
             >
               {/* Header */}
-              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl cursor-move select-none"
+                onMouseDown={(e) => {
+                  if ((e.target as HTMLElement).closest('button')) return;
+                  const panel = editModalPanelRef.current;
+                  if (!panel) return;
+                  const rect = panel.getBoundingClientRect();
+                  editModalDragRef.current = { active: true, startX: e.clientX, startY: e.clientY, left: rect.left, top: rect.top };
+                  panel.style.position = 'absolute';
+                  panel.style.left = rect.left + 'px';
+                  panel.style.top = rect.top + 'px';
+                  panel.style.transform = 'none';
+                  panel.style.margin = '0';
+                  panel.style.transition = 'none';
+                  e.preventDefault();
+                }}
+              >
                 <div className="flex items-center gap-2.5">
                   <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm bg-amber-100 dark:bg-amber-900/20">
                     {editingSource ? '🛰️' : (editingWidget.type === 'report-generator' ? '📊' : '🛰️')}
@@ -1255,24 +1315,6 @@ export function PortalBuilderPage() {
                       )}
                     </div>
 
-                    {/* AI Provider + Model */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
-                        <select value={editingSource.aiProvider}
-                          onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiProvider', e.target.value)}
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
-                          {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
-                        <input type="text" value={editingSource.aiModel}
-                          onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiModel', e.target.value)}
-                          placeholder="deepseek-v4-flash" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
-                      </div>
-                    </div>
-
                     {/* Objects */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">📌 监控对象</label>
@@ -1317,15 +1359,41 @@ export function PortalBuilderPage() {
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
                       <textarea value={editingSource.customPrompt}
                         onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'customPrompt', e.target.value)}
-                        rows={3} placeholder="自定义提示词…" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                        rows={6} placeholder="自定义提示词…" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
 
-                    {/* API Key */}
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
-                      <input type="text" value={editingSource.apiKey || ''}
-                        onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'apiKey', e.target.value)}
-                        placeholder="留空使用默认密钥" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                    {/* Model Config (collapsed by default) */}
+                    <div className="border-t border-border pt-3">
+                      <button type="button" onClick={() => toggleModelConfig(editingSource.id)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
+                        <span>{expandedModelConfigs.has(editingSource.id) ? '▼' : '▶'}</span> ⚙ 模型配置（高级）
+                      </button>
+                      {expandedModelConfigs.has(editingSource.id) && (
+                        <div className="mt-2 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
+                              <select value={editingSource.aiProvider}
+                                onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiProvider', e.target.value)}
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                                {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
+                              <input type="text" value={editingSource.aiModel}
+                                onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiModel', e.target.value)}
+                                placeholder="deepseek-v4-flash" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
+                            <input type="text" value={editingSource.apiKey || ''}
+                              onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'apiKey', e.target.value)}
+                              placeholder="留空使用默认密钥" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1370,14 +1438,14 @@ export function PortalBuilderPage() {
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
                       <textarea value={editingWidget.config.sysPrompt || ''}
                         onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, sysPrompt: e.target.value } }))}
-                        rows={3} placeholder="AI 系统指令…"
+                        rows={6} placeholder="AI 系统指令…"
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">用户提示词</label>
                       <textarea value={editingWidget.config.userPrompt || ''}
                         onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, userPrompt: e.target.value } }))}
-                        rows={3} placeholder="用户指令…"
+                        rows={6} placeholder="用户指令…"
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                   </>
@@ -1413,17 +1481,6 @@ export function PortalBuilderPage() {
                               placeholder="输入自定义属性名称"
                               className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
                           )}
-                          <div className="grid grid-cols-2 gap-2">
-                            <select value={s.aiProvider}
-                              onChange={(e) => updateSourceField(editingWidget.id, s.id, 'aiProvider', e.target.value)}
-                              className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all">
-                              {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                            </select>
-                            <input type="text" value={s.aiModel}
-                              onChange={(e) => updateSourceField(editingWidget.id, s.id, 'aiModel', e.target.value)}
-                              placeholder="模型"
-                              className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
-                          </div>
                           {/* --- Object Management --- */}
                           <div className="space-y-2">
                             <span className="text-[11px] font-semibold text-muted-foreground">📌 监控对象</span>
@@ -1461,8 +1518,27 @@ export function PortalBuilderPage() {
                           </select>
                           <textarea value={s.customPrompt}
                             onChange={(e) => updateSourceField(editingWidget.id, s.id, 'customPrompt', e.target.value)}
-                            rows={2} placeholder="自定义提示词…"
+                            rows={5} placeholder="自定义提示词…"
                             className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                          {/* Model Config (collapsed) */}
+                          <div className="border-t border-border pt-2">
+                            <button type="button" onClick={() => toggleModelConfig(s.id)}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left">
+                              <span>{expandedModelConfigs.has(s.id) ? '▼' : '▶'}</span> ⚙ 模型配置
+                            </button>
+                            {expandedModelConfigs.has(s.id) && (
+                              <div className="mt-2 space-y-2">
+                                <select value={s.aiProvider}
+                                  onChange={(e) => updateSourceField(editingWidget.id, s.id, 'aiProvider', e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all">
+                                  {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                                </select>
+                                <input type="text" value={s.aiModel}
+                                  onChange={(e) => updateSourceField(editingWidget.id, s.id, 'aiModel', e.target.value)}
+                                  placeholder="模型" className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

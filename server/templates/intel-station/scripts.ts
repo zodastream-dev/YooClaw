@@ -197,16 +197,18 @@ var leftPanelCollapsed=false;
 function toggleLeftPanel(){
   var layout=document.querySelector('.main-layout');
   var toggleBtn=document.querySelector('.btn-toggle-left');
+  var floatBtn=document.querySelector('.btn-toggle-left-float');
   if(!layout)return;
   leftPanelCollapsed=!leftPanelCollapsed;
   if(leftPanelCollapsed){
     layout.classList.add('left-collapsed');
     if(toggleBtn)toggleBtn.innerHTML='&#x25B6;';
-    // Store preference
+    if(floatBtn)floatBtn.style.display='flex';
     try{localStorage.setItem('left-panel-collapsed','1')}catch(e){}
   } else {
     layout.classList.remove('left-collapsed');
     if(toggleBtn)toggleBtn.innerHTML='&#x25C0;';
+    if(floatBtn)floatBtn.style.display='none';
     try{localStorage.setItem('left-panel-collapsed','0')}catch(e){}
   }
 }
@@ -218,8 +220,10 @@ function toggleLeftPanel(){
       leftPanelCollapsed=true;
       var layout=document.querySelector('.main-layout');
       var toggleBtn=document.querySelector('.btn-toggle-left');
+      var floatBtn=document.querySelector('.btn-toggle-left-float');
       if(layout)layout.classList.add('left-collapsed');
       if(toggleBtn)toggleBtn.innerHTML='&#x25B6;';
+      if(floatBtn)floatBtn.style.display='flex';
     }
   }catch(e){}
 })();
@@ -561,6 +565,55 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape')closeSourceModalDirect();
 });
 
+/* ===== MODAL DRAG ===== */
+var modalDrag={active:false,startX:0,startY:0,panelLeft:0,panelTop:0};
+function initModalDrag(){
+  var hd=document.querySelector('.modal-hd');
+  if(!hd)return;
+  hd.style.cursor='move';
+  hd.addEventListener('mousedown',function(e){
+    if(e.target.closest('button'))return; // Don't drag when clicking buttons
+    var panel=document.querySelector('.modal-panel');
+    if(!panel)return;
+    modalDrag.active=true;
+    modalDrag.startX=e.clientX;
+    modalDrag.startY=e.clientY;
+    var rect=panel.getBoundingClientRect();
+    modalDrag.panelLeft=rect.left;
+    modalDrag.panelTop=rect.top;
+    // Reset CSS centering
+    panel.style.position='absolute';
+    panel.style.left=rect.left+'px';
+    panel.style.top=rect.top+'px';
+    panel.style.transform='none';
+    panel.style.margin='0';
+    panel.style.transition='none';
+    panel.classList.add('modal-dragging');
+    e.preventDefault();
+  });
+}
+document.addEventListener('mousemove',function(e){
+  if(!modalDrag.active)return;
+  var panel=document.querySelector('.modal-panel');
+  if(!panel)return;
+  var dx=e.clientX-modalDrag.startX;
+  var dy=e.clientY-modalDrag.startY;
+  panel.style.left=(modalDrag.panelLeft+dx)+'px';
+  panel.style.top=(modalDrag.panelTop+dy)+'px';
+});
+document.addEventListener('mouseup',function(){
+  if(!modalDrag.active)return;
+  modalDrag.active=false;
+  var panel=document.querySelector('.modal-panel');
+  if(panel)panel.classList.remove('modal-dragging');
+});
+// Initialize drag after modal render
+var _origRenderSourceForm=renderSourceForm;
+renderSourceForm=function(wi,si){
+  _origRenderSourceForm(wi,si);
+  setTimeout(initModalDrag,50);
+};
+
 function renderSourceForm(wi,si){
   var w=WIDGETS[wi];
   if(!w)return;
@@ -581,31 +634,20 @@ function renderSourceForm(wi,si){
   });
   s+='<option value="__custom__"'+(INTEL_CATS.indexOf(src.name||'')===-1&&src.name?' selected':'')+'>自定义…</option>';
   s+='</select></div>';
-  // Custom name input (shown when not a preset category)
+  // Custom name input
   var isCustom=INTEL_CATS.indexOf(src.name||'')===-1&&src.name;
   s+='<div class="mb-group" id="srcCustomNameGroup_'+wi+'_'+si+'" style="'+(isCustom?'':'display:none')+'">';
   s+='<input class="mb-input" id="srcName_'+wi+'_'+si+'" value="'+escHtml(src.name||'')+'" placeholder="输入自定义属性名称">';
   s+='</div>';
-  // AI Provider + Model
-  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
-  s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
-  ['deepseek','metaso','tavily','multi-engine','wechat','codebuddy','custom'].forEach(function(p){
-    s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
-  });
-  s+='</select></div>';
-  s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
-  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v4-flash">';
-  s+='</div></div>';
-  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">API Key</label>';
-  s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
-  s+='</div><div class="mb-group"><label class="mb-label">更新频率</label>';
+  // Update frequency
+  s+='<div class="mb-group"><label class="mb-label">更新频率</label>';
   s+='<select class="mb-select" id="srcFreq_'+wi+'_'+si+'">';
   var freqs=['hourly','daily','weekly','monthly'];
   var freqLabels={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'};
   freqs.forEach(function(f){
     s+='<option value="'+f+'"'+(src.updateFrequency===f?' selected':'')+'>'+freqLabels[f]+'</option>';
   });
-  s+='</select></div></div>';
+  s+='</select></div>';
   // Monitoring Objects
   s+='<div class="mb-group"><label class="mb-label">📌 监控对象</label>';
   s+='<div class="obj-tags" id="objTags_'+wi+'_'+si+'">';
@@ -628,15 +670,46 @@ function renderSourceForm(wi,si){
   s+='</div>';
   // Custom prompt
   s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
-  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:80px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
+  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:180px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
   s+='</div>';
-  // Delete button at bottom
+  // Model config (collapsed by default)
+  s+='<div class="mb-group" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">';
+  s+='<button type="button" class="model-config-toggle" onclick="toggleModelConfig(this)" style="display:flex;align-items:center;gap:6px;padding:6px 0;background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;width:100%">';
+  s+='<span class="model-config-arrow">▶</span> ⚙ 模型配置（高级）</button>';
+  s+='<div class="model-config-body" style="display:none;margin-top:8px">';
+  s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
+  s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
+  ['deepseek','metaso','tavily','multi-engine','wechat','codebuddy','custom'].forEach(function(p){
+    s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
+  });
+  s+='</select></div>';
+  s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
+  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v4-flash">';
+  s+='</div></div>';
+  s+='<div class="mb-group"><label class="mb-label">API Key</label>';
+  s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
+  s+='</div>';
+  s+='</div></div>';
+  // Delete button
   s+='<div style="text-align:right;padding-top:8px">';
   s+='<button class="src-del-btn" onclick="deleteSource('+wi+','+si+')">🗑 删除此情报源</button>';
   s+='</div>';
   s+='</div>';
   $('modalBody').innerHTML=s;
   $('modalBody').scrollTop=0;
+}
+
+function toggleModelConfig(btn){
+  var body=btn.nextElementSibling;
+  var arrow=btn.querySelector('.model-config-arrow');
+  if(!body||!arrow)return;
+  if(body.style.display==='none'){
+    body.style.display='';
+    arrow.textContent='▼';
+  }else{
+    body.style.display='none';
+    arrow.textContent='▶';
+  }
 }
 
 function onSourceCatChange(wi,si,val){
