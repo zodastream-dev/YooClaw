@@ -976,5 +976,32 @@ function sendCommand(){
   }
 }
 function toggleMic(){alert('语音输入功能开发中...');}
-function deployPortal(){alert('部署功能开发中...');}`;
+function deployPortal(){
+  var btn=document.querySelector('.btn-deploy');
+  if(!btn)return;
+  var origText=btn.textContent;
+  btn.textContent='部署中...';
+  btn.disabled=true;
+  btn.style.opacity='0.6';
+  fetch(API+'/api/portal-redeploy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug:PORTAL_SLUG})})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.data && d.data.updated){
+        btn.textContent='已更新!';
+        btn.style.background='linear-gradient(135deg,#22c55e,#16a34a)';
+        setTimeout(function(){location.reload()},800);
+      } else {
+        btn.textContent=origText;
+        btn.disabled=false;
+        btn.style.opacity='1';
+        alert('部署失败: '+(d.error?d.error.message:'未知错误'));
+      }
+    })
+    .catch(function(e){
+      btn.textContent=origText;
+      btn.disabled=false;
+      btn.style.opacity='1';
+      alert('部署失败: '+e.message);
+    });
+}`;
 }

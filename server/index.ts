@@ -3202,6 +3202,41 @@ app.post('/api/v1/sites/portal/redeploy', authMiddleware, async (req, res) => {
   }
 });
 
+// Public redeploy from portal page (no auth — called by portal JS)
+app.post('/api/portal-redeploy', async (req, res) => {
+  try {
+    const { slug } = req.body || {};
+    if (!slug || typeof slug !== 'string') {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Slug is required' } });
+    }
+
+    const existing = await getReportSiteBySlug(slug, 'portal');
+    if (!existing) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Portal not found' } });
+    }
+
+    console.log(`[Portal] Public redeploy for "${existing.title}" (slug: ${slug})`);
+
+    const apiBase = process.env.API_URL || process.env.FRONTEND_URL
+      || (req.get('host') ? `https://${req.get('host')}` : null)
+      || `http://localhost:${APP_PORT}`;
+
+    let widgets: any[] = [];
+    try {
+      const match = existing.html_content.match(/var WIDGETS=(\[[\s\S]*?\]);/);
+      if (match) { widgets = JSON.parse(match[1]); }
+    } catch (e) { /* keep empty */ }
+
+    const htmlContent = generatePortalHtml(existing.title, '', 'intel-station', apiBase, slug, widgets);
+    await createReportSite(existing.user_id, slug, existing.title, existing.title, htmlContent, 'portal', (existing as any).custom_domain || '');
+
+    res.json({ data: { slug, title: existing.title, updated: true } });
+  } catch (err: any) {
+    console.error('[Portal Public Redeploy Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
 // Serve a deployed portal
 app.get('/p/:slug', async (req, res) => {
   try {
