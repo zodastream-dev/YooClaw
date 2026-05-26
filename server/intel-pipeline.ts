@@ -11,7 +11,7 @@ function getProviderKey(provider: string): string {
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
   const provider = src.aiProvider || 'all';
   const model = src.aiModel || 'deepseek-v4-flash';
-  const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
+  const query = effectiveKwArr.length > 0 ? effectiveKwArr.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ') : (objectName || src.name || '');
 
   // 1. Search
   let rawItems: any[] = [];
@@ -64,8 +64,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000) : '(无实时搜索结果，请基于你的知识生成最新情报)';
   if (objectName) {
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
-      '注意：只提取与【' + objectName + '】直接相关的情报，不要包含其他品牌或对象的信息。\n' +
-      '如果搜索结果包含了其他对象，请严格过滤掉。\n' +
+      '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
+      '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
       '要求：1.标题+摘要(80字)+来源+时间+url\n2.去重过滤无关\n3.30天优先\n' +
       '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '"}]\n' +
       '5.无url留空 6.仅JSON\n\n原始搜索结果：\n' + searchContext;
