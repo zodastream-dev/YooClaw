@@ -93,7 +93,7 @@ const SEARCH_PLATFORMS = [
 const ANALYSIS_METHODS = ['SWOT', 'PEST', 'PORTER', '3C', 'STOCK']
 const INTEL_CATEGORIES = ['行业信号', '目标客户情报', '竞争对手情报', '自身舆情监控']
 const INTEL_PROMPTS: Record<string, string> = {
-  '行业信号': '你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\n你的工作原则：\n- 优先关注「变化」而非「现状」：政策调整、技术突破、新进入者、需求转移\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\n- 优先提供最近30天内的资讯，标注大致时间\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
+  '行业信号': '你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\n\n重点关注的信号类型：\n- 技术突破：新技术、新标准、研发进展\n- 新品发布：产品迭代、型号更新、功能升级\n- 市场格局：出货量变化、市场份额转移、新进入者\n- 产业链：上下游供需变化、关键零部件动态\n- 政策法规：行业政策调整、监管动态、标准制定\n- 产业趋势：需求转移、商业模式创新、投资动向\n\n你的工作原则：\n- 优先关注「变化」而非「现状」\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\n- 优先提供最近30天内的资讯，标注大致时间\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
   '目标客户情报': '你是客户情报分析师，专注于追踪目标客户的动态和需求信号。\n你的工作原则：\n- 关注：采购行为、预算发布、业务扩张、人事变动、招标公告、技术选型\n- 每条情报需标注：客户名称 → 具体行为 → 潜在商机/风险\n- 优先关注可能转化为商业机会的信号\n- 如果信息不足以判断，明确标注"待进一步确认"',
   '竞争对手情报': '你是竞争情报分析师，专注于监控竞争对手的战略动向。\n你的工作原则：\n- 关注：产品发布、定价策略、市场份额、财报业绩、融资/IPO、高管变动、收购并购\n- 每条情报需分析：竞对做了什么 → 意图是什么 → 对我们有何影响\n- 区分「已确认」和「传闻」，标注信息可靠性\n- 优先提供知名来源的信息，避免小道消息',
   '自身舆情监控': '你是舆情监控分析师，专注于追踪品牌声誉和公众舆论。\n你的工作原则：\n- 关注：媒体报道倾向（正面/负面/中性）、社交媒体热议、用户投诉、监管动态\n- 每条舆情需标注：情感倾向（+/−/0）、传播热度、是否需要响应\n- 负面舆情需说明严重程度和建议处置优先级\n- 客观反映舆论全貌，避免报喜不报忧',
@@ -503,7 +503,7 @@ export function PortalBuilderPage() {
       id, type: 'intel-monitor', title: '情报监控', expanded: false,
       config: {
         sources: [
-          { id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['行业趋势', '政策法规', '技术突破', '市场规模', '产业动态'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
+          { id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['技术突破', '新品发布', '出货量', '市场份额', '产业链', '行业报告', '政策法规', '产业趋势'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
           { id: genId('s'), name: '目标客户情报', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'], updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。' },
           { id: genId('s'), name: '竞争对手情报', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'], updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。' },
           { id: genId('s'), name: '自身舆情监控', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'], updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。' },
