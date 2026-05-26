@@ -613,7 +613,7 @@ export function VideoCreatePage() {
             </button>
             <button onClick={() => setMode('multi')}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-[1px] ${mode === 'multi' ? 'border-violet-400 text-violet-400' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}`}>
-              <Film size={15} />长视频拼接 v2
+              <Film size={15} />长视频拼接
             </button>
           </div>
 
@@ -1022,11 +1022,6 @@ export function VideoCreatePage() {
           <div className={mode === 'single' ? 'hidden' : ''}>
             <div className="px-4 sm:px-6 py-4 sm:py-6 max-w-3xl mx-auto">
               <div className="space-y-4 sm:space-y-5">
-
-            {/* DEBUG: Visible marker to confirm multi panel renders */}
-            <div className="p-3 rounded-xl bg-red-500 text-white text-sm font-bold">
-              🔴 DEBUG: Multi-clip panel IS rendering (mode={mode}, clips={clips.length})
-            </div>
 
             {/* Mode guide */}
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-gradient-to-r from-violet-500/5 to-fuchsia-500/5 border border-violet-500/10">
