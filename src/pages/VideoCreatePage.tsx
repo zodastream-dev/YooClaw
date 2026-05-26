@@ -518,8 +518,8 @@ export function VideoCreatePage() {
             <div className="flex gap-1 overflow-x-auto scrollbar-none">
               {[
                 { key: 'all' as const, label: '全部' },
-                { key: 'image' as const, label: '图生' },
-                { key: 'text' as const, label: '文生' },
+                { key: 'image' as const, label: '图生视频' },
+                { key: 'text' as const, label: '文生视频' },
               ].map(m => (
                 <button key={m.key} onClick={() => setInputMode(m.key)} className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-medium transition-all flex-shrink-0 ${inputMode === m.key ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                   {m.label}
@@ -701,7 +701,7 @@ export function VideoCreatePage() {
 
             {/* Transition prompts */}
             {genType === 'multiframe2video' && imageFiles.length >= 2 && (
-              <div className="space-y-2 p-3 rounded-xl bg-card/40 border border-border/30">
+              <div id="transition-prompts-section" className="space-y-2 p-3 rounded-xl bg-card/40 border border-border/30">
                 <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <Film size={13} />过渡描述
                 </div>
@@ -723,6 +723,19 @@ export function VideoCreatePage() {
                     <span className="text-[10px] text-muted-foreground">秒</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Mode guide for multi_clip */}
+            {genType === 'multi_clip' && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-gradient-to-r from-violet-500/5 to-fuchsia-500/5 border border-violet-500/10">
+                <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Film size={15} className="text-violet-400" />
+                </div>
+                <div className="text-xs text-muted-foreground leading-relaxed">
+                  <span className="font-medium text-violet-400">长视频拼接</span>
+                  {' — 2–6 个片段独立生成后 FFmpeg 自动拼接。每段输入独立提示词和时长（3-15秒），总长可达 90 秒。'}
+                </div>
               </div>
             )}
 
@@ -866,6 +879,7 @@ export function VideoCreatePage() {
                                   {opt.key === 'multimodal2video' && '多图/视频/音频参考生成'}
                                   {opt.key === 'multiframe2video' && '多张图片连贯故事视频'}
                                   {opt.key === 'frames2video' && '首帧到尾帧过渡视频'}
+                                  {opt.key === 'multi_clip' && '多段独立生成+拼接长视频'}
                                   {opt.key === 'image_upscale' && '图片超分放大 2K/4K/8K'}
                                 </div>
                               </div>
@@ -948,14 +962,31 @@ export function VideoCreatePage() {
                     </div>
                   )}
 
-                  {/* Duration Dropdown */}
+                  {/* Duration Dropdown — multiframe2video: "过渡决定" button */}
                   {genType !== 'image_upscale' && genType !== 'multi_clip' && (
                     <div className="relative" ref={durationRef}>
-                      <DropdownBtn
-                        label={genType === 'multiframe2video' ? '过渡决定' : `${duration}s`}
-                        open={openDuration}
-                        onClick={() => { const v = !openDuration; closeAll(); setOpenDuration(v) }}
-                      />
+                      {genType === 'multiframe2video' ? (
+                        <button
+                          onClick={() => {
+                            closeAll()
+                            // Scroll to transition prompts section
+                            const el = document.getElementById('transition-prompts-section')
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border border-amber-500/20 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30"
+                          title="过渡描述控制相邻图片之间的转场效果和时间，在下方编辑"
+                        >
+                          <Film size={15} />
+                          <span>过渡决定</span>
+                          <ChevronDown size={14} className="opacity-60" />
+                        </button>
+                      ) : (
+                        <DropdownBtn
+                          label={`${duration}s`}
+                          open={openDuration}
+                          onClick={() => { const v = !openDuration; closeAll(); setOpenDuration(v) }}
+                        />
+                      )}
                       {openDuration && genType !== 'multiframe2video' && (
                         <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[280px] sm:w-48 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-0.5">
                           {[
@@ -1011,6 +1042,36 @@ export function VideoCreatePage() {
                   {isSubmitting ? <><Loader2 size={16} className="animate-spin" />提交中...</> : <><Send size={16} />生成 {totalClipDuration}s 视频</>}
                 </button>
               </div>
+            )}
+
+            {/* ===== 长视频拼接 独立入口 (only when NOT already in multi_clip mode) ===== */}
+            {genType !== 'multi_clip' && (
+              <button
+                onClick={() => {
+                  setGenType('multi_clip')
+                  setClips([
+                    { id: crypto.randomUUID(), prompt: '', duration: '5' },
+                    { id: crypto.randomUUID(), prompt: '', duration: '5' },
+                  ])
+                }}
+                className="w-full rounded-2xl border-2 border-dashed border-violet-500/30 bg-gradient-to-r from-violet-500/5 via-fuchsia-500/5 to-violet-500/5 hover:from-violet-500/10 hover:to-fuchsia-500/10 hover:border-violet-500/50 transition-all p-4 sm:p-5 group"
+              >
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Film size={22} className="text-violet-400" />
+                  </div>
+                  <div className="text-left flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm sm:text-base font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">长视频拼接</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">多段拼接</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">2–6 个片段独立生成后自动拼接，支持最长 90 秒视频。适合故事叙述、产品演示、旅行日志</p>
+                  </div>
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+                    <ChevronDown size={16} className="text-violet-400 rotate-[-90deg] group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </button>
             )}
 
             {/* ===== Inline Generation Status ===== */}
@@ -1228,7 +1289,7 @@ export function VideoCreatePage() {
 
         {/* Right sidebar */}
         {!isPolling && (
-          <aside className="hidden lg:flex w-[300px] flex-shrink-0 flex-col border-l border-border bg-card overflow-hidden">
+          <aside className="hidden lg:flex w-[280px] flex-shrink-0 flex-col border-l border-border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b border-border flex-shrink-0">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <Play size={15} className="text-primary" />我的视频
