@@ -14,24 +14,27 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     try { rawItems = await searchMod.search(query, apiKey); }
     catch (e: any) { console.error('[Search ' + provider + '] Failed:', e.message); }
   }
+  const hasSearch = rawItems.length > 0;
+  if (!hasSearch) console.log('[Intel] No search module for provider: ' + provider + ', using knowledge-based generation');
 
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。优先提供最近30天内的资讯。';
   const kwText = effectiveKwArr.join('、') || '相关';
   let up: string;
+  const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000) : '(无实时搜索结果，请基于你的知识生成最新情报)';
   if (objectName) {
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：只提取与【' + objectName + '】直接相关的情报，不要包含其他品牌或对象的信息。\n' +
       '如果搜索结果包含了其他对象，请严格过滤掉。\n' +
       '要求：1.标题+摘要(80字)+来源+时间+url\n2.去重过滤无关\n3.30天优先\n' +
       '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '"}]\n' +
-      '5.无url留空 6.仅JSON\n\n原始搜索结果：\n' + JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000);
+      '5.无url留空 6.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(80字)+来源+时间+url\n2.按重要性排序，30天优先\n' +
       '3.JSON: [{"title":"","summary":"","source":"","date":"","url":""}]\n' +
-      '4.无url留空 5.仅JSON\n\n参考：\n' + JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000);
+      '4.无url留空 5.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果，请基于你的知识生成)');
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
