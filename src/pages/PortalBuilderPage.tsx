@@ -596,7 +596,6 @@ export function PortalBuilderPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500 text-white font-bold mr-1">v0526-2332</span>
             <div className="flex items-center gap-1.5 mr-2">
               {TEMPLATES.map((t) => (
                 <button key={t.id} onClick={() => setSelectedTheme(t.id)}
