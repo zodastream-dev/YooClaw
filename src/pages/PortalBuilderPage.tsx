@@ -584,6 +584,7 @@ export function PortalBuilderPage() {
         {/* ========== Top Bar ========== */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
           <div className="flex items-center gap-3">
+            <span style={{color:'red',fontWeight:'bold',fontSize:18}}>【新版本测试标记 0527-0018】</span>
             <button onClick={() => navigate('/sites')} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft size={14} /> 返回
             </button>
