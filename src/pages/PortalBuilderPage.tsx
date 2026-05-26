@@ -1,3 +1,4 @@
+// v0526-cache-bust — force hash refresh after browser cache stale
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
