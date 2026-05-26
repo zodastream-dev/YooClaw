@@ -14,7 +14,6 @@ export interface VideoTemplate {
 
 export const templateCategories = [
   { key: 'all', label: '全部', icon: '🔥' },
-  { key: 'multi', label: '长视频拼接', icon: '🎞️' },
   { key: 'ecommerce', label: '电商带货', icon: '🛒' },
   { key: 'short-video', label: '短视频', icon: '📱' },
   { key: 'vlog', label: 'Vlog/生活', icon: '🎬' },
