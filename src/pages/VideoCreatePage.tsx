@@ -16,6 +16,7 @@ interface GeneratedVideo {
 
 const GEN_TYPE_CONFIG = [
   { key: 'text2video', label: '文生视频', icon: Wand2, short: '文生' },
+  { key: 'multi_clip', label: '多段拼接', icon: Film, short: '拼接' },
   { key: 'image2video', label: '图生视频', icon: ImageIcon, short: '图生' },
   { key: 'multimodal2video', label: '全能参考', icon: Sparkles, short: '参考' },
   { key: 'multiframe2video', label: '多图故事', icon: Film, short: '故事' },
@@ -65,6 +66,24 @@ export function VideoCreatePage() {
   const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
   const [transitionDurations, setTransitionDurations] = useState<string[]>([])
 
+  // Multi-clip state
+  const [clips, setClips] = useState<{ id: string; prompt: string; duration: string }[]>([
+    { id: crypto.randomUUID(), prompt: '', duration: '5' },
+    { id: crypto.randomUUID(), prompt: '', duration: '5' },
+  ])
+  const addClip = () => {
+    if (clips.length >= 6) return
+    setClips(prev => [...prev, { id: crypto.randomUUID(), prompt: '', duration: '5' }])
+  }
+  const removeClip = (id: string) => {
+    if (clips.length <= 2) return
+    setClips(prev => prev.filter(c => c.id !== id))
+  }
+  const updateClip = (id: string, field: 'prompt' | 'duration', value: string) => {
+    setClips(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c))
+  }
+  const totalClipDuration = clips.reduce((sum, c) => sum + (Number(c.duration) || 5), 0)
+
   // Dropdown popover refs
   const [openGenType, setOpenGenType] = useState(false)
   const [openModel, setOpenModel] = useState(false)
@@ -102,13 +121,15 @@ export function VideoCreatePage() {
   const [result, setResult] = useState<GeneratedVideo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [multiClipProgress, setMultiClipProgress] = useState<{ completedClips: number; totalClips: number } | null>(null)
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number>(0)
 
   const needsImage = ['image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale'].includes(genType)
   const needsPrompt = ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(genType)
-  const supportsModel = ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(genType)
+  const supportsModel = ['text2video', 'image2video', 'multimodal2video', 'frames2video', 'multi_clip'].includes(genType)
+  const supportsRatio = ['text2video', 'multimodal2video', 'image2video', 'multi_clip'].includes(genType)
   const minImages = genType === 'multiframe2video' ? 2 : genType === 'frames2video' ? 2 : 1
   const maxImages = genType === 'multiframe2video' ? 20 : genType === 'multimodal2video' ? 9 : genType === 'frames2video' ? 2 : 1
 
@@ -201,6 +222,7 @@ export function VideoCreatePage() {
           setElapsedMinutes(res.data.elapsedMinutes)
           setEstimatedMaxMinutes(res.data.estimatedMaxMinutes)
           setMaxPolls(res.data.maxPolls || 120)
+          if (res.data.multiClip) setMultiClipProgress(res.data.multiClip)
           if (res.data.status === 'completed') {
             setIsPolling(false)
             if (TASK_KEY) localStorage.removeItem(TASK_KEY)
@@ -332,12 +354,20 @@ export function VideoCreatePage() {
     const p = prompt.trim()
     if (needsPrompt && !p) return
     if (needsImage && imageFiles.length < minImages) { setError(`请上传至少 ${minImages} 张图片`); return }
+    // Multi-clip validation
+    if (genType === 'multi_clip') {
+      const emptyClips = clips.filter(c => !c.prompt.trim())
+      if (emptyClips.length > 0) { setError(`请为所有片段输入提示词`); return }
+    }
     setIsSubmitting(true); setError(null); setResult(null)
     setQueueMessage(''); setPollCount(0); setElapsedMinutes(0)
     try {
       const base64Images = await Promise.all(imageFiles.map(f => fileToBase64(f)))
       const params: any = {
         genType, modelVersion, prompt: p, duration, resolution, ratio,
+      }
+      if (genType === 'multi_clip') {
+        params.clips = clips.map(c => ({ prompt: c.prompt.trim(), duration: Number(c.duration) || 5 }))
       }
       if (base64Images.length === 1) {
         params.image = base64Images[0]
@@ -410,13 +440,18 @@ export function VideoCreatePage() {
 
   const handleSelectTemplate = (template: VideoTemplate) => {
     setSelectedTemplate(template); setPrompt(template.prompt); setDuration(template.duration); setRatio(template.ratio)
+    // Multi-clip template: switch genType and populate clips
+    if (template.clips && template.clips.length > 0) {
+      setGenType('multi_clip')
+      setClips(template.clips.map(c => ({ id: crypto.randomUUID(), prompt: c.prompt, duration: String(c.duration) })))
+    }
     document.getElementById('video-input-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const handleClearTemplate = () => { setSelectedTemplate(null); setPrompt(''); clearAllImages() }
   const handleReset = () => {
     setResult(null); setSubmitId(null); setIsPolling(false); setQueueMessage('')
-    setPollCount(0); setElapsedMinutes(0); setError(null); setCopied(false)
+    setPollCount(0); setElapsedMinutes(0); setError(null); setCopied(false); setMultiClipProgress(null)
     setPrompt(''); setSelectedTemplate(null); clearAllImages()
     if (TASK_KEY) localStorage.removeItem(TASK_KEY)
     // Also clear legacy shared key to fix existing cross-user pollution
@@ -652,7 +687,7 @@ export function VideoCreatePage() {
             )}
 
             {/* Mode guide for text-only modes */}
-            {!needsImage && (
+            {!needsImage && genType !== 'multi_clip' && (
               <div className="flex items-start gap-2.5 p-3 rounded-xl bg-white/5 border border-white/5">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <GenIcon size={15} className="text-primary" />
@@ -691,7 +726,65 @@ export function VideoCreatePage() {
               </div>
             )}
 
-            {/* ===== Main Input Box (Seedance Style) ===== */}
+            {/* ===== Multi-Clip Segments UI ===== */}
+            {genType === 'multi_clip' && (
+              <div className="space-y-3">
+                {/* Total duration bar */}
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Film size={14} className="text-violet-400" />
+                    <span className="text-muted-foreground">总时长</span>
+                    <span className="text-sm font-bold text-violet-400">{totalClipDuration}s</span>
+                    <span className="text-muted-foreground">· {clips.length} 个片段</span>
+                  </div>
+                  <button
+                    onClick={addClip}
+                    disabled={clips.length >= 6}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20 text-xs text-violet-400 hover:bg-violet-500/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Plus size={12} />添加片段
+                  </button>
+                </div>
+
+                {/* Clip cards */}
+                {clips.map((clip, idx) => (
+                  <div key={clip.id} className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-sm p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-violet-500/15 flex items-center justify-center text-xs font-bold text-violet-400">{idx + 1}</span>
+                        <span className="text-xs font-medium text-muted-foreground">片段 {idx + 1}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={clip.duration}
+                          onChange={e => updateClip(clip.id, 'duration', e.target.value)}
+                          className="px-2 py-1 rounded-lg bg-background border border-border/40 text-xs outline-none focus:ring-1 focus:ring-primary/30 appearance-none cursor-pointer"
+                        >
+                          {[3, 4, 5, 6, 8, 10, 12, 15].map(d => (
+                            <option key={d} value={String(d)}>{d}s</option>
+                          ))}
+                        </select>
+                        {clips.length > 2 && (
+                          <button onClick={() => removeClip(clip.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      value={clip.prompt}
+                      onChange={e => updateClip(clip.id, 'prompt', e.target.value)}
+                      placeholder={`描述片段 ${idx + 1} 的画面内容...`}
+                      className="w-full min-h-[60px] px-3 py-2 bg-transparent border border-border/30 rounded-lg text-sm outline-none resize-none placeholder:text-muted-foreground/40"
+                      rows={2}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ===== Main Input Box (Seedance Style) — hidden for multi_clip ===== */}
+            {genType !== 'multi_clip' && (
             <div className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm shadow-sm">
               {/* Textarea */}
               <div className="relative">
@@ -820,7 +913,7 @@ export function VideoCreatePage() {
                   )}
 
                   {/* Ratio Dropdown */}
-                  {['text2video', 'multimodal2video', 'image2video'].includes(genType) && (
+                  {supportsRatio && (
                     <div className="relative" ref={ratioRef}>
                       <DropdownBtn
                         label={ratio}
@@ -856,7 +949,7 @@ export function VideoCreatePage() {
                   )}
 
                   {/* Duration Dropdown */}
-                  {genType !== 'image_upscale' && (
+                  {genType !== 'image_upscale' && genType !== 'multi_clip' && (
                     <div className="relative" ref={durationRef}>
                       <DropdownBtn
                         label={genType === 'multiframe2video' ? '过渡决定' : `${duration}s`}
@@ -897,7 +990,7 @@ export function VideoCreatePage() {
                   {/* Submit Button */}
                   <button
                     onClick={handleSubmit}
-                    disabled={isSubmitting || (needsPrompt && !prompt.trim()) || (needsImage && imageFiles.length < minImages)}
+                    disabled={isSubmitting || (needsPrompt && !prompt.trim()) || (needsImage && imageFiles.length < minImages) || (genType === 'multi_clip' && clips.some(c => !c.prompt.trim()))}
                     className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 relative z-50"
                   >
                     {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
@@ -905,6 +998,20 @@ export function VideoCreatePage() {
                 </div>
               </div>
             </div>
+            )}
+
+            {/* ===== Multi-clip Submit (when genType is multi_clip) ===== */}
+            {genType === 'multi_clip' && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || clips.some(c => !c.prompt.trim())}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-sm font-semibold shadow-lg shadow-violet-500/20 hover:from-violet-600 hover:to-fuchsia-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                >
+                  {isSubmitting ? <><Loader2 size={16} className="animate-spin" />提交中...</> : <><Send size={16} />生成 {totalClipDuration}s 视频</>}
+                </button>
+              </div>
+            )}
 
             {/* ===== Inline Generation Status ===== */}
             {(isSubmitting || isPolling) && (
@@ -948,6 +1055,18 @@ export function VideoCreatePage() {
                     <div className="flex items-center gap-2 text-xs sm:text-sm">
                       <Users size={15} className="text-orange-400 flex-shrink-0" />
                       <span className="text-foreground font-medium">{queueMessage}</span>
+                    </div>
+                  )}
+                  {isPolling && multiClipProgress && genType === 'multi_clip' && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Film size={14} className="text-violet-400" />
+                        <span>片段进度: {multiClipProgress.completedClips}/{multiClipProgress.totalClips}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-violet-400 to-fuchsia-400 rounded-full transition-all duration-700"
+                          style={{ width: `${(multiClipProgress.completedClips / multiClipProgress.totalClips) * 100}%` }} />
+                      </div>
                     </div>
                   )}
                   {isPolling && !queueMessage && (

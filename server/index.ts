@@ -4044,7 +4044,7 @@ if (!fs.existsSync(VIDEO_DIR)) {
 
 
 // In-memory video task store (survives across requests, reset on server restart)
-const VALID_GEN_TYPES = ['text2video', 'image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale'] as const;
+const VALID_GEN_TYPES = ['text2video', 'image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale', 'multi_clip'] as const;
 const VALID_MODEL_VERSIONS = ['seedance2.0fast', 'seedance2.0', 'seedance2.0_vip', 'seedance2.0fast_vip', '3.0', '3.5pro'] as const;
 
 interface VideoTask {
@@ -4065,6 +4065,69 @@ interface VideoTask {
   errorMessage?: string;
 }
 const videoTasks = new Map<string, VideoTask>();
+
+// Multi-clip task: tracks multiple parallel dreamina submissions + FFmpeg concat
+interface ClipTask {
+  index: number;
+  submitId: string;
+  prompt: string;
+  duration: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  videoPath: string | null; // local path after download
+  cdnUrl: string | null;
+}
+interface MultiClipTask {
+  parentId: string;
+  clips: ClipTask[];
+  ratio: string;
+  resolution: string;
+  modelVersion: string;
+  startTime: number;
+  status: 'processing' | 'concatenating' | 'completed' | 'failed' | 'cancelled';
+  polls: number;
+  videoUrl: string | null;
+  userId: string;
+  tempImagePaths: string[];
+  queueInfo: any;
+  errorMessage?: string;
+  prompt: string; // combined title
+  duration: string; // total duration
+  genType: 'multi_clip';
+}
+const multiClipTasks = new Map<string, MultiClipTask>();
+
+/** Build FFmpeg xfade crossfade filter for multi-clip concatenation */
+function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: number = 24): string {
+  const n = durations.length;
+  const parts: string[] = [];
+
+  // Normalize each input
+  for (let i = 0; i < n; i++) {
+    parts.push(`[${i}:v]settb=AVTB,fps=${fps},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`);
+  }
+
+  // Chain xfade
+  let prevLabel = 'v0';
+  const xfadeLen = xfadeDuration;
+  for (let i = 1; i < n; i++) {
+    // Cumulative duration of clips 0..i minus (i) * xfadeDuration gives the offset into the chained output
+    let cumulativeSec = 0;
+    for (let j = 0; j <= i; j++) cumulativeSec += durations[j];
+    const offset = cumulativeSec - i * xfadeLen;
+    const outLabel = i < n - 1 ? `x${i}` : 'outv';
+    parts.push(`[${prevLabel}][v${i}]xfade=transition=fade:duration=${xfadeLen}:offset=${offset},format=yuv420p[${outLabel}]`);
+    prevLabel = outLabel;
+  }
+
+  return parts.join(';');
+}
+
+/** Build ffmpeg concat command for multi-clip */
+function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
+  const xfadeFilter = buildXfadeFilter(durations, 1, 24);
+  const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
+  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libx264 -preset fast -crf 23 -an -y "${outputPath}"`;
+}
 
 /** Save a base64 image string to a temp file, return the file path */
 function saveBase64TempImage(base64Str: string, prefix: string): string {
@@ -4090,11 +4153,284 @@ app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
 // Two-phase: Phase 1 submits with --poll=0, Phase 2 polls query_result in background
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
   try {
-    const { genType, modelVersion, prompt, duration, resolution, ratio, image, images, transitionPrompts, transitionDurations } = req.body || {};
+    const { genType, modelVersion, prompt, duration, resolution, ratio, image, images, transitionPrompts, transitionDurations, clips } = req.body || {};
     const user = (req as any).user;
 
     // Determine generation type
     const gt = (genType && VALID_GEN_TYPES.includes(genType)) ? genType : (image || images ? 'image2video' : 'text2video');
+
+    // ===== Multi-clip: session video generation with FFmpeg concat =====
+    if (gt === 'multi_clip') {
+      const clipArray: { prompt: string; duration: number }[] = clips || [];
+      if (!Array.isArray(clipArray) || clipArray.length < 2) {
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '至少需要 2 个片段' } });
+      }
+      if (clipArray.length > 6) {
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '最多支持 6 个片段' } });
+      }
+      for (let i = 0; i < clipArray.length; i++) {
+        const c = clipArray[i];
+        if (!c.prompt || typeof c.prompt !== 'string' || !c.prompt.trim()) {
+          return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 需要输入提示词` } });
+        }
+        const d = Number(c.duration) || 5;
+        if (d < 3 || d > 15) {
+          return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 时长需在 3-15 秒之间` } });
+        }
+        clipArray[i] = { prompt: c.prompt.trim(), duration: d };
+      }
+
+      const mv = (modelVersion && VALID_MODEL_VERSIONS.includes(modelVersion)) ? modelVersion : 'seedance2.0fast';
+      const reso = resolution || '720p';
+      const rat = ratio || '16:9';
+      const parentId = crypto.randomUUID();
+      const totalDur = clipArray.reduce((sum, c) => sum + c.duration, 0);
+      const combinedPrompt = clipArray.map((c, i) => `片段${i + 1}: ${c.prompt.slice(0, 50)}`).join(' | ');
+
+      // Create clip tasks (not yet submitted)
+      const clipTasks: ClipTask[] = clipArray.map((c, i) => ({
+        index: i,
+        submitId: '',
+        prompt: c.prompt,
+        duration: c.duration,
+        status: 'pending' as const,
+        videoPath: null,
+        cdnUrl: null,
+      }));
+
+      const task: MultiClipTask = {
+        parentId,
+        clips: clipTasks,
+        ratio: rat,
+        resolution: reso,
+        modelVersion: mv,
+        startTime: Date.now(),
+        status: 'processing',
+        polls: 0,
+        videoUrl: null,
+        userId: user.userId,
+        tempImagePaths: [],
+        queueInfo: null,
+        prompt: combinedPrompt,
+        duration: String(totalDur),
+        genType: 'multi_clip',
+      };
+      multiClipTasks.set(parentId, task);
+
+      // Return immediately
+      res.json({ data: { id: parentId, title: `长视频 ${totalDur}秒`, status: 'processing', totalClips: clipArray.length } });
+
+      // Background: submit clips sequentially, poll, concat
+      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
+      (async () => {
+        try {
+          // Phase A: Submit all clips to dreamina (with 2s gap to avoid rate limiting)
+          for (let i = 0; i < task.clips.length; i++) {
+            const clip = task.clips[i];
+            if (task.status === 'cancelled') return;
+            clip.status = 'processing';
+            const escP = clip.prompt.replace(/"/g, '\\"');
+            const cmd = `${DREAMINA_BIN} text2video --prompt="${escP}" --duration=${clip.duration} --ratio=${rat} --video_resolution=${reso} --model_version=${mv} --poll=0`;
+            console.log(`[MultiClip] Submitting clip ${i + 1}/${task.clips.length}:`, cmd.slice(0, 150));
+
+            let submitOut = '';
+            try {
+              const { stdout } = await execAsync(cmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+              submitOut = stdout;
+            } catch (execErr: any) {
+              submitOut = execErr.stdout || '';
+              console.error(`[MultiClip] Submit ${i + 1} failed:`, execErr.message);
+            }
+
+            const jsonMatch = submitOut.match(/\{[\s\S]*\}/);
+            let sid = '';
+            if (jsonMatch) {
+              try { const p = JSON.parse(jsonMatch[0]); sid = p.submit_id || ''; } catch {}
+            }
+            if (!sid) {
+              clip.status = 'failed';
+              console.error(`[MultiClip] Clip ${i + 1}: no submit_id`);
+              task.status = 'failed';
+              task.errorMessage = `片段 ${i + 1} 提交失败`;
+              return;
+            }
+            clip.submitId = sid;
+            console.log(`[MultiClip] Clip ${i + 1} submitted: ${sid.slice(0, 12)}...`);
+
+            if (i < task.clips.length - 1) {
+              await new Promise(r => setTimeout(r, 2000)); // 2s gap
+            }
+          }
+
+          // Phase B: Poll all clips (every 3 min, up to 120 polls = 6 hr)
+          const MAX_POLLS = 120;
+          for (let poll = 0; poll < MAX_POLLS; poll++) {
+            if (task.status === 'cancelled') return;
+            task.polls = poll + 1;
+            await new Promise(r => setTimeout(r, 180000)); // 3 min
+
+            let allDone = true;
+            let anyFailed = false;
+
+            for (const clip of task.clips) {
+              if (clip.status === 'completed' || clip.status === 'failed') continue;
+              allDone = false;
+
+              try {
+                const qCmd = `${DREAMINA_BIN} query_result --submit_id=${clip.submitId}`;
+                const { stdout: qOut } = await execAsync(qCmd + ' 2>&1', { timeout: 30000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
+                let result: any;
+                try { result = JSON.parse(qOut); } catch { continue; }
+
+                if (result?.queue_info) task.queueInfo = result.queue_info;
+                console.log(`[MultiClip] Poll ${poll + 1} clip ${clip.index + 1}: gen_status=${result.gen_status}`);
+
+                if (result.gen_status === 'success') {
+                  const videos = result.result_json?.videos || [];
+                  const cdnUrl = videos[0]?.video_url || '';
+                  if (cdnUrl) {
+                    try {
+                      const d = await fetch(cdnUrl, { signal: AbortSignal.timeout(120000) as any });
+                      if (d.ok) {
+                        const buf = Buffer.from(await d.arrayBuffer());
+                        const ext = (cdnUrl.match(/\.(mp4|webm|mov)/i) || ['.mp4'])[0];
+                        const localFn = `mc-${parentId.slice(0, 8)}-${clip.index}${ext}`;
+                        const lp = path.join('/tmp', localFn);
+                        fs.writeFileSync(lp, buf);
+                        clip.videoPath = lp;
+                        clip.cdnUrl = cdnUrl;
+                        console.log(`[MultiClip] Downloaded clip ${clip.index + 1}: ${localFn} (${(buf.length / 1024 / 1024).toFixed(1)}MB)`);
+                      } else {
+                        clip.cdnUrl = cdnUrl;
+                      }
+                    } catch (dlErr: any) {
+                      console.warn(`[MultiClip] Download clip ${clip.index + 1} failed:`, dlErr.message);
+                      clip.cdnUrl = cdnUrl;
+                    }
+                  }
+                  clip.status = 'completed';
+                } else if (result.gen_status === 'fail') {
+                  clip.status = 'failed';
+                  anyFailed = true;
+                }
+              } catch (pollErr: any) {
+                // Retry on transient errors
+                console.warn(`[MultiClip] Poll clip ${clip.index + 1} error:`, (pollErr as any).message?.slice(0, 100));
+              }
+            }
+
+            if (anyFailed) {
+              task.status = 'failed';
+              task.errorMessage = '部分片段生成失败';
+              return;
+            }
+            if (allDone) break;
+          }
+
+          // Check all completed
+          const allCompleted = task.clips.every(c => c.status === 'completed');
+          if (!allCompleted) {
+            task.status = 'failed';
+            task.errorMessage = '部分片段超时未完成';
+            return;
+          }
+
+          // Phase C: FFmpeg concat
+          task.status = 'concatenating';
+          console.log(`[MultiClip] Starting FFmpeg concat for ${task.clips.length} clips...`);
+
+          // Build input paths (use downloaded files, fallback to CDN URLs)
+          const inputPaths: string[] = [];
+          const useCDNFallback: string[] = []; // CDN URLs if local not available
+          for (const clip of task.clips) {
+            if (clip.videoPath && fs.existsSync(clip.videoPath)) {
+              inputPaths.push(clip.videoPath);
+            } else if (clip.cdnUrl) {
+              // Download from CDN as fallback
+              try {
+                const d = await fetch(clip.cdnUrl, { signal: AbortSignal.timeout(120000) as any });
+                if (d.ok) {
+                  const buf = Buffer.from(await d.arrayBuffer());
+                  const lp = path.join('/tmp', `mc-fb-${parentId.slice(0, 8)}-${clip.index}.mp4`);
+                  fs.writeFileSync(lp, buf);
+                  inputPaths.push(lp);
+                } else {
+                  useCDNFallback.push(clip.cdnUrl);
+                }
+              } catch {
+                useCDNFallback.push(clip.cdnUrl);
+              }
+            } else {
+              task.status = 'failed';
+              task.errorMessage = `片段 ${clip.index + 1} 无可用视频`;
+              return;
+            }
+          }
+
+          if (inputPaths.length < 2) {
+            task.status = 'failed';
+            task.errorMessage = '可用于拼接的片段不足';
+            return;
+          }
+
+          const durations = task.clips.map(c => c.duration);
+          const outputFn = `multi-${parentId.slice(0, 10)}.mp4`;
+          const outputPath = path.join(VIDEO_DIR, outputFn);
+          const concatCmd = buildConcatCommand(inputPaths, durations, outputPath);
+
+          console.log(`[MultiClip] FFmpeg command: ${concatCmd.slice(0, 200)}...`);
+          try {
+            const { stderr } = await execAsync(concatCmd, { timeout: 300000, maxBuffer: 10 * 1024 * 1024, cwd: '/tmp' });
+            if (stderr) console.log(`[MultiClip] FFmpeg stderr:`, stderr.slice(-300));
+          } catch (ffErr: any) {
+            console.error(`[MultiClip] FFmpeg failed:`, ffErr.message);
+            task.status = 'failed';
+            task.errorMessage = '视频拼接失败，请重试';
+            return;
+          }
+
+          if (!fs.existsSync(outputPath)) {
+            task.status = 'failed';
+            task.errorMessage = '拼接输出文件未生成';
+            return;
+          }
+
+          const stats = fs.statSync(outputPath);
+          console.log(`[MultiClip] Concatenated video: ${outputFn} (${(stats.size / 1024 / 1024).toFixed(1)}MB)`);
+          task.videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
+          task.status = 'completed';
+
+          // Save to DB
+          try {
+            await saveVideo({
+              userId: task.userId,
+              title: `长视频 ${task.duration}秒`,
+              prompt: task.prompt,
+              duration: task.duration,
+              resolution: task.resolution,
+              ratio: task.ratio,
+              inputType: 'multi_clip',
+              videoUrl: task.videoUrl,
+              videoPath: outputPath,
+              submitId: parentId,
+            });
+          } catch (dbErr: any) { console.error('[MultiClip] DB save failed:', dbErr.message); }
+
+          // Clean up temp files
+          for (const clip of task.clips) {
+            if (clip.videoPath) { try { fs.unlinkSync(clip.videoPath); } catch {} }
+          }
+        } catch (err: any) {
+          console.error('[MultiClip] Background error:', err.message);
+          if (task.status === 'processing' || task.status === 'concatenating') {
+            task.status = 'failed';
+            task.errorMessage = '视频生成异常';
+          }
+        }
+      })();
+      return; // Early return for multi_clip
+    }
+
     const mv = (modelVersion && VALID_MODEL_VERSIONS.includes(modelVersion)) ? modelVersion : 'seedance2.0fast';
     const dur = Number(duration) || 5;
     const reso = resolution || '720p';
@@ -4367,6 +4703,48 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 // Get video task status (polled by frontend every 30s)
 app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
   const { submitId } = req.params;
+
+  // Check multi-clip tasks first
+  const mcTask = multiClipTasks.get(submitId);
+  if (mcTask) {
+    const elapsedMinutes = Math.floor((Date.now() - mcTask.startTime) / 60000);
+    const completedClips = mcTask.clips.filter(c => c.status === 'completed').length;
+    const totalClips = mcTask.clips.length;
+
+    let queueMessage = '';
+    if (mcTask.status === 'processing') {
+      const qi = mcTask.queueInfo || {};
+      const queueIdx = qi.queue_idx;
+      const queueLen = qi.queue_length;
+      if (typeof queueIdx === 'number' && typeof queueLen === 'number' && queueLen > 0 && queueIdx > 0) {
+        queueMessage = `片段 ${completedClips}/${totalClips} 完成 · 排队 ${queueIdx}/${queueLen}`;
+      } else {
+        queueMessage = `片段 ${completedClips}/${totalClips} 完成 · 生成中`;
+      }
+    } else if (mcTask.status === 'concatenating') {
+      queueMessage = `正在拼接 ${totalClips} 个片段...`;
+    }
+
+    return res.json({
+      data: {
+        id: submitId,
+        status: mcTask.status,
+        genType: 'multi_clip',
+        polls: mcTask.polls,
+        maxPolls: 120,
+        isPolling: mcTask.status === 'processing' || mcTask.status === 'concatenating',
+        queueInfo: mcTask.queueInfo || null,
+        queueMessage,
+        elapsedMinutes,
+        estimatedMaxMinutes: totalClips * 20,
+        result: mcTask.videoUrl ? { videoUrl: mcTask.videoUrl } : null,
+        errorMessage: mcTask.errorMessage || null,
+        multiClip: { completedClips, totalClips },
+      },
+    });
+  }
+
+  // Fall through to single-video tasks
   const task = videoTasks.get(submitId);
   if (!task) {
     return res.json({
@@ -5015,6 +5393,11 @@ app.post('/api/v1/videos/cancel/:submitId', authMiddleware, (req: any, res) => {
     if (task) {
       task.status = 'cancelled';
       console.log(`[Video Cancel] Task ${submitId.slice(0, 8)}... marked as cancelled`);
+    }
+    const mcTask = multiClipTasks.get(submitId);
+    if (mcTask) {
+      mcTask.status = 'cancelled';
+      console.log(`[Video Cancel] Multi-clip task ${submitId.slice(0, 8)}... marked as cancelled`);
     }
     res.json({ data: { cancelled: true } });
   } catch (err: any) {

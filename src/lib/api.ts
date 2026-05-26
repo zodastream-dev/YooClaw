@@ -392,7 +392,7 @@ export async function generateVideo(params: {
 
 export interface VideoTaskStatus {
   id: string
-  status: 'completed' | 'failed' | 'processing' | 'cancelled' | 'unknown'
+  status: 'completed' | 'failed' | 'processing' | 'concatenating' | 'cancelled' | 'unknown'
   genType: string
   polls: number
   maxPolls: number
@@ -403,6 +403,7 @@ export interface VideoTaskStatus {
   estimatedMaxMinutes: number
   result: { videoUrl: string | null } | null
   errorMessage: string | null
+  multiClip?: { completedClips: number; totalClips: number }
 }
 
 export async function videoTaskStatus(submitId: string) {

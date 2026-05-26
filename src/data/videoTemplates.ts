@@ -8,10 +8,13 @@ export interface VideoTemplate {
   duration: string
   ratio: string
   icon: string
+  /** For multi_clip templates: segment prompts and durations */
+  clips?: { prompt: string; duration: number }[]
 }
 
 export const templateCategories = [
   { key: 'all', label: '全部', icon: '🔥' },
+  { key: 'multi', label: '长视频拼接', icon: '🎞️' },
   { key: 'ecommerce', label: '电商带货', icon: '🛒' },
   { key: 'short-video', label: '短视频', icon: '📱' },
   { key: 'vlog', label: 'Vlog/生活', icon: '🎬' },
@@ -662,6 +665,105 @@ export const videoTemplates: VideoTemplate[] = [
     duration: '5',
     ratio: '1:1',
     icon: '💫',
+  },
+  // ===== 长视频多段拼接 =====
+  {
+    inputType: 'text',
+    id: 'multi-01',
+    name: '城市一日',
+    category: 'multi',
+    description: '清晨→白天→黄昏→夜晚，4段城市延时',
+    prompt: '',
+    duration: '20',
+    ratio: '16:9',
+    icon: '🏙️',
+    clips: [
+      { prompt: '清晨的城市天际线，晨雾缓缓散去，阳光穿透云层，延时摄影，电影级画质', duration: 5 },
+      { prompt: '白天的繁忙城市街道，车流人流穿梭，航拍视角，阳光明媚', duration: 5 },
+      { prompt: '黄昏时分，夕阳染红天空，城市华灯初上，温暖的金色光线', duration: 5 },
+      { prompt: '夜晚璀璨的城市夜景，霓虹灯闪烁，车灯长曝光拖尾，繁华都市', duration: 5 },
+    ],
+  },
+  {
+    inputType: 'text',
+    id: 'multi-02',
+    name: '四季流转',
+    category: 'multi',
+    description: '春夏秋冬四季风景变换',
+    prompt: '',
+    duration: '20',
+    ratio: '16:9',
+    icon: '🍂',
+    clips: [
+      { prompt: '春天的樱花树林，花瓣飘落，阳光明媚，微风轻拂，电影级画质', duration: 5 },
+      { prompt: '夏天的碧蓝海岸，海浪拍打礁石，蓝天白云，棕榈树摇曳', duration: 5 },
+      { prompt: '秋天的金黄森林，落叶纷飞，夕阳斜照，温暖的色调', duration: 5 },
+      { prompt: '冬天的雪山景观，雪花飘落，银装素裹，宁静祥和', duration: 5 },
+    ],
+  },
+  {
+    inputType: 'text',
+    id: 'multi-03',
+    name: '产品展示故事',
+    category: 'multi',
+    description: '3段产品故事：悬念→展示→使用场景',
+    prompt: '',
+    duration: '15',
+    ratio: '16:9',
+    icon: '📦',
+    clips: [
+      { prompt: '黑暗空间中出现一道光，产品在光束中缓缓旋转出现，神秘氛围，电影级光影', duration: 5 },
+      { prompt: '产品在纯白空间中360度展示，每一处细节清晰可见，专业产品摄影风格，微距镜头', duration: 5 },
+      { prompt: '产品在真实生活场景中自然使用，温暖柔和的自然光，人物使用产品的特写', duration: 5 },
+    ],
+  },
+  {
+    inputType: 'text',
+    id: 'multi-04',
+    name: '旅行日记',
+    category: 'multi',
+    description: '3段旅行视频：启程→探索→回忆',
+    prompt: '',
+    duration: '18',
+    ratio: '16:9',
+    icon: '✈️',
+    clips: [
+      { prompt: '飞机起飞穿越云层，舷窗外云海翻腾，阳光洒在机翼上，电影质感', duration: 6 },
+      { prompt: '目的地标志性建筑和自然风光，人物漫步探索，手持跟拍视角，明亮色调', duration: 6 },
+      { prompt: '日落时分在海边回望，背影逐渐走远，温暖柔光，情绪化镜头，vlog风格', duration: 6 },
+    ],
+  },
+  {
+    inputType: 'text',
+    id: 'multi-05',
+    name: '科技产品发布',
+    category: 'multi',
+    description: '3段科技感：悬念揭晓→特写→场景',
+    prompt: '',
+    duration: '15',
+    ratio: '16:9',
+    icon: '🚀',
+    clips: [
+      { prompt: '黑暗中电路板纹理流动着蓝色光效，粒子汇聚成产品轮廓，赛博朋克风格，科技感', duration: 5 },
+      { prompt: '产品从光中诞生，极简纯黑背景，每个角度特写旋转展示，相机闪光灯效果', duration: 5 },
+      { prompt: '产品在太空站/未来实验室环境中使用，全息投影界面环绕，科幻电影质感', duration: 5 },
+    ],
+  },
+  {
+    inputType: 'text',
+    id: 'multi-06',
+    name: '美食烹饪',
+    category: 'multi',
+    description: '食材→烹饪→成品，3段美食故事',
+    prompt: '',
+    duration: '15',
+    ratio: '9:16',
+    icon: '👨‍🍳',
+    clips: [
+      { prompt: '新鲜食材在木桌上摆放，自然光从窗户射入，微距镜头慢动作，食材上水珠晶莹', duration: 5 },
+      { prompt: '烹饪过程中火焰升腾，食材在锅中翻滚，油烟缭绕，暖色调，美食特写', duration: 5 },
+      { prompt: '成品菜肴摆盘特写，精致餐桌布置，灯光温馨，食欲感十足，商业美食摄影风格', duration: 5 },
+    ],
   },
 ]
 
