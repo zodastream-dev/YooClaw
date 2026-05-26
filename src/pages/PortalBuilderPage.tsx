@@ -1075,10 +1075,6 @@ export function PortalBuilderPage() {
                     ))}
                   </div>
                 </div>
-                <button onClick={handleDeploy} disabled={isDeploying}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors">
-                  {isDeploying ? <><Loader2 size={13} className="animate-spin" /> 部署中…</> : <><Globe size={13} /> 一键部署</>}
-                </button>
                 {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">{error}</p>}
                 {deploySuccess && (
                   <div className="flex items-center justify-between gap-2 text-xs bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg px-3 py-2">
