@@ -226,6 +226,18 @@ export function PortalBuilderPage() {
   const [editModalObjectInput, setEditModalObjectInput] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalType, setAddModalType] = useState<'report-generator' | 'intel-monitor' | null>(null)
+  const [addModalExpandedModel, setAddModalExpandedModel] = useState(false)
+  const addModalPanelRef = useRef<HTMLDivElement>(null)
+  const addModalDragRef = useRef({ active: false, startX: 0, startY: 0, left: 0, top: 0 })
+  const resetAddModalPosition = () => {
+    if (addModalPanelRef.current) {
+      addModalPanelRef.current.style.position = '';
+      addModalPanelRef.current.style.left = '';
+      addModalPanelRef.current.style.top = '';
+      addModalPanelRef.current.style.transform = '';
+      addModalPanelRef.current.style.margin = '';
+    }
+  }
   const [addReportForm, setAddReportForm] = useState({
     title: '行业分析报告', defaultCompany: '',
     analysisMethods: ['SWOT', 'PEST'] as string[],
@@ -440,6 +452,24 @@ export function PortalBuilderPage() {
     if (!showEditModal) resetEditModalPosition();
   }, [showEditModal]);
 
+  // Add modal drag
+  useEffect(() => {
+    if (!showAddModal) { resetAddModalPosition(); setAddModalExpandedModel(false); return; }
+    const onMove = (e: MouseEvent) => {
+      if (!addModalDragRef.current.active) return;
+      const panel = addModalPanelRef.current;
+      if (!panel) return;
+      const dx = e.clientX - addModalDragRef.current.startX;
+      const dy = e.clientY - addModalDragRef.current.startY;
+      panel.style.left = (addModalDragRef.current.left + dx) + 'px';
+      panel.style.top = (addModalDragRef.current.top + dy) + 'px';
+    };
+    const onUp = () => { addModalDragRef.current.active = false; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, [showAddModal]);
+
   const handleMpSubscribe = async (e: React.FormEvent) => {
     e.preventDefault()
     setMpError(null)
@@ -593,7 +623,7 @@ export function PortalBuilderPage() {
               <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
                 className="bg-transparent text-sm font-semibold border-none outline-none hover:bg-muted px-2 py-1 rounded-md transition-colors w-48"
                 placeholder="站点名称" />
-              <span data-v="0527-0035" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0035</span>
+              <span data-v="0527-0035" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0100</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1578,7 +1608,7 @@ export function PortalBuilderPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               />
-            <motion.div className="relative bg-card border border-border rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto w-full mx-4"
+            <motion.div ref={addModalPanelRef} className="relative bg-card border border-border rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto w-full mx-4"
               style={{ maxWidth: addModalType === 'intel-monitor' ? 560 : 520 }}
               onClick={(e) => e.stopPropagation()}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -1587,7 +1617,14 @@ export function PortalBuilderPage() {
               transition={{ duration: 0.25, ease: 'easeOut' }}
             >
               {/* Header */}
-              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm rounded-t-2xl cursor-move"
+                onMouseDown={(e) => {
+                  if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+                  const panel = addModalPanelRef.current;
+                  if (!panel) return;
+                  const rect = panel.getBoundingClientRect();
+                  addModalDragRef.current = { active: true, startX: e.clientX, startY: e.clientY, left: rect.left, top: rect.top };
+                }}>
                 <div className="flex items-center gap-2.5">
                   <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${addModalType === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
                     {addModalType === 'report-generator' ? '📊' : '🛰️'}
@@ -1654,14 +1691,14 @@ export function PortalBuilderPage() {
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
                       <textarea value={addReportForm.sysPrompt}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, sysPrompt: e.target.value }))}
-                        rows={3}
+                        rows={6}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">用户提示词</label>
                       <textarea value={addReportForm.userPrompt}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, userPrompt: e.target.value }))}
-                        rows={3}
+                        rows={6}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                   </>
@@ -1738,22 +1775,39 @@ export function PortalBuilderPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
-                        <select value={addMonitorForm.sources[0]?.aiProvider || 'all'}
-                          onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }] }))}
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
-                          {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
-                        <input type="text" value={addMonitorForm.sources[0]?.aiModel || 'deepseek-v4-flash'}
-                          onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiModel: e.target.value }] }))}
-                          placeholder="deepseek-v4-flash"
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
-                      </div>
+                    {/* Model Config (collapsed by default) */}
+                    <div className="border-t border-border pt-3">
+                      <button type="button" onClick={() => setAddModalExpandedModel(!addModalExpandedModel)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
+                        <span>{addModalExpandedModel ? '▼' : '▶'}</span> ⚙ 模型配置（高级）
+                      </button>
+                      {addModalExpandedModel && (
+                        <div className="mt-2 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
+                              <select value={addMonitorForm.sources[0]?.aiProvider || 'all'}
+                                onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }] }))}
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                                {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
+                              <input type="text" value={addMonitorForm.sources[0]?.aiModel || 'deepseek-v4-flash'}
+                                onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiModel: e.target.value }] }))}
+                                placeholder="deepseek-v4-flash"
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
+                            <input type="text" value={addMonitorForm.sources[0]?.apiKey || ''}
+                              onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], apiKey: e.target.value }] }))}
+                              placeholder="留空使用默认密钥" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
@@ -1770,7 +1824,7 @@ export function PortalBuilderPage() {
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
                       <textarea value={addMonitorForm.sources[0]?.customPrompt || ''}
                         onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }] }))}
-                        rows={2} placeholder={addMonitorForm.sources[0]?.name && INTEL_PROMPTS[addMonitorForm.sources[0].name] ? INTEL_PROMPTS[addMonitorForm.sources[0].name] : '描述情报监控的具体要求…'}
+                        rows={6} placeholder={addMonitorForm.sources[0]?.name && INTEL_PROMPTS[addMonitorForm.sources[0].name] ? INTEL_PROMPTS[addMonitorForm.sources[0].name] : '描述情报监控的具体要求…'}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                   </>
