@@ -16,6 +16,13 @@ var currentFilter='all';
 var aiChatHistory=[];
 var currentCenterTab='intel';
 
+var INTEL_PROMPTS={
+  '行业信号':'你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\\n\\n重点关注的信号类型：\\n- 技术突破：新技术、新标准、研发进展\\n- 新品发布：产品迭代、型号更新、功能升级\\n- 市场格局：出货量变化、市场份额转移、新进入者\\n- 产业链：上下游供需变化、关键零部件动态\\n- 政策法规：行业政策调整、监管动态、标准制定\\n- 产业趋势：需求转移、商业模式创新、投资动向\\n\\n你的工作原则：\\n- 优先关注「变化」而非「现状」\\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\\n- 优先提供最近30天内的资讯，标注大致时间\\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
+  '目标客户情报':'你是客户情报分析师，专注于追踪目标客户的动态和需求信号。\\n你的工作原则：\\n- 关注：采购行为、预算发布、业务扩张、人事变动、招标公告、技术选型\\n- 每条情报需标注：客户名称 → 具体行为 → 潜在商机/风险\\n- 优先关注可能转化为商业机会的信号\\n- 如果信息不足以判断，明确标注"待进一步确认"',
+  '竞争对手情报':'你是竞争情报分析师，专注于监控竞争对手的战略动向。\\n你的工作原则：\\n- 关注：产品发布、定价策略、市场份额、财报业绩、融资/IPO、高管变动、收购并购\\n- 每条情报需分析：竞对做了什么 → 意图是什么 → 对我们有何影响\\n- 区分"已确认"和"传闻"，标注信息可靠性\\n- 优先提供知名来源的信息，避免小道消息',
+  '自身舆情监控':'你是舆情监控分析师，专注于追踪品牌声誉和公众舆论。\\n你的工作原则：\\n- 关注：媒体报道倾向（正面/负面/中性）、社交媒体热议、用户投诉、监管动态\\n- 每条舆情需标注：情感倾向（+/−/0）、传播热度、是否需要响应\\n- 负面舆情需说明严重程度和建议处置优先级\\n- 客观反映舆论全貌，避免报喜不报忧'
+};
+
 function $(id){return document.getElementById(id)}
 
 /* ===== INIT ===== */
@@ -638,7 +645,7 @@ function renderSourceForm(wi,si){
   // Custom name input
   var isCustom=INTEL_CATS.indexOf(src.name||'')===-1&&src.name;
   s+='<div class="mb-group" id="srcCustomNameGroup_'+wi+'_'+si+'" style="'+(isCustom?'':'display:none')+'">';
-  s+='<input class="mb-input" id="srcName_'+wi+'_'+si+'" value="'+escHtml(src.name||'')+'" placeholder="输入自定义属性名称">';
+  s+='<input class="mb-input" id="srcName_'+wi+'_'+si+'" value="'+escHtml(src.name||'')+'" placeholder="输入自定义属性名称" autocomplete="off">';
   s+='</div>';
   // Update frequency
   s+='<div class="mb-group"><label class="mb-label">更新频率</label>';
@@ -656,7 +663,7 @@ function renderSourceForm(wi,si){
     s+='<span class="obj-t">'+escHtml(o.name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(o.name)+'\\',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
-  s+='<div class="kw-add-row"><input class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}">';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}" autocomplete="off">';
   s+='<button class="kw-add-btn" onclick="addObject('+wi+','+si+')">+</button></div>';
   s+='</div>';
   // Keywords
@@ -666,12 +673,14 @@ function renderSourceForm(wi,si){
     s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+wi+','+si+',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
-  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}">';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}" autocomplete="off">';
   s+='<button class="kw-add-btn" onclick="addKeyword('+wi+','+si+')">+</button></div>';
   s+='</div>';
   // Custom prompt
+  var defaultPrompt=INTEL_PROMPTS[src.name]||'';
+  var promptVal=src.customPrompt||defaultPrompt;
   s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
-  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:180px" placeholder="自定义此监控源的分析提示词...">'+escHtml(src.customPrompt||'')+'</textarea>';
+  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:180px" placeholder="自定义此监控源的分析提示词..." autocomplete="off">'+escHtml(promptVal)+'</textarea>';
   s+='</div>';
   // Model config (collapsed by default)
   s+='<div class="mb-group" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">';
@@ -685,10 +694,10 @@ function renderSourceForm(wi,si){
   });
   s+='</select></div>';
   s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';
-  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v4-flash">';
+  s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v4-flash" autocomplete="off">';
   s+='</div></div>';
   s+='<div class="mb-group"><label class="mb-label">API Key</label>';
-  s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
+  s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选" autocomplete="off">';
   s+='</div>';
   s+='</div></div>';
   s+='</div>';
@@ -717,8 +726,14 @@ function onSourceCatChange(wi,si,val){
     $('srcName_'+wi+'_'+si).value='';
   } else {
     $('srcCustomNameGroup_'+wi+'_'+si).style.display='none';
-    srcs[si].name=val;  // Update name immediately
-    $('modalTitle').textContent=val||'编辑监控源';  // Update modal title
+    srcs[si].name=val;
+    $('modalTitle').textContent=val||'编辑监控源';
+    // Auto-fill default prompt for the selected category
+    if(INTEL_PROMPTS[val]){
+      srcs[si].customPrompt=INTEL_PROMPTS[val];
+      var promptEl=$('srcPrompt_'+wi+'_'+si);
+      if(promptEl)promptEl.value=INTEL_PROMPTS[val];
+    }
   }
 }
 
@@ -815,7 +830,7 @@ function addNewSource(){
     return;
   }
   var srcs=w.sources||(w.config&&w.config.sources)||[];
-  srcs.push({name:'',aiProvider:'deepseek',aiModel:'deepseek-v4-flash',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:''});
+  srcs.push({name:'行业信号',aiProvider:'deepseek',aiModel:'deepseek-v4-flash',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:INTEL_PROMPTS['行业信号']||''});
   if(w.config&&w.config.sources)w.config.sources=srcs;
   w.sources=srcs;
   var newSi=srcs.length-1;
