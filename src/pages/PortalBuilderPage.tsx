@@ -623,7 +623,7 @@ export function PortalBuilderPage() {
               <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
                 className="bg-transparent text-sm font-semibold border-none outline-none hover:bg-muted px-2 py-1 rounded-md transition-colors w-48"
                 placeholder="站点名称" />
-              <span data-v="0527-0035" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0100</span>
+              <span data-v="0527-0035" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0105</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1624,6 +1624,13 @@ export function PortalBuilderPage() {
                   if (!panel) return;
                   const rect = panel.getBoundingClientRect();
                   addModalDragRef.current = { active: true, startX: e.clientX, startY: e.clientY, left: rect.left, top: rect.top };
+                  panel.style.position = 'absolute';
+                  panel.style.left = rect.left + 'px';
+                  panel.style.top = rect.top + 'px';
+                  panel.style.transform = 'none';
+                  panel.style.margin = '0';
+                  panel.style.transition = 'none';
+                  e.preventDefault();
                 }}>
                 <div className="flex items-center gap-2.5">
                   <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${addModalType === 'report-generator' ? 'bg-indigo-100 dark:bg-indigo-900/20' : 'bg-amber-100 dark:bg-amber-900/20'}`}>
