@@ -1,21 +1,60 @@
 // Intel pipeline: search + DeepSeek analysis
-import { getSearchModule } from './search-sources/index.js';
+import { getSearchModule, getAllModules } from './search-sources/index.js';
+
+// API key mapping per provider
+function getProviderKey(provider: string): string {
+  if (provider === 'metaso') return process.env.METASO_API_KEY || '';
+  if (provider === 'tavily') return process.env.TAVILY_API_KEY || '';
+  return '';
+}
 
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
-  const provider = src.aiProvider || 'deepseek';
-  const apiKey = src.apiKey || (provider === 'metaso' ? (process.env.METASO_API_KEY || '') : provider === 'tavily' ? (process.env.TAVILY_API_KEY || '') : (process.env.DEEPSEEK_API_KEY || ''));
+  const provider = src.aiProvider || 'all';
   const model = src.aiModel || 'deepseek-v4-flash';
   const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
 
   // 1. Search
   let rawItems: any[] = [];
-  const searchMod = getSearchModule(provider);
-  if (searchMod) {
-    try { rawItems = await searchMod.search(query, apiKey); }
-    catch (e: any) { console.error('[Search ' + provider + '] Failed:', e.message); }
+
+  if (provider === 'all') {
+    // 全渠道并行搜索
+    const modules = getAllModules();
+    const results = await Promise.allSettled(
+      modules.map((mod) =>
+        mod.search(query, getProviderKey(mod.name)).then((items) => ({ provider: mod.name, items }))
+      )
+    );
+    const seen = new Set<string>();
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        const { provider: pname, items } = r.value;
+        console.log('[Intel:all] ' + pname + ' returned ' + items.length + ' results');
+        for (const item of items) {
+          const key = (item.url || item.title || '').toLowerCase().trim();
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            rawItems.push({ ...item, _searchProvider: pname });
+          }
+        }
+      } else {
+        console.error('[Intel:all] Search failed:', r.reason?.message || r.reason);
+      }
+    }
+    console.log('[Intel:all] Total unique results: ' + rawItems.length);
+  } else {
+    // 单渠道搜索
+    const searchMod = getSearchModule(provider);
+    if (searchMod) {
+      try {
+        rawItems = await searchMod.search(query, getProviderKey(provider));
+        for (const item of rawItems) { item._searchProvider = provider; }
+      }
+      catch (e: any) { console.error('[Search ' + provider + '] Failed:', e.message); }
+    }
   }
+
   const hasSearch = rawItems.length > 0;
-  if (!hasSearch) console.log('[Intel] No search module for provider: ' + provider + ', using knowledge-based generation');
+  if (!hasSearch) console.log('[Intel] No results for provider: ' + provider + ', using knowledge-based generation');
 
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
@@ -41,7 +80,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || '') },
     body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.5, messages: [{ role: 'system', content: sp }, { role: 'user', content: up }] }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(120000),
   });
   if (!resp.ok) { const t = await resp.text(); throw new Error('DeepSeek: ' + resp.status + ' ' + t.substring(0, 200)); }
   const data = await resp.json();
@@ -54,7 +93,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     results = m ? JSON.parse(m[0]) : (rawItems.length > 0 ? rawItems : []);
   }
   results = (results || []).map(function (r: any) {
-    return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''), _provider: provider };
+    return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''), _provider: r._searchProvider || provider };
   });
   const cutoff = Date.now() - 30 * 86400000;
   results = results.filter(function (r: any) { return !r.date || isNaN(new Date(r.date).getTime()) || new Date(r.date).getTime() > cutoff; });
