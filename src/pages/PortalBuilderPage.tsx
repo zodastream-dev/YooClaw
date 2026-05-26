@@ -73,13 +73,14 @@ const TEMPLATES = [
 ]
 
 const AI_PROVIDERS = [
-  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'all', label: '🌐 全渠道 (推荐)' },
   { value: 'metaso', label: '秘塔 (Metaso)' },
   { value: 'tavily', label: 'Tavily Search' },
   { value: 'multi-engine', label: '多引擎搜索' },
   { value: 'wechat', label: '微信公众号' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'custom', label: '自定义 API' },
+  { value: 'deepseek', label: 'DeepSeek (仅知识库)' },
 ]
 
 const SEARCH_PLATFORMS = [
@@ -214,7 +215,7 @@ export function PortalBuilderPage() {
   })
   const [addMonitorForm, setAddMonitorForm] = useState({
     title: '', sources: [{
-      id: '', name: '新建监控源', aiProvider: 'deepseek', aiModel: 'deepseek-v3.1',
+      id: '', name: '新建监控源', aiProvider: 'all', aiModel: 'deepseek-v3.1',
       apiKey: '', keywords: [] as string[], objects: [] as IntelObject[], updateFrequency: 'daily', customPrompt: '',
     }],
   })
@@ -222,10 +223,10 @@ export function PortalBuilderPage() {
   const openAddModal = useCallback((type: 'report-generator' | 'intel-monitor') => {
     setAddReportForm({ title: '行业分析报告', defaultCompany: '', analysisMethods: ['SWOT', 'PEST'], searchPlatform: 'metaso', searchApiKey: '', sysPrompt: '你是一个行业研究分析师。', userPrompt: '请用 HTML 格式输出行业研究报告。' })
     const existingIntelCount = widgets.filter((w) => w.type === 'intel-monitor').length
-    let defaultProvider = 'deepseek', defaultModel = 'deepseek-v3.1', defaultKeywords: string[] = []
+    let defaultProvider = 'all', defaultModel = 'deepseek-v3.1', defaultKeywords: string[] = []
     if (existingIntelCount === 0) { defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系'] }
-    else if (existingIntelCount === 1) { defaultProvider = 'metaso'; defaultModel = 'metaso-pro'; defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车'] }
-    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '', aiProvider: defaultProvider, aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: '' }] })
+    else if (existingIntelCount === 1) { defaultProvider = 'all'; defaultModel = 'metaso-pro'; defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车'] }
+    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: '' }] })
     setAddModalType(type)
     setShowAddModal(true)
   }, [widgets])
@@ -280,7 +281,7 @@ export function PortalBuilderPage() {
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
       const sources = [...(w.config.sources || [])]
-      sources.push({ id: genId('s'), name: `监控源 #${sources.length + 1}`, aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], updateFrequency: 'daily', customPrompt: '' })
+      sources.push({ id: genId('s'), name: `监控源 #${sources.length + 1}`, aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], updateFrequency: 'daily', customPrompt: '' })
       return { ...w, config: { ...w.config, sources } }
     })
   }, [updateWidget])
@@ -502,10 +503,10 @@ export function PortalBuilderPage() {
       id, type: 'intel-monitor', title: '情报监控', expanded: false,
       config: {
         sources: [
-          { id: genId('s'), name: '行业信号', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['行业趋势', '政策法规', '技术突破', '市场规模', '产业动态'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
-          { id: genId('s'), name: '目标客户情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'], updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。' },
-          { id: genId('s'), name: '竞争对手情报', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'], updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。' },
-          { id: genId('s'), name: '自身舆情监控', aiProvider: 'deepseek', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'], updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。' },
+          { id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['行业趋势', '政策法规', '技术突破', '市场规模', '产业动态'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
+          { id: genId('s'), name: '目标客户情报', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'], updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。' },
+          { id: genId('s'), name: '竞争对手情报', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'], updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。' },
+          { id: genId('s'), name: '自身舆情监控', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'], updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。' },
         ],
       },
     }
@@ -600,16 +601,26 @@ export function PortalBuilderPage() {
 
             {/* Intelligence Sources (flat, no widget container) */}
             <div className="flex-1 overflow-y-auto p-4">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">情报源</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">情报源</p>
+                <button onClick={() => setShowQuickStartModal(true)}
+                  className="text-[10px] font-medium text-violet-500 hover:text-violet-600 transition-colors flex items-center gap-1">
+                  🚀 快速开始
+                </button>
+              </div>
               {/* Intel source cards — flat list, no widget container */}
               {(() => {
                 const intelWidget = widgets.find((w) => w.type === 'intel-monitor')
                 const sources = intelWidget ? (intelWidget.config.sources || []) : []
                 if (sources.length === 0) {
                   return (
-                    <div className="text-center py-8 text-muted-foreground">
+                    <div className="text-center py-6 text-muted-foreground">
                       <div className="text-2xl mb-2 opacity-30">📡</div>
-                      <p className="text-[11px]">尚未添加情报源</p>
+                      <p className="text-[11px] mb-4">尚未添加情报源</p>
+                      <button onClick={() => setShowQuickStartModal(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg text-xs font-semibold transition-all shadow-md hover:shadow-lg">
+                        🚀 快速开始
+                      </button>
                     </div>
                   )
                 }
@@ -1658,7 +1669,7 @@ export function PortalBuilderPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
-                        <select value={addMonitorForm.sources[0]?.aiProvider || 'deepseek'}
+                        <select value={addMonitorForm.sources[0]?.aiProvider || 'all'}
                           onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }] }))}
                           className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
                           {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
