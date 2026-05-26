@@ -1,4 +1,3 @@
-// v0526-cache-bust — force hash refresh after browser cache stale
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
@@ -580,7 +579,7 @@ export function PortalBuilderPage() {
   // ========== Build Mode ==========
   if (!result) {
     return (
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full overflow-hidden" data-build="0526-2355">
 
         {/* ========== Top Bar ========== */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
