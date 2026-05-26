@@ -3,7 +3,7 @@ import { getSearchModule } from './search-sources/index.js';
 
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
   const provider = src.aiProvider || 'deepseek';
-  const apiKey = src.apiKey || '';
+  const apiKey = src.apiKey || (provider === 'metaso' ? (process.env.METASO_API_KEY || '') : provider === 'tavily' ? (process.env.TAVILY_API_KEY || '') : (process.env.DEEPSEEK_API_KEY || ''));
   const model = src.aiModel || 'deepseek-v4-flash';
   const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
 
