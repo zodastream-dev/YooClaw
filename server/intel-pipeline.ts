@@ -85,12 +85,22 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   if (!resp.ok) { const t = await resp.text(); throw new Error('DeepSeek: ' + resp.status + ' ' + t.substring(0, 200)); }
   const data = await resp.json();
   let content = data.choices[0].message.content;
-  content = content.replace('```json', '').replace(/```/g, '').trim();
+  // 清除各种 markdown 代码块标记
+  content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   let results: any[];
+  // 先尝试整体解析
   try { results = JSON.parse(content); }
-  catch (e) {
-    const m = content.match(/\[\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])+\s*\]/);
-    results = m ? JSON.parse(m[0]) : (rawItems.length > 0 ? rawItems : []);
+  catch (e1) {
+    // 尝试提取 JSON 数组
+    let m = content.match(/\[\s*(?:\{[\s\S]*?\})\s*(?:,\s*\{[\s\S]*?\})*\s*\]/);
+    if (!m) m = content.match(/\[[\s\S]*\]/);
+    if (m) {
+      try { results = JSON.parse(m[0]); }
+      catch (e2) {
+        console.warn('[Intel] Regex match parse failed, using rawItems fallback. Content preview:', content.substring(0, 300));
+        results = rawItems.length > 0 ? rawItems : [];
+      }
+    } else { results = rawItems.length > 0 ? rawItems : []; }
   }
   results = (results || []).map(function (r: any) {
     return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''), _provider: r._searchProvider || provider };
