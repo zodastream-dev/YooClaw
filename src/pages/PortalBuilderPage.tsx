@@ -584,7 +584,6 @@ export function PortalBuilderPage() {
         {/* ========== Top Bar ========== */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
           <div className="flex items-center gap-3">
-            <span style={{color:'red',fontWeight:'bold',fontSize:18}}>【新版本测试标记 0527-0018】</span>
             <button onClick={() => navigate('/sites')} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft size={14} /> 返回
             </button>
@@ -1290,9 +1289,11 @@ export function PortalBuilderPage() {
 
               {/* Body */}
               <div className="px-6 py-5 space-y-4">
+                <div style={{background:'red',color:'#fff',padding:'4px 8px',fontSize:12,fontWeight:'bold',borderRadius:4,marginBottom:8}}>🔴 弹窗诊断: editingSource={editingSource ? 'YES' : 'NO'} | expanded={expandedModelConfigs.size}</div>
                 {/* ===== FLATTENED: Single Source Edit ===== */}
                 {editingSource ? (
                   <div className="space-y-4">
+                    <div style={{background:'#4f46e5',color:'#fff',padding:'2px 6px',fontSize:11,borderRadius:3}}>🔵 单源编辑路径 (rows=6 + 模型配置高级)</div>
                     {/* Source Name */}
                     <div>
                       <label className="block text-xs font-semibold text-muted-foreground mb-1.5">情报属性</label>
@@ -1399,6 +1400,7 @@ export function PortalBuilderPage() {
                   </div>
                 ) : (
                 <>
+                <div style={{background:'#059669',color:'#fff',padding:'2px 6px',fontSize:11,borderRadius:3,marginBottom:12}}>🟢 组件级编辑路径 (widget={editingWidget.type})</div>
                 {/* Widget Title */}
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5">组件标题</label>
