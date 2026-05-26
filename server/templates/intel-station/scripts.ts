@@ -192,6 +192,38 @@ function renderSourceFilters(monitors){
   $('sourceGroups').innerHTML=html;
 }
 
+/* ===== LEFT PANEL TOGGLE ===== */
+var leftPanelCollapsed=false;
+function toggleLeftPanel(){
+  var layout=document.querySelector('.main-layout');
+  var toggleBtn=document.querySelector('.btn-toggle-left');
+  if(!layout)return;
+  leftPanelCollapsed=!leftPanelCollapsed;
+  if(leftPanelCollapsed){
+    layout.classList.add('left-collapsed');
+    if(toggleBtn)toggleBtn.innerHTML='&#x25B6;';
+    // Store preference
+    try{localStorage.setItem('left-panel-collapsed','1')}catch(e){}
+  } else {
+    layout.classList.remove('left-collapsed');
+    if(toggleBtn)toggleBtn.innerHTML='&#x25C0;';
+    try{localStorage.setItem('left-panel-collapsed','0')}catch(e){}
+  }
+}
+// Restore panel state on load
+(function restorePanelState(){
+  try{
+    var saved=localStorage.getItem('left-panel-collapsed');
+    if(saved==='1'){
+      leftPanelCollapsed=true;
+      var layout=document.querySelector('.main-layout');
+      var toggleBtn=document.querySelector('.btn-toggle-left');
+      if(layout)layout.classList.add('left-collapsed');
+      if(toggleBtn)toggleBtn.innerHTML='&#x25B6;';
+    }
+  }catch(e){}
+})();
+
 /* ===== SOURCE TREE INTERACTIONS ===== */
 function toggleSourceExpand(srcName,wi,si){
   console.log('[toggleSourceExpand] srcName=',srcName,'expandedSources[srcName]=',expandedSources[srcName]);

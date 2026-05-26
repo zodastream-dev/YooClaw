@@ -24,6 +24,7 @@ export function intelStationBody(sn: string): string {
   <div class="left-col">
     <div class="left-header">
       <h3>&#x1F6F0; 监控源</h3>
+      <button class="btn-toggle-left" onclick="toggleLeftPanel()" title="收起面板">&#x25C0;</button>
     </div>
     <div class="source-groups" id="sourceGroups">
       <!-- Dynamic content -->
@@ -116,6 +117,9 @@ export function intelStationBody(sn: string): string {
     <div class="cmd-hint">你可以问AI：给我总结一下今天所有的最新情报</div>
   </div>
 </div>
+
+<!-- Floating toggle when left panel is collapsed -->
+<button class="btn-toggle-left-float" onclick="toggleLeftPanel()" title="展开面板">&#x25B6;</button>
 
 <!-- ===== MODAL ===== -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeSourceModal(event)">
