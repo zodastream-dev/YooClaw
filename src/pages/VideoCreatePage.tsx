@@ -1015,6 +1015,8 @@ export function VideoCreatePage() {
               </div>
             </div>
             </div>
+          </div>
+        </div>
 
           {/* Multi-Clip Panel */}
           <div className={mode === 'single' ? 'hidden' : ''}>
@@ -1275,7 +1277,6 @@ export function VideoCreatePage() {
                 <X size={14} className="flex-shrink-0 mt-0.5" /><span>{error}</span>
               </div>
             )}
-          </div>
 
         {/* ===== Result UI (inline) ===== */}
         {result && (
@@ -1341,8 +1342,6 @@ export function VideoCreatePage() {
             <VideoHistory />
           </div>
         )}
-
-          </div>
         </main>
 
         {/* Right sidebar */}
