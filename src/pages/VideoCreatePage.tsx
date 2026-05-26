@@ -1021,6 +1021,11 @@ export function VideoCreatePage() {
             <div className="px-4 sm:px-6 py-4 sm:py-6 max-w-3xl mx-auto">
               <div className="space-y-4 sm:space-y-5">
 
+            {/* DEBUG: Visible marker to confirm multi panel renders */}
+            <div className="p-3 rounded-xl bg-red-500 text-white text-sm font-bold">
+              🔴 DEBUG: Multi-clip panel IS rendering (mode={mode}, clips={clips.length})
+            </div>
+
             {/* Mode guide */}
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-gradient-to-r from-violet-500/5 to-fuchsia-500/5 border border-violet-500/10">
               <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
