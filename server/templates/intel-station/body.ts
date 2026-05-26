@@ -131,6 +131,9 @@ export function intelStationBody(sn: string): string {
         <div class="mh-title" id="modalTitle">编辑监控源</div>
         <div class="mh-sub" id="modalSub">修改情报监控源配置</div>
       </div>
+      <button class="modal-delete" id="btnDeleteSource" onclick="deleteCurrentSource()" title="删除此情报源" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      </button>
       <button class="modal-close" onclick="closeSourceModalDirect()">&times;</button>
     </div>
     <div class="modal-bd" id="modalBody"></div>

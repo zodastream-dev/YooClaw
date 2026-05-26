@@ -544,6 +544,7 @@ function openSourceModal(wi,si){
   $('modalIcon').textContent='\\uD83D\\uDEE0';
   $('modalTitle').textContent=src.name||'编辑监控源';
   $('modalSub').textContent='配置情报监控源参数';
+  var delBtn=$('btnDeleteSource');if(delBtn)delBtn.style.display='';
   renderSourceForm(wi,si);
   $('btnSave').onclick=function(){saveSourceConfig(wi,si)};
   $('modalOverlay').classList.add('open');
@@ -674,7 +675,7 @@ function renderSourceForm(wi,si){
   s+='</div>';
   // Model config (collapsed by default)
   s+='<div class="mb-group" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">';
-  s+='<button type="button" class="model-config-toggle" onclick="toggleModelConfig(this)" style="display:flex;align-items:center;gap:6px;padding:6px 0;background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:inherit;font-weight:600;width:100%">';
+  s+='<button type="button" class="model-config-toggle" onclick="toggleModelConfig(this)">';
   s+='<span class="model-config-arrow">▶</span> ⚙ 模型配置（高级）</button>';
   s+='<div class="model-config-body" style="display:none;margin-top:8px">';
   s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
@@ -690,10 +691,6 @@ function renderSourceForm(wi,si){
   s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选">';
   s+='</div>';
   s+='</div></div>';
-  // Delete button
-  s+='<div style="text-align:right;padding-top:8px">';
-  s+='<button class="src-del-btn" onclick="deleteSource('+wi+','+si+')">🗑 删除此情报源</button>';
-  s+='</div>';
   s+='</div>';
   $('modalBody').innerHTML=s;
   $('modalBody').scrollTop=0;
@@ -852,6 +849,11 @@ function deleteSource(wi,si){
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   renderSourceFilters(monitors);
   closeSourceModalDirect();
+}
+
+function deleteCurrentSource(){
+  if(!confirm('确定要删除这个监控源吗？此操作不可撤销。'))return;
+  deleteSource(_activeWi,_activeSi);
 }
 
 function addKeyword(wi,si){
