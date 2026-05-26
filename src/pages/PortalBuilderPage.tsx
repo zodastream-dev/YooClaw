@@ -1,4 +1,5 @@
 // force-cache-bust: 0526-2340
+const BUILD_FINGERPRINT = '0526-2340'
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
@@ -580,7 +581,7 @@ export function PortalBuilderPage() {
   // ========== Build Mode ==========
   if (!result) {
     return (
-      <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full overflow-hidden" data-fingerprint={BUILD_FINGERPRINT}>
 
         {/* ========== Top Bar ========== */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
