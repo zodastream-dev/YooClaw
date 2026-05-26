@@ -244,14 +244,13 @@ function renderIntelFeed(data){
     if(item._object){
       html+='<span class="intel-obj-tag">'+escHtml(item._object)+'</span>';
     }
-    var sourceDomain=(function(url){try{var h=new URL(url).hostname.replace('www.','');return h}catch(e){return url||'未知来源'}})(item.url||item.link||'');
-    html+='<div class="intel-card-source">'+escHtml(sourceDomain)+'</div>';
     if(url){
       html+='<span class="intel-card-title" style="color:var(--cyan);cursor:pointer">'+(item.title||'无标题')+'</span>';
     } else {
       html+='<span class="intel-card-title" style="cursor:default">'+(item.title||'无标题')+'</span>';
     }
-    html+='<div class="intel-card-source">'+(item.source||'未知来源')+'</div>';
+    var sourceLabel=(function(s,p){if(s&&s.length>0&&s.indexOf('http://')!==0&&s.indexOf('https://')!==0)return s;return p||'未知来源'})(item.source,item._provider);
+    html+='<div class="intel-card-source">'+escHtml(sourceLabel)+'</div>';
     html+='</div>';
     if(item.summary)html+='<div class="intel-card-summary">'+(item.summary||'')+'</div>';
     html+='<div class="intel-card-footer">';
