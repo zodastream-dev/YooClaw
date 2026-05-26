@@ -613,7 +613,7 @@ export function VideoCreatePage() {
             </button>
             <button onClick={() => setMode('multi')}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-[1px] ${mode === 'multi' ? 'border-violet-400 text-violet-400' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}`}>
-              <Film size={15} />长视频拼接
+              <Film size={15} />长视频拼接 v2
             </button>
           </div>
 
