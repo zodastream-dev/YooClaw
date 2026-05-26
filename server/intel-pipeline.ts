@@ -3,7 +3,7 @@ import { getSearchModule } from './search-sources/index.js';
 
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
   const provider = src.aiProvider || 'deepseek';
-  const apiKey = src.apiKey || (provider === 'metaso' ? process.env.METASO_API_KEY : provider === 'tavily' ? process.env.TAVILY_API_KEY : process.env.DEEPSEEK_API_KEY) || '';
+  const apiKey = src.apiKey || '';
   const model = src.aiModel || 'deepseek-v4-flash';
   const query = effectiveKwArr.length > 0 ? effectiveKwArr.join(' OR ') : (objectName || src.name || '');
 
@@ -22,6 +22,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   let up: string;
   if (objectName) {
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
+      '注意：只提取与【' + objectName + '】直接相关的情报，不要包含其他品牌或对象的信息。\n' +
+      '如果搜索结果包含了其他对象，请严格过滤掉。\n' +
       '要求：1.标题+摘要(80字)+来源+时间+url\n2.去重过滤无关\n3.30天优先\n' +
       '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '"}]\n' +
       '5.无url留空 6.仅JSON\n\n原始搜索结果：\n' + JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000);
@@ -38,10 +40,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.5, messages: [{ role: 'system', content: sp }, { role: 'user', content: up }] }),
     signal: AbortSignal.timeout(60000),
   });
-  if (!resp.ok) {
-    const t = await resp.text();
-    throw new Error('DeepSeek: ' + resp.status + ' ' + t.substring(0, 200));
-  }
+  if (!resp.ok) { const t = await resp.text(); throw new Error('DeepSeek: ' + resp.status + ' ' + t.substring(0, 200)); }
   const data = await resp.json();
   let content = data.choices[0].message.content;
   content = content.replace('```json', '').replace(/```/g, '').trim();
@@ -52,7 +51,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     results = m ? JSON.parse(m[0]) : (rawItems.length > 0 ? rawItems : []);
   }
   results = (results || []).map(function (r: any) {
-    return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || "https://www.baidu.com/s?wd=" + encodeURIComponent(r.title || ""), _provider: provider };
+    return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''), _provider: provider };
   });
   const cutoff = Date.now() - 30 * 86400000;
   results = results.filter(function (r: any) { return !r.date || isNaN(new Date(r.date).getTime()) || new Date(r.date).getTime() > cutoff; });

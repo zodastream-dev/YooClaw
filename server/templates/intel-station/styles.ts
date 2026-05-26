@@ -28,6 +28,9 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .top-status{display:flex;align-items:center;gap:16px}
 .status-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.6),0 0 16px rgba(16,185,129,0.3);animation:pulse 2s infinite}
 .status-text{font-size:12px;color:var(--text-secondary)}
+.btn-refresh-intel{padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:rgba(0,212,255,0.05);color:var(--cyan);cursor:pointer;font-size:11px;font-weight:600;transition:all .2s;font-family:inherit;white-space:nowrap}
+.btn-refresh-intel:hover{background:rgba(0,212,255,0.12);border-color:rgba(0,212,255,0.3);box-shadow:0 0 8px rgba(0,212,255,0.08)}
+.update-info{font-size:10px;color:var(--text-secondary);margin-left:8px;white-space:nowrap}
 .top-tabs{display:flex;gap:4px}
 .tab-btn{padding:6px 14px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;transition:all .2s;font-family:inherit}
 .tab-btn:hover{border-color:rgba(0,212,255,0.4);color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,0.12),inset 0 1px 0 rgba(255,255,255,0.03)}

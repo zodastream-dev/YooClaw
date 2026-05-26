@@ -39,6 +39,8 @@ export function intelStationBody(sn: string): string {
         <span class="ct-tab" onclick="switchCenterTab('ai')">&#x1F916; AI助手</span>
       </div>
       <span class="status-text" id="feedStatus">加载中...</span>
+      <span class="update-info" id="updateInfo" style="display:none"></span>
+      <button class="btn-refresh-intel" id="btnRefreshIntel" onclick="refreshAllIntel()" title="立即更新所有情报">🔄 立即更新</button>
     </div>
     <div class="intel-subfilters" id="intelSubFilters" style="display:none"></div>
     <div class="intel-objfilters" id="intelObjFilters" style="display:none"></div>

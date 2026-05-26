@@ -100,6 +100,8 @@ async function loadIntelData(){
     }
     updateDashboard(allIntelData);
     $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
+    $("updateInfo").textContent="上次更新: "+new Date().toLocaleTimeString("zh-CN");
+    $("updateInfo").style.display="";
     $('intelLoading').style.display='none';
   } catch(e) {
     if(!cachedData){
@@ -242,7 +244,8 @@ function renderIntelFeed(data){
     if(item._object){
       html+='<span class="intel-obj-tag">'+escHtml(item._object)+'</span>';
     }
-    if(url){
+    var sourceDomain=(function(url){try{var h=new URL(url).hostname.replace('www.','');return h}catch(e){return url||'未知来源'}})(item.url||item.link||'');
+    html+='<div class="intel-card-source">'+escHtml(sourceDomain)+'</div>';
       html+='<span class="intel-card-title" style="color:var(--cyan);cursor:pointer">'+(item.title||'无标题')+'</span>';
     } else {
       html+='<span class="intel-card-title" style="cursor:default">'+(item.title||'无标题')+'</span>';
