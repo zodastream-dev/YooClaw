@@ -257,7 +257,7 @@ export function PortalBuilderPage() {
     let defaultProvider = 'all', defaultModel = 'deepseek-v3.1', defaultKeywords: string[] = []
     if (existingIntelCount === 0) { defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系'] }
     else if (existingIntelCount === 1) { defaultProvider = 'all'; defaultModel = 'metaso-pro'; defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车'] }
-    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: '' }] })
+    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: INTEL_PROMPTS['行业信号'] || '' }] })
     setAddModalType(type)
     setShowAddModal(true)
   }, [widgets])
@@ -623,7 +623,7 @@ export function PortalBuilderPage() {
               <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
                 className="bg-transparent text-sm font-semibold border-none outline-none hover:bg-muted px-2 py-1 rounded-md transition-colors w-48"
                 placeholder="站点名称" />
-              <span data-v="0527-0035" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0105</span>
+              <span data-v="0527-0123" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0123</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1359,9 +1359,9 @@ export function PortalBuilderPage() {
                       <div className="flex gap-2">
                         <input value={editModalObjectInput}
                           onChange={(e) => setEditModalObjectInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, editingSource.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } } }}
-                          placeholder="输入对象名称（如：星巴克）" className="flex-1 px-3 py-1.5 text-sm border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
-                        <button onClick={() => { if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, editingSource.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const names = editModalObjectInput.split(/[,，、/\s]+/).filter(Boolean); if (names.length > 0) { names.forEach(n => addObjectToSource(editingWidget.id, editingSource.id, n)); setEditModalObjectInput(''); } } }}
+                          placeholder="输入对象名称（空格/,/逗号分隔可批量添加）" className="flex-1 px-3 py-1.5 text-sm border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                        <button onClick={() => { const names = editModalObjectInput.split(/[,，、/\s]+/).filter(Boolean); if (names.length > 0) { names.forEach(n => addObjectToSource(editingWidget.id, editingSource.id, n)); setEditModalObjectInput(''); } }}
                           className="px-3 py-1.5 text-sm font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors shrink-0">添加</button>
                       </div>
                     </div>
@@ -1526,9 +1526,9 @@ export function PortalBuilderPage() {
                             <div className="flex gap-2">
                               <input value={editModalObjectInput}
                                 onChange={(e) => setEditModalObjectInput(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, s.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } } }}
-                                placeholder="输入对象名称（如：星巴克）" className="flex-1 px-2.5 py-1 text-[11px] border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
-                              <button onClick={() => { if (editModalObjectInput.trim()) { addObjectToSource(editingWidget.id, s.id, editModalObjectInput.trim()); setEditModalObjectInput(''); } }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const names = editModalObjectInput.split(/[,，、/\s]+/).filter(Boolean); if (names.length > 0) { names.forEach(n => addObjectToSource(editingWidget.id, s.id, n)); setEditModalObjectInput(''); } } }}
+                                placeholder="输入对象名称（空格/,/逗号分隔可批量添加）" className="flex-1 px-3 py-1.5 text-sm border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                              <button onClick={() => { const names = editModalObjectInput.split(/[,，、/\s]+/).filter(Boolean); if (names.length > 0) { names.forEach(n => addObjectToSource(editingWidget.id, s.id, n)); setEditModalObjectInput(''); } }}
                                 className="px-2.5 py-1 text-[11px] font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors shrink-0">
                                 添加
                               </button>
@@ -1752,8 +1752,8 @@ export function PortalBuilderPage() {
                           onChange={(e) => setAddModalObjectInput(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const names = addModalObjectInput.split(/[,，、\s]+/).filter(Boolean); if (names.length > 0) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), ...names.map(n => ({ name: n, keywords: [] }))] }] })); setAddModalObjectInput(''); } } }}
                           placeholder="输入对象名称（如：星巴克 瑞幸 Manner）"
-                          className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
-                        <button onClick={() => { const names = addModalObjectInput.split(/[,，、\s]+/).filter(Boolean); if (names.length > 0) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), ...names.map(n => ({ name: n, keywords: [] }))] }] })); setAddModalObjectInput(''); } }}
+                          className="flex-1 px-3 py-2 text-sm border border-border rounded-lg outline-none focus:border-purple-400 transition-all bg-transparent" />
+                        <button onClick={() => { const names = addModalObjectInput.split(/[,，、/\s]+/).filter(Boolean); if (names.length > 0) { setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], objects: [...(f.sources[0].objects || []), ...names.map(n => ({ name: n, keywords: [] }))] }] })); setAddModalObjectInput(''); } }}
                           className="px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-300 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors shrink-0">
                           添加对象
                         </button>
@@ -1775,14 +1775,32 @@ export function PortalBuilderPage() {
                           onChange={(e) => setAddModalKeywordInput(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const parts = addModalKeywordInput.split(/[,，、\s]+/).filter(Boolean); if (parts.length > 0) { setAddMonitorForm((f) => { const s = f.sources[0]; const newKws = [...s.keywords]; parts.forEach((k) => { if (!newKws.includes(k)) newKws.push(k) }); return { ...f, sources: [{ ...s, keywords: newKws }] } }); setAddModalKeywordInput(''); } } }}
                           placeholder="输入关键词（如：新品发布 财报 市场份额）"
-                          className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg outline-none focus:border-violet-400 transition-all bg-transparent" />
-                        <button onClick={() => { const parts = addModalKeywordInput.split(/[,，、\s]+/).filter(Boolean); if (parts.length > 0) { setAddMonitorForm((f) => { const s = f.sources[0]; const newKws = [...s.keywords]; parts.forEach((k) => { if (!newKws.includes(k)) newKws.push(k) }); return { ...f, sources: [{ ...s, keywords: newKws }] } }); setAddModalKeywordInput(''); } }}
+                          className="flex-1 px-3 py-2 text-sm border border-border rounded-lg outline-none focus:border-violet-400 transition-all bg-transparent" />
+                        <button onClick={() => { const parts = addModalKeywordInput.split(/[,，、/\s]+/).filter(Boolean); if (parts.length > 0) { setAddMonitorForm((f) => { const s = f.sources[0]; const newKws = [...s.keywords]; parts.forEach((k) => { if (!newKws.includes(k)) newKws.push(k) }); return { ...f, sources: [{ ...s, keywords: newKws }] } }); setAddModalKeywordInput(''); } }}
                           className="px-3 py-1.5 text-xs font-medium rounded-lg border border-violet-300 text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors shrink-0">
                           添加关键词
                         </button>
                       </div>
                     </div>
-                    {/* Model Config (collapsed by default) */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
+                      <select value={addMonitorForm.sources[0]?.updateFrequency || 'daily'}
+                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], updateFrequency: e.target.value }] }))}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
+                        <option value="daily">每天</option>
+                        <option value="hourly">每小时</option>
+                        <option value="weekly">每周</option>
+                        <option value="monthly">每月</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
+                      <textarea value={addMonitorForm.sources[0]?.customPrompt || ''}
+                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }] }))}
+                        rows={6} placeholder={addMonitorForm.sources[0]?.name && INTEL_PROMPTS[addMonitorForm.sources[0].name] ? INTEL_PROMPTS[addMonitorForm.sources[0].name] : '描述情报监控的具体要求…'}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
+                    </div>
+                    {/* Model Config (collapsed by default, at the very bottom) */}
                     <div className="border-t border-border pt-3">
                       <button type="button" onClick={() => setAddModalExpandedModel(!addModalExpandedModel)}
                         className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
@@ -1815,24 +1833,6 @@ export function PortalBuilderPage() {
                           </div>
                         </div>
                       )}
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
-                      <select value={addMonitorForm.sources[0]?.updateFrequency || 'daily'}
-                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], updateFrequency: e.target.value }] }))}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
-                        <option value="daily">每天</option>
-                        <option value="hourly">每小时</option>
-                        <option value="weekly">每周</option>
-                        <option value="monthly">每月</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
-                      <textarea value={addMonitorForm.sources[0]?.customPrompt || ''}
-                        onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }] }))}
-                        rows={6} placeholder={addMonitorForm.sources[0]?.name && INTEL_PROMPTS[addMonitorForm.sources[0].name] ? INTEL_PROMPTS[addMonitorForm.sources[0].name] : '描述情报监控的具体要求…'}
-                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                   </>
                 )}
