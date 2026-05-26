@@ -49,6 +49,10 @@ _git_ops_result.txt
 start.bat
 start.sh
 
+# Generated videos (runtime artifacts — keep between deploys)
+public/videos/*
+!public/videos/.gitkeep
+
 # Deployment configs (contain secrets — use example files instead)
 ecosystem.config.cjs
 deploy.sh
