@@ -8,7 +8,7 @@ const wechatModule: SearchModule = {
   label: '微信公众号',
   async search(query: string, _apiKey: string): Promise<RawSearchItem[]> {
     try {
-      const scriptPath = process.env.WECHAT_SEARCH_SCRIPT || join(dirname(fileURLToPath(import.meta.url)), '../../scripts/search_wechat.js');
+      const scriptPath = process.env.WECHAT_SEARCH_SCRIPT || join(dirname(fileURLToPath(import.meta.url)), '../../scripts/search_wechat.cjs');
       const result = execSync('node ' + scriptPath + ' "' + query + '" -n 15', { encoding: 'utf-8', timeout: 30000 });
       const data = JSON.parse(result);
       return (Array.isArray(data) ? data : []).map((r: any) => ({
