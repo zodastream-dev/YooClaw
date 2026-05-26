@@ -102,6 +102,11 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       }
     } else { results = rawItems.length > 0 ? rawItems : []; }
   }
+  // DeepSeek 可能返回空数组 []，此时降级到 rawItems
+  if ((!results || results.length === 0) && rawItems.length > 0) {
+    console.log('[Intel] DeepSeek returned empty, falling back to ' + rawItems.length + ' rawItems');
+    results = rawItems;
+  }
   results = (results || []).map(function (r: any) {
     return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''), _provider: r._searchProvider || provider };
   });
