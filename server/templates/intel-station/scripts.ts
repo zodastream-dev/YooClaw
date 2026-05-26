@@ -246,6 +246,7 @@ function renderIntelFeed(data){
     }
     var sourceDomain=(function(url){try{var h=new URL(url).hostname.replace('www.','');return h}catch(e){return url||'未知来源'}})(item.url||item.link||'');
     html+='<div class="intel-card-source">'+escHtml(sourceDomain)+'</div>';
+    if(url){
       html+='<span class="intel-card-title" style="color:var(--cyan);cursor:pointer">'+(item.title||'无标题')+'</span>';
     } else {
       html+='<span class="intel-card-title" style="cursor:default">'+(item.title||'无标题')+'</span>';
