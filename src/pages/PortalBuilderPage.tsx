@@ -133,7 +133,7 @@ function KeywordInput({
   }
   return (
     <div>
-      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔批量添加</span></label>
+      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔批量添加</span></label>
       <div className="flex flex-wrap gap-1 mb-2">
         {keywords.map((k) => (
           <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-full text-[11px] font-medium">
@@ -143,7 +143,7 @@ function KeywordInput({
       </div>
       <div className="flex gap-1.5">
         <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-          placeholder="输入关键词…" className="flex-1 px-3 py-1.5 bg-background border border-dashed border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all" />
+          placeholder="输入关键词…" className="flex-1 px-3 py-1.5 bg-background border border-dashed border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
         <button onClick={() => { addMultiple(input); setInput('') }}
           className="px-2 py-1.5 border border-violet-300 text-violet-600 rounded-lg text-[11px] font-medium hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-all shrink-0">添加</button>
       </div>
@@ -623,7 +623,7 @@ export function PortalBuilderPage() {
               <input type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)}
                 className="bg-transparent text-sm font-semibold border-none outline-none hover:bg-muted px-2 py-1 rounded-md transition-colors w-48"
                 placeholder="站点名称" />
-              <span data-v="0527-0123" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0123</span>
+              <span data-v="0527-0123" className="text-[10px] text-muted-foreground/40 font-mono select-none">v0527-0145</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1324,7 +1324,7 @@ export function PortalBuilderPage() {
                   <div className="space-y-4">
                     {/* Source Name */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">情报属性</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">情报属性</label>
                       <select value={INTEL_CATEGORIES.includes(editingSource.name) ? editingSource.name : '__custom__'}
                         onChange={(e) => {
                           const val = e.target.value === '__custom__' ? '' : e.target.value;
@@ -1347,7 +1347,7 @@ export function PortalBuilderPage() {
 
                     {/* Objects */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">📌 监控对象</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">📌 监控对象</label>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {(editingSource.objects || []).filter(o => o.name).map((obj: any) => (
                           <span key={obj.name} className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-purple-100 dark:bg-purple-900/20 text-xs text-purple-700 dark:text-purple-300 font-medium">
@@ -1373,7 +1373,7 @@ export function PortalBuilderPage() {
 
                     {/* Update Frequency */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">更新频率</label>
                       <select value={editingSource.updateFrequency}
                         onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'updateFrequency', e.target.value)}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
@@ -1386,7 +1386,7 @@ export function PortalBuilderPage() {
 
                     {/* Custom Prompt */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
                       <textarea value={editingSource.customPrompt}
                         onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'customPrompt', e.target.value)}
                         rows={6} placeholder="自定义提示词…" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
@@ -1395,14 +1395,14 @@ export function PortalBuilderPage() {
                     {/* Model Config (collapsed by default) */}
                     <div className="border-t border-border pt-3">
                       <button type="button" onClick={() => toggleModelConfig(editingSource.id)}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
+                        className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
                         <span>{expandedModelConfigs.has(editingSource.id) ? '▼' : '▶'}</span> ⚙ 模型配置（高级）
                       </button>
                       {expandedModelConfigs.has(editingSource.id) && (
                         <div className="mt-2 space-y-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
+                              <label className="block text-sm font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
                               <select value={editingSource.aiProvider}
                                 onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiProvider', e.target.value)}
                                 className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
@@ -1410,14 +1410,14 @@ export function PortalBuilderPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
+                              <label className="block text-sm font-semibold text-muted-foreground mb-1.5">AI 模型</label>
                               <input type="text" value={editingSource.aiModel}
                                 onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'aiModel', e.target.value)}
                                 placeholder="deepseek-v4-flash" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                             </div>
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
+                            <label className="block text-sm font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
                             <input type="text" value={editingSource.apiKey || ''}
                               onChange={(e) => updateSourceField(editingWidget.id, editingSource.id, 'apiKey', e.target.value)}
                               placeholder="留空使用默认密钥" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
@@ -1430,7 +1430,7 @@ export function PortalBuilderPage() {
                 <>
                 {/* Widget Title */}
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">组件标题</label>
+                  <label className="block text-sm font-semibold text-muted-foreground mb-1.5">组件标题</label>
                   <input type="text" value={editingWidget.title}
                     onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, title: e.target.value }))}
                     className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
@@ -1440,14 +1440,14 @@ export function PortalBuilderPage() {
                 {editingWidget.type === 'report-generator' && (
                   <>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">默认分析标的</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">默认分析标的</label>
                       <input type="text" value={editingWidget.config.defaultCompany || ''}
                         onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, defaultCompany: e.target.value } }))}
                         placeholder="如：阳光电源"
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">分析框架</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">分析框架</label>
                       <div className="flex flex-wrap gap-1.5">
                         {ANALYSIS_METHODS.map((m) => (
                           <button key={m}
@@ -1457,7 +1457,7 @@ export function PortalBuilderPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">搜索平台</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">搜索平台</label>
                       <select value={editingWidget.config.searchPlatform || ''}
                         onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, searchPlatform: e.target.value } }))}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
@@ -1465,14 +1465,14 @@ export function PortalBuilderPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">系统提示词</label>
                       <textarea value={editingWidget.config.sysPrompt || ''}
                         onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, sysPrompt: e.target.value } }))}
                         rows={6} placeholder="AI 系统指令…"
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">用户提示词</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">用户提示词</label>
                       <textarea value={editingWidget.config.userPrompt || ''}
                         onChange={(e) => updateWidget(editingWidget.id, (w) => ({ ...w, config: { ...w.config, userPrompt: e.target.value } }))}
                         rows={6} placeholder="用户指令…"
@@ -1654,21 +1654,21 @@ export function PortalBuilderPage() {
                 {addModalType === 'report-generator' && (
                   <>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">报告标题</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">报告标题</label>
                       <input type="text" value={addReportForm.title}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, title: e.target.value }))}
                         placeholder="行业分析报告"
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">默认分析标的 (可选)</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">默认分析标的 (可选)</label>
                       <input type="text" value={addReportForm.defaultCompany}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, defaultCompany: e.target.value }))}
                         placeholder="如：阳光电源、宁德时代"
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">分析框架</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">分析框架</label>
                       <div className="flex flex-wrap gap-1.5">
                         {ANALYSIS_METHODS.map((m) => (
                           <button key={m} onClick={() => setAddReportForm((f) => {
@@ -1680,7 +1680,7 @@ export function PortalBuilderPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">搜索平台</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">搜索平台</label>
                       <select value={addReportForm.searchPlatform}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, searchPlatform: e.target.value }))}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
@@ -1688,21 +1688,21 @@ export function PortalBuilderPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key (可选)</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">API Key (可选)</label>
                       <input type="text" value={addReportForm.searchApiKey}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, searchApiKey: e.target.value }))}
                         placeholder="输入自定义 API Key…"
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">系统提示词</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">系统提示词</label>
                       <textarea value={addReportForm.sysPrompt}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, sysPrompt: e.target.value }))}
                         rows={6}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs outline-none focus:border-violet-400 transition-all resize-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">用户提示词</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">用户提示词</label>
                       <textarea value={addReportForm.userPrompt}
                         onChange={(e) => setAddReportForm((f) => ({ ...f, userPrompt: e.target.value }))}
                         rows={6}
@@ -1713,7 +1713,7 @@ export function PortalBuilderPage() {
                 {addModalType === 'intel-monitor' && (
                   <>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">情报属性</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">情报属性</label>
                       <select value={INTEL_CATEGORIES.includes(addMonitorForm.sources[0]?.name) ? addMonitorForm.sources[0].name : '__custom__'}
                         onChange={(e) => {
                           const val = e.target.value === '__custom__' ? '' : e.target.value;
@@ -1736,7 +1736,7 @@ export function PortalBuilderPage() {
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控对象 (可选，空格/逗号分隔可批量添加)</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">监控对象 (可选，空格/逗号分隔可批量添加)</label>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {(addMonitorForm.sources[0]?.objects || []).filter(o => o.name).map((obj) => (
                           <span key={obj.name} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/20 text-[11px] text-purple-700 dark:text-purple-300 font-medium">
@@ -1760,7 +1760,7 @@ export function PortalBuilderPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔批量添加</span></label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">监控关键词 <span className="font-normal opacity-60">空格/逗号分隔批量添加</span></label>
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {(addMonitorForm.sources[0]?.keywords || []).map((kw) => (
                           <span key={kw} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-violet-100 dark:bg-violet-900/20 text-[11px] text-violet-700 dark:text-violet-300 font-medium">
@@ -1783,7 +1783,7 @@ export function PortalBuilderPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">更新频率</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">更新频率</label>
                       <select value={addMonitorForm.sources[0]?.updateFrequency || 'daily'}
                         onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], updateFrequency: e.target.value }] }))}
                         className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
@@ -1794,7 +1794,7 @@ export function PortalBuilderPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">自定义提示词</label>
                       <textarea value={addMonitorForm.sources[0]?.customPrompt || ''}
                         onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], customPrompt: e.target.value }] }))}
                         rows={6} placeholder={addMonitorForm.sources[0]?.name && INTEL_PROMPTS[addMonitorForm.sources[0].name] ? INTEL_PROMPTS[addMonitorForm.sources[0].name] : '描述情报监控的具体要求…'}
@@ -1803,14 +1803,14 @@ export function PortalBuilderPage() {
                     {/* Model Config (collapsed by default, at the very bottom) */}
                     <div className="border-t border-border pt-3">
                       <button type="button" onClick={() => setAddModalExpandedModel(!addModalExpandedModel)}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
+                        className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1">
                         <span>{addModalExpandedModel ? '▼' : '▶'}</span> ⚙ 模型配置（高级）
                       </button>
                       {addModalExpandedModel && (
                         <div className="mt-2 space-y-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
+                              <label className="block text-sm font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
                               <select value={addMonitorForm.sources[0]?.aiProvider || 'all'}
                                 onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }] }))}
                                 className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
@@ -1818,7 +1818,7 @@ export function PortalBuilderPage() {
                               </select>
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-muted-foreground mb-1.5">AI 模型</label>
+                              <label className="block text-sm font-semibold text-muted-foreground mb-1.5">AI 模型</label>
                               <input type="text" value={addMonitorForm.sources[0]?.aiModel || 'deepseek-v4-flash'}
                                 onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiModel: e.target.value }] }))}
                                 placeholder="deepseek-v4-flash"
@@ -1826,7 +1826,7 @@ export function PortalBuilderPage() {
                             </div>
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
+                            <label className="block text-sm font-semibold text-muted-foreground mb-1.5">API Key（可选）</label>
                             <input type="text" value={addMonitorForm.sources[0]?.apiKey || ''}
                               onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], apiKey: e.target.value }] }))}
                               placeholder="留空使用默认密钥" className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
