@@ -61,6 +61,7 @@ export function VideoCreatePage() {
   const [selectedMentionIdx, setSelectedMentionIdx] = useState(0)
 
   // Transition prompts for multiframe2video
+  const [showTemplates, setShowTemplates] = useState(false) // mobile template panel
   const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
   const [transitionDurations, setTransitionDurations] = useState<string[]>([])
 
@@ -448,24 +449,90 @@ export function VideoCreatePage() {
   )
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Top Header Bar */}
+      <header className="flex-shrink-0 flex items-center justify-between px-4 sm:px-5 py-2.5 border-b border-border bg-card/80 backdrop-blur-sm z-10">
+        <button onClick={() => navigate('/chat')} className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft size={16} />返回首页
+        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-sm sm:text-base font-bold bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent hidden sm:inline-flex items-center gap-1.5">
+            <Clapperboard size={18} className="text-purple-400" />
+            AI 视频创作
+          </h1>
           <button onClick={() => navigate('/chat')} className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft size={16} />返回首页
+            <LayoutDashboard size={14} />回到对话
           </button>
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/chat')} className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <LayoutDashboard size={14} />回到对话
-            </button>
-          </div>
         </div>
+      </header>
+
+      {/* Three-Column Layout */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ===== LEFT SIDEBAR: Template Library (desktop) ===== */}
+        <aside className="hidden lg:flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-card overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-border flex-shrink-0 flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles size={15} className="text-primary" />视频模板库</h3>
+            {selectedTemplate && (
+              <button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"><X size={12} />清空</button>
+            )}
+          </div>
+          {/* Filters */}
+          <div className="px-3 py-2 space-y-1.5 flex-shrink-0 border-b border-border/30">
+            <div className="flex gap-1 overflow-x-auto scrollbar-none">
+              {[
+                { key: 'all' as const, label: '全部' },
+                { key: 'image' as const, label: '图生' },
+                { key: 'text' as const, label: '文生' },
+              ].map(m => (
+                <button key={m.key} onClick={() => setInputMode(m.key)} className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-medium transition-all flex-shrink-0 ${inputMode === m.key ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Category tabs */}
+          <div className="px-3 py-2 flex gap-1 overflow-x-auto scrollbar-none flex-shrink-0 border-b border-border/30">
+            {templateCategories.map(cat => (
+              <button key={cat.key} onClick={() => setActiveCategory(cat.key)} className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-medium transition-all flex-shrink-0 ${activeCategory === cat.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                <span className="mr-1">{cat.icon}</span>{cat.label}
+              </button>
+            ))}
+          </div>
+          {/* Template cards — scrollable */}
+          <div className="flex-1 overflow-y-auto p-3">
+            <div className="grid grid-cols-1 gap-2">
+              {filteredTemplates.map(tpl => {
+                const isSelected = selectedTemplate?.id === tpl.id
+                return (
+                  <button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-3 rounded-xl border transition-all ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'}`}>
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-lg flex-shrink-0">{tpl.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold truncate">{tpl.name}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{tpl.description || tpl.prompt}</div>
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.duration}s</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.ratio}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </aside>
+
+        {/* ===== CENTER: Main Content ===== */}
+        <main className="flex-1 overflow-y-auto bg-background" style={{ minWidth: 0 }}>
+          <div className="px-4 sm:px-6 py-4 sm:py-6 max-w-3xl mx-auto">
 
         {/* ===== Main Input / Status / Result Area ===== */}
         <div className="space-y-4 sm:space-y-5">
-            {/* Hero Title */}
-            <div className="text-center sm:text-left mb-2">
+            {/* Mobile Hero Title (hidden on desktop where it's in header) */}
+            <div className="lg:hidden text-center mb-2">
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent inline-flex items-center gap-2">
                 <Clapperboard size={22} className="text-purple-400" />
                 AI 视频创作
@@ -506,8 +573,8 @@ export function VideoCreatePage() {
 
             {/* Upload prompt (no images yet) */}
             {needsImage && imageFiles.length === 0 && (
-              <div className="flex gap-3">
-                <div className="w-[40%] flex-shrink-0">
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="w-full md:w-[40%] flex-shrink-0">
                   {genType === 'frames2video' ? (
                     <div className="grid grid-cols-2 gap-3">
                       <div
@@ -685,7 +752,7 @@ export function VideoCreatePage() {
                       onClick={() => { const v = !openGenType; closeAll(); setOpenGenType(v) }}
                     />
                     {openGenType && (
-                      <div className="absolute bottom-full left-0 mb-2 z-50 w-72 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                      <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[360px] sm:w-72 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
                         {GEN_TYPE_CONFIG.map(opt => {
                           const OIcon = opt.icon
                           const active = genType === opt.key
@@ -727,7 +794,7 @@ export function VideoCreatePage() {
                         onClick={() => { const v = !openModel; closeAll(); setOpenModel(v) }}
                       />
                       {openModel && (
-                        <div className="absolute bottom-full left-0 mb-2 z-50 w-72 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                        <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[360px] sm:w-72 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
                           {MODEL_VERSIONS.map(m => {
                             const active = modelVersion === m.value
                             return (
@@ -761,7 +828,7 @@ export function VideoCreatePage() {
                         onClick={() => { const v = !openRatio; closeAll(); setOpenRatio(v) }}
                       />
                       {openRatio && (
-                        <div className="absolute bottom-full left-0 mb-2 z-50 w-48 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-0.5">
+                        <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[280px] sm:w-48 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-0.5">
                           {[
                             { value: '16:9', label: '16:9', desc: '横屏 · 电影/广告' },
                             { value: '9:16', label: '9:16', desc: '竖屏 · 短视频' },
@@ -797,7 +864,7 @@ export function VideoCreatePage() {
                         onClick={() => { const v = !openDuration; closeAll(); setOpenDuration(v) }}
                       />
                       {openDuration && genType !== 'multiframe2video' && (
-                        <div className="absolute bottom-full left-0 mb-2 z-50 w-48 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-0.5">
+                        <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[280px] sm:w-48 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-0.5">
                           {[
                             { value: '4', label: '4 秒', desc: '快速预览' },
                             { value: '5', label: '5 秒', desc: '短视频' },
@@ -905,50 +972,64 @@ export function VideoCreatePage() {
               </div>
             )}
 
-            {/* Template Library */}
-            <div className="rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 sm:p-5 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
+            {/* Mobile Template Library (collapsible) */}
+            <div className="lg:hidden rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm shadow-sm">
+              <button
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="w-full flex items-center justify-between p-3 sm:p-4"
+              >
                 <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles size={15} className="text-primary" />视频模板库</h3>
-                {selectedTemplate && (<button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"><X size={12} />清空</button>)}
-              </div>
-              {/* Input mode filter */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-                {[
-                  { key: 'all' as const, label: '全部' },
-                  { key: 'image' as const, label: '图生视频' },
-                  { key: 'text' as const, label: '文生视频' },
-                ].map(m => (
-                  <button key={m.key} onClick={() => setInputMode(m.key)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all flex-shrink-0 ${inputMode === m.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
-                {templateCategories.map(cat => (
-                  <button key={cat.key} onClick={() => setActiveCategory(cat.key)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all flex-shrink-0 ${activeCategory === cat.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                    <span className="mr-1">{cat.icon}</span>{cat.label}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-h-[360px] overflow-y-auto pr-0.5 scrollbar-thin">
-                {filteredTemplates.map(tpl => {
-                  const isSelected = selectedTemplate?.id === tpl.id
-                  return (
-                    <button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-3 rounded-xl border transition-all group ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'}`}>
-                      <div className="flex items-start gap-2">
-                        <span className="text-lg flex-shrink-0">{tpl.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold truncate">{tpl.name}</div>
-                          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.duration}s</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.ratio}</span>
+                <ChevronDown size={16} className={`text-muted-foreground transition-transform ${showTemplates ? 'rotate-180' : ''}`} />
+              </button>
+              {showTemplates && (
+                <div className="px-3 sm:px-4 pb-3 space-y-2 max-h-[320px] overflow-y-auto border-t border-border/30">
+                  {/* Input mode filter */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-2">
+                    {[
+                      { key: 'all' as const, label: '全部' },
+                      { key: 'image' as const, label: '图生视频' },
+                      { key: 'text' as const, label: '文生视频' },
+                    ].map(m => (
+                      <button key={m.key} onClick={() => setInputMode(m.key)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all flex-shrink-0 ${inputMode === m.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Category tabs */}
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {templateCategories.map(cat => (
+                      <button key={cat.key} onClick={() => setActiveCategory(cat.key)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-all flex-shrink-0 ${activeCategory === cat.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                        <span className="mr-1">{cat.icon}</span>{cat.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Template cards */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {filteredTemplates.map(tpl => {
+                      const isSelected = selectedTemplate?.id === tpl.id
+                      return (
+                        <button key={tpl.id} onClick={() => { handleSelectTemplate(tpl); setShowTemplates(false) }} className={`text-left p-3 rounded-xl border transition-all group ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'}`}>
+                          <div className="flex items-start gap-2">
+                            <span className="text-lg flex-shrink-0">{tpl.icon}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-semibold truncate">{tpl.name}</div>
+                              <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.duration}s</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.ratio}</span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {selectedTemplate && (
+                    <button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors pt-1">
+                      <X size={12} />清空模板
                     </button>
-                  )
-                })}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {error && (
@@ -993,7 +1074,7 @@ export function VideoCreatePage() {
                     {copied ? '✓ 已复制' : <><Copy size={12} /> 复制</>}
                   </button>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <div className="flex flex-col md:flex-row gap-2 md:gap-3">
                   <button onClick={handleDownload} disabled={downloading} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl text-xs sm:text-sm font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all disabled:opacity-60 disabled:cursor-wait shadow-lg shadow-emerald-500/20">
                     {downloading ? <><Loader2 size={16} className="animate-spin" />下载中 {downloadProgress > 0 ? `${downloadProgress}%` : ''}</> : <><Download size={16} />下载</>}
                   </button>
@@ -1013,15 +1094,33 @@ export function VideoCreatePage() {
           </div>
         )}
 
-        {/* ===== My Videos ===== */}
+        {/* ===== My Videos (mobile/tablet) ===== */}
         {!isPolling && (
-          <div className="mt-6 sm:mt-8 rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 sm:p-5 shadow-sm">
+          <div className="lg:hidden mt-6 sm:mt-8 rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 sm:p-5 shadow-sm">
             <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
               <Play size={15} className="text-primary" />我的视频
             </h3>
             <VideoHistory />
           </div>
         )}
+
+          </div>
+        </main>
+
+        {/* Right sidebar */}
+        {!isPolling && (
+          <aside className="hidden lg:flex w-[300px] flex-shrink-0 flex-col border-l border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex-shrink-0">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Play size={15} className="text-primary" />我的视频
+              </h3>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <VideoHistory />
+            </div>
+          </aside>
+        )}
+
       </div>
     </div>
   )
