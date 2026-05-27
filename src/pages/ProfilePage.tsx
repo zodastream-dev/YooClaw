@@ -172,7 +172,7 @@ export function ProfilePage() {
               <FolderOpen size={32} className="mx-auto mb-2 opacity-30" />
               <p>还没有生成任何门户</p>
               <button
-                onClick={() => navigate('/sites/portal')}
+                onClick={() => navigate('/sites/portal/create')}
                 className="mt-2 inline-flex items-center gap-1 text-primary hover:underline text-xs"
               >
                 去创建一个 →
