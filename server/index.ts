@@ -969,7 +969,7 @@ function renderMonitorForm(idx,w){
       s+='<span class="src-del" onclick="deleteSource('+idx+','+si+')" title="删除此监控源">\u2715</span></div>';
       s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
       s+='<select class="mb-select" id="srcProvider_'+idx+'_'+si+'">';
-      ['deepseek','metaso','codebuddy','custom'].forEach(function(p){
+      ['deepseek','metaso','tavily','multi-engine','wechat','weibo','zhihu','xiaohongshu','codebuddy','custom'].forEach(function(p){
         s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
       });
       s+='</select></div>';
