@@ -4308,7 +4308,17 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             let cmd = '';
             if (clip.inputType === 'multi_image' && clip.imagePaths && clip.imagePaths.length >= 2) {
               const imgList = clip.imagePaths.join(',');
-              cmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} --prompt="${escP}" --duration=${clip.duration} --poll=0`;
+              if (clip.imagePaths.length === 2) {
+                // 2 images: shorthand --prompt + --duration
+                cmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} --prompt="${escP}" --duration=${clip.duration} --poll=0`;
+              } else {
+                // 3+ images: --transition-prompt per transition (N-1), distribute duration evenly
+                const numTransitions = clip.imagePaths.length - 1;
+                const durPerTrans = Math.max(0.5, Number((clip.duration / numTransitions).toFixed(1)));
+                const tpFlags = Array(numTransitions).fill(`--transition-prompt="${escP}"`).join(' ');
+                const tdFlags = Array(numTransitions).fill(`--transition-duration=${durPerTrans}`).join(' ');
+                cmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} ${tpFlags} ${tdFlags} --poll=0`;
+              }
             } else if (clip.inputType === 'image' && clip.imagePath) {
               cmd = `${DREAMINA_BIN} image2video --image="${clip.imagePath}" --prompt="${escP}" --duration=${clip.duration} --video_resolution=${reso} --model_version=${mv} --poll=0`;
             } else {
@@ -4321,8 +4331,9 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
               const { stdout } = await execAsync(cmd + ' 2>&1', { timeout: 60000, maxBuffer: 1024 * 1024, cwd: '/tmp' });
               submitOut = stdout;
             } catch (execErr: any) {
-              submitOut = execErr.stdout || '';
+              submitOut = execErr.stdout || execErr.stderr || '';
               console.error(`[MultiClip] Submit ${i + 1} failed:`, execErr.message);
+              if (submitOut) console.error(`[MultiClip] Submit ${i + 1} output:`, submitOut.slice(0, 500));
             }
 
             const jsonMatch = submitOut.match(/\{[\s\S]*\}/);
