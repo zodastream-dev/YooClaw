@@ -2634,6 +2634,7 @@ app.get('/api/v1/user/sites', authMiddleware, async (req, res) => {
         companyName: s.company_name,
         type: s.type,
         viewCount: s.view_count,
+        isPublished: s.is_published,
         url: s.type === 'game' ? `/game/${s.slug}` : `/web/${s.slug}`,
         createdAt: new Date(s.created_at).getTime(),
         updatedAt: new Date(s.updated_at).getTime(),

@@ -97,6 +97,7 @@ export interface ReportSite {
   companyName: string
   type: string
   viewCount: number
+  isPublished: boolean
   url: string
   createdAt: number
   updatedAt: number
