@@ -1,5 +1,86 @@
 // Intel pipeline: search + DeepSeek analysis
 import { getSearchModule, getAllModules } from './search-sources/index.js';
+import crypto from 'crypto';
+
+// -- V3: AI-generated search keywords cache --
+const kwCache = new Map<string, { keywords: string[]; expiry: number }>();
+const KW_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function srcFingerprint(src: any, objectName?: string): string {
+  return crypto.createHash('md5').update(JSON.stringify({
+    name: src.name,
+    customPrompt: src.customPrompt,
+    keywords: src.keywords,
+    objects: src.objects,
+    objectName: objectName || '',
+  })).digest('hex');
+}
+
+async function generateSearchKeywords(src: any, objectName?: string): Promise<string[]> {
+  const fp = srcFingerprint(src, objectName);
+  const cached = kwCache.get(fp);
+  if (cached && cached.expiry > Date.now()) {
+    console.log('[Intel:V3] Cache hit — ' + src.name + ' (' + cached.keywords.length + ' keywords)');
+    return cached.keywords;
+  }
+
+  const category = src.name || '情报';
+  const prompt = (src.customPrompt || '').substring(0, 400);
+  const userKw = (Array.isArray(src.keywords) ? src.keywords : []).join('、');
+  const objCtx = objectName ? '监控对象：' + objectName : '';
+
+  const sp = '你是搜索关键词优化专家。根据情报监控配置，生成5-8个精准的中文搜索关键词用于搜索引擎查询。要求：1.每个关键词2-6个汉字 2.覆盖不同切入角度 3.优先具体实体词和行业术语 4.仅输出JSON数组，如：["关键词1","关键词2"]';
+
+  const up = '情报属性：' + category + '\n' +
+    (objCtx ? objCtx + '\n' : '') +
+    '用户关键词：' + (userKw || '（无）') + '\n' +
+    '配置描述：' + (prompt || '（无）') + '\n\n' +
+    '仅输出JSON数组，不要任何解释。';
+
+  try {
+    const resp = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || ''),
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 200,
+        temperature: 0.3,
+        messages: [
+          { role: 'system', content: sp },
+          { role: 'user', content: up },
+        ],
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    let content: string = data.choices[0].message.content.trim();
+    content = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+    let keywords: string[];
+    try { keywords = JSON.parse(content); }
+    catch {
+      // Try extracting JSON array from text
+      const m = content.match(/\[.*\]/s);
+      if (m) keywords = JSON.parse(m[0]);
+      else throw new Error('No JSON array found in response: ' + content.substring(0, 200));
+    }
+
+    if (Array.isArray(keywords) && keywords.length > 0) {
+      kwCache.set(fp, { keywords, expiry: Date.now() + KW_CACHE_TTL });
+      console.log('[Intel:V3] Generated ' + keywords.length + ' keywords for ' + src.name + ': ' + keywords.join(', '));
+      return keywords.map((k: string) => String(k).trim()).filter(Boolean);
+    }
+  } catch (e: any) {
+    console.warn('[Intel:V3] Keyword gen failed for ' + src.name + ':', e.message);
+  }
+
+  return [];
+}
 
 // API key mapping per provider
 function getProviderKey(provider: string): string {
@@ -11,7 +92,24 @@ function getProviderKey(provider: string): string {
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
   const provider = src.aiProvider || 'all';
   const model = src.aiModel || 'deepseek-v4-flash';
-  const query = effectiveKwArr.length > 0 ? effectiveKwArr.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ') : (objectName || src.name || '');
+
+  // -- V3: Generate AI-optimized search keywords (cached per config fingerprint) --
+  let aiKw: string[] = [];
+  try {
+    aiKw = await generateSearchKeywords(src, objectName);
+  } catch (e: any) {
+    console.warn('[Intel:V3] Keyword generation error, falling back to user keywords:', e.message);
+  }
+
+  // Merge: user keywords + AI keywords, dedup (case-insensitive)
+  const mergedSet = new Set<string>();
+  for (const k of effectiveKwArr) mergedSet.add(k.toLowerCase().trim());
+  for (const k of aiKw) mergedSet.add(k.toLowerCase().trim());
+  const mergedKwArr = [...mergedSet];
+
+  const query = mergedKwArr.length > 0
+    ? mergedKwArr.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ')
+    : (objectName || src.name || '');
 
   // 1. Search
   let rawItems: any[] = [];
@@ -62,7 +160,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。优先提供最近30天内的资讯。';
-  const kwText = effectiveKwArr.join('、') || '相关';
+  const kwText = mergedKwArr.join('、') || '相关';
   let up: string;
   const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
   if (objectName) {
