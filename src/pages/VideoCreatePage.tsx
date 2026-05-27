@@ -475,8 +475,11 @@ export function VideoCreatePage() {
 
   const handleSubmit = async () => {
     const p = prompt.trim()
-    if (needsPrompt && !p) return
-    if (needsImage && imageFiles.length < minImages) { setError(`请上传至少 ${minImages} 张图片`); return }
+    // Single-video validation — only for non-multi modes (multi-clip validates per-clip below)
+    if (mode !== 'multi') {
+      if (needsPrompt && !p) return
+      if (needsImage && imageFiles.length < minImages) { setError(`请上传至少 ${minImages} 张图片`); return }
+    }
     // Multi-clip validation
     if (mode === 'multi') {
       const emptyClips = clips.filter(c => !c.prompt.trim() && c.inputType !== 'image')
