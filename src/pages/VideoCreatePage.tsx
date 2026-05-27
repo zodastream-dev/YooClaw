@@ -54,11 +54,18 @@ export function VideoCreatePage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // @-mention state
+  // @-mention state (single-video mode)
   const [showMentions, setShowMentions] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
   const [mentionAnchorIdx, setMentionAnchorIdx] = useState(-1) // position of "@" in prompt
   const [selectedMentionIdx, setSelectedMentionIdx] = useState(0)
+
+  // @-mention state (multi-clip mode — per-clip)
+  const [mentionClipId, setMentionClipId] = useState<string | null>(null)
+  const [clipMentionFilter, setClipMentionFilter] = useState('')
+  const [clipMentionAnchorIdx, setClipMentionAnchorIdx] = useState(-1)
+  const [clipMentionSelectedIdx, setClipMentionSelectedIdx] = useState(0)
+  const clipTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
 
   // Transition prompts for multiframe2video
   const [showTemplates, setShowTemplates] = useState(false) // mobile template panel
@@ -84,6 +91,7 @@ export function VideoCreatePage() {
   const removeClip = (id: string) => {
     if (clips.length <= 2) return
     setClips(prev => prev.filter(c => c.id !== id))
+    setMentionClipId(prev => prev === id ? null : prev)
     // Revoke all preview URLs for this clip
     const previews = clipImagePreviews[id] || []
     previews.forEach(p => URL.revokeObjectURL(p))
@@ -397,6 +405,74 @@ export function VideoCreatePage() {
     }
   }
 
+  // --- Multi-clip @-mention helpers ---
+  const getClipMentionFiles = (clipId: string) => {
+    const previews = clipImagePreviews[clipId] || []
+    return previews
+      .map((preview, i) => ({ preview, label: `参考图${i + 1}`, index: i }))
+      .filter(f => !clipMentionFilter || f.label.includes(clipMentionFilter))
+  }
+
+  const handleClipInsertMention = (clipId: string, refLabel: string) => {
+    const clip = clips.find(c => c.id === clipId)
+    if (!clip) return
+    const prompt = clip.prompt
+    const textarea = clipTextareaRefs.current[clipId]
+    const cursorPos = textarea?.selectionStart || clipMentionAnchorIdx + 1 + clipMentionFilter.length
+    const before = prompt.slice(0, clipMentionAnchorIdx)
+    const after = prompt.slice(cursorPos)
+    const newPrompt = before + `@${refLabel} ` + after
+    updateClip(clipId, 'prompt', newPrompt)
+    setMentionClipId(null)
+    setClipMentionSelectedIdx(0)
+    setTimeout(() => {
+      const ta = clipTextareaRefs.current[clipId]
+      ta?.focus()
+      const newCursorPos = before.length + refLabel.length + 2
+      ta?.setSelectionRange(newCursorPos, newCursorPos)
+    }, 0)
+  }
+
+  const handleClipPromptChange = (clipId: string, e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    updateClip(clipId, 'prompt', value)
+    const cursorPos = e.target.selectionStart
+    const textBeforeCursor = value.slice(0, cursorPos)
+    const atIdx = textBeforeCursor.lastIndexOf('@')
+    const previews = clipImagePreviews[clipId] || []
+    if (atIdx >= 0 && previews.length > 0) {
+      const afterAt = textBeforeCursor.slice(atIdx + 1)
+      if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
+        setMentionClipId(clipId)
+        setClipMentionFilter(afterAt)
+        setClipMentionAnchorIdx(atIdx)
+        setClipMentionSelectedIdx(0)
+        return
+      }
+    }
+    setMentionClipId(null)
+  }
+
+  const handleClipKeyDown = (clipId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionClipId !== clipId) return
+    const files = getClipMentionFiles(clipId)
+    if (files.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setClipMentionSelectedIdx(prev => (prev + 1) % files.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setClipMentionSelectedIdx(prev => (prev - 1 + files.length) % files.length)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      handleClipInsertMention(clipId, files[clipMentionSelectedIdx].label)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setMentionClipId(null)
+    }
+  }
+  // --- End multi-clip @-mention helpers ---
+
   const handleSubmit = async () => {
     const p = prompt.trim()
     if (needsPrompt && !p) return
@@ -524,6 +600,7 @@ export function VideoCreatePage() {
     setResult(null); setSubmitId(null); setIsPolling(false); setQueueMessage('')
     setPollCount(0); setElapsedMinutes(0); setError(null); setCopied(false); setMultiClipProgress(null)
     setPrompt(''); setSelectedTemplate(null); clearAllImages()
+    setShowMentions(false); setMentionClipId(null)
     if (TASK_KEY) localStorage.removeItem(TASK_KEY)
     // Also clear legacy shared key to fix existing cross-user pollution
     localStorage.removeItem('yooclaw_active_video_task')
@@ -1113,7 +1190,7 @@ export function VideoCreatePage() {
                     </div>
                   </div>
                   {clip.inputType === 'image' && (
-                    <div className="flex gap-2 items-start">
+                    <div className="flex gap-2 items-start relative">
                       {/* Image thumbnails + add button */}
                       <div className="flex gap-1.5 flex-wrap flex-shrink-0">
                         {(clipImagePreviews[clip.id] || []).map((preview, pi) => (
@@ -1137,14 +1214,50 @@ export function VideoCreatePage() {
                       </div>
                       <input ref={el => { clipFileInputRefs.current[clip.id] = el }} type="file" accept="image/*" multiple
                         onChange={e => handleClipImageChange(clip.id, e)} className="hidden" />
-                      <textarea value={clip.prompt} onChange={e => updateClip(clip.id, 'prompt', e.target.value)}
-                        placeholder={clipImageFiles[clip.id]?.length >= 2 ? "描述多帧之间的过渡效果..." : "描述参考图的运动效果..."}
+                      <textarea
+                        ref={el => { clipTextareaRefs.current[clip.id] = el }}
+                        value={clip.prompt}
+                        onChange={e => handleClipPromptChange(clip.id, e)}
+                        onKeyDown={e => handleClipKeyDown(clip.id, e)}
+                        placeholder={clipImageFiles[clip.id]?.length >= 2 ? "描述多帧之间的过渡效果，输入 @ 引用参考图..." : "描述参考图的运动效果..."}
                         className="flex-1 min-h-[60px] px-3 py-2 bg-transparent border border-border/30 rounded-lg text-sm outline-none resize-none placeholder:text-muted-foreground/40"
                         rows={2} />
+                      {/* @-mention dropdown for this clip */}
+                      {mentionClipId === clip.id && (() => {
+                        const mf = getClipMentionFiles(clip.id)
+                        if (mf.length === 0) return null
+                        return (
+                          <div className="absolute left-0 right-0 bottom-full mb-1 z-50 bg-[#1e1e2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 space-y-1 max-h-[200px] overflow-y-auto">
+                            <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground">
+                              <span>引用已上传的参考文件（↑↓选择 Enter确认 Esc关闭）</span>
+                            </div>
+                            {mf.map((f, mi) => (
+                              <button
+                                key={f.index}
+                                onClick={() => handleClipInsertMention(clip.id, f.label)}
+                                onMouseEnter={() => setClipMentionSelectedIdx(mi)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left ${mi === clipMentionSelectedIdx ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-white/5'}`}
+                              >
+                                <div className="w-10 h-10 rounded-md overflow-hidden border border-white/10 flex-shrink-0 bg-black/20">
+                                  <img src={f.preview} alt="" className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-medium text-foreground">@{f.label}</div>
+                                  <div className="text-[10px] text-muted-foreground">图片参考</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
                   {clip.inputType === 'text' && (
-                    <textarea value={clip.prompt} onChange={e => updateClip(clip.id, 'prompt', e.target.value)}
+                    <textarea
+                      ref={el => { clipTextareaRefs.current[clip.id] = el }}
+                      value={clip.prompt}
+                      onChange={e => handleClipPromptChange(clip.id, e)}
+                      onKeyDown={e => handleClipKeyDown(clip.id, e)}
                       placeholder={`描述片段 ${idx + 1} 的画面内容...`}
                       className="w-full min-h-[60px] px-3 py-2 bg-transparent border border-border/30 rounded-lg text-sm outline-none resize-none placeholder:text-muted-foreground/40"
                       rows={2} />
@@ -1188,6 +1301,7 @@ export function VideoCreatePage() {
                       }
                       setIsPolling(false)
                       setShowMentions(false)
+                      setMentionClipId(null)
                     }}
                     className="px-3 py-1.5 text-xs border border-border/50 rounded-lg text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all"
                   >
