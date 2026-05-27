@@ -72,9 +72,9 @@ export function VideoCreatePage() {
     { id: crypto.randomUUID(), prompt: '', duration: '5', inputType: 'text' },
     { id: crypto.randomUUID(), prompt: '', duration: '5', inputType: 'text' },
   ])
-  // Per-clip image files (separate Map since File isn't easily in state array)
-  const [clipImageFiles, setClipImageFiles] = useState<Record<string, File | null>>({})
-  const [clipImagePreviews, setClipImagePreviews] = useState<Record<string, string>>({})
+  // Per-clip image files (array — supports multiple reference images per clip)
+  const [clipImageFiles, setClipImageFiles] = useState<Record<string, File[]>>({})
+  const [clipImagePreviews, setClipImagePreviews] = useState<Record<string, string[]>>({})
   const clipFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const addClip = () => {
     if (clips.length >= 6) return
@@ -84,6 +84,9 @@ export function VideoCreatePage() {
   const removeClip = (id: string) => {
     if (clips.length <= 2) return
     setClips(prev => prev.filter(c => c.id !== id))
+    // Revoke all preview URLs for this clip
+    const previews = clipImagePreviews[id] || []
+    previews.forEach(p => URL.revokeObjectURL(p))
     setClipImageFiles(prev => { const n = { ...prev }; delete n[id]; return n })
     setClipImagePreviews(prev => { const n = { ...prev }; delete n[id]; return n })
   }
@@ -91,20 +94,40 @@ export function VideoCreatePage() {
     setClips(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c))
   }
   const handleClipImageChange = (clipId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) { setError('请选择图片文件'); return }
-    if (file.size > 20 * 1024 * 1024) { setError('图片不能超过 20MB'); return }
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const currentFiles = clipImageFiles[clipId] || []
+    const newFiles: File[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (!file.type.startsWith('image/')) continue
+      if (file.size > 20 * 1024 * 1024) continue
+      newFiles.push(file)
+    }
+    if (newFiles.length === 0) return
+    const total = currentFiles.length + newFiles.length
+    if (total > 20) { setError('每段最多 20 张参考图'); return }
     setError(null)
-    setClipImageFiles(prev => ({ ...prev, [clipId]: file }))
-    setClipImagePreviews(prev => ({ ...prev, [clipId]: URL.createObjectURL(file) }))
+    setClipImageFiles(prev => ({ ...prev, [clipId]: [...currentFiles, ...newFiles] }))
+    setClipImagePreviews(prev => ({
+      ...prev,
+      [clipId]: [...(prev[clipId] || []), ...newFiles.map(f => URL.createObjectURL(f))]
+    }))
     if (clipFileInputRefs.current[clipId]) clipFileInputRefs.current[clipId]!.value = ''
   }
-  const handleRemoveClipImage = (clipId: string) => {
-    const preview = clipImagePreviews[clipId]
-    if (preview) URL.revokeObjectURL(preview)
-    setClipImageFiles(prev => ({ ...prev, [clipId]: null }))
-    setClipImagePreviews(prev => { const n = { ...prev }; delete n[clipId]; return n })
+  const handleRemoveClipImage = (clipId: string, index: number) => {
+    const previews = clipImagePreviews[clipId] || []
+    if (previews[index]) URL.revokeObjectURL(previews[index])
+    setClipImageFiles(prev => {
+      const files = [...(prev[clipId] || [])]
+      files.splice(index, 1)
+      return { ...prev, [clipId]: files }
+    })
+    setClipImagePreviews(prev => {
+      const arr = [...(prev[clipId] || [])]
+      arr.splice(index, 1)
+      return { ...prev, [clipId]: arr }
+    })
   }
   const totalClipDuration = clips.reduce((sum, c) => sum + (Number(c.duration) || 5), 0)
 
@@ -381,7 +404,7 @@ export function VideoCreatePage() {
     // Multi-clip validation
     if (mode === 'multi') {
       const emptyClips = clips.filter(c => !c.prompt.trim() && c.inputType !== 'image')
-      const missingImageClips = clips.filter(c => c.inputType === 'image' && !clipImageFiles[c.id])
+      const missingImageClips = clips.filter(c => c.inputType === 'image' && (!clipImageFiles[c.id] || clipImageFiles[c.id].length === 0))
       if (emptyClips.length > 0) { setError(`请为所有片段输入提示词`); return }
       if (missingImageClips.length > 0) { setError(`请为图生片段上传图片`); return }
     }
@@ -396,8 +419,13 @@ export function VideoCreatePage() {
         params.genType = 'multi_clip'
         params.clips = await Promise.all(clips.map(async c => {
           const clipData: any = { prompt: c.prompt.trim(), duration: Number(c.duration) || 5, inputType: c.inputType }
-          if (c.inputType === 'image' && clipImageFiles[c.id]) {
-            clipData.image = await fileToBase64(clipImageFiles[c.id]!)
+          if (c.inputType === 'image' && clipImageFiles[c.id] && clipImageFiles[c.id].length > 0) {
+            if (clipImageFiles[c.id].length === 1) {
+              clipData.image = await fileToBase64(clipImageFiles[c.id][0])
+            } else {
+              clipData.images = await Promise.all(clipImageFiles[c.id].map(f => fileToBase64(f)))
+              clipData.inputType = 'multi_image'
+            }
           }
           return clipData
         }))
@@ -1086,24 +1114,31 @@ export function VideoCreatePage() {
                   </div>
                   {clip.inputType === 'image' && (
                     <div className="flex gap-2 items-start">
-                      {clipImagePreviews[clip.id] ? (
-                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border/40 group flex-shrink-0">
-                          <img src={clipImagePreviews[clip.id]} alt="参考图" className="w-full h-full object-cover" />
-                          <button onClick={() => handleRemoveClipImage(clip.id)} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <X size={10} className="text-white" />
+                      {/* Image thumbnails + add button */}
+                      <div className="flex gap-1.5 flex-wrap flex-shrink-0">
+                        {(clipImagePreviews[clip.id] || []).map((preview, pi) => (
+                          <div key={pi} className="relative w-14 h-14 rounded-lg overflow-hidden border border-border/40 group flex-shrink-0">
+                            <img src={preview} alt={`参考图 ${pi + 1}`} className="w-full h-full object-cover" />
+                            <span className="absolute bottom-0 left-0 right-0 text-[9px] text-center bg-black/60 text-white/80 py-0.5">{pi + 1}</span>
+                            <button onClick={() => handleRemoveClipImage(clip.id, pi)} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <X size={9} className="text-white" />
+                            </button>
+                          </div>
+                        ))}
+                        {(clipImageFiles[clip.id] || []).length < 20 && (
+                          <button onClick={() => clipFileInputRefs.current[clip.id]?.click()}
+                            className="w-14 h-14 rounded-lg border-2 border-dashed border-violet-500/20 flex flex-col items-center justify-center text-violet-400/60 hover:text-violet-400 hover:border-violet-500/40 transition-all flex-shrink-0">
+                            <Plus size={16} />
+                            <span className="text-[9px] mt-0.5">
+                              {(clipImageFiles[clip.id] || []).length === 0 ? '参考图' : '添加'}
+                            </span>
                           </button>
-                        </div>
-                      ) : (
-                        <button onClick={() => clipFileInputRefs.current[clip.id]?.click()}
-                          className="w-16 h-16 rounded-lg border-2 border-dashed border-violet-500/20 flex flex-col items-center justify-center text-violet-400/60 hover:text-violet-400 hover:border-violet-500/40 transition-all flex-shrink-0">
-                          <Camera size={16} />
-                          <span className="text-[9px] mt-0.5">参考图</span>
-                        </button>
-                      )}
-                      <input ref={el => { clipFileInputRefs.current[clip.id] = el }} type="file" accept="image/*"
+                        )}
+                      </div>
+                      <input ref={el => { clipFileInputRefs.current[clip.id] = el }} type="file" accept="image/*" multiple
                         onChange={e => handleClipImageChange(clip.id, e)} className="hidden" />
                       <textarea value={clip.prompt} onChange={e => updateClip(clip.id, 'prompt', e.target.value)}
-                        placeholder="描述参考图的运动效果..."
+                        placeholder={clipImageFiles[clip.id]?.length >= 2 ? "描述多帧之间的过渡效果..." : "描述参考图的运动效果..."}
                         className="flex-1 min-h-[60px] px-3 py-2 bg-transparent border border-border/30 rounded-lg text-sm outline-none resize-none placeholder:text-muted-foreground/40"
                         rows={2} />
                     </div>
@@ -1118,7 +1153,7 @@ export function VideoCreatePage() {
               ))}
               <div className="flex justify-end pt-1">
                 <button onClick={handleSubmit}
-                  disabled={isSubmitting || clips.some(c => !c.prompt.trim() && (c.inputType !== 'image')) || clips.some(c => c.inputType === 'image' && !clipImageFiles[c.id])}
+                  disabled={isSubmitting || clips.some(c => !c.prompt.trim() && (c.inputType !== 'image')) || clips.some(c => c.inputType === 'image' && (!clipImageFiles[c.id] || clipImageFiles[c.id].length === 0))}
                   className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-sm font-semibold shadow-lg shadow-violet-500/20 hover:from-violet-600 hover:to-fuchsia-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95">
                   {isSubmitting ? <><Loader2 size={16} className="animate-spin" />提交中...</> : <><Send size={16} />生成 {totalClipDuration}s 视频</>}
                 </button>

@@ -4107,8 +4107,9 @@ interface ClipTask {
   submitId: string;
   prompt: string;
   duration: number;
-  inputType: 'text' | 'image';
+  inputType: 'text' | 'image' | 'multi_image';
   imagePath: string | null; // temp image path for image2video clips
+  imagePaths: string[] | null; // temp image paths for multiframe2video clips
   status: 'pending' | 'processing' | 'completed' | 'failed';
   videoPath: string | null; // local path after download
   cdnUrl: string | null;
@@ -4198,7 +4199,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
     // ===== Multi-clip: session video generation with FFmpeg concat =====
     if (gt === 'multi_clip') {
-      const clipArray: { prompt: string; duration: number; inputType?: 'text' | 'image'; image?: string }[] = clips || [];
+      const clipArray: { prompt: string; duration: number; inputType?: 'text' | 'image' | 'multi_image'; image?: string; images?: string[] }[] = clips || [];
       if (!Array.isArray(clipArray) || clipArray.length < 2) {
         return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '至少需要 2 个片段' } });
       }
@@ -4207,7 +4208,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       }
       for (let i = 0; i < clipArray.length; i++) {
         const c = clipArray[i];
-        const clipInputType = (c.inputType === 'image') ? 'image' : 'text';
+        const clipInputType = c.inputType === 'multi_image' ? 'multi_image' : (c.inputType === 'image' ? 'image' : 'text');
         // Text clips must have prompt
         if (clipInputType === 'text' && (!c.prompt || typeof c.prompt !== 'string' || !c.prompt.trim())) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 需要输入提示词` } });
@@ -4216,19 +4217,38 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         if (clipInputType === 'image' && !c.image) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 图生模式需要上传图片` } });
         }
+        // multi_image clips must have 2-20 images
+        if (clipInputType === 'multi_image') {
+          if (!c.images || !Array.isArray(c.images) || c.images.length < 2) {
+            return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 多图模式需要至少 2 张图片` } });
+          }
+          if (c.images.length > 20) {
+            return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 多图模式最多 20 张图片` } });
+          }
+        }
         const d = Number(c.duration) || 5;
         if (d < 3 || d > 15) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 时长需在 3-15 秒之间` } });
         }
-        // Save image to temp file if present
+        // Save images to temp files
         let imagePath: string | null = null;
+        let imagePaths: string[] | null = null;
         if (clipInputType === 'image' && c.image) {
           const imgBuf = Buffer.from(c.image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
           const imgFn = `mc-img-${crypto.randomUUID().slice(0, 8)}.png`;
           imagePath = path.join('/tmp', imgFn);
           fs.writeFileSync(imagePath, imgBuf);
         }
-        clipArray[i] = { prompt: c.prompt?.trim() || '', duration: d, inputType: clipInputType, image: c.image || null, imagePath };
+        if (clipInputType === 'multi_image' && c.images) {
+          imagePaths = c.images.map((img: string) => {
+            const imgBuf = Buffer.from(img.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+            const imgFn = `mc-mi-${crypto.randomUUID().slice(0, 8)}.png`;
+            const p = path.join('/tmp', imgFn);
+            fs.writeFileSync(p, imgBuf);
+            return p;
+          });
+        }
+        clipArray[i] = { prompt: c.prompt?.trim() || '', duration: d, inputType: clipInputType, image: c.image || null, imagePath, images: c.images || null, imagePaths };
       }
 
       const mv = (modelVersion && VALID_MODEL_VERSIONS.includes(modelVersion)) ? modelVersion : 'seedance2.0fast';
@@ -4246,6 +4266,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         duration: c.duration,
         inputType: c.inputType || 'text',
         imagePath: c.imagePath || null,
+        imagePaths: c.imagePaths || null,
         status: 'pending' as const,
         videoPath: null,
         cdnUrl: null,
@@ -4284,7 +4305,10 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             clip.status = 'processing';
             const escP = (clip.prompt || '').replace(/"/g, '\\"');
             let cmd = '';
-            if (clip.inputType === 'image' && clip.imagePath) {
+            if (clip.inputType === 'multi_image' && clip.imagePaths && clip.imagePaths.length >= 2) {
+              const imgList = clip.imagePaths.join(',');
+              cmd = `${DREAMINA_BIN} multiframe2video --images ${imgList} --prompt="${escP}" --duration=${clip.duration} --poll=0`;
+            } else if (clip.inputType === 'image' && clip.imagePath) {
               cmd = `${DREAMINA_BIN} image2video --image="${clip.imagePath}" --prompt="${escP}" --duration=${clip.duration} --video_resolution=${reso} --model_version=${mv} --poll=0`;
             } else {
               cmd = `${DREAMINA_BIN} text2video --prompt="${escP}" --duration=${clip.duration} --ratio=${rat} --video_resolution=${reso} --model_version=${mv} --poll=0`;
@@ -4478,6 +4502,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
           for (const clip of task.clips) {
             if (clip.videoPath) { try { fs.unlinkSync(clip.videoPath); } catch {} }
             if (clip.imagePath) { try { fs.unlinkSync(clip.imagePath); } catch {} }
+            if (clip.imagePaths) { clip.imagePaths.forEach(p => { try { fs.unlinkSync(p); } catch {} }); }
           }
         } catch (err: any) {
           console.error('[MultiClip] Background error:', err.message);
