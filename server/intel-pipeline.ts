@@ -61,7 +61,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。优先提供最近30天内的资讯。';
   const kwText = effectiveKwArr.join('、') || '相关';
   let up: string;
-  const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000) : '(无实时搜索结果，请基于你的知识生成最新情报)';
+  const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
   if (objectName) {
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
@@ -73,7 +73,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(80字)+来源+时间+url\n2.按重要性排序，30天优先\n' +
       '3.JSON: [{"title":"","summary":"","source":"","date":"","url":""}]\n' +
-      '4.无url留空 5.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果，请基于你的知识生成)');
+      '4.无url留空 5.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -107,9 +107,42 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     console.log('[Intel] DeepSeek returned empty, falling back to ' + rawItems.length + ' rawItems');
     results = rawItems;
   }
+
+  // 构建原始 URL 白名单（从搜索结果中提取），用于过滤 AI 幻觉 URL
+  const rawUrlSet = new Set<string>();
+  for (const item of rawItems) {
+    if (item.url) rawUrlSet.add(item.url.toLowerCase().trim());
+  }
+  const hallucinatedUrls: string[] = [];
+
   results = (results || []).map(function (r: any) {
-    return { title: r.title || '', summary: r.summary || r.snippet || '', source: r.source || r.url || '', date: r.date || r.time || '', link: r.url || r.link || 'https://www.baidu.com/s?wd=' + encodeURIComponent(r.title || ''), _provider: r._searchProvider || provider };
+    const rawUrl = r.url || r.link || '';
+    let finalUrl = rawUrl;
+
+    // 验证 URL 是否出现在搜索结果白名单中（避免 AI 幻觉 URL）
+    if (finalUrl && !rawUrlSet.has(finalUrl.toLowerCase().trim())) {
+      // 宽松校验：检查是否为有效的 http(s) URL
+      const looksReal = /^https?:\/\/[^\s]+$/.test(finalUrl);
+      if (looksReal && rawUrlSet.size === 0) {
+        // 无搜索结果时，AI 可能编造 URL；只有在有搜索结果时才信任白名单外的 URL
+        hallucinatedUrls.push(finalUrl);
+        finalUrl = '';
+      }
+    }
+
+    return {
+      title: r.title || '',
+      summary: r.summary || r.snippet || '',
+      source: r.source || r.url || '',
+      date: r.date || r.time || '',
+      link: finalUrl,
+      _provider: r._searchProvider || provider,
+    };
   });
+
+  if (hallucinatedUrls.length > 0) {
+    console.warn('[Intel] Filtered ' + hallucinatedUrls.length + ' hallucinated URLs: ' + hallucinatedUrls.slice(0, 5).join(', '));
+  }
   const cutoff = Date.now() - 30 * 86400000;
   results = results.filter(function (r: any) { return !r.date || isNaN(new Date(r.date).getTime()) || new Date(r.date).getTime() > cutoff; });
   return results.slice(0, 30);
