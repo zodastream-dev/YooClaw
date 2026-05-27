@@ -54,7 +54,10 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   }
 
   const hasSearch = rawItems.length > 0;
-  if (!hasSearch) console.log('[Intel] No results for provider: ' + provider + ', using knowledge-based generation');
+  if (!hasSearch) {
+    console.log('[Intel] No search results — returning empty (宁缺毋滥)');
+    return [];
+  }
 
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
