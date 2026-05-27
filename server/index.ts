@@ -4467,17 +4467,30 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             return;
           }
 
-          const durations = task.clips.map(c => c.duration);
+          // Probe actual video durations (dreamina may generate different length than requested)
+          const durations: number[] = [];
+          for (let i = 0; i < inputPaths.length; i++) {
+            try {
+              const { stdout } = await execAsync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${inputPaths[i]}"`, { timeout: 10000 });
+              const d = parseFloat(stdout.trim());
+              durations.push(d > 0 ? d : task.clips[i].duration);
+              console.log(`[MultiClip] Clip ${i} actual duration: ${d.toFixed(2)}s (requested: ${task.clips[i].duration}s)`);
+            } catch {
+              durations.push(task.clips[i].duration); // fallback to requested
+            }
+          }
+
           const outputFn = `multi-${parentId.slice(0, 10)}.mp4`;
           const outputPath = path.join(VIDEO_DIR, outputFn);
           const concatCmd = buildConcatCommand(inputPaths, durations, outputPath);
 
           console.log(`[MultiClip] FFmpeg command: ${concatCmd.slice(0, 200)}...`);
           try {
-            const { stderr } = await execAsync(concatCmd, { timeout: 300000, maxBuffer: 10 * 1024 * 1024, cwd: '/tmp' });
-            if (stderr) console.log(`[MultiClip] FFmpeg stderr:`, stderr.slice(-300));
+            await execAsync(concatCmd, { timeout: 300000, maxBuffer: 10 * 1024 * 1024, cwd: '/tmp' });
           } catch (ffErr: any) {
             console.error(`[MultiClip] FFmpeg failed:`, ffErr.message);
+            // Log ffmpeg stderr from caught error
+            if ((ffErr as any).stderr) console.error(`[MultiClip] FFmpeg stderr:`, (ffErr as any).stderr.slice(-500));
             task.status = 'failed';
             task.errorMessage = '视频拼接失败，请重试';
             return;
