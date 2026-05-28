@@ -348,17 +348,14 @@ function filterBySourceFromBtn(btn){
 }
 function filterBySource(sourceName){
   console.log('[filterBySource] sourceName=', sourceName, 'currentSourceFilters=', JSON.stringify(currentSourceFilters));
+  // 单选模式：点击任意标签替换当前选中，再点已选中的不取消
   if(sourceName==='全部'){
     currentSourceFilters=['全部'];
+  } else if(currentSourceFilters.length===1 && currentSourceFilters[0]===sourceName){
+    // 点击已选中的标签：不取消，保持选中（单选至少保留一个选中项）
+    return;
   } else {
-    var allIdx=currentSourceFilters.indexOf('全部');
-    if(allIdx >= 0)currentSourceFilters.splice(allIdx,1);
-    var idx=currentSourceFilters.indexOf(sourceName);
-    if(idx >= 0){
-      currentSourceFilters.splice(idx,1);
-    }else{
-      currentSourceFilters.push(sourceName);
-    }
+    currentSourceFilters=[sourceName];
   }
   // Sync UI: set 'active' class based on currentSourceFilters
   document.querySelectorAll('.subfilter-btn').forEach(function(b){
@@ -695,8 +692,8 @@ function renderSourceForm(wi,si){
   s+='<div class="model-config-body" style="display:none;margin-top:8px">';
   s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
   s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
-  ['deepseek','metaso','tavily','multi-engine','wechat','weibo','zhihu','xiaohongshu','codebuddy','custom'].forEach(function(p){
-    s+='<option value="'+p+'"'+(src.aiProvider===p?' selected':'')+'>'+p+'</option>';
+  [{v:'all',l:'🌐 全渠道（推荐）'},{v:'metaso',l:'秘塔搜索（Metaso）'},{v:'tavily',l:'Tavily 搜索'},{v:'multi-engine',l:'多引擎搜索'},{v:'wechat',l:'微信公众号'},{v:'weibo',l:'微博'},{v:'zhihu',l:'知乎'},{v:'xiaohongshu',l:'小红书'},{v:'deepseek',l:'DeepSeek（仅知识库）'},{v:'custom',l:'自定义 API'}].forEach(function(p){
+    s+='<option value="'+p.v+'"'+(src.aiProvider===p.v?' selected':'')+'>'+p.l+'</option>';
   });
   s+='</select></div>';
   s+='<div class="mb-group"><label class="mb-label">AI 模型</label>';

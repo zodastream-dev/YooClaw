@@ -168,13 +168,13 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
       '要求：1.标题+摘要(80字)+来源+时间+url\n2.去重过滤无关\n3.30天优先\n' +
-      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '"}]\n' +
-      '5.无url留空 6.仅JSON\n\n原始搜索结果：\n' + searchContext;
+      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":""}]\n' +
+      '5. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n6.无url留空 7.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(80字)+来源+时间+url\n2.按重要性排序，30天优先\n' +
-      '3.JSON: [{"title":"","summary":"","source":"","date":"","url":""}]\n' +
-      '4.无url留空 5.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
+      '3.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":""}]\n' +
+      '4. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n5.无url留空 6.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -237,7 +237,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       source: r.source || r.url || '',
       date: r.date || r.time || '',
       link: finalUrl,
-      _provider: r._searchProvider || provider,
+      _provider: r._provider || r._searchProvider || provider,
     };
   });
 
