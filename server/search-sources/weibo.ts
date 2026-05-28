@@ -1,5 +1,4 @@
-// 微博搜索源 — 通过秘塔 API 搜索 weibo.com 内容
-// （直接抓取 s.weibo.com 被 JS 验证页拦截，Tavily 偏英文不适合国内市场，2026-05 切回秘塔）
+// 微博搜索源 — 通过秘塔 API + site:weibo.com 搜索微博内容
 import type { RawSearchItem, SearchModule } from './types';
 
 const weiboModule: SearchModule = {
@@ -14,7 +13,7 @@ const weiboModule: SearchModule = {
       const resp = await fetch('https://metaso.cn/api/open/search/v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({ question: `${query} 微博`, lang: 'zh' }),
+        body: JSON.stringify({ question: `${query} site:weibo.com`, lang: 'zh' }),
         signal: AbortSignal.timeout(25000),
       });
       if (!resp.ok) {
@@ -24,19 +23,13 @@ const weiboModule: SearchModule = {
       const data = await resp.json();
       const rawData = data.data?.references || data.data || data.results || data.items || [];
       const results: any[] = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
-      console.log('[WeiboSearch] Metaso returned ' + results.length + ' total, filtering weibo.com');
-      return results
-        .filter((r: any) => {
-          const url = (r.url || r.link || '').toLowerCase();
-          return url.includes('weibo.com');
-        })
-        .slice(0, 15)
-        .map((r: any) => ({
-          title: r.title || r.name || '',
-          url: r.url || r.link || '',
-          snippet: r.snippet || r.summary || r.content || r.aiSummary || '',
-          date: r.date || r.publishedAt || r.publishTime || '',
-        }));
+      console.log('[WeiboSearch] Metaso returned ' + results.length + ' results (site:weibo.com)');
+      return results.slice(0, 15).map((r: any) => ({
+        title: r.title || r.name || '',
+        url: r.url || r.link || '',
+        snippet: r.snippet || r.summary || r.content || r.aiSummary || '',
+        date: r.date || r.publishedAt || r.publishTime || '',
+      }));
     } catch (e: any) {
       console.warn('[WeiboSearch] Failed:', e.message);
       return [];
