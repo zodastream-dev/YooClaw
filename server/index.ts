@@ -3601,8 +3601,12 @@ app.post('/api/portal-intel', async (req, res) => {
     const processSource = async (src: any, idx: number) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
       const cached = portalIntelCache.get(cacheKey);
-      if (cached && cached.expiry > now) {
+      // Only serve from cache if non-empty (empty may be transient failure)
+      if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
         return { sourceIdx: idx, data: cached.data, fromCache: true };
+      }
+      if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length === 0) {
+        console.log(`[PortalIntel] Cached data is empty for "${src.name}", re-fetching...`);
       }
       try {
         const intelData = await fetchIntelForSource(src);
@@ -3683,12 +3687,14 @@ async function warmAllPortalCaches() {
       return;
     }
 
-    // Skip already-cached sources
+    // Skip already-cached sources (re-warm if expired OR if cached 0 results — may be transient failure)
     const now = Date.now();
     const toWarm: { key: string; src: any }[] = [];
     sourceMap.forEach((src, key) => {
       const cached = portalIntelCache.get(key);
-      if (!cached || cached.expiry <= now) {
+      const isEmpty = cached && Array.isArray(cached.data) && cached.data.length === 0;
+      if (!cached || cached.expiry <= now || isEmpty) {
+        if (isEmpty) console.log(`[CacheWarmer] Re-warming empty cache for: ${src.name || 'unnamed'}`);
         toWarm.push({ key, src });
       }
     });
