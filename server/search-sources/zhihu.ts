@@ -21,7 +21,7 @@ const zhihuModule: SearchModule = {
           include_domains: ['zhihu.com'],
           include_answer: false,
         }),
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(35000),
       });
       if (!resp.ok) {
         console.warn('[ZhihuSearch] Tavily HTTP ' + resp.status);

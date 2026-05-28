@@ -21,7 +21,7 @@ const weiboModule: SearchModule = {
           include_domains: ['weibo.com'],
           include_answer: false,
         }),
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(35000),
       });
       if (!resp.ok) {
         console.warn('[WeiboSearch] Tavily HTTP ' + resp.status);

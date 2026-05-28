@@ -21,7 +21,7 @@ const xiaohongshuModule: SearchModule = {
           include_domains: ['xiaohongshu.com'],
           include_answer: false,
         }),
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(35000),
       });
       if (!resp.ok) {
         console.warn('[XHSSearch] Tavily HTTP ' + resp.status);
