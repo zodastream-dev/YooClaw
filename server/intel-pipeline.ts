@@ -55,14 +55,16 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
   const prompt = (src.customPrompt || '').substring(0, 400);
   const userKw = (Array.isArray(src.keywords) ? src.keywords : []).join('、');
   const objCtx = objectName ? '监控对象：' + objectName : '';
+  const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
-  const sp = '你是搜索关键词优化专家。根据情报监控配置，生成5-8个精准的中文搜索关键词用于搜索引擎查询。要求：1.每个关键词2-6个汉字 2.覆盖不同切入角度 3.优先具体实体词和行业术语 4.仅输出JSON数组，如：["关键词1","关键词2"]';
+  const sp = '你是搜索关键词优化专家。今天是' + today + '。根据情报监控配置，生成8-12个高价值中文搜索关键词用于多渠道搜索引擎查询。要求：1.优先具体产品名/技术术语/事件名称（如"韬芯片""鸿蒙NEXT""Mate80"）2.必须包含时效性关键词（如"最新""本月""2026年"）3.覆盖6个维度：产品发布、技术突破、财报业绩、人事变动、竞争动态、政策监管 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]';
 
   const up = '情报属性：' + category + '\n' +
     (objCtx ? objCtx + '\n' : '') +
+    '当前日期：' + today + '\n' +
     '用户关键词：' + (userKw || '（无）') + '\n' +
     '配置描述：' + (prompt || '（无）') + '\n\n' +
-    '仅输出JSON数组，不要任何解释。';
+    '请优先生成包含具体产品名、技术名词、事件名称的时效性关键词。仅输出JSON数组，不要任何解释。';
 
   try {
     const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -160,6 +162,12 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     console.log(`[Intel] No keywords available for "${src.name}", using fallback query: ${query}`);
   } else {
     query = src.name || '';
+  }
+
+  // P0: Append recency signal to ensure latest news coverage (e.g. "华为 最新动态 2026年5月")
+  if (objectName) {
+    const thisMonth = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
+    query = `(${query}) OR (${objectName} 最新动态 ${thisMonth})`;
   }
 
   // 1. Search
