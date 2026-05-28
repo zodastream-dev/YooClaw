@@ -4,10 +4,9 @@ import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
-import { spawn } from 'child_process';
+import { exec, spawn } from 'child_process';
 import {
   initDatabase,
   hashPassword,
@@ -3859,7 +3858,7 @@ async function warmAllPortalCaches() {
 // Flow: 1) search web via curl (free, no key) → 2) feed results to DeepSeek → 3) return answer
 app.post('/api/ai-chat', async (req, res) => {
   try {
-    const { message, history } = req.body || {};
+    const { message, history, stream: useStream } = req.body || {};
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'message is required' });
     }
@@ -3868,70 +3867,25 @@ app.post('/api/ai-chat', async (req, res) => {
       return res.status(500).json({ error: 'AI service not configured' });
     }
 
-    // Step 1: Web search via DuckDuckGo using curl (more reliable than fetch on this server)
-    let searchContext = '';
-    try {
-      const query = encodeURIComponent(message);
-      const ddgUrl = 'https://html.duckduckgo.com/html/?q=' + query;
-      const curlCmd = `curl -s -m 10 "${ddgUrl}" -H "User-Agent: Mozilla/5.0" -H "Accept-Language: zh-CN"`;
-      const { stdout: html, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-        exec(curlCmd, { maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
-          if (err) reject(err);
-          else resolve({ stdout, stderr });
-        });
-      });
-      if (html && html.length > 100) {
-        // Parse DuckDuckGo HTML results
-        const results: { title: string; url: string }[] = [];
-        const linkRegex = /<a class="result__a" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-        let match;
-        while ((match = linkRegex.exec(html)) !== null && results.length < 6) {
-          const rawUrl = decodeURIComponent(match[1].replace(/^\/\/duckduckgo\.com\/l\/\?uddg=/, ''));
-          const title = match[2].replace(/<[^>]+>/g, '').trim();
-          if (title) results.push({ title, url: rawUrl });
-        }
-        if (results.length === 0) {
-          // Try alternate DuckDuckGo result format
-          const linkRegex2 = /<a rel="nofollow" class="result__snippet" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-          while ((match = linkRegex2.exec(html)) !== null && results.length < 6) {
-            const title = match[2].replace(/<[^>]+>/g, '').trim();
-            if (title) results.push({ title, url: match[1] });
-          }
-        }
-        if (results.length > 0) {
-          searchContext = '\n\n【网络搜索结果】\n' + results.map((r, i) => `[${i + 1}] ${r.title}\n链接: ${r.url}`).join('\n\n') + '\n';
-          console.log(`[AiChat Search] DuckDuckGo returned ${results.length} results`);
-        }
-      }
-    } catch (e: any) {
-      console.error('[AiChat Search] DuckDuckGo failed:', e.message);
-    }
+    const shouldStream = useStream === true;
 
-    // Step 1b: Try Metaso as additional fallback (if key exists and curl available)
-    if (!searchContext) {
-      const metasoApiKey = process.env.METASO_API_KEY;
-      if (metasoApiKey) {
-      let tmpFile = '';
-        try {
-          const jsonBody = JSON.stringify({ question: message, lang: 'zh' });
-          tmpFile = `/tmp/metaso_search_${Date.now()}.json`;
-          fs.writeFileSync(tmpFile, jsonBody);
-          const curlCmd = `curl -s -m 15 -X POST "https://metaso.cn/api/open/search/v2" -H "Content-Type: application/json" -H "Authorization: Bearer ${metasoApiKey}" -d @${tmpFile}`;
-          const { stdout: searchJson, stderr: curlStderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-            exec(curlCmd, { maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
-              if (err) { console.error('[AiChat Search] Curl error:', err.message, curlStderr); reject(err); }
-              else resolve({ stdout, stderr });
-            });
-          });
-          console.log('[AiChat Search] Metaso raw response:', searchJson.substring(0, 200));
-          const searchData = JSON.parse(searchJson);
-          // Extract AI-generated answer (PRIMARY content with actual data)
-          if (searchData.data && searchData.data.text) {
+    // Step 1: Metaso search for real-time context (directly, no DuckDuckGo fallback)
+    let searchContext = '';
+    const metasoApiKey = process.env.METASO_API_KEY;
+    if (metasoApiKey) {
+      try {
+        const resp = await fetch('https://metaso.cn/api/open/search/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + metasoApiKey },
+          body: JSON.stringify({ question: message, lang: 'zh' }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (resp.ok) {
+          const searchData = await resp.json();
+          if (searchData.data?.text) {
             searchContext = '\n\n【网络搜索结果】\n' + searchData.data.text + '\n\n';
           }
-          // Also include references (sources)
-          const rawResults = searchData.data.references || [];
-          const results = Array.isArray(rawResults) ? rawResults.slice(0, 6) : [];
+          const results = (searchData.data?.references || []).slice(0, 6);
           if (results.length > 0) {
             searchContext += '【参考来源】\n' + results.map((r: any, i: number) => {
               const title = r.title || r.name || '';
@@ -3939,23 +3893,18 @@ app.post('/api/ai-chat', async (req, res) => {
               return `[${i + 1}] ${title}\n链接: ${url}`;
             }).join('\n\n') + '\n';
           }
-          if (searchContext) {
-            console.log(`[AiChat Search] Metaso returned answer + ${results.length} references`);
-          }
-        } catch (e2: any) {
-          console.error('[AiChat Search] Metaso failed:', e2.message);
-        } finally {
-          if (tmpFile) { try { fs.unlinkSync(tmpFile); console.log('[AiChat Search] Cleaned up temp file:', tmpFile); } catch (e3) { console.error('[AiChat Search] Failed to cleanup:', e3.message); } }
+          console.log(`[AiChat] Metaso search OK (${results.length} refs)`);
         }
+      } catch (e: any) {
+        console.warn('[AiChat] Metaso skipped:', e.message);
       }
     }
 
-    // Step 2: Build messages with date + search context
+    // Step 2: Build messages
     const chatHistory = Array.isArray(history) ? history.slice(-8) : [];
     const now = new Date();
     const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
     const dateStr = now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + weekDays[now.getDay()];
-
     const systemContent = buildAiChatSystemPrompt(dateStr, searchContext);
 
     const messages = [
@@ -3964,24 +3913,85 @@ app.post('/api/ai-chat', async (req, res) => {
       { role: 'user', content: message }
     ];
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + deepseekApiKey },
-      body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7 })
-    });
-    clearTimeout(timeout);
+    // Step 3: Call DeepSeek (streaming or non-streaming)
+    if (shouldStream) {
+      // === SSE Streaming mode ===
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      const sendSSE = (data: any) => res.write('data: ' + JSON.stringify(data) + '\n\n');
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[AiChat Error]', response.status, errText.substring(0, 200));
-      return res.status(response.status).json({ error: 'AI service error' });
+      try {
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + deepseekApiKey },
+          body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7, stream: true }),
+          signal: AbortSignal.timeout(60000),
+        });
+
+        if (!response.ok) {
+          sendSSE({ error: 'AI service error: ' + response.status });
+          res.end();
+          return;
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          sendSSE({ error: 'No response stream' });
+          res.end();
+          return;
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const payload = line.slice(6).trim();
+              if (payload === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(payload);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) sendSSE({ token: content });
+              } catch { /* skip malformed chunks */ }
+            }
+          }
+        }
+        sendSSE({ done: true });
+        res.end();
+      } catch (err: any) {
+        console.error('[AiChat Stream Error]', err.message);
+        try { sendSSE({ error: err.message }); res.end(); } catch { /* headers may be closed */ }
+      }
+    } else {
+      // === Legacy non-streaming mode (backward compat) ===
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + deepseekApiKey },
+        body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7 })
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[AiChat Error]', response.status, errText.substring(0, 200));
+        return res.status(response.status).json({ error: 'AI service error' });
+      }
+      const data = await response.json();
+      const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，未能生成回复。';
+      res.json({ reply });
     }
-    const data = await response.json();
-    const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，未能生成回复。';
-    res.json({ reply });
   } catch (err: any) {
     console.error('[AiChat Error]', err.message);
     res.status(500).json({ error: { message: err.message } });

@@ -1054,18 +1054,57 @@ function sendCommand(){
     fetch(API+'/api/ai-chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:cmd,history:aiChatHistory.slice(-10)})
+      body:JSON.stringify({message:cmd,history:aiChatHistory.slice(-10),stream:true})
     }).then(function(response){
       if(!response.ok)throw new Error('API error: '+response.status);
-      return response.json();
-    }).then(function(data){
-      var reply=data.reply||data.data||data.text||'抱歉，AI暂时无法回复。';
-      aiChatHistory.push({role:'assistant',content:reply});
+      // Remove "thinking..." placeholder, create streaming message element
       var el=document.getElementById(thinkId);
       if(el&&el.parentNode)el.parentNode.removeChild(el);
-      appendChatMessage('bot',reply);
-      input.disabled=false;
-      input.focus();
+      var msgId='msg_'+Date.now();
+      var msgEl=document.createElement('div');
+      msgEl.className='ai-msg ai-msg-bot markdown-body';
+      msgEl.id=msgId;
+      $('aiChatMessages').appendChild(msgEl);
+      var fullReply='';
+      var reader=response.body.getReader();
+      var decoder=new TextDecoder();
+      var buffer='';
+      function readChunk(){
+        reader.read().then(function(result){
+          if(result.done){
+            // Stream finished — finalize
+            aiChatHistory.push({role:'assistant',content:fullReply});
+            input.disabled=false;
+            input.focus();
+            return;
+          }
+          buffer+=decoder.decode(result.value,{stream:true});
+          var lines=buffer.split('\n');
+          buffer=lines.pop()||'';
+          for(var i=0;i<lines.length;i++){
+            var line=lines[i];
+            if(line.indexOf('data: ')!==0)continue;
+            try {
+              var payload=JSON.parse(line.slice(6));
+              if(payload.token){
+                fullReply+=payload.token;
+                msgEl.textContent=fullReply;
+                $('aiChatMessages').scrollTop=$('aiChatMessages').scrollHeight;
+              }else if(payload.error){
+                msgEl.textContent='抱歉，请求失败: '+payload.error;
+              }else if(payload.done){
+                // explicit done signal
+              }
+            }catch(e){/* skip malformed */ }
+          }
+          readChunk();
+        }).catch(function(e){
+          if(!fullReply)msgEl.textContent='抱歉，请求失败: '+e.message;
+          input.disabled=false;
+          input.focus();
+        });
+      }
+      readChunk();
     }).catch(function(e){
       var el=document.getElementById(thinkId);
       if(el&&el.parentNode)el.parentNode.removeChild(el);
