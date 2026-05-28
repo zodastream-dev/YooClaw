@@ -109,9 +109,29 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   for (const k of aiKw) mergedSet.add(k.toLowerCase().trim());
   const mergedKwArr = [...mergedSet];
 
-  const query = mergedKwArr.length > 0
-    ? mergedKwArr.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ')
-    : (objectName || src.name || '');
+  // Build search query: when keywords are available use them; otherwise use
+  // smart fallback based on intelligence category to avoid overly generic queries
+  let query: string;
+  if (mergedKwArr.length > 0) {
+    query = mergedKwArr.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ');
+  } else if (objectName) {
+    // No keywords available — build category-specific fallback
+    const catName = (src.name || '').toLowerCase();
+    let fallbackModifiers: string;
+    if (catName.includes('舆情') || catName.includes('自身')) {
+      fallbackModifiers = '最新动态 OR 新闻 OR 公告';
+    } else if (catName.includes('行业') || catName.includes('信号')) {
+      fallbackModifiers = '最新趋势 OR 行业分析 OR 市场动态';
+    } else if (catName.includes('竞争') || catName.includes('对手')) {
+      fallbackModifiers = '新品 OR 战略 OR 财报 OR 最新动态';
+    } else {
+      fallbackModifiers = '最新动态';
+    }
+    query = `${objectName} ${fallbackModifiers}`;
+    console.log(`[Intel] No keywords available for "${src.name}", using fallback query: ${query}`);
+  } else {
+    query = src.name || '';
+  }
 
   // 1. Search
   let rawItems: any[] = [];
@@ -243,10 +263,64 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     };
   });
 
+  // --- Date recovery: AI often drops dates during analysis ---
+  // Match results back to raw search items to recover lost dates and URLs
+  if (rawItems.length > 0) {
+    const rawByUrl = new Map<string, any>();
+    const rawByTitle = new Map<string, any>();
+    for (const raw of rawItems) {
+      if (raw.url) rawByUrl.set(raw.url.toLowerCase().trim(), raw);
+      if (raw.title) rawByTitle.set(raw.title.toLowerCase().trim(), raw);
+    }
+
+    let recoveredDates = 0;
+    for (const r of results) {
+      // Try exact URL match first (most reliable)
+      if (!r.date && r.link) {
+        const raw = rawByUrl.get(r.link.toLowerCase().trim());
+        if (raw?.date) { r.date = raw.date; recoveredDates++; continue; }
+      }
+      // Try exact title match
+      if (!r.date && r.title) {
+        const raw = rawByTitle.get(r.title.toLowerCase().trim());
+        if (raw?.date) { r.date = raw.date; recoveredDates++; continue; }
+      }
+      // Try substring title match (fuzzy)
+      if (!r.date && r.title) {
+        const rt = r.title.toLowerCase().trim();
+        for (const [rawTitle, raw] of rawByTitle) {
+          if (raw.date && (rawTitle.includes(rt) || rt.includes(rawTitle))) {
+            r.date = raw.date; recoveredDates++; break;
+          }
+        }
+      }
+      // Recover URL if AI hallucinated a URL but we have a title match
+      if (!r.link && r.title) {
+        const raw = rawByTitle.get(r.title.toLowerCase().trim());
+        if (raw?.url) { r.link = raw.url; }
+      }
+    }
+    if (recoveredDates > 0) {
+      console.log('[Intel] Recovered ' + recoveredDates + ' dates from raw search results');
+    }
+  }
+
   if (hallucinatedUrls.length > 0) {
     console.warn('[Intel] Filtered ' + hallucinatedUrls.length + ' hallucinated URLs: ' + hallucinatedUrls.slice(0, 5).join(', '));
   }
+  // 30-day freshness filter: items with valid dates older than 30 days are removed;
+  // items with empty dates are kept (they may be from search results where dates
+  // couldn't be recovered, but they're likely recent since search engines prioritize recency)
   const cutoff = Date.now() - 30 * 86400000;
-  results = results.filter(function (r: any) { return !r.date || isNaN(new Date(r.date).getTime()) || new Date(r.date).getTime() > cutoff; });
+  const emptyDateCount = results.filter((r: any) => !r.date || !r.date.trim()).length;
+  if (emptyDateCount > 0) {
+    console.log('[Intel] ' + emptyDateCount + ' items have empty dates (kept, may degrade freshness)');
+  }
+  results = results.filter(function (r: any) {
+    if (!r.date || !r.date.trim()) return true; // keep if no date available
+    const ts = new Date(r.date).getTime();
+    if (isNaN(ts)) return true; // keep if unparseable
+    return ts > cutoff;
+  });
   return results.slice(0, 30);
 }
