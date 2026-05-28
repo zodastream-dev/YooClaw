@@ -3786,6 +3786,7 @@ async function warmAllPortalCaches() {
                 name: src.name,
                 keywords: src.keywords,
                 aiProvider: src.aiProvider,
+                objects: src.objects,
               });
               if (!sourceMap.has(cacheKey)) {
                 sourceMap.set(cacheKey, src);

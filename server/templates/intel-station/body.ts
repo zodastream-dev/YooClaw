@@ -75,11 +75,11 @@ export function intelStationBody(sn: string): string {
           <div class="sentiment-label" id="sentimentLabel">中性 52%</div>
         </div>
       </div>
-      <!-- Keyword Cloud -->
+      <!-- Source Channel Distribution -->
       <div class="dashboard-section">
-        <h4>&#x1F524; 关键词云</h4>
-        <div class="keyword-cloud" id="keywordCloud">
-          <!-- Dynamic keywords -->
+        <h4>&#x1F4E1; 情报来源</h4>
+        <div class="source-channels" id="sourceChannels">
+          <!-- Dynamic source channels -->
         </div>
       </div>
       <!-- KPI Trend -->

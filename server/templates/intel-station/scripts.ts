@@ -329,7 +329,13 @@ function buildIntelSubFilters(monitors){
   var html='';
   sourceNames.forEach(function(name,i){
     var active=name==='全部'?currentSourceFilters[0]==='全部':currentSourceFilters.indexOf(name)>=0;
-    html+='<button class="subfilter-btn'+(active?' active':'')+'" data-source="'+escHtml(name)+'" onclick="filterBySourceFromBtn(this)">'+escHtml(name)+'</button>';
+    var count=0;
+    if(name==='全部'){
+      count=allIntelData.length;
+    } else {
+      count=allIntelData.filter(function(item){return (item._sourceName||'').trim()===name;}).length;
+    }
+    html+='<button class="subfilter-btn'+(active?' active':'')+'" data-source="'+escHtml(name)+'" onclick="filterBySourceFromBtn(this)">'+escHtml(name)+' <span class="sf-count">'+count+'</span></button>';
   });
   el.innerHTML=html;
   if(currentCenterTab==='intel')el.style.display='';
@@ -907,13 +913,13 @@ function initDashboard(){
   renderSentimentGauge(52);
   renderKPITrend();
   updateBriefing();
-  // 关键词云等数据加载后由 updateDashboard(data) 渲染，此处不填充默认词
+  // 情绪仪表盘和趋势图在数据加载前渲染默认值；情报来源等数据加载后由 updateDashboard(data) 渲染
 }
 
 function updateDashboard(data){
   var sentiment=Math.floor(Math.random()*40+40);
   renderSentimentGauge(sentiment);
-  renderKeywordCloud(data);
+  renderSourceChannels(data);
   updateBriefing(data);
 }
 
@@ -942,20 +948,33 @@ function renderSentimentGauge(value){
   $('sentimentLabel').textContent=(value>60?'积极':value>40?'中性':'消极')+' '+value+'%';
 }
 
-function renderKeywordCloud(data){
-  var container=$('keywordCloud');
+function renderSourceChannels(data){
+  var container=$('sourceChannels');
   if(!container)return;
-  var keywords=['AI','芯片','新能源','股价','财报','市场份额','技术创新','政策支持','竞争','风险'];
-  if(data&&data.length>0){
-    var kwCount={};
-    data.forEach(function(item){(item.keywords||[]).forEach(function(kw){kwCount[kw]=(kwCount[kw]||0)+1})});
-    keywords=Object.keys(kwCount).sort(function(a,b){return kwCount[b]-kwCount[a]}).slice(0,10);
-  }
+  var providerLabels={
+    metaso:'秘塔搜索',tavily:'Tavily','multi-engine':'多引擎',wechat:'微信公众号',
+    weibo:'微博',zhihu:'知乎',xiaohongshu:'小红书',openai:'OpenAI',
+    deepseek:'DeepSeek',codebuddy:'CodeBuddy',custom:'自定义',all:'全渠道',
+  };
   var html='';
-  keywords.forEach(function(kw,i){
-    var cls=i<3?' important':'';
-    html+='<span class="kw-cloud-item'+cls+'">'+escHtml(kw)+'</span>';
-  });
+  if(data&&data.length>0){
+    var chCount={};
+    data.forEach(function(item){
+      var p=item._provider||'unknown';
+      chCount[p]=(chCount[p]||0)+1;
+    });
+    var channels=Object.keys(chCount).sort(function(a,b){return chCount[b]-chCount[a]});
+    channels.forEach(function(ch){
+      var label=providerLabels[ch]||ch;
+      var count=chCount[ch];
+      html+='<div class="src-channel-item">';
+      html+='<span class="src-channel-name">'+escHtml(label)+'</span>';
+      html+='<span class="src-channel-count">'+count+'</span>';
+      html+='</div>';
+    });
+  } else {
+    html='<div class="no-data-msg" style="font-size:11px;padding:8px">暂无情报来源数据</div>';
+  }
   container.innerHTML=html;
 }
 
