@@ -1,72 +1,48 @@
-// 微博搜索源 — 抓取 s.weibo.com 搜索结果
+// 微博搜索源 — 通过 metaso API 搜索 weibo.com 内容
+// （直接抓取 s.weibo.com 被 JS 验证页拦截，2026-05 起已不可用）
 import type { RawSearchItem, SearchModule } from './types';
-import * as cheerio from 'cheerio';
 
 const weiboModule: SearchModule = {
   name: 'weibo',
   label: '微博',
-  async search(query: string, _apiKey: string): Promise<RawSearchItem[]> {
+  async search(query: string, apiKey: string): Promise<RawSearchItem[]> {
+    if (!apiKey) {
+      console.warn('[WeiboSearch] No API key, skipping');
+      return [];
+    }
     try {
-      // 微博高级搜索：综合排序，最近30天
-      const url = `https://s.weibo.com/weibo?q=${encodeURIComponent(query)}&typeall=1&suball=1&Refer=g`;
-      const resp = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml',
-          'Accept-Language': 'zh-CN,zh;q=0.9',
-          'Cookie': '', // 空 Cookie 获取公开搜索结果
-        },
-        signal: AbortSignal.timeout(15000),
+      // 用 metaso API 搜索微博内容，追加"微博"引导搜索平台
+      const searchQuery = query + ' 微博';
+      const resp = await fetch('https://metaso.cn/api/open/search/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ question: searchQuery, lang: 'zh' }),
+        signal: AbortSignal.timeout(25000),
       });
       if (!resp.ok) {
-        console.warn('[WeiboSearch] HTTP ' + resp.status);
+        console.warn('[WeiboSearch] Metaso HTTP ' + resp.status);
         return [];
       }
-      const html = await resp.text();
-      const $ = cheerio.load(html);
+      const data = await resp.json();
+      const rawData = (data.data?.references) ? data.data.references : (data.data || []);
+      const results: any[] = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || [rawData]);
 
-      const items: RawSearchItem[] = [];
-      // 微博搜索结果容器：.card-wrap 或 .m-wrap
-      $('.card-wrap, .m-wrap').each((_i: number, el: any) => {
-        const $el = $(el);
-
-        // 提取微博正文（第一个 p.txt 是昵称，第二个 p.txt 是正文）
-        const txtEls = $el.find('.txt');
-        let content = '';
-        if (txtEls.length >= 2) {
-          content = $(txtEls[1]).text().trim();
-        } else {
-          // 兼容不同的 DOM 结构
-          content = $el.find('.content p').last().text().trim();
-          if (!content) content = txtEls.first().text().trim();
-        }
-        // 清理 HTML 标签和特殊字符
-        content = content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-        if (!content || content.length < 5) return;
-
-        // 提取来源链接
-        const linkEl = $el.find('.from a').first();
-        const url = linkEl.attr('href') || '';
-
-        // 提取时间
-        const dateEl = $el.find('.from .date, .time').first();
-        const date = dateEl.text().trim() || '';
-
-        // 用内容前 40 字作为标题
-        const title = content.substring(0, 40) + (content.length > 40 ? '...' : '');
-
-        items.push({
-          title,
-          url: url || `https://s.weibo.com/weibo?q=${encodeURIComponent(query)}`,
-          snippet: content.substring(0, 200),
-          date,
-        });
+      // 仅保留 weibo.com 域名的结果
+      const filtered = results.filter((r: any) => {
+        const url = (r.url || r.link || '').toLowerCase();
+        return url.includes('weibo.com') || url.includes('weibo.cn');
       });
 
-      console.log('[WeiboSearch] Found ' + items.length + ' results for "' + query + '"');
-      return items.slice(0, 15);
-    } catch (e) {
-      console.warn('[WeiboSearch] Failed:', e instanceof Error ? e.message : String(e));
+      console.log('[WeiboSearch] Metaso returned ' + results.length + ' total, ' + filtered.length + ' from weibo');
+
+      return filtered.slice(0, 15).map((r: any) => ({
+        title: r.title || r.name || '',
+        url: r.url || r.link || '',
+        snippet: r.snippet || r.summary || r.content || r.aiSummary || '',
+        date: r.date || r.publishedAt || r.publishTime || '',
+      }));
+    } catch (e: any) {
+      console.warn('[WeiboSearch] Failed:', e.message);
       return [];
     }
   },
