@@ -1,6 +1,27 @@
 // 微博搜索源 — 通过秘塔 API + site:weibo.com 搜索微博内容
 import type { RawSearchItem, SearchModule } from './types';
 
+async function fetchWithRetry(apiKey: string, query: string, maxRetries = 2): Promise<Response> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fetch('https://metaso.cn/api/open/search/v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ question: `${query} site:weibo.com`, lang: 'zh' }),
+        signal: AbortSignal.timeout(25000),
+      });
+    } catch (e: any) {
+      lastError = e;
+      if (attempt < maxRetries) {
+        console.warn('[WeiboSearch] Attempt ' + (attempt + 1) + ' failed, retrying in 2s:', e.message);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+  throw lastError;
+}
+
 const weiboModule: SearchModule = {
   name: 'weibo',
   label: '微博',
@@ -10,12 +31,7 @@ const weiboModule: SearchModule = {
       return [];
     }
     try {
-      const resp = await fetch('https://metaso.cn/api/open/search/v2', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({ question: `${query} site:weibo.com`, lang: 'zh' }),
-        signal: AbortSignal.timeout(25000),
-      });
+      const resp = await fetchWithRetry(apiKey, query);
       if (!resp.ok) {
         console.warn('[WeiboSearch] Metaso HTTP ' + resp.status);
         return [];
@@ -31,7 +47,7 @@ const weiboModule: SearchModule = {
         date: r.date || r.publishedAt || r.publishTime || '',
       }));
     } catch (e: any) {
-      console.warn('[WeiboSearch] Failed:', e.message);
+      console.warn('[WeiboSearch] All retries exhausted:', e.message);
       return [];
     }
   },

@@ -9,12 +9,13 @@ import xiaohongshuModule from './xiaohongshu';
 
 const modules: Record<string, SearchModule> = {
   metaso: metasoModule,
-  tavily: tavilyModule,
-  'multi-engine': multiEngineModule,
-  wechat: wechatModule,
+  // Chinese social media sources first — claim dedup priority over global engines
   weibo: weiboModule,
   zhihu: zhihuModule,
   xiaohongshu: xiaohongshuModule,
+  wechat: wechatModule,
+  tavily: tavilyModule,
+  'multi-engine': multiEngineModule,
 };
 
 export function getSearchModule(name: string): SearchModule | undefined {
