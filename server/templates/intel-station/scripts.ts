@@ -197,8 +197,8 @@ function renderSourceFilters(monitors){
   });
   html+='<button class="add-source-btn" onclick="addNewSource()">+ 添加情报源</button>';
   html+='<div style="display:flex;gap:8px;margin-top:4px">';
-  html+='<button class="add-source-btn" onclick="refreshAllIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);flex:1">🔄 更新情报</button>';
-  html+='<button class="add-source-btn" id="btnPauseIntel" onclick="togglePauseIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15)">⏸ 停止更新</button>';
+  html+='<button class="add-source-btn" onclick="refreshAllIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);flex:1;margin-top:0">🔄 更新情报</button>';
+  html+='<button class="add-source-btn" id="btnPauseIntel" onclick="togglePauseIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);flex:1;margin-top:0">⏸ 停止更新</button>';
   html+='</div>';
   $('sourceGroups').innerHTML=html;
 }
