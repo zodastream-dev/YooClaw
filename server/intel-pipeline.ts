@@ -4,7 +4,12 @@ import crypto from 'crypto';
 
 // -- V3: AI-generated search keywords cache --
 const kwCache = new Map<string, { keywords: string[]; expiry: number }>();
-const KW_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const KW_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for successful generations
+const KW_FAIL_CACHE_TTL = 2 * 60 * 1000; // 2 min for failures (prevents repeated timeouts from parallel objects)
+const KW_GEN_TIMEOUT = 25000; // 25s (was 15s — DeepSeek often takes 10-20s)
+
+// In-flight dedup: prevent parallel calls for the same fingerprint from all hitting the API
+const kwInFlight = new Map<string, Promise<string[]>>();
 
 function srcFingerprint(src: any, objectName?: string): string {
   return crypto.createHash('md5').update(JSON.stringify({
@@ -18,12 +23,34 @@ function srcFingerprint(src: any, objectName?: string): string {
 
 async function generateSearchKeywords(src: any, objectName?: string): Promise<string[]> {
   const fp = srcFingerprint(src, objectName);
+
+  // Check memory cache (successful or failed)
   const cached = kwCache.get(fp);
   if (cached && cached.expiry > Date.now()) {
-    console.log('[Intel:V3] Cache hit — ' + src.name + ' (' + cached.keywords.length + ' keywords)');
+    if (cached.keywords.length > 0) {
+      console.log('[Intel:V3] Cache hit — ' + src.name + ' (' + cached.keywords.length + ' keywords)');
+    }
     return cached.keywords;
   }
 
+  // Dedup concurrent calls for same fingerprint
+  const inFlight = kwInFlight.get(fp);
+  if (inFlight) {
+    console.log('[Intel:V3] Dedup in-flight call for ' + src.name);
+    return inFlight;
+  }
+
+  const promise = doGenerateKeywords(src, objectName, fp);
+  kwInFlight.set(fp, promise);
+
+  try {
+    return await promise;
+  } finally {
+    kwInFlight.delete(fp);
+  }
+}
+
+async function doGenerateKeywords(src: any, objectName: string | undefined, fp: string): Promise<string[]> {
   const category = src.name || '情报';
   const prompt = (src.customPrompt || '').substring(0, 400);
   const userKw = (Array.isArray(src.keywords) ? src.keywords : []).join('、');
@@ -53,7 +80,7 @@ async function generateSearchKeywords(src: any, objectName?: string): Promise<st
           { role: 'user', content: up },
         ],
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(KW_GEN_TIMEOUT),
     });
 
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -79,6 +106,8 @@ async function generateSearchKeywords(src: any, objectName?: string): Promise<st
     console.warn('[Intel:V3] Keyword gen failed for ' + src.name + ':', e.message);
   }
 
+  // Cache failure with short TTL to prevent repeated timeouts from parallel object calls
+  kwCache.set(fp, { keywords: [], expiry: Date.now() + KW_FAIL_CACHE_TTL });
   return [];
 }
 
