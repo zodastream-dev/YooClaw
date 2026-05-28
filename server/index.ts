@@ -3504,6 +3504,7 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
 const portalIntelCache = new Map<string, { data: any; expiry: number }>();
 const PORTAL_INTEL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (was 5 min)
 const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-intel-cache.json');
+let isIntelPaused = false; // Global pause flag for background intel tasks
 
 // Load persisted cache from file on startup
 function loadPortalIntelCache() {
@@ -3633,6 +3634,21 @@ app.post('/api/portal-intel', async (req, res) => {
   }
 });
 
+// ========== POST/GET /api/portal-intel/pause ==========
+// Toggle pause/resume for all background intel tasks (cache warmer).
+app.get('/api/portal-intel/pause', (_req, res) => {
+  res.json({ paused: isIntelPaused });
+});
+
+app.post('/api/portal-intel/pause', (req, res) => {
+  const { pause } = req.body || {};
+  if (typeof pause === 'boolean') {
+    isIntelPaused = pause;
+    console.log(`[PortalIntel] Background cache warmer ${pause ? 'PAUSED' : 'RESUMED'}`);
+  }
+  res.json({ success: true, paused: isIntelPaused });
+});
+
 // ========== Background Cache Warmer ==========
 // Collects all unique intel sources across all portal sites and pre-warms the cache.
 // Runs on startup + every 20 minutes. Uses max 2 concurrent API calls (less aggressive
@@ -3642,6 +3658,10 @@ let cacheWarmingActive = false;
 async function warmAllPortalCaches() {
   if (cacheWarmingActive) {
     console.log('[CacheWarmer] Already in progress, skipping...');
+    return;
+  }
+  if (isIntelPaused) {
+    console.log('[CacheWarmer] Intel updates are paused, skipping...');
     return;
   }
   cacheWarmingActive = true;

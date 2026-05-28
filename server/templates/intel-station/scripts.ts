@@ -29,6 +29,7 @@ function $(id){return document.getElementById(id)}
 (function(){
   setTimeout(function(){loadIntelData()},500);
   setTimeout(function(){initDashboard()},300);
+  setTimeout(function(){checkPauseStatus()},800);
 })();
 
 /* ===== LOAD INTEL DATA ===== */
@@ -195,7 +196,10 @@ function renderSourceFilters(monitors){
     html+='</div>';
   });
   html+='<button class="add-source-btn" onclick="addNewSource()">+ 添加情报源</button>';
-  html+='<button class="add-source-btn" onclick="refreshAllIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);margin-top:4px">🔄 更新情报</button>';
+  html+='<div style="display:flex;gap:8px;margin-top:4px">';
+  html+='<button class="add-source-btn" onclick="refreshAllIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);flex:1">🔄 更新情报</button>';
+  html+='<button class="add-source-btn" id="btnPauseIntel" onclick="togglePauseIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15)">⏸ 停止更新</button>';
+  html+='</div>';
   $('sourceGroups').innerHTML=html;
 }
 
@@ -854,6 +858,43 @@ function refreshAllIntel(){
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   renderSourceFilters(monitors);
   loadIntelData();
+}
+
+/* ===== INTEL PAUSE TOGGLE ===== */
+var isIntelPaused=false;
+function togglePauseIntel(){
+  isIntelPaused=!isIntelPaused;
+  var btn=$('btnPauseIntel');
+  if(isIntelPaused){
+    btn.innerHTML='▶ 恢复更新';
+    btn.style.borderColor='rgba(255,140,0,0.5)';
+    btn.style.color='#ff8c00';
+  } else {
+    btn.innerHTML='⏸ 停止更新';
+    btn.style.borderColor='rgba(0,212,255,0.15)';
+    btn.style.color='';
+  }
+  fetch(API+'/api/portal-intel/pause',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pause:isIntelPaused})
+  }).catch(function(e){console.error('togglePauseIntel failed:',e)});
+}
+function checkPauseStatus(){
+  fetch(API+'/api/portal-intel/pause')
+    .then(function(r){return r.json()})
+    .then(function(data){
+      if(data&&data.paused){
+        isIntelPaused=true;
+        var btn=$('btnPauseIntel');
+        if(btn){
+          btn.innerHTML='▶ 恢复更新';
+          btn.style.borderColor='rgba(255,140,0,0.5)';
+          btn.style.color='#ff8c00';
+        }
+      }
+    })
+    .catch(function(e){/* ignore */});
 }
 
 function deleteSource(wi,si){
