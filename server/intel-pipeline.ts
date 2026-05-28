@@ -86,9 +86,8 @@ async function generateSearchKeywords(src: any, objectName?: string): Promise<st
 function getProviderKey(provider: string): string {
   if (provider === 'metaso') return process.env.METASO_API_KEY || '';
   if (provider === 'tavily') return process.env.TAVILY_API_KEY || '';
-  // weibo/zhihu/xiaohongshu modules use Tavily API with include_domains
-  // (direct scraping blocked by anti-bot measures, metaso quota exhausted)
-  if (provider === 'weibo' || provider === 'zhihu' || provider === 'xiaohongshu') return process.env.TAVILY_API_KEY || '';
+  // weibo/zhihu/xiaohongshu modules use Metaso API (domestic Chinese content)
+  if (provider === 'weibo' || provider === 'zhihu' || provider === 'xiaohongshu') return process.env.METASO_API_KEY || '';
   return '';
 }
 
