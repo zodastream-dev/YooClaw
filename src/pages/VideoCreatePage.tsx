@@ -1059,20 +1059,31 @@ export function VideoCreatePage() {
                   {genType !== 'image_upscale' && (
                     <div className="relative" ref={durationRef}>
                       {genType === 'multiframe2video' ? (
-                        <button
-                          onClick={() => {
-                            closeAll()
-                            // Scroll to transition prompts section
-                            const el = document.getElementById('transition-prompts-section')
-                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border border-amber-500/20 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30"
-                          title="过渡描述控制相邻图片之间的转场效果和时间，在下方编辑"
-                        >
-                          <Film size={15} />
-                          <span>过渡决定</span>
-                          <ChevronDown size={14} className="opacity-60" />
-                        </button>
+                        imageFiles.length >= 2 ? (
+                          <button
+                            onClick={() => {
+                              closeAll()
+                              const el = document.getElementById('transition-prompts-section')
+                              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border border-amber-500/20 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30"
+                            title="过渡描述控制相邻图片之间的转场效果和时间，在下方编辑"
+                          >
+                            <Film size={15} />
+                            <span>过渡决定</span>
+                            <ChevronDown size={14} className="opacity-60" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border border-amber-500/10 bg-amber-500/[0.02] text-amber-400/50 cursor-pointer hover:bg-amber-500/5 hover:border-amber-500/20 hover:text-amber-400/80"
+                            title="请先上传至少 2 张图片，才能设置过渡时间"
+                          >
+                            <Film size={15} />
+                            <span>过渡决定</span>
+                            <span className="text-[10px] opacity-60 ml-0.5">(需≥2图)</span>
+                          </button>
+                        )
                       ) : (
                         <DropdownBtn
                           label={`${duration}s`}
