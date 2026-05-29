@@ -50,6 +50,11 @@ const KLING_MODEL_DURATIONS: Record<string, string[]> = {
   'kling-v3-omni': ['5', '10', '15'],
 }
 
+// Models that support multi-image2video (2-5 images)
+const KLING_MULTI_IMAGE_MODELS = ['kling-v1', 'kling-v1-5', 'kling-v1-6']
+// Models that support sound
+const KLING_SOUND_MODELS = ['kling-v2-5-turbo', 'kling-v3']
+
 const KLING_GEN_TYPES = [
   { key: 'text2video', label: '文生视频', icon: Wand2 },
   { key: 'image2video', label: '图生视频', icon: ImageIcon },
@@ -174,7 +179,12 @@ export function VideoCreatePage() {
     }
     if (newFiles.length === 0) return
     const total = currentFiles.length + newFiles.length
-    if (total > 20) { setError('每段最多 20 张参考图'); return }
+    // Image limit per provider and model
+    const clipType = clips.find(c => c.id === clipId)?.inputType || 'image'
+    const maxImg = provider === 'kling'
+      ? (clipType === 'multi_image' ? 5 : 1)
+      : 20
+    if (total > maxImg) { setError(`每段最多 ${maxImg} 张参考图`); return }
     setError(null)
     setClipImageFiles(prev => ({ ...prev, [clipId]: [...currentFiles, ...newFiles] }))
     setClipImagePreviews(prev => ({
@@ -1298,7 +1308,8 @@ export function VideoCreatePage() {
                           </div>
                         )}
                       </div>
-                      {/* Sound toggle */}
+                      {/* Sound toggle — only for v2-5-turbo and v3 */}
+                      {KLING_SOUND_MODELS.includes(klingModel) && (
                       <button
                         onClick={() => setSound(s => !s)}
                         className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-white/5 transition-colors ${sound ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' : 'bg-white/5 text-muted-foreground hover:bg-white/10'}`}
@@ -1306,6 +1317,7 @@ export function VideoCreatePage() {
                         <Volume2 size={12} />
                         {sound ? '有声' : '静音'}
                       </button>
+                      )}
                       {/* Camera Control */}
                       <div className="relative" ref={soundRef}>
                         <button
@@ -1399,6 +1411,7 @@ export function VideoCreatePage() {
                     </div>
                   )}
                 </div>
+                {KLING_SOUND_MODELS.includes(klingModel) && (
                 <button
                   onClick={() => setSound(s => !s)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-white/5 transition-colors ${sound ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' : 'bg-white/5 text-muted-foreground hover:bg-white/10'}`}
@@ -1406,6 +1419,7 @@ export function VideoCreatePage() {
                   <Volume2 size={12} />
                   {sound ? '有声' : '静音'}
                 </button>
+                )}
               </div>
             )}
 
@@ -1465,7 +1479,7 @@ export function VideoCreatePage() {
                       )}
                     </div>
                   </div>
-                  {clip.inputType === 'image' && (
+                  {(clip.inputType === 'image' || clip.inputType === 'multi_image') && (
                     <div className="flex gap-2 items-start relative">
                       {/* Image thumbnails + add button */}
                       <div className="flex gap-1.5 flex-wrap flex-shrink-0">
@@ -1478,7 +1492,7 @@ export function VideoCreatePage() {
                             </button>
                           </div>
                         ))}
-                        {(clipImageFiles[clip.id] || []).length < 20 && (
+                        {(clipImageFiles[clip.id] || []).length < (provider === 'kling' ? (clip.inputType === 'multi_image' ? 5 : 1) : 20) && (
                           <button onClick={() => clipFileInputRefs.current[clip.id]?.click()}
                             className="w-14 h-14 rounded-lg border-2 border-dashed border-violet-500/20 flex flex-col items-center justify-center text-violet-400/60 hover:text-violet-400 hover:border-violet-500/40 transition-all flex-shrink-0">
                             <Plus size={16} />

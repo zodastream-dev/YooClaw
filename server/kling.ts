@@ -207,3 +207,8 @@ export const KLING_ENDPOINT_MAP: Record<string, string> = {
   image: 'image2video',
   multi_image: 'multi-image2video',
 };
+
+// Models that support multi-image2video endpoint
+export const KLING_MULTI_IMAGE_MODELS = ['kling-v1', 'kling-v1-5', 'kling-v1-6'];
+// Models that support sound
+export const KLING_SOUND_MODELS = ['kling-v2-5-turbo', 'kling-v3', 'kling-v3-omni'];
