@@ -1361,9 +1361,51 @@ export function VideoCreatePage() {
               </div>
               <div className="text-xs text-muted-foreground leading-relaxed">
                 <span className="font-medium text-violet-400">长视频拼接</span>
-                {' — 2–6 个片段独立生成后 FFmpeg 自动拼接。每个片段支持文生/图生两种模式，独立提示词和时长（3-15秒），总长可达 90 秒。从左侧模板库选择模板快速开始。'}
+                {' — 2–6 个片段独立生成后 FFmpeg 自动拼接。每个片段支持文生/图生/多图模式，独立提示词和时长，总长'}
+                {provider === 'kling' ? '最长 60 秒' : '可达 90 秒'}。
+                从左侧模板库选择模板快速开始。
               </div>
             </div>
+
+            {/* Kling multi-clip settings */}
+            {provider === 'kling' && (
+              <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/5 border border-violet-500/10">
+                <span className="text-[11px] text-muted-foreground mr-1">模型:</span>
+                <div className="relative" ref={klingModelRef}>
+                  <button
+                    onClick={() => { setOpenKlingModel(v => !v) }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <Diamond size={12} className="text-violet-400" />
+                    <span>{KLING_MODELS.find(m => m.value === klingModel)?.label || klingModel}</span>
+                    <ChevronDown size={10} />
+                  </button>
+                  {openKlingModel && (
+                    <div className="absolute top-full left-0 mt-1 z-50 w-52 rounded-xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                      {KLING_MODELS.map(m => {
+                        const active = klingModel === m.value
+                        return (
+                          <button key={m.value}
+                            onClick={() => { setKlingModel(m.value); setOpenKlingModel(false); setDuration(KLING_MODEL_DURATIONS[m.value]?.[0] || '5') }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                          >
+                            <span className={active ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{m.label}</span>
+                            <span className="text-[10px] text-muted-foreground ml-auto">{m.desc}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSound(s => !s)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-white/5 transition-colors ${sound ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' : 'bg-white/5 text-muted-foreground hover:bg-white/10'}`}
+                >
+                  <Volume2 size={12} />
+                  {sound ? '有声' : '静音'}
+                </button>
+              </div>
+            )}
 
             {/* Segments UI */}
             <div className="space-y-3 rounded-2xl border-2 border-violet-500/20 bg-gradient-to-b from-violet-500/3 to-fuchsia-500/3 p-4 sm:p-5">
@@ -1374,7 +1416,7 @@ export function VideoCreatePage() {
                   <span className="text-sm font-bold text-violet-400">{totalClipDuration}s</span>
                   <span className="text-muted-foreground">· {clips.length} 个片段</span>
                   <span className="text-[10px] text-muted-foreground">
-                    ({clips.filter(c => c.inputType === 'text').length}文生 · {clips.filter(c => c.inputType === 'image').length}图生)
+                    ({clips.filter(c => c.inputType === 'text').length}文生 · {clips.filter(c => c.inputType === 'image').length}图生{clips.filter(c => c.inputType === 'multi_image').length > 0 ? ` · ${clips.filter(c => c.inputType === 'multi_image').length}多图` : ''})
                   </span>
                 </div>
                 <button onClick={addClip} disabled={clips.length >= 6}
@@ -1399,16 +1441,18 @@ export function VideoCreatePage() {
                           className={`flex items-center gap-1 px-2 py-1 text-[10px] transition-all ${clip.inputType === 'image' ? 'bg-violet-500/15 text-violet-400' : 'bg-transparent text-muted-foreground hover:bg-white/5'}`}>
                           <Camera size={11} />图生
                         </button>
-                        <button onClick={() => updateClip(clip.id, 'inputType', 'multi_image')}
-                          className={`flex items-center gap-1 px-2 py-1 text-[10px] transition-all ${clip.inputType === 'multi_image' ? 'bg-violet-500/15 text-violet-400' : 'bg-transparent text-muted-foreground hover:bg-white/5'}`}>
-                          <Film size={11} />多图
-                        </button>
+                        {(provider !== 'kling' || ['kling-v1', 'kling-v1-5', 'kling-v1-6'].includes(klingModel)) && (
+                          <button onClick={() => updateClip(clip.id, 'inputType', 'multi_image')}
+                            className={`flex items-center gap-1 px-2 py-1 text-[10px] transition-all ${clip.inputType === 'multi_image' ? 'bg-violet-500/15 text-violet-400' : 'bg-transparent text-muted-foreground hover:bg-white/5'}`}>
+                            <Film size={11} />多图
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <select value={clip.duration} onChange={e => updateClip(clip.id, 'duration', e.target.value)}
                         className="px-2 py-1 rounded-lg bg-background border border-border/40 text-xs outline-none focus:ring-1 focus:ring-violet-400/30 appearance-none cursor-pointer">
-                        {[3, 4, 5, 6, 8, 10, 12, 15].map(d => (
+                        {durOptions.map(d => (
                           <option key={d} value={String(d)}>{d}s</option>
                         ))}
                       </select>
