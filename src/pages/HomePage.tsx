@@ -222,11 +222,6 @@ export function HomePage() {
               </>
             )}
           </div>
-
-          {/* Footer */}
-          <div className="text-center text-xs text-muted-foreground">
-            Powered by CodeBuddy
-          </div>
         </div>
       </div>
     </div>
