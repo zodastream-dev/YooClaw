@@ -120,7 +120,7 @@ export function intelStationBody(sn: string): string {
 
 <!-- ===== SITE FOOTER ===== -->
 <div class="site-footer">
-  <span><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">沪ICP备13025394号</a></span>
+  <span>上海聚核信息技术有限公司 ICP备案/许可证号：<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">沪ICP备13025394号</a></span>
 </div>
 
 <!-- Floating toggle when left panel is collapsed -->
