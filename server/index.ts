@@ -4000,11 +4000,13 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
   return parts.join(';');
 }
 
-/** Build ffmpeg concat command for multi-clip */
+/** Build ffmpeg concat command for multi-clip — uses concat demuxer (no re-encoding, no encoder dependency) */
 function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
-  const xfadeFilter = buildXfadeFilter(durations, 1, 24);
-  const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
-  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libopenh264 -preset fast -crf 23 -an -y "${outputPath}"`;
+  // Write concat list file
+  const listPath = outputPath.replace(/\.mp4$/, '-concat.txt');
+  const listContent = inputPaths.map(p => `file '${p}'`).join('\n');
+  fs.writeFileSync(listPath, listContent);
+  return `ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -an -y "${outputPath}"`;
 }
 
 /** Save a base64 image string to a temp file, return the file path */
