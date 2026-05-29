@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { generateVideo, videoTaskStatus, cancelVideoTask } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check, ChevronUp, Type, Camera } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check, ChevronUp, Type, Camera, Volume2 } from 'lucide-react'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
 import type { VideoTemplate } from '@/data/videoTemplates'
 import { VideoHistory } from '@/components/VideoHistory'
@@ -32,6 +32,51 @@ const MODEL_VERSIONS = [
   { value: 'seedance2.0fast_vip', label: 'Fast VIP', desc: '快速·1080p' },
 ] as const
 
+// Kling provider configs
+const KLING_MODELS = [
+  { value: 'kling-v3', label: 'Kling V3', desc: '最新旗舰' },
+  { value: 'kling-v3-omni', label: 'V3 Omni', desc: '多镜头' },
+  { value: 'kling-v2-5-turbo', label: 'V2.5 Turbo', desc: '快速' },
+  { value: 'kling-v1-6', label: 'V1.6', desc: '最长20s' },
+  { value: 'kling-v1-5', label: 'V1.5', desc: '经典' },
+]
+
+const KLING_MODEL_DURATIONS: Record<string, string[]> = {
+  'kling-v1': ['5', '10'],
+  'kling-v1-5': ['5', '10'],
+  'kling-v1-6': ['5', '10', '20'],
+  'kling-v2-5-turbo': ['5', '10'],
+  'kling-v3': ['5', '10', '15'],
+  'kling-v3-omni': ['5', '10', '15'],
+}
+
+const KLING_GEN_TYPES = [
+  { key: 'text2video', label: '文生视频', icon: Wand2 },
+  { key: 'image2video', label: '图生视频', icon: ImageIcon },
+  { key: 'multi_image2video', label: '多图故事', icon: Film },
+] as const
+
+const KLING_MODES = [
+  { value: 'pro', label: 'Pro', desc: '1080P 专业品质' },
+  { value: 'std', label: 'Std', desc: '720P 标准' },
+] as const
+
+const KLING_RATIOS = [
+  { value: '16:9', label: '16:9', desc: '横屏' },
+  { value: '9:16', label: '9:16', desc: '竖屏' },
+  { value: '1:1', label: '1:1', desc: '方形' },
+] as const
+
+const CAMERA_TYPES = [
+  { value: '', label: '无', desc: '关闭' },
+  { value: 'zoom_in', label: '放大', desc: '推进' },
+  { value: 'zoom_out', label: '缩小', desc: '拉远' },
+  { value: 'pan_left', label: '左移', desc: '左摇' },
+  { value: 'pan_right', label: '右移', desc: '右摇' },
+  { value: 'tilt_up', label: '上摇', desc: '仰拍' },
+  { value: 'tilt_down', label: '下摇', desc: '俯拍' },
+] as const
+
 export function VideoCreatePage() {
   const navigate = useNavigate()
   const { user, fetchUserInfo } = useAuthStore()
@@ -43,6 +88,21 @@ export function VideoCreatePage() {
   const [ratio, setRatio] = useState('16:9')
   const [genType, setGenType] = useState<GenType>('multimodal2video')
   const [modelVersion, setModelVersion] = useState('seedance2.0fast')
+
+  // Provider: dreamina or kling
+  type Provider = 'dreamina' | 'kling'
+  const [provider, setProvider] = useState<Provider>('dreamina')
+  const [klingModel, setKlingModel] = useState('kling-v3')
+  const [klingMode, setKlingMode] = useState<'std' | 'pro'>('pro')
+  const [sound, setSound] = useState(false)
+  const [negativePrompt, setNegativePrompt] = useState('')
+  const [cameraControl, setCameraControl] = useState<{ type: string; config?: { strength: number } } | null>(null)
+  const [openKlingModel, setOpenKlingModel] = useState(false)
+  const klingModelRef = useRef<HTMLDivElement>(null)
+  const [openKlingMode, setOpenKlingMode] = useState(false)
+  const klingModeRef = useRef<HTMLDivElement>(null)
+  const [openSound, setOpenSound] = useState(false)
+  const soundRef = useRef<HTMLDivElement>(null)
 
   const [activeCategory, setActiveCategory] = useState('all')
   const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('image')
@@ -75,7 +135,7 @@ export function VideoCreatePage() {
   // Work mode: tab-switch between single video and multi-clip
   type WorkMode = 'single' | 'multi'
   const [mode, setMode] = useState<WorkMode>('single')
-  const [clips, setClips] = useState<{ id: string; prompt: string; duration: string; inputType: 'text' | 'image' }[]>([
+  const [clips, setClips] = useState<{ id: string; prompt: string; duration: string; inputType: 'text' | 'image' | 'multi_image' }[]>([
     { id: crypto.randomUUID(), prompt: '', duration: '5', inputType: 'text' },
     { id: crypto.randomUUID(), prompt: '', duration: '5', inputType: 'text' },
   ])
@@ -181,12 +241,27 @@ export function VideoCreatePage() {
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number>(0)
 
-  const needsImage = ['image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale'].includes(genType)
-  const needsPrompt = ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(genType)
-  const supportsModel = ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(genType)
-  const supportsRatio = ['text2video', 'multimodal2video', 'image2video'].includes(genType)
-  const minImages = genType === 'multiframe2video' ? 2 : genType === 'frames2video' ? 2 : 1
-  const maxImages = genType === 'multiframe2video' ? 20 : genType === 'multimodal2video' ? 9 : genType === 'frames2video' ? 2 : 1
+  const needsImage = provider === 'kling'
+    ? ['image2video', 'multi_image2video'].includes(genType)
+    : ['image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale'].includes(genType)
+  const needsPrompt = provider === 'kling'
+    ? true // Kling always supports prompt
+    : ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(genType)
+  const supportsModel = provider === 'kling'
+    ? false // Kling uses klingModel dropdown, not dreamina modelVersion
+    : ['text2video', 'image2video', 'multimodal2video', 'frames2video'].includes(genType)
+  const supportsRatio = provider === 'kling'
+    ? true // Kling always supports ratio
+    : ['text2video', 'multimodal2video', 'image2video'].includes(genType)
+  const durOptions = provider === 'kling'
+    ? (KLING_MODEL_DURATIONS[klingModel] || ['5', '10'])
+    : ['3', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'] // dreamina
+  const minImages = provider === 'kling'
+    ? (genType === 'multi_image2video' ? 2 : 1)
+    : (genType === 'multiframe2video' ? 2 : genType === 'frames2video' ? 2 : 1)
+  const maxImages = provider === 'kling'
+    ? (genType === 'multi_image2video' ? 5 : 1)
+    : (genType === 'multiframe2video' ? 20 : genType === 'multimodal2video' ? 9 : genType === 'frames2video' ? 2 : 1)
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -493,6 +568,13 @@ export function VideoCreatePage() {
       const base64Images = await Promise.all(imageFiles.map(f => fileToBase64(f)))
       const params: any = {
         genType, modelVersion, prompt: p, duration, resolution, ratio,
+        provider, // kling or dreamina
+      }
+      if (provider === 'kling') {
+        params.klingModel = klingModel
+        params.sound = sound
+        if (negativePrompt.trim()) params.negativePrompt = negativePrompt.trim()
+        if (cameraControl?.type) params.cameraControl = cameraControl
       }
       if (mode === 'multi') {
         params.genType = 'multi_clip'
@@ -609,8 +691,11 @@ export function VideoCreatePage() {
     localStorage.removeItem('yooclaw_active_video_task')
   }
 
-  const genTypeConfig = GEN_TYPE_CONFIG.find(g => g.key === genType)!
+  const genTypeConfig = (provider === 'kling'
+    ? (KLING_GEN_TYPES as any).find((g: any) => g.key === genType)
+    : GEN_TYPE_CONFIG.find(g => g.key === genType))!
   const GenIcon = genTypeConfig.icon
+  const genTypeOptions = provider === 'kling' ? KLING_GEN_TYPES : GEN_TYPE_CONFIG
   const modelLabel = MODEL_VERSIONS.find(m => m.value === modelVersion)?.label || modelVersion
 
   const anyOpen = openGenType || openModel || openRatio || openDuration
@@ -713,8 +798,19 @@ export function VideoCreatePage() {
 
         {/* ===== CENTER: Main Content ===== */}
         <main className="flex-1 overflow-y-auto bg-background" style={{ minWidth: 0 }}>
-          {/* ===== Tab Switcher ===== */}
+          {/* ===== Provider Switcher ===== */}
           <div className="flex border-b border-border/30 px-4 sm:px-6 pt-2">
+            <button onClick={() => setProvider('dreamina')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-[1px] ${provider === 'dreamina' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}`}>
+              <Clapperboard size={14} />即梦
+            </button>
+            <button onClick={() => setProvider('kling')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-[1px] ${provider === 'kling' ? 'border-violet-400 text-violet-400' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}`}>
+              <Sparkles size={14} />可灵AI
+            </button>
+          </div>
+          {/* ===== Mode Switcher ===== */}
+          <div className="flex border-b border-border/30 px-4 sm:px-6">
             <button onClick={() => setMode('single')}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-[1px] ${mode === 'single' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}`}>
               <Wand2 size={15} />普通创建
@@ -939,6 +1035,19 @@ export function VideoCreatePage() {
                 })()}
               </div>
 
+              {/* Kling negative prompt (single mode) */}
+              {provider === 'kling' && mode === 'single' && (
+                <div className="px-3 pb-2">
+                  <textarea
+                    value={negativePrompt}
+                    onChange={e => setNegativePrompt(e.target.value)}
+                    placeholder="负向提示词（可选）— 描述不希望出现的内容..."
+                    rows={2}
+                    className="w-full px-3 py-2 bg-background/60 border border-border/20 rounded-lg text-xs outline-none resize-none placeholder:text-muted-foreground/30 focus:ring-1 focus:ring-violet-500/20"
+                  />
+                </div>
+              )}
+
               {/* Bottom Control Bar */}
               <div className="px-3 pb-3 pt-1 relative">
                 <DropdownBackdrop show={anyOpen} />
@@ -953,7 +1062,7 @@ export function VideoCreatePage() {
                     />
                     {openGenType && (
                       <div className="absolute bottom-full left-0 mb-2 z-50 w-[calc(100vw-2rem)] max-w-[360px] sm:w-72 rounded-2xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
-                        {GEN_TYPE_CONFIG.map(opt => {
+                        {genTypeOptions.map((opt: any) => {
                           const OIcon = opt.icon
                           const active = genType === opt.key
                           return (
@@ -1119,6 +1228,98 @@ export function VideoCreatePage() {
                     </div>
                   )}
 
+                  {/* Kling-specific Parameters */}
+                  {provider === 'kling' && mode === 'single' && (
+                    <div className="flex flex-wrap items-center gap-2 w-full mt-2 relative z-50">
+                      {/* Kling Model */}
+                      <div className="relative" ref={klingModelRef}>
+                        <button
+                          onClick={() => { closeAll(); setOpenKlingModel(v => !v) }}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
+                        >
+                          <Diamond size={12} className="text-violet-400" />
+                          <span>{KLING_MODELS.find(m => m.value === klingModel)?.label || klingModel}</span>
+                          <ChevronDown size={10} />
+                        </button>
+                        {openKlingModel && (
+                          <div className="absolute top-full left-0 mt-1 z-50 w-52 rounded-xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                            {KLING_MODELS.map(m => {
+                              const active = klingModel === m.value
+                              return (
+                                <button key={m.value}
+                                  onClick={() => { setKlingModel(m.value); setOpenKlingModel(false); setDuration(KLING_MODEL_DURATIONS[m.value]?.[0] || '5') }}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                                >
+                                  <span className={active ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{m.label}</span>
+                                  <span className="text-[10px] text-muted-foreground ml-auto">{m.desc}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {/* Mode (std/pro) */}
+                      <div className="relative" ref={klingModeRef}>
+                        <button
+                          onClick={() => { closeAll(); setOpenKlingMode(v => !v) }}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-white/5 hover:bg-white/10 transition-colors ${klingMode === 'pro' ? 'bg-violet-500/10 border-violet-500/20' : 'bg-white/5'}`}
+                        >
+                          <Box size={12} className={klingMode === 'pro' ? 'text-violet-400' : 'text-muted-foreground'} />
+                          <span>{klingMode === 'pro' ? 'Pro' : 'Std'}</span>
+                          <ChevronDown size={10} />
+                        </button>
+                        {openKlingMode && (
+                          <div className="absolute top-full left-0 mt-1 z-50 w-44 rounded-xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                            {KLING_MODES.map(m => {
+                              const active = klingMode === m.value
+                              return (
+                                <button key={m.value}
+                                  onClick={() => { setKlingMode(m.value as 'std' | 'pro'); setOpenKlingMode(false) }}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                                >
+                                  <span className={active ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{m.label}</span>
+                                  <span className="text-[10px] text-muted-foreground ml-auto">{m.desc}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {/* Sound toggle */}
+                      <button
+                        onClick={() => setSound(s => !s)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-white/5 transition-colors ${sound ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' : 'bg-white/5 text-muted-foreground hover:bg-white/10'}`}
+                      >
+                        <Volume2 size={12} />
+                        {sound ? '有声' : '静音'}
+                      </button>
+                      {/* Camera Control */}
+                      <div className="relative" ref={soundRef}>
+                        <button
+                          onClick={() => { closeAll(); setOpenSound(v => !v) }}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-white/5 transition-colors ${cameraControl?.type ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' : 'bg-white/5 text-muted-foreground hover:bg-white/10'}`}
+                        >
+                          <Camera size={12} />
+                          {cameraControl?.type ? (CAMERA_TYPES.find(c => c.value === cameraControl.type)?.label || '运镜') : '运镜'}
+                          <ChevronDown size={10} />
+                        </button>
+                        {openSound && (
+                          <div className="absolute top-full left-0 mt-1 z-50 w-40 rounded-xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                            {CAMERA_TYPES.map(ct => (
+                              <button key={ct.value}
+                                onClick={() => { setCameraControl(ct.value ? { type: ct.value } : null); setOpenSound(false) }}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${(cameraControl?.type || '') === ct.value ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                              >
+                                <span className={(cameraControl?.type || '') === ct.value ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{ct.label}</span>
+                                <span className="text-[10px] text-muted-foreground ml-auto">{ct.desc}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Spacer */}
                   <div className="flex-1" />
 
@@ -1186,6 +1387,10 @@ export function VideoCreatePage() {
                         <button onClick={() => updateClip(clip.id, 'inputType', 'image')}
                           className={`flex items-center gap-1 px-2 py-1 text-[10px] transition-all ${clip.inputType === 'image' ? 'bg-violet-500/15 text-violet-400' : 'bg-transparent text-muted-foreground hover:bg-white/5'}`}>
                           <Camera size={11} />图生
+                        </button>
+                        <button onClick={() => updateClip(clip.id, 'inputType', 'multi_image')}
+                          className={`flex items-center gap-1 px-2 py-1 text-[10px] transition-all ${clip.inputType === 'multi_image' ? 'bg-violet-500/15 text-violet-400' : 'bg-transparent text-muted-foreground hover:bg-white/5'}`}>
+                          <Film size={11} />多图
                         </button>
                       </div>
                     </div>

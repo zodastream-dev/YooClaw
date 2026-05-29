@@ -380,10 +380,16 @@ export async function generateVideo(params: {
   duration: string
   resolution: string
   ratio?: string
+  provider?: 'dreamina' | 'kling'
+  klingModel?: string
+  sound?: boolean
+  negativePrompt?: string
+  cameraControl?: { type: string; config?: { strength: number } }
   image?: string
   images?: string[]
   transitionPrompts?: string[]
   transitionDurations?: string[]
+  clips?: any[]
 }) {
   return apiRequest<{ id: string; title?: string; url: string; status?: string; message?: string }>(
     'POST', '/api/v1/videos/generate', params

@@ -78,6 +78,14 @@ import {
   MAKE_DEFAULT_RESEARCH_PROMPT,
   MAKE_DEFAULT_REPORT_PROMPT,
 } from './prompts.js';
+import {
+  klingCreate,
+  klingQuery,
+  klingWaitForVideo,
+  klingDownloadVideo,
+  saveKlingImage,
+  type KlingVideoParams,
+} from './kling.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -3934,8 +3942,11 @@ interface ClipTask {
   prompt: string;
   duration: number;
   inputType: 'text' | 'image' | 'multi_image';
-  imagePath: string | null; // temp image path for image2video clips
-  imagePaths: string[] | null; // temp image paths for multiframe2video clips
+  imagePath: string | null; // temp image path for image2video clips (dreamina)
+  imagePaths: string[] | null; // temp image paths for multiframe2video clips (dreamina)
+  imageUrl: string | null; // public URL for kling image2video
+  imageUrls: string[] | null; // public URLs for kling multi-image2video
+  klingEndpoint: string | null; // kling endpoint for polling (text2video/image2video/multi-image2video)
   status: 'pending' | 'processing' | 'completed' | 'failed';
   videoPath: string | null; // local path after download
   cdnUrl: string | null;
@@ -3957,6 +3968,9 @@ interface MultiClipTask {
   prompt: string; // combined title
   duration: string; // total duration
   genType: 'multi_clip';
+  provider: 'dreamina' | 'kling';
+  klingModel?: string;
+  sound?: boolean;
 }
 const multiClipTasks = new Map<string, MultiClipTask>();
 
@@ -4013,6 +4027,19 @@ app.get("/api/v1/videos/status", authMiddleware, async (req, res) => {
   }
 });
 
+// Kling image upload — accept base64, save to kling-imgs/, return public URL
+app.post('/api/v1/images/upload', authMiddleware, (req, res) => {
+  const { image } = req.body || {};
+  if (!image || typeof image !== 'string') {
+    return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '需要 base64 图片' } });
+  }
+  const result = saveKlingImage(image);
+  if (!result) {
+    return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片保存失败' } });
+  }
+  res.json({ data: { url: result.url } });
+});
+
 // Multi-type generation (video, image upscale, etc.)
 // Two-phase: Phase 1 submits with --poll=0, Phase 2 polls query_result in background
 app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
@@ -4025,6 +4052,10 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
     // ===== Multi-clip: session video generation with FFmpeg concat =====
     if (gt === 'multi_clip') {
+      const prov = ((req.body as any).provider === 'kling' ? 'kling' : 'dreamina') as 'dreamina' | 'kling';
+      const klingModel = (req.body as any).klingModel || 'kling-v3';
+      const klingSound = !!(req.body as any).sound;
+
       const clipArray: { prompt: string; duration: number; inputType?: 'text' | 'image' | 'multi_image'; image?: string; images?: string[] }[] = clips || [];
       if (!Array.isArray(clipArray) || clipArray.length < 2) {
         return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '至少需要 2 个片段' } });
@@ -4032,49 +4063,68 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       if (clipArray.length > 6) {
         return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '最多支持 6 个片段' } });
       }
+      // Kling multi-image limit: 2-5 images (vs dreamina's 2-20)
+      const multiImageMax = prov === 'kling' ? 5 : 20;
+      const durMin = prov === 'kling' ? 5 : 3;
+      const durMax = prov === 'kling'
+        ? (klingModel === 'kling-v1-6' ? 20 : (klingModel === 'kling-v3' || klingModel === 'kling-v3-omni' ? 15 : 10))
+        : 15;
       for (let i = 0; i < clipArray.length; i++) {
         const c = clipArray[i];
         const clipInputType = c.inputType === 'multi_image' ? 'multi_image' : (c.inputType === 'image' ? 'image' : 'text');
-        // Text clips must have prompt
         if (clipInputType === 'text' && (!c.prompt || typeof c.prompt !== 'string' || !c.prompt.trim())) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 需要输入提示词` } });
         }
-        // Image clips must have image
         if (clipInputType === 'image' && !c.image) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 图生模式需要上传图片` } });
         }
-        // multi_image clips must have 2-20 images
         if (clipInputType === 'multi_image') {
           if (!c.images || !Array.isArray(c.images) || c.images.length < 2) {
             return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 多图模式需要至少 2 张图片` } });
           }
-          if (c.images.length > 20) {
-            return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 多图模式最多 20 张图片` } });
+          if (c.images.length > multiImageMax) {
+            return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 多图模式最多 ${multiImageMax} 张图片` } });
           }
         }
         const d = Number(c.duration) || 5;
-        if (d < 3 || d > 15) {
-          return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 时长需在 3-15 秒之间` } });
+        if (d < durMin || d > durMax) {
+          return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `片段 ${i + 1} 时长需在 ${durMin}-${durMax} 秒之间` } });
         }
-        // Save images to temp files
+        // Save images — dreamina: temp files; kling: uploaded to public dir
         let imagePath: string | null = null;
         let imagePaths: string[] | null = null;
+        let imageUrl: string | null = null;
+        let imageUrls: string[] | null = null;
         if (clipInputType === 'image' && c.image) {
-          const imgBuf = Buffer.from(c.image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-          const imgFn = `mc-img-${crypto.randomUUID().slice(0, 8)}.png`;
-          imagePath = path.join('/tmp', imgFn);
-          fs.writeFileSync(imagePath, imgBuf);
+          if (prov === 'kling') {
+            const result = saveKlingImage(c.image, `mc-kl`);
+            if (!result) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片上传失败' } });
+            imageUrl = result.url;
+          } else {
+            const imgBuf = Buffer.from(c.image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+            const imgFn = `mc-img-${crypto.randomUUID().slice(0, 8)}.png`;
+            imagePath = path.join('/tmp', imgFn);
+            fs.writeFileSync(imagePath, imgBuf);
+          }
         }
         if (clipInputType === 'multi_image' && c.images) {
-          imagePaths = c.images.map((img: string) => {
-            const imgBuf = Buffer.from(img.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-            const imgFn = `mc-mi-${crypto.randomUUID().slice(0, 8)}.png`;
-            const p = path.join('/tmp', imgFn);
-            fs.writeFileSync(p, imgBuf);
-            return p;
-          });
+          if (prov === 'kling') {
+            imageUrls = c.images.map((img: string) => {
+              const result = saveKlingImage(img, 'mc-kl');
+              if (!result) throw new Error('Multi-image upload failed');
+              return result.url;
+            });
+          } else {
+            imagePaths = c.images.map((img: string) => {
+              const imgBuf = Buffer.from(img.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+              const imgFn = `mc-mi-${crypto.randomUUID().slice(0, 8)}.png`;
+              const p = path.join('/tmp', imgFn);
+              fs.writeFileSync(p, imgBuf);
+              return p;
+            });
+          }
         }
-        clipArray[i] = { prompt: c.prompt?.trim() || '', duration: d, inputType: clipInputType, image: c.image || null, imagePath, images: c.images || null, imagePaths };
+        clipArray[i] = { prompt: c.prompt?.trim() || '', duration: d, inputType: clipInputType, image: c.image || null, imagePath, images: c.images || null, imagePaths, imageUrl, imageUrls };
       }
 
       const mv = (modelVersion && VALID_MODEL_VERSIONS.includes(modelVersion)) ? modelVersion : 'seedance2.0fast';
@@ -4093,6 +4143,9 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         inputType: c.inputType || 'text',
         imagePath: c.imagePath || null,
         imagePaths: c.imagePaths || null,
+        imageUrl: c.imageUrl || null,
+        imageUrls: c.imageUrls || null,
+        klingEndpoint: null,
         status: 'pending' as const,
         videoPath: null,
         cdnUrl: null,
@@ -4114,17 +4167,132 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         prompt: combinedPrompt,
         duration: String(totalDur),
         genType: 'multi_clip',
+        provider: prov,
+        klingModel: prov === 'kling' ? klingModel : undefined,
+        sound: prov === 'kling' ? klingSound : undefined,
       };
       multiClipTasks.set(parentId, task);
 
       // Return immediately
       res.json({ data: { id: parentId, title: `长视频 ${totalDur}秒`, status: 'processing', totalClips: clipArray.length } });
 
-      // Background: submit clips sequentially, poll, concat
+      // Background: submit clips, poll, concat
       const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
       (async () => {
         try {
-          // Phase A: Submit all clips to dreamina (with 2s gap to avoid rate limiting)
+          if (prov === 'kling') {
+            // ===== KLING MULTI-CLIP FLOW =====
+            const model = klingModel;
+            const soundVal = klingSound ? 'on' : 'off';
+            const modeVal: 'std' | 'pro' = 'pro';
+
+            // Phase A: Submit all clips to Kling API
+            for (let i = 0; i < task.clips.length; i++) {
+              const clip = task.clips[i];
+              if (task.status === 'cancelled') return;
+              clip.status = 'processing';
+
+              try {
+                let endpoint = '';
+                const baseParams: KlingVideoParams = { model_name: model, mode: modeVal, sound: soundVal };
+                if (clip.inputType === 'multi_image' && clip.imageUrls && clip.imageUrls.length >= 2) {
+                  endpoint = 'multi-image2video';
+                  const { task_id } = await klingCreate(endpoint, {
+                    ...baseParams,
+                    image_list: clip.imageUrls.map(url => ({ image: url })),
+                    prompt: clip.prompt,
+                    duration: String(clip.duration),
+                  });
+                  clip.submitId = task_id;
+                  clip.klingEndpoint = endpoint;
+                } else if (clip.inputType === 'image' && clip.imageUrl) {
+                  endpoint = 'image2video';
+                  const { task_id } = await klingCreate(endpoint, {
+                    ...baseParams,
+                    image: clip.imageUrl,
+                    prompt: clip.prompt,
+                    duration: String(clip.duration),
+                  });
+                  clip.submitId = task_id;
+                  clip.klingEndpoint = endpoint;
+                } else {
+                  endpoint = 'text2video';
+                  const { task_id } = await klingCreate(endpoint, {
+                    ...baseParams,
+                    prompt: clip.prompt,
+                    duration: String(clip.duration),
+                    aspect_ratio: rat,
+                  });
+                  clip.submitId = task_id;
+                  clip.klingEndpoint = endpoint;
+                }
+                console.log(`[MultiClip:Kling] Clip ${i + 1}/${task.clips.length} submitted: ${clip.submitId.slice(0, 12)}...`);
+              } catch (subErr: any) {
+                console.error(`[MultiClip:Kling] Submit ${i + 1} failed:`, subErr.message);
+                clip.status = 'failed';
+                task.status = 'failed';
+                task.errorMessage = `片段 ${i + 1} 提交失败: ${subErr.message}`;
+                return;
+              }
+
+              if (i < task.clips.length - 1) {
+                await new Promise(r => setTimeout(r, 2000)); // 2s gap
+              }
+            }
+
+            // Phase B: Poll all Kling clips (10s interval, max 60 polls = 10 min)
+            const KLING_MAX_POLLS = 60;
+            for (let poll = 0; poll < KLING_MAX_POLLS; poll++) {
+              if (task.status === 'cancelled') return;
+              task.polls = poll + 1;
+              await new Promise(r => setTimeout(r, 10000)); // 10s
+
+              let allDone = true;
+              let anyFailed = false;
+
+              for (const clip of task.clips) {
+                if (clip.status === 'completed' || clip.status === 'failed') continue;
+                allDone = false;
+
+                try {
+                  const result = await klingQuery(clip.klingEndpoint || 'text2video', clip.submitId);
+                  const taskStatus = result.data?.task_status;
+                  console.log(`[MultiClip:Kling] Poll ${poll + 1} clip ${clip.index + 1}: ${taskStatus}`);
+
+                  if (taskStatus === 'succeed') {
+                    const videos = result.data?.task_result?.videos || [];
+                    const videoUrl = videos[0]?.url || '';
+                    if (videoUrl) {
+                      const ext = '.mp4';
+                      const localFn = `mc-kl-${parentId.slice(0, 8)}-${clip.index}${ext}`;
+                      const lp = path.join('/tmp', localFn);
+                      const ok = await klingDownloadVideo(videoUrl, lp);
+                      if (ok) {
+                        clip.videoPath = lp;
+                      }
+                      clip.cdnUrl = videoUrl;
+                    }
+                    clip.status = 'completed';
+                  } else if (taskStatus === 'failed') {
+                    clip.status = 'failed';
+                    anyFailed = true;
+                    console.error(`[MultiClip:Kling] Clip ${clip.index + 1} failed: ${result.data?.task_status_msg}`);
+                  }
+                } catch (pollErr: any) {
+                  console.warn(`[MultiClip:Kling] Poll clip ${clip.index + 1} error:`, (pollErr as any).message?.slice(0, 100));
+                }
+              }
+
+              if (anyFailed) {
+                task.status = 'failed';
+                task.errorMessage = '部分片段生成失败（可灵）';
+                return;
+              }
+              if (allDone) break;
+            }
+
+          } else {
+            // ===== DREAMINA MULTI-CLIP FLOW (existing) =====
           for (let i = 0; i < task.clips.length; i++) {
             const clip = task.clips[i];
             if (task.status === 'cancelled') return;
@@ -4246,7 +4414,9 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             if (allDone) break;
           }
 
-          // Check all completed
+          } // end kling if / dreamina else
+
+          // Check all completed (shared)
           const allCompleted = task.clips.every(c => c.status === 'completed');
           if (!allCompleted) {
             task.status = 'failed';
@@ -4254,7 +4424,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             return;
           }
 
-          // Phase C: FFmpeg concat
+          // ===== Phase C: FFmpeg concat (shared by both providers) =====
           task.status = 'concatenating';
           console.log(`[MultiClip] Starting FFmpeg concat for ${task.clips.length} clips...`);
 
@@ -4401,8 +4571,125 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: `${gt} supports at most ${maxImages[gt]} image(s)` } });
     }
 
-    // Save all images to temp files
+    // Save all images to temp files (dreamina only; Kling uses URLs)
     const tempPaths: string[] = [];
+    const singleProv = ((req.body as any).provider === 'kling' ? 'kling' : 'dreamina') as 'dreamina' | 'kling';
+
+    if (singleProv === 'kling') {
+      // ===== KLING SINGLE VIDEO FLOW =====
+      const klingSingleModel = (req.body as any).klingModel || 'kling-v3';
+      const klingSingleSound = !!(req.body as any).sound;
+      const klingSingleMode: 'std' | 'pro' = 'pro';
+      const negPrompt = (req.body as any).negativePrompt || '';
+
+      // Map genType to Kling endpoint
+      const klingEndpoint = gt === 'multi_image2video' ? 'multi-image2video'
+        : (gt === 'image2video' ? 'image2video' : 'text2video');
+
+      // Build params
+      const klingParams: KlingVideoParams = {
+        model_name: klingSingleModel,
+        mode: klingSingleMode,
+        sound: klingSingleSound ? 'on' : 'off',
+        duration: String(dur),
+        aspect_ratio: rat,
+        negative_prompt: negPrompt,
+      };
+
+      if (gt === 'image2video' || gt === 'multi_image2video') {
+        if (imageList.length === 0) {
+          return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '需要上传图片' } });
+        }
+        // Upload images to kling-imgs first
+        const urls: string[] = [];
+        for (const img of imageList) {
+          const result = saveKlingImage(img, 'single-kl');
+          if (!result) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片上传失败' } });
+          urls.push(result.url);
+        }
+        if (gt === 'multi_image2video') {
+          klingParams.image_list = urls.map(url => ({ image: url }));
+        } else {
+          klingParams.image = urls[0];
+        }
+        if (promptStr) klingParams.prompt = promptStr;
+      } else {
+        klingParams.prompt = promptStr;
+      }
+
+      // Camera control
+      const cc = (req.body as any).cameraControl;
+      if (cc && cc.type) klingParams.camera_control = cc;
+
+      try {
+        const { task_id: klingTaskId } = await klingCreate(klingEndpoint, klingParams);
+        const parentId = crypto.randomUUID();
+        const klingTask: VideoTask = {
+          id: parentId,
+          submitId: klingTaskId,
+          prompt: promptStr,
+          genType: gt,
+          modelVersion: klingSingleModel,
+          duration: String(dur),
+          resolution: reso,
+          ratio: rat,
+          image: imageList.length > 0 ? 'kling' : null,
+          startTime: Date.now(),
+          status: 'processing',
+          polls: 0,
+          queueInfo: null,
+          videoUrl: null,
+          tempImagePaths: [],
+        };
+        videoTasks.set(parentId, klingTask);
+
+        res.json({ data: { id: parentId, title: promptStr.slice(0, 50) || '视频生成', url: '', status: 'processing' } });
+
+        // Background: poll Kling, download, save
+        (async () => {
+          try {
+            const videoUrl = await klingWaitForVideo(klingEndpoint, klingTaskId, 10000, 60);
+            if (!videoUrl) {
+              klingTask.status = 'failed';
+              return;
+            }
+            const outputFn = `kling-${klingTaskId.slice(0, 10)}.mp4`;
+            const outputPath = path.join(VIDEO_DIR, outputFn);
+            const ok = await klingDownloadVideo(videoUrl, outputPath);
+            if (!ok) {
+              klingTask.status = 'failed';
+              return;
+            }
+            klingTask.videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
+            klingTask.status = 'completed';
+
+            try {
+              await saveVideo({
+                userId: user.userId,
+                title: promptStr.slice(0, 100) || 'Kling 视频',
+                prompt: promptStr,
+                duration: String(dur),
+                resolution: reso,
+                ratio: rat,
+                inputType: gt,
+                videoUrl: klingTask.videoUrl,
+                videoPath: outputPath,
+                submitId: parentId,
+              });
+            } catch (dbErr: any) { console.error('[Kling:Single] DB save failed:', dbErr.message); }
+          } catch (err: any) {
+            console.error('[Kling:Single] Background error:', err.message);
+            klingTask.status = 'failed';
+          }
+        })();
+        return;
+      } catch (klingErr: any) {
+        console.error('[Kling:Single] Create failed:', klingErr.message);
+        return res.status(500).json({ error: { code: 'GENERATE_FAILED', message: `Kling API: ${klingErr.message}` } });
+      }
+    }
+
+    // Dreamina flow continues
     for (let i = 0; i < imageList.length; i++) {
       tempPaths.push(saveBase64TempImage(imageList[i], `gen-${gt}`));
     }
@@ -5274,6 +5561,18 @@ app.use('/videos', express.static(VIDEO_DIR, {
       res.setHeader('Content-Type', 'video/webm');
     }
     res.setHeader('Cache-Control', 'public, max-age=604800');
+  }
+}));
+
+// Kling reference images static serving
+const KLING_IMG_DIR = process.env.KLING_IMG_DIR || path.join(
+  path.dirname(VIDEO_DIR),
+  'kling-imgs'
+);
+app.use('/kling-imgs', express.static(KLING_IMG_DIR, {
+  maxAge: '1h',
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
   }
 }));
 
