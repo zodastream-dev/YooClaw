@@ -1,36 +1,23 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import jwt from 'jsonwebtoken';
 
 // ===== JWT Auth =====
 const KLING_AK = process.env.KLING_AK || '';
 const KLING_SK = process.env.KLING_SK || '';
-const KLING_BASE = 'https://api.klingai.com';
+const KLING_BASE = 'https://api-beijing.klingai.com';
 
 let cachedToken = '';
 let tokenExpiry = 0;
 
-function base64UrlEncode(str: string): string {
-  return Buffer.from(str)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
 function generateToken(): string {
   const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const payload = { iss: KLING_AK, exp: now + 1800, nbf: now - 5 };
-
-  const headerB64 = base64UrlEncode(JSON.stringify(header));
-  const payloadB64 = base64UrlEncode(JSON.stringify(payload));
-  const signature = crypto
-    .createHmac('sha256', KLING_SK)
-    .update(`${headerB64}.${payloadB64}`)
-    .digest('base64url');
-
-  return `${headerB64}.${payloadB64}.${signature}`;
+  return jwt.sign(
+    { iss: KLING_AK, exp: now + 1800, nbf: now - 5 },
+    KLING_SK,
+    { algorithm: 'HS256', header: { alg: 'HS256', typ: 'JWT' } }
+  );
 }
 
 function getToken(): string {
