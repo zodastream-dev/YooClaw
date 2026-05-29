@@ -118,6 +118,11 @@ export function intelStationBody(sn: string): string {
   </div>
 </div>
 
+<!-- ===== SITE FOOTER ===== -->
+<div class="site-footer">
+  <span><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">沪ICP备13025394号</a></span>
+</div>
+
 <!-- Floating toggle when left panel is collapsed -->
 <button class="btn-toggle-left-float" onclick="toggleLeftPanel()" title="展开面板">&#x25B6;</button>
 

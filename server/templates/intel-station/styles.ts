@@ -282,6 +282,11 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .src-mini{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:rgba(15,23,42,0.3);transition:border .2s}
 .src-mini:hover{border-color:rgba(0,212,255,0.2)}
 
+/* ===== SITE FOOTER ===== */
+.site-footer{text-align:center;padding:12px 20px;font-size:12px;color:var(--text-secondary);border-top:1px solid var(--border);background:rgba(2,6,23,0.6)}
+.site-footer a{color:var(--text-secondary);text-decoration:none;transition:color .2s}
+.site-footer a:hover{color:var(--cyan)}
+
 /* ===== RESPONSIVE ===== */
 @media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right"}}
 @media(max-width:1024px){.main-layout{grid-template-columns:1fr;height:100%;grid-template-rows:1fr auto;grid-template-areas:"center""bottom"}.left-col,.right-col{display:none}}
