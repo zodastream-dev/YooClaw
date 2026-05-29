@@ -232,7 +232,7 @@ export function VideoCreatePage() {
   const [queueMessage, setQueueMessage] = useState('')
   const [elapsedMinutes, setElapsedMinutes] = useState(0)
   const [estimatedMaxMinutes, setEstimatedMaxMinutes] = useState(0)
-  const [maxPolls, setMaxPolls] = useState(120)
+  const [maxPolls, setMaxPolls] = useState(300)
   const [result, setResult] = useState<GeneratedVideo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -351,7 +351,7 @@ export function VideoCreatePage() {
           setQueueMessage(res.data.queueMessage || '')
           setElapsedMinutes(res.data.elapsedMinutes)
           setEstimatedMaxMinutes(res.data.estimatedMaxMinutes)
-          setMaxPolls(res.data.maxPolls || 120)
+          setMaxPolls(res.data.maxPolls || 300)
           if (res.data.multiClip) setMultiClipProgress(res.data.multiClip)
           if (res.data.status === 'completed') {
             setIsPolling(false)

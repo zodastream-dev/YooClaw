@@ -4240,12 +4240,12 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
               }
             }
 
-            // Phase B: Poll all Kling clips (10s interval, max 60 polls = 10 min)
-            const KLING_MAX_POLLS = 60;
+            // Phase B: Poll all Kling clips (1min interval, max 300 polls = 5 hr)
+            const KLING_MAX_POLLS = 300;
             for (let poll = 0; poll < KLING_MAX_POLLS; poll++) {
               if (task.status === 'cancelled') return;
               task.polls = poll + 1;
-              await new Promise(r => setTimeout(r, 10000)); // 10s
+              await new Promise(r => setTimeout(r, 60000)); // 1 min
 
               let allDone = true;
               let anyFailed = false;
@@ -4349,12 +4349,12 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             }
           }
 
-          // Phase B: Poll all clips (every 3 min, up to 120 polls = 6 hr)
-          const MAX_POLLS = 120;
+          // Phase B: Poll all clips (every 1 min, up to 300 polls = 5 hr)
+          const MAX_POLLS = 300;
           for (let poll = 0; poll < MAX_POLLS; poll++) {
             if (task.status === 'cancelled') return;
             task.polls = poll + 1;
-            await new Promise(r => setTimeout(r, 180000)); // 3 min
+            await new Promise(r => setTimeout(r, 60000)); // 1 min
 
             let allDone = true;
             let anyFailed = false;
@@ -4648,7 +4648,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         // Background: poll Kling, download, save
         (async () => {
           try {
-            const videoUrl = await klingWaitForVideo(klingEndpoint, klingTaskId, 10000, 60);
+            const videoUrl = await klingWaitForVideo(klingEndpoint, klingTaskId, 60000, 300);
             if (!videoUrl) {
               klingTask.status = 'failed';
               return;
@@ -4797,11 +4797,11 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
     // Phase 2: Background polling
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
-    const MAX_POLLS = 120;
+    const MAX_POLLS = 300;
 
     (async () => {
       for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise(r => setTimeout(r, 180000));
+        await new Promise(r => setTimeout(r, 60000)); // 1 min
         const t = videoTasks.get(submitId);
         if (!t) return;
         // Stop polling if user cancelled (dreamina CLI has no cancel API)
@@ -4952,12 +4952,12 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
         status: mcTask.status,
         genType: 'multi_clip',
         polls: mcTask.polls,
-        maxPolls: 120,
+        maxPolls: 300,
         isPolling: mcTask.status === 'processing' || mcTask.status === 'concatenating',
         queueInfo: mcTask.queueInfo || null,
         queueMessage,
         elapsedMinutes,
-        estimatedMaxMinutes: totalClips * 20,
+        estimatedMaxMinutes: totalClips * 5,
         result: mcTask.videoUrl ? { videoUrl: mcTask.videoUrl } : null,
         errorMessage: mcTask.errorMessage || null,
         multiClip: { completedClips, totalClips },
@@ -4973,7 +4973,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
         id: submitId,
         status: 'unknown',
         polls: 0,
-        maxPolls: 120,
+        maxPolls: 300,
         isPolling: false,
         queueInfo: null,
         queueMessage: '',
@@ -4985,7 +4985,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
   }
 
   const elapsedMinutes = Math.floor((Date.now() - task.startTime) / 60000);
-  const estimatedMaxMinutes = 120 * 3; // 120 polls x 3min = 6 hr
+  const estimatedMaxMinutes = 300 * 1; // 300 polls x 1min = 5 hr
 
   let queueMessage = '';
   if (task.status === 'processing') {
@@ -5009,7 +5009,7 @@ app.get('/api/v1/videos/status/:submitId', authMiddleware, async (req, res) => {
       status: task.status,
       genType: task.genType,
       polls: task.polls,
-      maxPolls: 120,
+      maxPolls: 300,
       isPolling: task.status === 'processing',
       queueInfo: task.queueInfo || null,
       queueMessage,
