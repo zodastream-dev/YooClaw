@@ -707,6 +707,8 @@ export function VideoCreatePage() {
     || (provider === 'kling' ? KLING_GEN_TYPES[0] : GEN_TYPE_CONFIG[0]);
   const GenIcon = safeConfig.icon
   const genTypeOptions = provider === 'kling' ? KLING_GEN_TYPES : GEN_TYPE_CONFIG
+  // v3-omni only supports omni-video endpoint, not text2video/image2video/multi-image2video
+  const klingModelOptions = KLING_MODELS.filter(m => m.value !== 'kling-v3-omni')
   const modelLabel = MODEL_VERSIONS.find(m => m.value === modelVersion)?.label || modelVersion
 
   const anyOpen = openGenType || openModel || openRatio || openDuration
@@ -1249,12 +1251,12 @@ export function VideoCreatePage() {
                           className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
                         >
                           <Diamond size={12} className="text-violet-400" />
-                          <span>{KLING_MODELS.find(m => m.value === klingModel)?.label || klingModel}</span>
+                          <span>{  klingModelOptions.find(m => m.value === klingModel)?.label || klingModel}</span>
                           <ChevronDown size={10} />
                         </button>
                         {openKlingModel && (
                           <div className="absolute top-full left-0 mt-1 z-50 w-52 rounded-xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
-                            {KLING_MODELS.map(m => {
+                            {klingModelOptions.map(m => {
                               const active = klingModel === m.value
                               return (
                                 <button key={m.value}
@@ -1377,7 +1379,7 @@ export function VideoCreatePage() {
                     className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
                   >
                     <Diamond size={12} className="text-violet-400" />
-                    <span>{KLING_MODELS.find(m => m.value === klingModel)?.label || klingModel}</span>
+                    <span>{  klingModelOptions.find(m => m.value === klingModel)?.label || klingModel}</span>
                     <ChevronDown size={10} />
                   </button>
                   {openKlingModel && (
