@@ -701,8 +701,11 @@ export function VideoCreatePage() {
 
   const genTypeConfig = (provider === 'kling'
     ? (KLING_GEN_TYPES as any).find((g: any) => g.key === genType)
-    : GEN_TYPE_CONFIG.find(g => g.key === genType))!
-  const GenIcon = genTypeConfig.icon
+    : GEN_TYPE_CONFIG.find(g => g.key === genType));
+  // Defensive fallback — use first available type if current genType is invalid for this provider
+  const safeConfig = genTypeConfig
+    || (provider === 'kling' ? KLING_GEN_TYPES[0] : GEN_TYPE_CONFIG[0]);
+  const GenIcon = safeConfig.icon
   const genTypeOptions = provider === 'kling' ? KLING_GEN_TYPES : GEN_TYPE_CONFIG
   const modelLabel = MODEL_VERSIONS.find(m => m.value === modelVersion)?.label || modelVersion
 
@@ -808,11 +811,11 @@ export function VideoCreatePage() {
         <main className="flex-1 overflow-y-auto bg-background" style={{ minWidth: 0 }}>
           {/* ===== Provider Switcher ===== */}
           <div className="flex border-b border-border/30 px-4 sm:px-6 pt-2">
-            <button onClick={() => setProvider('dreamina')}
+            <button onClick={() => { if (provider !== 'dreamina') { setProvider('dreamina'); setGenType('text2video'); } }}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-[1px] ${provider === 'dreamina' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}`}>
               <Clapperboard size={14} />即梦
             </button>
-            <button onClick={() => setProvider('kling')}
+            <button onClick={() => { if (provider !== 'kling') { setProvider('kling'); setGenType('text2video' as GenType); } }}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-[1px] ${provider === 'kling' ? 'border-violet-400 text-violet-400' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}`}>
               <Sparkles size={14} />可灵AI
             </button>
@@ -926,7 +929,7 @@ export function VideoCreatePage() {
                 <div className="flex-1 p-3 rounded-xl bg-white/5 border border-white/5 text-xs text-muted-foreground leading-relaxed">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <GenIcon size={13} className="text-primary" />
-                    <span className="font-medium text-foreground">{genTypeConfig.label}</span>
+                    <span className="font-medium text-foreground">{safeConfig.label}</span>
                   </div>
                   {genType === 'image2video' && '上传 1 张图片，搭配文字描述让图片动起来。'}
                   {genType === 'multimodal2video' && '最多 9 张图/视频/音频参考。在提示词中输入 @ 引用已上传文件。'}
@@ -944,7 +947,7 @@ export function VideoCreatePage() {
                   <GenIcon size={15} className="text-primary" />
                 </div>
                 <div className="text-xs text-muted-foreground leading-relaxed">
-                  <span className="font-medium text-foreground">{genTypeConfig.label}</span>
+                  <span className="font-medium text-foreground">{safeConfig.label}</span>
                   {' — '}
                   {genType === 'image2video' && '上传 1 张图片，搭配文字描述让图片动起来。'}
                   {genType === 'multimodal2video' && '最多 9 张图/视频/音频参考。在提示词中输入 @ 引用已上传文件。'}
@@ -962,7 +965,7 @@ export function VideoCreatePage() {
                   <GenIcon size={15} className="text-primary" />
                 </div>
                 <div className="text-xs text-muted-foreground leading-relaxed">
-                  <span className="font-medium text-foreground">{genTypeConfig.label}</span>
+                  <span className="font-medium text-foreground">{safeConfig.label}</span>
                   {' — 输入文字描述，AI 即可生成视频。支持设置画面比例和时长。'}
                 </div>
               </div>
@@ -1063,7 +1066,7 @@ export function VideoCreatePage() {
                   {/* Generation Type Dropdown */}
                   <div className="relative" ref={genTypeRef}>
                     <DropdownBtn
-                      label={genTypeConfig.label}
+                      label={safeConfig.label}
                       icon={GenIcon}
                       open={openGenType}
                       onClick={() => { const v = !openGenType; closeAll(); setOpenGenType(v) }}
@@ -1516,7 +1519,7 @@ export function VideoCreatePage() {
                       <p className="text-sm font-semibold text-yellow-500">
                         {isSubmitting ? '提交中...' : genType === 'image_upscale' ? '图片放大中' : '视频生成中'}
                       </p>
-                      <p className="text-[11px] text-muted-foreground">{genTypeConfig.label}</p>
+                      <p className="text-[11px] text-muted-foreground">{safeConfig.label}</p>
                     </div>
                   </div>
                   {isPolling && (
