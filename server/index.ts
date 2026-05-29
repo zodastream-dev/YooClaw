@@ -4183,6 +4183,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
           if (prov === 'kling') {
             // ===== KLING MULTI-CLIP FLOW =====
             const model = klingModel;
+            console.log(`[MultiClip:Kling] Starting with model=${model}, sound=${soundVal}, mode=${modeVal}`);
             const soundVal = klingSound ? 'on' : 'off';
             const modeVal: 'std' | 'pro' = 'pro';
 
