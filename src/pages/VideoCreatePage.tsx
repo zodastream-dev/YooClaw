@@ -691,6 +691,14 @@ export function VideoCreatePage() {
     localStorage.removeItem('yooclaw_active_video_task')
   }
 
+  // Reset genType when provider changes to avoid incompatible type
+  useEffect(() => {
+    const validTypes = provider === 'kling' ? KLING_GEN_TYPES : GEN_TYPE_CONFIG
+    if (!validTypes.find((g: any) => g.key === genType)) {
+      setGenType(validTypes[0].key as GenType)
+    }
+  }, [provider])
+
   const genTypeConfig = (provider === 'kling'
     ? (KLING_GEN_TYPES as any).find((g: any) => g.key === genType)
     : GEN_TYPE_CONFIG.find(g => g.key === genType))!
