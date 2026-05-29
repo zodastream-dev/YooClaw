@@ -98,8 +98,8 @@ export function VideoCreatePage() {
   type Provider = 'dreamina' | 'kling'
   const [provider, setProvider] = useState<Provider>('dreamina')
   const [klingModel, setKlingModel] = useState('kling-v3')
-  const [klingMode, setKlingMode] = useState<'std' | 'pro'>('pro')
-  const [sound, setSound] = useState(false)
+  const [klingMode, setKlingMode] = useState<'std' | 'pro'>('std')
+  const [sound, setSound] = useState(true)
   const [negativePrompt, setNegativePrompt] = useState('')
   const [cameraControl, setCameraControl] = useState<{ type: string; config?: { strength: number } } | null>(null)
   const [openKlingModel, setOpenKlingModel] = useState(false)
@@ -1401,6 +1401,33 @@ export function VideoCreatePage() {
                         return (
                           <button key={m.value}
                             onClick={() => { setKlingModel(m.value); setOpenKlingModel(false); setDuration(KLING_MODEL_DURATIONS[m.value]?.[0] || '5') }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                          >
+                            <span className={active ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{m.label}</span>
+                            <span className="text-[10px] text-muted-foreground ml-auto">{m.desc}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground">画质:</span>
+                <div className="relative" ref={klingModeRef}>
+                  <button
+                    onClick={() => { setOpenKlingMode(v => !v) }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-white/5 hover:bg-white/10 transition-colors ${klingMode === 'pro' ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' : 'bg-white/5 text-foreground/80'}`}
+                  >
+                    <Box size={12} className={klingMode === 'pro' ? 'text-violet-400' : 'text-muted-foreground'} />
+                    <span>{klingMode === 'pro' ? 'Pro' : 'Std'}</span>
+                    <ChevronDown size={10} />
+                  </button>
+                  {openKlingMode && (
+                    <div className="absolute top-full left-0 mt-1 z-50 w-44 rounded-xl border border-white/10 bg-[#1e1e2e]/95 backdrop-blur-xl shadow-2xl p-2 space-y-1">
+                      {KLING_MODES.map(m => {
+                        const active = klingMode === m.value
+                        return (
+                          <button key={m.value}
+                            onClick={() => { setKlingMode(m.value as 'std' | 'pro'); setOpenKlingMode(false) }}
                             className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
                           >
                             <span className={active ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{m.label}</span>

@@ -4004,7 +4004,7 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
 function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
   const xfadeFilter = buildXfadeFilter(durations, 1, 24);
   const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
-  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libx264 -preset fast -crf 23 -an -y "${outputPath}"`;
+  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libopenh264 -preset fast -crf 23 -an -y "${outputPath}"`;
 }
 
 /** Save a base64 image string to a temp file, return the file path */
@@ -4184,7 +4184,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             // ===== KLING MULTI-CLIP FLOW =====
             const model = klingModel;
             const soundVal = klingSound ? 'on' : 'off';
-            const modeVal: 'std' | 'pro' = 'pro';
+            const modeVal: 'std' | 'pro' = 'std'; // default 720P standard
             console.log(`[MultiClip:Kling] Starting with model=${model}, sound=${soundVal}, mode=${modeVal}`);
 
             // Phase A: Submit all clips to Kling API
@@ -4580,7 +4580,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       // ===== KLING SINGLE VIDEO FLOW =====
       const klingSingleModel = (req.body as any).klingModel || 'kling-v3';
       const klingSingleSound = !!(req.body as any).sound;
-      const klingSingleMode: 'std' | 'pro' = 'pro';
+      const klingSingleMode: 'std' | 'pro' = 'std'; // default 720P
       const negPrompt = (req.body as any).negativePrompt || '';
 
       // Map genType to Kling endpoint
