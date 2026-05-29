@@ -4183,9 +4183,9 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
           if (prov === 'kling') {
             // ===== KLING MULTI-CLIP FLOW =====
             const model = klingModel;
-            console.log(`[MultiClip:Kling] Starting with model=${model}, sound=${soundVal}, mode=${modeVal}`);
             const soundVal = klingSound ? 'on' : 'off';
             const modeVal: 'std' | 'pro' = 'pro';
+            console.log(`[MultiClip:Kling] Starting with model=${model}, sound=${soundVal}, mode=${modeVal}`);
 
             // Phase A: Submit all clips to Kling API
             for (let i = 0; i < task.clips.length; i++) {
