@@ -3974,21 +3974,21 @@ interface MultiClipTask {
 }
 const multiClipTasks = new Map<string, MultiClipTask>();
 
-/** Build FFmpeg xfade crossfade filter for multi-clip concatenation */
+/** Build FFmpeg xfade crossfade filter for multi-clip concatenation — scales all inputs to 1280x720 first */
 function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: number = 24): string {
   const n = durations.length;
   const parts: string[] = [];
+  const TARGET_W = 1280, TARGET_H = 720; // common resolution for consistent encoding
 
-  // Normalize each input
+  // Normalize: fps → setpts → scale to 1280x720 → format yuv420p
   for (let i = 0; i < n; i++) {
-    parts.push(`[${i}:v]settb=AVTB,fps=${fps},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`);
+    parts.push(`[${i}:v]fps=${fps},setpts=PTS-STARTPTS,scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[v${i}]`);
   }
 
   // Chain xfade
   let prevLabel = 'v0';
   const xfadeLen = xfadeDuration;
   for (let i = 1; i < n; i++) {
-    // Cumulative duration of clips 0..i minus (i) * xfadeDuration gives the offset into the chained output
     let cumulativeSec = 0;
     for (let j = 0; j <= i; j++) cumulativeSec += durations[j];
     const offset = cumulativeSec - i * xfadeLen;
@@ -4000,14 +4000,11 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
   return parts.join(';');
 }
 
-/** Build ffmpeg concat command for multi-clip — uses concat demuxer (no re-encoding, no encoder dependency) */
+/** Build ffmpeg concat command — uses xfade crossfade with mpeg4 encoder (re-encoding required for xfade) */
 function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
-  // Write concat list file
-  const listPath = outputPath.replace(/\.mp4$/, '-concat.txt');
-  const listContent = inputPaths.map(p => `file '${p}'`).join('\n');
-  fs.writeFileSync(listPath, listContent);
-  return `ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -an -y "${outputPath}"`;
-}
+  const xfadeFilter = buildXfadeFilter(durations, 1, 24);
+  const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
+  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v mpeg4 -q:v 2 -an -y "${outputPath}"`;
 
 /** Save a base64 image string to a temp file, return the file path */
 function saveBase64TempImage(base64Str: string, prefix: string): string {
