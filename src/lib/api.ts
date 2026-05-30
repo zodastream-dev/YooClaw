@@ -479,6 +479,16 @@ export async function batchDeleteVideos(ids: string[]) {
 export async function concatVideos(ids: string[]) {
   return apiRequest<{ videoUrl: string; title: string }>('POST', '/api/v1/videos/concat', { ids })
 }
+export async function uploadVideo(formData: FormData) {
+  const token = localStorage.getItem('yooclaw_token')
+  const resp = await fetch(`${API_BASE}/api/v1/videos/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  })
+  if (!resp.ok) throw new Error('上传失败')
+  return resp.json()
+}
 export async function cancelVideoTask(submitId: string) {
   return apiRequest<{ cancelled: boolean }>('POST', `/api/v1/videos/cancel/${submitId}`)
 }

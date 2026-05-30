@@ -3911,6 +3911,47 @@ if (!fs.existsSync(VIDEO_DIR)) {
   console.log('[VideoGen] Created video directory:', VIDEO_DIR);
 }
 
+// ===== Video Upload =====
+import multer from 'multer';
+const upload = multer({
+  dest: '/tmp/',
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
+    cb(null, allowed.includes(file.mimetype) || file.originalname.endsWith('.mp4'));
+  },
+});
+
+app.post('/api/v1/videos/upload', authMiddleware, upload.single('video'), async (req: any, res) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: { code: 'NO_FILE', message: '请选择视频文件' } });
+    const title = req.body.title || file.originalname.replace(/\.[^.]+$/, '');
+    const duration = req.body.duration || '0';
+    const outputFn = `upload-${crypto.randomUUID().slice(0, 10)}.mp4`;
+    const outputPath = path.join(VIDEO_DIR, outputFn);
+    fs.copyFileSync(file.path, outputPath);
+    try { fs.unlinkSync(file.path); } catch {}
+    const videoUrl = `${process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com'}/videos/${outputFn}`;
+    await saveVideo({
+      userId: req.user.userId,
+      title,
+      prompt: title,
+      duration,
+      resolution: '720p',
+      ratio: '16:9',
+      inputType: 'upload',
+      videoUrl,
+      videoPath: outputPath,
+      submitId: `upload-${crypto.randomUUID().slice(0, 12)}`,
+    });
+    res.json({ data: { videoUrl, title, id: `upload-${crypto.randomUUID().slice(0, 8)}` } });
+  } catch (err: any) {
+    console.error('[Video Upload Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '上传失败' } });
+  }
+});
+
 
 // In-memory video task store (survives across requests, reset on server restart)
 const VALID_GEN_TYPES = ['text2video', 'image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale', 'multi_clip'] as const;

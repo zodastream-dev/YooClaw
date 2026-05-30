@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
-import { Play, Trash2, Film, Download, Combine, CheckSquare, Square, X, Loader2, GripVertical } from 'lucide-react'
+import { Play, Trash2, Film, Download, Combine, CheckSquare, Square, X, Loader2, GripVertical, Upload } from 'lucide-react'
 import type { VideoData } from '@/lib/types'
-import { getUserVideos, deleteVideo, batchDeleteVideos, concatVideos } from '@/lib/api'
+import { getUserVideos, deleteVideo, batchDeleteVideos, concatVideos, uploadVideo } from '@/lib/api'
 
 function formatDate(raw: string | number | undefined): string {
   if (!raw) return ''
@@ -125,6 +125,23 @@ export function VideoHistory() {
     else setSelected(videos.map(v => v.id))
   }
 
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProcessing(true); setMsg('')
+    try {
+      const fd = new FormData()
+      fd.append('video', file)
+      fd.append('title', file.name.replace(/\.[^.]+$/, ''))
+      await uploadVideo(fd)
+      setMsg(`已上传: ${file.name}`)
+      load()
+    } catch (e: any) { setMsg(e.message || '上传失败') }
+    finally { setProcessing(false); if (fileInputRef.current) fileInputRef.current.value = '' }
+  }
+
   const handleBatchDelete = async () => {
     if (selected.length === 0) return
     setProcessing(true); setMsg('')
@@ -178,6 +195,10 @@ export function VideoHistory() {
           {selected.length === videos.length ? <CheckSquare size={13} /> : <Square size={13} />}
           全选 ({selected.length}/{videos.length})
         </button>
+        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors">
+          <Upload size={11} />上传
+        </button>
+        <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleUpload} />
         <div className="flex-1" />
         {selected.length > 0 && (
           <div className="flex items-center gap-1.5">
