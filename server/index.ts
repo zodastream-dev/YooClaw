@@ -5713,7 +5713,12 @@ async function start() {
       }
       const tmpPaths: string[] = [];
       for (const v of selected) {
-        const srcPath = v.video_path;
+        let srcPath = v.video_path;
+        // Fallback: derive from video_url if path not stored
+        if (!srcPath && v.video_url) {
+          const fn = v.video_url.split('/').pop() || '';
+          srcPath = path.join(VIDEO_DIR, fn);
+        }
         if (!srcPath || !fs.existsSync(srcPath)) {
           return res.status(500).json({ error: { code: 'DOWNLOAD_FAILED', message: `文件不存在: ${v.title}` } });
         }
