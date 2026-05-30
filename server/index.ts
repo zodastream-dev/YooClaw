@@ -5713,11 +5713,12 @@ async function start() {
       }
       const tmpPaths: string[] = [];
       for (const v of selected) {
+        const srcPath = v.video_path;
+        if (!srcPath || !fs.existsSync(srcPath)) {
+          return res.status(500).json({ error: { code: 'DOWNLOAD_FAILED', message: `文件不存在: ${v.title}` } });
+        }
         const tmpPath = `/tmp/concat-${crypto.randomUUID().slice(0, 8)}.mp4`;
-        const resp = await fetch(v.video_url);
-        if (!resp.ok) return res.status(500).json({ error: { code: 'DOWNLOAD_FAILED', message: `下载失败: ${v.title}` } });
-        const buf = Buffer.from(await resp.arrayBuffer());
-        fs.writeFileSync(tmpPath, buf);
+        fs.copyFileSync(srcPath, tmpPath);
         tmpPaths.push(tmpPath);
       }
       const outputFn = `merged-${crypto.randomUUID().slice(0, 10)}.mp4`;
