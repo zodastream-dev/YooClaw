@@ -3974,21 +3974,21 @@ interface MultiClipTask {
 }
 const multiClipTasks = new Map<string, MultiClipTask>();
 
-/** Build FFmpeg xfade crossfade filter for multi-clip concatenation — scales all inputs to 1280x720 first */
+/** Build FFmpeg xfade crossfade filter for multi-clip concatenation */
 function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: number = 24): string {
   const n = durations.length;
   const parts: string[] = [];
-  const TARGET_W = 1280, TARGET_H = 720; // common resolution for consistent encoding
 
-  // Normalize: fps → scale to 1280x720 → format yuv420p (no setpts — breaks xfade)
+  // Normalize each input
   for (let i = 0; i < n; i++) {
-    parts.push(`[${i}:v]fps=${fps},scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[v${i}]`);
+    parts.push(`[${i}:v]settb=AVTB,fps=${fps},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`);
   }
 
   // Chain xfade
   let prevLabel = 'v0';
   const xfadeLen = xfadeDuration;
   for (let i = 1; i < n; i++) {
+    // Cumulative duration of clips 0..i minus (i) * xfadeDuration gives the offset into the chained output
     let cumulativeSec = 0;
     for (let j = 0; j <= i; j++) cumulativeSec += durations[j];
     const offset = cumulativeSec - i * xfadeLen;
@@ -4000,11 +4000,12 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
   return parts.join(';');
 }
 
-/** Build ffmpeg concat command — uses xfade crossfade with mpeg4 encoder (re-encoding required for xfade) */
+/** Build ffmpeg concat command for multi-clip */
 function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
   const xfadeFilter = buildXfadeFilter(durations, 1, 24);
   const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
-  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v mpeg4 -q:v 2 -an -y "${outputPath}"`;
+  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libopenh264 -preset fast -crf 23 -an -y "${outputPath}"`;
+}
 
 /** Save a base64 image string to a temp file, return the file path */
 function saveBase64TempImage(base64Str: string, prefix: string): string {
@@ -5637,78 +5638,6 @@ app.post('/api/v1/videos/cancel/:submitId', authMiddleware, (req: any, res) => {
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel' } });
   }
 });
-
-// Batch delete videos
-app.post('/api/v1/videos/batch-delete', authMiddleware, async (req: any, res) => {
-  try {
-    const user = req.user;
-    const { ids } = req.body || {};
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '请提供要删除的视频 ID 列表' } });
-    }
-    let deleted = 0;
-    for (const id of ids) {
-      try { await deleteVideo(id, user.userId); deleted++; } catch {}
-    }
-    res.json({ data: { deleted } });
-  } catch (err: any) {
-    console.error('[Batch Delete Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '批量删除失败' } });
-  }
-});
-
-// Batch concat videos
-app.post('/api/v1/videos/concat', authMiddleware, async (req: any, res) => {
-  try {
-    const user = req.user;
-    const { ids } = req.body || {};
-    if (!Array.isArray(ids) || ids.length < 2) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '请选择至少 2 个视频' } });
-    }
-    const allVideos = await getUserVideos(user.userId);
-    const selected = allVideos.filter((v: any) => ids.includes(v.id));
-    if (selected.length < 2) {
-      return res.status(400).json({ error: { code: 'NOT_FOUND', message: '部分视频未找到' } });
-    }
-    const tmpPaths: string[] = [];
-    for (const v of selected) {
-      const tmpPath = `/tmp/concat-${crypto.randomUUID().slice(0, 8)}.mp4`;
-      const resp = await fetch(v.video_url);
-      if (!resp.ok) return res.status(500).json({ error: { code: 'DOWNLOAD_FAILED', message: `下载失败: ${v.title}` } });
-      const buf = Buffer.from(await resp.arrayBuffer());
-      fs.writeFileSync(tmpPath, buf);
-      tmpPaths.push(tmpPath);
-    }
-    const outputFn = `merged-${crypto.randomUUID().slice(0, 10)}.mp4`;
-    const outputPath = path.join(VIDEO_DIR, outputFn);
-    const listPath = outputPath.replace(/\.mp4$/, '-list.txt');
-    fs.writeFileSync(listPath, tmpPaths.map(p => `file '${p}'`).join('\n'));
-    await execAsync(`ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -an -y "${outputPath}"`, { timeout: 120000, cwd: '/tmp' });
-    tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
-    try { fs.unlinkSync(listPath); } catch {}
-    const videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
-    await saveVideo({
-      userId: user.userId,
-      title: `${selected.length} 个视频拼接`,
-      prompt: `合并了: ${selected.map((v: any) => v.title).join(', ')}`,
-      duration: String(selected.reduce((s: number, v: any) => s + parseInt(v.duration || '5'), 0)),
-      resolution: selected[0]?.resolution || '720p',
-      ratio: selected[0]?.ratio || '16:9',
-      inputType: 'concat',
-      videoUrl,
-      videoPath: outputPath,
-      submitId: `concat-${crypto.randomUUID().slice(0, 12)}`,
-    });
-    res.json({ data: { videoUrl, title } });
-  } catch (err: any) {
-    console.error('[Concat Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '拼接失败: ' + err.message } });
-  }
-});
-
-// Cleanup on exit
-process.on('SIGINT', () => { stopCodeBuddyCLI(); process.exit(0); });
-process.on('SIGTERM', () => { stopCodeBuddyCLI(); process.exit(0); });
 
 // ========== Serve Frontend (only in local dev mode) ==========
 if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'true') {
