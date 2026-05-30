@@ -3974,36 +3974,39 @@ interface MultiClipTask {
 }
 const multiClipTasks = new Map<string, MultiClipTask>();
 
-/** Build FFmpeg xfade crossfade filter for multi-clip concatenation */
+/** Build FFmpeg xfade crossfade filter — scales to 1280x720, handles different resolutions */
 function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: number = 24): string {
   const n = durations.length;
   const parts: string[] = [];
+  const TW = 1280, TH = 720;
 
-  // Normalize each input
+  // Normalize: fps → scale → format
   for (let i = 0; i < n; i++) {
-    parts.push(`[${i}:v]settb=AVTB,fps=${fps},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`);
+    parts.push(`[${i}:v]fps=${fps},scale=${TW}:${TH}:force_original_aspect_ratio=decrease,pad=${TW}:${TH}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[v${i}]`);
   }
 
   // Chain xfade
   let prevLabel = 'v0';
-  const xfadeLen = xfadeDuration;
   for (let i = 1; i < n; i++) {
-    // Cumulative duration of clips 0..i minus (i) * xfadeDuration gives the offset into the chained output
     let cumulativeSec = 0;
     for (let j = 0; j <= i; j++) cumulativeSec += durations[j];
-    const offset = cumulativeSec - i * xfadeLen;
+    const offset = cumulativeSec - i * xfadeDuration;
     const outLabel = i < n - 1 ? `x${i}` : 'outv';
-    parts.push(`[${prevLabel}][v${i}]xfade=transition=fade:duration=${xfadeLen}:offset=${offset},format=yuv420p[${outLabel}]`);
+    parts.push(`[${prevLabel}][v${i}]xfade=transition=fade:duration=${xfadeDuration}:offset=${offset},format=yuv420p[${outLabel}]`);
     prevLabel = outLabel;
   }
 
   return parts.join(';');
 }
 
-/** Build ffmpeg concat command for multi-clip */
+/** Build ffmpeg concat command — xfade crossfade with mpeg4 encoder + audio concat */
 function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
   const xfadeFilter = buildXfadeFilter(durations, 1, 24);
   const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
+  // Use concat filter for audio (no crossfade needed for audio since it's simpler)
+  const audioInputs = inputPaths.map((_, i) => `[${i}:a]`).join('');
+  const n = inputPaths.length;
+  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter};${audioInputs}concat=n=${n}:v=0:a=1[outa]" -map "[outv]" -map "[outa]" -c:v mpeg4 -q:v 2 -c:a aac -b:a 128k -y "${outputPath}"`;
   return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libopenh264 -preset fast -crf 23 -an -y "${outputPath}"`;
 }
 
@@ -5728,11 +5731,11 @@ async function start() {
       }
       const outputFn = `merged-${crypto.randomUUID().slice(0, 10)}.mp4`;
       const outputPath = path.join(VIDEO_DIR, outputFn);
-      const listPath = outputPath.replace(/\.mp4$/, '-list.txt');
-      fs.writeFileSync(listPath, tmpPaths.map(p => `file '${p}'`).join('\n'));
-      await execAsync(`ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -c:a copy -y "${outputPath}"`, { timeout: 120000, cwd: '/tmp' });
+      // Use xfade with crossfade transition
+      const durations = selected.map((v: any) => parseInt(v.duration || '5'));
+      const concatCmd = buildConcatCommand(tmpPaths, durations, outputPath);
+      await execAsync(concatCmd, { timeout: 300000, cwd: '/tmp' });
       tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
-      try { fs.unlinkSync(listPath); } catch {}
       const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
       const videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
       await saveVideo({
