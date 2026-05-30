@@ -5730,7 +5730,7 @@ async function start() {
       const outputPath = path.join(VIDEO_DIR, outputFn);
       const listPath = outputPath.replace(/\.mp4$/, '-list.txt');
       fs.writeFileSync(listPath, tmpPaths.map(p => `file '${p}'`).join('\n'));
-      await execAsync(`ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -an -y "${outputPath}"`, { timeout: 120000, cwd: '/tmp' });
+      await execAsync(`ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -c:a copy -y "${outputPath}"`, { timeout: 120000, cwd: '/tmp' });
       tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
       try { fs.unlinkSync(listPath); } catch {}
       const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
