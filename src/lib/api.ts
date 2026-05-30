@@ -473,6 +473,12 @@ export async function getUserVideos() {
 export async function deleteVideo(id: string) {
   return apiRequest<void>('DELETE', `/api/v1/videos/${id}`)
 }
+export async function batchDeleteVideos(ids: string[]) {
+  return apiRequest<{ deleted: number }>('POST', '/api/v1/videos/batch-delete', { ids })
+}
+export async function concatVideos(ids: string[]) {
+  return apiRequest<{ videoUrl: string; title: string }>('POST', '/api/v1/videos/concat', { ids })
+}
 export async function cancelVideoTask(submitId: string) {
   return apiRequest<{ cancelled: boolean }>('POST', `/api/v1/videos/cancel/${submitId}`)
 }
