@@ -3980,9 +3980,9 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
   const parts: string[] = [];
   const TARGET_W = 1280, TARGET_H = 720; // common resolution for consistent encoding
 
-  // Normalize: fps → setpts → scale to 1280x720 → format yuv420p
+  // Normalize: fps → scale to 1280x720 → format yuv420p (no setpts — breaks xfade)
   for (let i = 0; i < n; i++) {
-    parts.push(`[${i}:v]fps=${fps},setpts=PTS-STARTPTS,scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[v${i}]`);
+    parts.push(`[${i}:v]fps=${fps},scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[v${i}]`);
   }
 
   // Chain xfade
