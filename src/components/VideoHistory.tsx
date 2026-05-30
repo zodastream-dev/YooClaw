@@ -191,30 +191,30 @@ export function VideoHistory() {
 
       {/* Bulk action bar */}
       <div className="flex items-center gap-2 mb-3 px-1">
-        <button onClick={toggleAll} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
-          {selected.length === videos.length ? <CheckSquare size={13} /> : <Square size={13} />}
+        <button onClick={toggleAll} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+          {selected.length === videos.length ? <CheckSquare size={15} /> : <Square size={15} />}
           全选 ({selected.length}/{videos.length})
         </button>
-        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors">
-          <Upload size={11} />上传
+        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors">
+          <Upload size={14} />上传
         </button>
         <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleUpload} />
         <div className="flex-1" />
         {selected.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <button onClick={handleDownload} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-white/5 hover:bg-white/10 transition-colors">
-              <Download size={11} />下载
+          <div className="flex items-center gap-2">
+            <button onClick={handleDownload} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+              <Download size={14} />下载
             </button>
             {selected.length >= 2 && (
               <button onClick={() => setShowConcat(true)} disabled={processing}
-                className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-colors">
-                {processing ? <Loader2 size={11} className="animate-spin" /> : <Combine size={11} />}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-colors">
+                {processing ? <Loader2 size={14} className="animate-spin" /> : <Combine size={14} />}
                 拼接 ({selected.length})
               </button>
             )}
             <button onClick={handleBatchDelete} disabled={processing}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors">
-              <Trash2 size={11} />删除({selected.length})
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors">
+              <Trash2 size={14} />删除({selected.length})
             </button>
           </div>
         )}
