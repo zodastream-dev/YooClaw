@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Play, Trash2, Film, Download, Combine, CheckSquare, Square, X, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
+import { Play, Trash2, Film, Download, Combine, CheckSquare, Square, X, Loader2, GripVertical } from 'lucide-react'
 import type { VideoData } from '@/lib/types'
 import { getUserVideos, deleteVideo, batchDeleteVideos, concatVideos } from '@/lib/api'
 
@@ -13,32 +13,102 @@ function formatDate(raw: string | number | undefined): string {
   })
 }
 
-function VideoThumbnail({ url, title }: { url: string; title: string }) {
+function VideoThumbnail({ url, small }: { url: string; small?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasFrame, setHasFrame] = useState(false)
+  const s = small ? 'w-14 h-10' : 'w-20 h-12'
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
-    const onLoaded = () => setHasFrame(true)
-    v.addEventListener('loadeddata', onLoaded)
+    v.addEventListener('loadeddata', () => setHasFrame(true))
     v.currentTime = 0.1
-    return () => v.removeEventListener('loadeddata', onLoaded)
+    return () => v.removeEventListener('loadeddata', () => {})
   }, [url])
   return (
-    <div className="w-20 h-12 rounded overflow-hidden bg-black/60 relative flex-shrink-0">
+    <div className={`${s} rounded overflow-hidden bg-black/60 relative flex-shrink-0`}>
       <video ref={videoRef} src={url} className="w-full h-full object-cover" preload="metadata" muted playsInline onLoadedData={() => setHasFrame(true)} />
-      {!hasFrame && <div className="absolute inset-0 flex items-center justify-center"><Film size={14} className="text-muted-foreground/60" /></div>}
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/40"><Play size={14} className="text-white" /></div>
+      {!hasFrame && <div className="absolute inset-0 flex items-center justify-center"><Film size={small ? 10 : 14} className="text-muted-foreground/60" /></div>}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/40"><Play size={small ? 10 : 14} className="text-white" /></div>
     </div>
   )
 }
 
+// --- Concat Ordering Modal ---
+function ConcatModal({ videos, orderedIds, onConfirm, onClose }: {
+  videos: VideoData[]
+  orderedIds: string[]
+  onConfirm: (ids: string[]) => void
+  onClose: () => void
+}) {
+  const [items, setItems] = useState(orderedIds)
+  const dragItem = useRef<number | null>(null)
+  const dragOverItem = useRef<number | null>(null)
+
+  const handleDragStart = (index: number) => { dragItem.current = index }
+  const handleDragEnter = (index: number) => { dragOverItem.current = index }
+  const handleDragEnd = () => {
+    if (dragItem.current === null || dragOverItem.current === null) return
+    const arr = [...items]
+    const [moved] = arr.splice(dragItem.current, 1)
+    arr.splice(dragOverItem.current, 0, moved)
+    setItems(arr)
+    dragItem.current = null
+    dragOverItem.current = null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <h3 className="text-sm font-semibold">调整拼接顺序</h3>
+          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg transition-colors"><X size={16} /></button>
+        </div>
+        <div className="px-5 py-3 text-[10px] text-muted-foreground border-b border-white/5">
+          拖拽视频块调整顺序 · 最上面为第 1 段 · 下方为后续段落
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+          {items.map((id, i) => {
+            const v = videos.find(x => x.id === id)
+            if (!v) return null
+            return (
+              <div key={id}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragEnter={() => handleDragEnter(i)}
+                onDragEnd={handleDragEnd}
+                onDragOver={e => e.preventDefault()}
+                className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] cursor-grab active:cursor-grabbing transition-colors group"
+              >
+                <GripVertical size={14} className="text-white/20 group-hover:text-white/40 flex-shrink-0" />
+                <span className="text-xs font-bold text-violet-400 w-5 flex-shrink-0">{i + 1}</span>
+                <VideoThumbnail url={v.videoUrl} small />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate">{v.title || '未命名'}</p>
+                  <p className="text-[10px] text-muted-foreground">{v.duration}s · {formatDate(v.createdAt)}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="px-5 py-3 border-t border-white/5 flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-xs rounded-xl bg-white/5 hover:bg-white/10 transition-colors">取消</button>
+          <button onClick={() => { onConfirm(items); onClose() }} className="px-4 py-2 text-xs rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-400 transition-colors font-medium">
+            确认拼接
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- Main export ---
 export function VideoHistory() {
   const [videos, setVideos] = useState<VideoData[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string[]>([])
   const [processing, setProcessing] = useState(false)
   const [msg, setMsg] = useState('')
+  const [showConcat, setShowConcat] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -55,20 +125,6 @@ export function VideoHistory() {
     else setSelected(videos.map(v => v.id))
   }
 
-  const moveItem = (id: string, dir: 1 | -1) => {
-    setSelected(prev => {
-      const idx = prev.indexOf(id)
-      if (idx < 0) return prev
-      const next = idx + dir
-      if (next < 0 || next >= prev.length) return prev
-      const arr = [...prev];
-      [arr[idx], arr[next]] = [arr[next], arr[idx]]
-      return arr
-    })
-  }
-
-  const selectedSet = new Set(selected)
-
   const handleBatchDelete = async () => {
     if (selected.length === 0) return
     setProcessing(true); setMsg('')
@@ -81,11 +137,10 @@ export function VideoHistory() {
     finally { setProcessing(false) }
   }
 
-  const handleConcat = async () => {
-    if (selected.length < 2) return
+  const handleConcatConfirm = async (orderedIds: string[]) => {
     setProcessing(true); setMsg('')
     try {
-      const res = await concatVideos(selected)
+      const res = await concatVideos(orderedIds)
       setMsg(`拼接完成！`)
       setSelected([])
       load()
@@ -96,12 +151,10 @@ export function VideoHistory() {
   const handleDownload = () => {
     selected.forEach((id, i) => {
       const v = videos.find(x => x.id === id)
-      if (v) {
-        setTimeout(() => {
-          const a = document.createElement('a')
-          a.href = v.videoUrl; a.download = (i + 1) + '-' + v.title + '.mp4'; a.click()
-        }, i * 200)
-      }
+      if (v) setTimeout(() => {
+        const a = document.createElement('a')
+        a.href = v.videoUrl; a.download = (i + 1) + '-' + (v.title || 'video') + '.mp4'; a.click()
+      }, i * 200)
     })
   }
 
@@ -110,80 +163,71 @@ export function VideoHistory() {
 
   return (
     <div>
+      {showConcat && (
+        <ConcatModal
+          videos={videos}
+          orderedIds={selected}
+          onConfirm={handleConcatConfirm}
+          onClose={() => setShowConcat(false)}
+        />
+      )}
+
       {/* Bulk action bar */}
       <div className="flex items-center gap-2 mb-3 px-1">
         <button onClick={toggleAll} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
           {selected.length === videos.length ? <CheckSquare size={13} /> : <Square size={13} />}
           全选 ({selected.length}/{videos.length})
         </button>
-        {/* Order controls */}
-        {selected.length >= 2 && (
-          <div className="flex items-center gap-0.5 border-l border-border/40 pl-2 ml-1">
-            <span className="text-[10px] text-muted-foreground mr-1">顺序:</span>
-            {selected.map((id, i) => {
-              const v = videos.find(x => x.id === id)
-              return (
-                <div key={id} className="flex items-center">
-                  <span className="text-[10px] font-mono text-violet-400">{i + 1}</span>
-                  <div className="flex flex-col mx-0.5">
-                    <button onClick={() => moveItem(id, -1)} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-20 leading-none"><ArrowUp size={8} /></button>
-                    <button onClick={() => moveItem(id, 1)} disabled={i === selected.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-20 leading-none"><ArrowDown size={8} /></button>
-                  </div>
-                  <span className="text-[9px] text-muted-foreground truncate max-w-16">{v?.title?.slice(0, 6) || '...'}</span>
-                  {i < selected.length - 1 && <ArrowDown size={8} className="text-violet-500/40 mx-0.5" />}
-                </div>
-              )
-            })}
-          </div>
-        )}
         <div className="flex-1" />
         {selected.length > 0 && (
           <div className="flex items-center gap-1.5">
-            <button onClick={handleDownload} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-white/5 hover:bg-white/10 transition-colors" title="下载选中">
+            <button onClick={handleDownload} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-white/5 hover:bg-white/10 transition-colors">
               <Download size={11} />下载
             </button>
             {selected.length >= 2 && (
-              <button onClick={handleConcat} disabled={processing} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-colors" title="按顺序拼接">
+              <button onClick={() => setShowConcat(true)} disabled={processing}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-colors">
                 {processing ? <Loader2 size={11} className="animate-spin" /> : <Combine size={11} />}
-                拼接
+                拼接 ({selected.length})
               </button>
             )}
-            <button onClick={handleBatchDelete} disabled={processing} className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors" title="删除选中">
+            <button onClick={handleBatchDelete} disabled={processing}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors">
               <Trash2 size={11} />删除({selected.length})
             </button>
           </div>
         )}
       </div>
+
       {msg && (
         <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded bg-white/5 text-xs">
           <span>{msg}</span>
           <button onClick={() => setMsg('')}><X size={11} className="text-muted-foreground" /></button>
         </div>
       )}
+
       {/* Video grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {videos.map(v => (
-          <div key={v.id} className={`border rounded-lg p-3 flex items-center gap-3 group transition-all ${isSelected(v.id) ? 'border-violet-500/40 bg-violet-500/5' : 'border-border hover:border-primary/40 hover:bg-muted/30'}`}>
-            <button onClick={(e) => { e.stopPropagation(); toggle(v.id) }} className="flex-shrink-0 relative">
+          <div key={v.id} className={`border rounded-lg p-3 flex items-center gap-3 group transition-all ${
+              isSelected(v.id) ? 'border-violet-500/40 bg-violet-500/5' : 'border-border hover:border-primary/40 hover:bg-muted/30'
+            }`}>
+            <button onClick={(e) => { e.stopPropagation(); toggle(v.id) }} className="flex-shrink-0">
               {isSelected(v.id) ? (
-                <div className="relative">
-                  <CheckSquare size={15} className="text-violet-400" />
-                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-violet-600">
-                    {selected.indexOf(v.id) + 1}
-                  </span>
-                </div>
+                <CheckSquare size={15} className="text-violet-400" />
               ) : (
                 <Square size={15} className="text-muted-foreground/50 group-hover:text-muted-foreground" />
               )}
             </button>
             <div className="cursor-pointer flex items-center gap-3 flex-1 min-w-0" onClick={() => window.open(v.videoUrl, '_blank')}>
-              <VideoThumbnail url={v.videoUrl} title={v.title} />
+              <VideoThumbnail url={v.videoUrl} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate">{v.title || v.prompt?.slice(0, 30) || '未命名视频'}</p>
                 <p className="text-[10px] text-muted-foreground">{formatDate(v.createdAt)} · {v.duration}s</p>
               </div>
             </div>
-            <button onClick={async e => { e.stopPropagation(); await deleteVideo(v.id); load() }} className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 p-1" title="删除">
+            <button onClick={async e => { e.stopPropagation(); await deleteVideo(v.id); load() }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 p-1" title="删除">
               <Trash2 size={14} />
             </button>
           </div>
