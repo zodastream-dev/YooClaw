@@ -5733,6 +5733,7 @@ async function start() {
       await execAsync(`ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -an -y "${outputPath}"`, { timeout: 120000, cwd: '/tmp' });
       tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
       try { fs.unlinkSync(listPath); } catch {}
+      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
       const videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
       await saveVideo({
         userId: user.userId,
