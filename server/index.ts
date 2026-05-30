@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import fs from 'fs';
-import { exec, spawn } from 'child_process';
+import { exec, spawn, execSync } from 'child_process';
 import {
   initDatabase,
   hashPassword,
@@ -3999,14 +3999,28 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
   return parts.join(';');
 }
 
-/** Build ffmpeg concat command — xfade crossfade with mpeg4 encoder + audio concat */
+/** Build ffmpeg concat command — xfade crossfade with mpeg4 encoder + audio concat (if all clips have audio) */
 function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
   const xfadeFilter = buildXfadeFilter(durations, 1, 24);
   const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
-  // Use concat filter for audio (no crossfade needed for audio since it's simpler)
-  const audioInputs = inputPaths.map((_, i) => `[${i}:a]`).join('');
   const n = inputPaths.length;
-  return `ffmpeg ${inputs} -filter_complex "${xfadeFilter};${audioInputs}concat=n=${n}:v=0:a=1[outa]" -map "[outv]" -map "[outa]" -c:v mpeg4 -q:v 2 -c:a aac -b:a 128k -y "${outputPath}"`;
+  // Only add audio if ALL clips have audio streams (check via ffprobe)
+  let audioPart = '';
+  try {
+    const allHaveAudio = inputPaths.every(p => {
+      try {
+        execSync(`ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "${p}"`, { timeout: 5000 });
+        return true;
+      } catch { return false; }
+    });
+    if (allHaveAudio) {
+      const audioInputs = inputPaths.map((_, i) => `[${i}:a]`).join('');
+      audioPart = `${audioInputs}concat=n=${n}:v=0:a=1[outa]`;
+    }
+  } catch {}
+  const filterPart = audioPart ? `${xfadeFilter};${audioPart}` : xfadeFilter;
+  const mapPart = audioPart ? '-map "[outv]" -map "[outa]"' : '-map "[outv]"';
+  return `ffmpeg ${inputs} -filter_complex "${filterPart}" ${mapPart} -c:v mpeg4 -q:v 2${audioPart ? ' -c:a aac -b:a 128k' : ''} -y "${outputPath}"`;
   return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libopenh264 -preset fast -crf 23 -an -y "${outputPath}"`;
 }
 
