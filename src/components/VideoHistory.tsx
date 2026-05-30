@@ -189,35 +189,45 @@ export function VideoHistory() {
         />
       )}
 
-      {/* Bulk action bar */}
-      <div className="flex items-center gap-2 mb-3 px-1">
-        <button onClick={toggleAll} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          {selected.length === videos.length ? <CheckSquare size={15} /> : <Square size={15} />}
-          全选 ({selected.length}/{videos.length})
-        </button>
-        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors">
-          <Upload size={14} />上传
-        </button>
-        <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleUpload} />
-        <div className="flex-1" />
-        {selected.length > 0 && (
-          <div className="flex items-center gap-2">
-            <button onClick={handleDownload} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-              <Download size={14} />下载
-            </button>
-            {selected.length >= 2 && (
-              <button onClick={() => setShowConcat(true)} disabled={processing}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-colors">
-                {processing ? <Loader2 size={14} className="animate-spin" /> : <Combine size={14} />}
-                拼接 ({selected.length})
+      {/* Action bar */}
+      <div className="mb-3 space-y-2 px-1">
+        {/* Row 1: selection */}
+        <div className="flex items-center gap-3">
+          <button onClick={toggleAll} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            {selected.length === videos.length ? <CheckSquare size={15} /> : <Square size={15} />}
+            全选 ({selected.length}/{videos.length})
+          </button>
+          {selected.length > 0 && (
+            <span className="text-xs text-violet-400/70">已选 {selected.length} 个</span>
+          )}
+        </div>
+        {/* Row 2: action buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-foreground/80 hover:text-foreground transition-all">
+            <Upload size={14} />上传视频
+          </button>
+          <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleUpload} />
+          {selected.length > 0 && (
+            <>
+              <button onClick={handleDownload}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-foreground/80 hover:text-foreground transition-all">
+                <Download size={14} />下载选中
               </button>
-            )}
-            <button onClick={handleBatchDelete} disabled={processing}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors">
-              <Trash2 size={14} />删除({selected.length})
-            </button>
-          </div>
-        )}
+              {selected.length >= 2 && (
+                <button onClick={() => setShowConcat(true)} disabled={processing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-violet-500/20 bg-violet-500/[0.06] hover:bg-violet-500/[0.12] text-violet-400 transition-all">
+                  {processing ? <Loader2 size={14} className="animate-spin" /> : <Combine size={14} />}
+                  拼接 ({selected.length})
+                </button>
+              )}
+              <button onClick={handleBatchDelete} disabled={processing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-500/20 bg-red-500/[0.06] hover:bg-red-500/[0.12] text-red-400 transition-all">
+                <Trash2 size={14} />删除 ({selected.length})
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {msg && (
