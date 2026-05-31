@@ -3516,38 +3516,45 @@ const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-inte
 const pausedPortals = new Set<string>(); // Per-portal pause state (Set of paused portal slugs)
 
 // Auto-clean invalid aiModel values on startup (self-healing)
+// Widgets are embedded in html_content as JSON, not a separate DB column.
 async function autoCleanAiModel() {
   try {
     const VALID_MODELS = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
-    const rows = await sql`SELECT id, slug, widgets FROM report_sites WHERE type='portal'`;
+    const rows = await sql`SELECT id, slug, html_content FROM report_sites WHERE type='portal'`;
     let fixed = 0;
     for (const row of rows) {
-      let widgets: any = row.widgets;
-      if (typeof widgets === 'string') widgets = JSON.parse(widgets);
-      if (!Array.isArray(widgets)) continue;
-      let changed = false;
-      for (const w of widgets) {
-        if (w.type === 'intel-monitor' || w.type === 'monitor') {
-          const sources = (w.sources || []).concat((w.config || {}).sources || []);
-          for (const s of sources) {
-            if (s.aiModel && !VALID_MODELS.includes(s.aiModel)) {
-              console.log('[AutoClean] Fixing aiModel "' + s.aiModel + '" -> deepseek-v4-flash in', row.slug || row.id, w.name, s.name);
-              s.aiModel = 'deepseek-v4-flash';
+      const html = row.html_content || '';
+      // Extract WIDGETS array from inline JavaScript
+      const match = html.match(/WIDGETS\s*=\s*(\[[\s\S]*?\]);/);
+      if (!match) continue;
+      try {
+        const widgets = JSON.parse(match[1]);
+        let changed = false;
+        for (const w of widgets) {
+          if (w.type === 'intel-monitor' || w.type === 'monitor') {
+            const sources = (w.sources || []).concat((w.config || {}).sources || []);
+            for (const s of sources) {
+              if (s.aiModel && !VALID_MODELS.includes(s.aiModel)) {
+                console.log('[AutoClean] Fixing aiModel "' + s.aiModel + '" in', row.slug || row.id, w.title, s.name);
+                s.aiModel = 'deepseek-v4-flash';
+                changed = true;
+                fixed++;
+              }
+            }
+            if (w.aiModel && !VALID_MODELS.includes(w.aiModel)) {
+              console.log('[AutoClean] Fixing top-level aiModel in', row.slug || row.id, w.title);
+              w.aiModel = 'deepseek-v4-flash';
               changed = true;
               fixed++;
             }
           }
-          if (w.aiModel && !VALID_MODELS.includes(w.aiModel)) {
-            console.log('[AutoClean] Fixing top-level aiModel "' + w.aiModel + '" in', row.slug || row.id, w.name);
-            w.aiModel = 'deepseek-v4-flash';
-            changed = true;
-            fixed++;
-          }
         }
-      }
-      if (changed) {
-        await sql`UPDATE report_sites SET widgets = ${JSON.stringify(widgets)} WHERE id = ${row.id}`;
-      }
+        if (changed) {
+          // Replace old WIDGETS with fixed version
+          const newHtml = html.replace(match[0], 'WIDGETS = ' + JSON.stringify(widgets) + ';');
+          await sql`UPDATE report_sites SET html_content = ${newHtml} WHERE id = ${row.id}`;
+        }
+      } catch (_) { /* JSON parse error, skip */ }
     }
     console.log('[AutoClean] Cleaned ' + fixed + ' invalid aiModel values');
   } catch (err: any) {
