@@ -3922,6 +3922,9 @@ const upload = multer({
   },
 });
 
+// CORS preflight for upload
+app.options('/api/v1/videos/upload', (req, res) => { res.sendStatus(204); });
+
 app.post('/api/v1/videos/upload', authMiddleware, upload.array('videos', 6), async (req: any, res) => {
   try {
     const files = req.files as Express.Multer.File[];

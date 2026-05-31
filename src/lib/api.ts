@@ -486,7 +486,10 @@ export async function uploadVideo(formData: FormData) {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   })
-  if (!resp.ok) throw new Error('上传失败')
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err?.error?.message || `上传失败 (${resp.status})`)
+  }
   return resp.json()
 }
 export async function cancelVideoTask(submitId: string) {
