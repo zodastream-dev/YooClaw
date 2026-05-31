@@ -3619,7 +3619,8 @@ app.post('/api/portal-intel', async (req, res) => {
       }
       try {
         const intelData = await fetchIntelForSource(src);
-        portalIntelCache.set(cacheKey, { data: intelData, expiry: now + PORTAL_INTEL_CACHE_TTL });
+        const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+        portalIntelCache.set(cacheKey, { data: intelData, expiry: now + freqMs });
         setTimeout(() => savePortalIntelCache(), 100);
         return { sourceIdx: idx, data: intelData, fromCache: false };
       } catch (err: any) {
@@ -3666,9 +3667,15 @@ app.post('/api/portal-intel/pause', (req, res) => {
 
 // ========== Background Cache Warmer ==========
 // Collects all unique intel sources across all portal sites and pre-warms the cache.
-// Runs on startup + every 20 minutes. Uses max 2 concurrent API calls (less aggressive
-// than the request-time endpoint which uses 3).
+// Runs every 20 minutes, but only re-warms sources whose updateFrequency has elapsed.
 let cacheWarmingActive = false;
+// Update frequency → cache TTL mapping (used by both CacheWarmer and request-time endpoint)
+const FREQ_MS: Record<string, number> = {
+  hourly: 60 * 60 * 1000,
+  daily: 24 * 60 * 60 * 1000,
+  weekly: 7 * 24 * 60 * 60 * 1000,
+  monthly: 30 * 24 * 60 * 60 * 1000,
+};
 
 async function warmAllPortalCaches() {
   if (cacheWarmingActive) {
@@ -3756,7 +3763,8 @@ async function warmAllPortalCaches() {
       const chunkResults = await Promise.allSettled(
         chunk.map(async ({ key, src }) => {
           const intelData = await fetchIntelForSource(src);
-          portalIntelCache.set(key, { data: intelData, expiry: Date.now() + PORTAL_INTEL_CACHE_TTL });
+          const freqTtl = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+          portalIntelCache.set(key, { data: intelData, expiry: Date.now() + freqTtl });
           return { key, src, count: intelData.length };
         })
       );
