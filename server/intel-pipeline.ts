@@ -146,13 +146,19 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   for (const k of aiKw) mergedSet.add(k.toLowerCase().trim());
   const mergedKwArr = [...mergedSet];
 
-  // Build search query: when keywords are available use them; otherwise use
-  // smart fallback based on intelligence category to avoid overly generic queries
-  let query: string;
+  // Build search queries: batch keywords (max 3 per query) to avoid
+  // "query too long" errors (Tavily 400 char limit) and improve recall precision.
+  const queries: string[] = [];
+  const thisMonth = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
+
   if (mergedKwArr.length > 0) {
-    query = mergedKwArr.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ');
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < mergedKwArr.length; i += BATCH_SIZE) {
+      const batch = mergedKwArr.slice(i, i + BATCH_SIZE);
+      const q = batch.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ');
+      queries.push(q);
+    }
   } else if (objectName) {
-    // No keywords available — build category-specific fallback
     const catName = (src.name || '').toLowerCase();
     let fallbackModifiers: string;
     if (catName.includes('舆情') || catName.includes('自身')) {
@@ -164,34 +170,37 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     } else {
       fallbackModifiers = '最新动态';
     }
-    query = `${objectName} ${fallbackModifiers}`;
-    console.log(`[Intel] No keywords available for "${src.name}", using fallback query: ${query}`);
+    queries.push(`${objectName} ${fallbackModifiers}`);
+    console.log(`[Intel] No keywords available for "${src.name}", using fallback query`);
   } else {
-    query = src.name || '';
+    queries.push(src.name || '');
   }
 
-  // P0: Append recency signal to ensure latest news coverage (e.g. "华为 最新动态 2026年5月")
+  // Append recency query as a separate search for latest coverage
   if (objectName) {
-    const thisMonth = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
-    query = `(${query}) OR (${objectName} 最新动态 ${thisMonth})`;
+    queries.push(`${objectName} 最新动态 ${thisMonth}`);
   }
 
-  // 1. Search
+  // 1. Search — run ALL queries in parallel across all engines
   let rawItems: any[] = [];
 
+  // Run all queries across all engines in parallel
+  const seen = new Set<string>();
+
   if (provider === 'all') {
-    // 全渠道并行搜索
     const modules = getAllModules();
-    const results = await Promise.allSettled(
-      modules.map((mod) =>
-        mod.search(query, getProviderKey(mod.name)).then((items) => ({ provider: mod.name, items }))
-      )
-    );
-    const seen = new Set<string>();
+    const allTasks: Promise<{ provider: string; items: any[]; queryIdx: number }>[] = [];
+    queries.forEach((q, qi) => {
+      modules.forEach((mod) => {
+        allTasks.push(
+          mod.search(q, getProviderKey(mod.name)).then((items) => ({ provider: mod.name, items, queryIdx: qi }))
+        );
+      });
+    });
+    const results = await Promise.allSettled(allTasks);
     for (const r of results) {
       if (r.status === 'fulfilled') {
         const { provider: pname, items } = r.value;
-        console.log('[Intel:all] ' + pname + ' returned ' + items.length + ' results');
         for (const item of items) {
           const key = (item.url || item.title || '').toLowerCase().trim();
           if (key && !seen.has(key)) {
@@ -200,19 +209,28 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
           }
         }
       } else {
-        console.error('[Intel:all] Search failed:', r.reason?.message || r.reason);
+        // Silently skip failures (logged below)
       }
     }
-    console.log('[Intel:all] Total unique results: ' + rawItems.length);
+    console.log('[Intel:all] Total unique results across ' + queries.length + ' queries: ' + rawItems.length);
   } else {
-    // 单渠道搜索
+    // Single provider: run all queries sequentially to avoid rate limits
     const searchMod = getSearchModule(provider);
     if (searchMod) {
-      try {
-        rawItems = await searchMod.search(query, getProviderKey(provider));
-        for (const item of rawItems) { item._searchProvider = provider; }
+      for (const q of queries) {
+        try {
+          const items = await searchMod.search(q, getProviderKey(provider));
+          for (const item of items) {
+            const key = (item.url || item.title || '').toLowerCase().trim();
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              rawItems.push({ ...item, _searchProvider: provider });
+            }
+          }
+        } catch (e: any) {
+          console.error('[Intel:' + provider + '] Search failed:', e.message);
+        }
       }
-      catch (e: any) { console.error('[Search ' + provider + '] Failed:', e.message); }
     }
   }
 
