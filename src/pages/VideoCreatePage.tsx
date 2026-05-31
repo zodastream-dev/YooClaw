@@ -62,6 +62,7 @@ const KLING_GEN_TYPES = [
   { key: 'text2video', label: '文生视频', icon: Wand2 },
   { key: 'image2video', label: '图生视频', icon: ImageIcon },
   { key: 'multi_image2video', label: '多图故事', icon: Film },
+  { key: 'frames2video', label: '首尾帧', icon: Grid3X3 },
 ] as const
 
 const KLING_MODES = [
