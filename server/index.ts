@@ -5814,7 +5814,13 @@ async function start() {
       const outputFn = `merged-${crypto.randomUUID().slice(0, 10)}.mp4`;
       const outputPath = path.join(VIDEO_DIR, outputFn);
       // Use xfade (only approach that handles different resolutions on this server)
-      const durations = selected.map((v: any) => parseInt(v.duration || '5'));
+      // Use xfade — get actual durations from ffprobe (DB may store '0')
+      const durations = tmpPaths.map(p => {
+        try {
+          const out = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${p}"`, { timeout: 5000 });
+          return Math.round(parseFloat(out.toString().trim()));
+        } catch { return 10; }
+      });
       const concatCmd = buildConcatCommand(tmpPaths, durations, outputPath);
       await execAsync(concatCmd, { timeout: 300000, cwd: '/tmp' });
       tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
