@@ -140,7 +140,18 @@ export function PromptEditorModal({
 
   const [selectedMentionIdx, setSelectedMentionIdx] = useState(0)
 
-  // ===== Handle @ mention with keyboard nav =====
+  // ===== Track which images are referenced in the prompt text =====
+  // Parse @img:xxx from current basePrompt
+  const referencedImageIds = basePrompt.match(/@img:(\S+)/g)?.map(m => m.replace('@img:', '')) || []
+  const referencedImages = imagePreviews.filter(img => referencedImageIds.includes(img.id))
+
+  // Remove a referenced image from prompt text
+  const removeImageRef = (imgId: string) => {
+    const cleaned = basePrompt.replace(new RegExp(`@img:${imgId}\\s*`, 'g'), '').replace(/\s+$/, '')
+    setBasePrompt(cleaned)
+  }
+
+  // ===== @ mention with keyboard nav =====
   const filteredImages = imagePreviews.filter(img => !atFilter || img.id.includes(atFilter))
 
   const handleBasePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -151,7 +162,7 @@ export function PromptEditorModal({
     const atPos = textBeforeCursor.lastIndexOf('@')
     if (atPos >= 0 && imagePreviews.length > 0) {
       const afterAt = textBeforeCursor.slice(atPos + 1)
-      if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
+      if (!afterAt.includes(' ') && !afterAt.includes('\n') && !afterAt.includes('@')) {
         setShowAtMention(true)
         setAtFilter(afterAt)
         setAtIdx(atPos)
@@ -164,15 +175,14 @@ export function PromptEditorModal({
 
   const handleInsertImage = (img: { id: string; url: string }) => {
     const before = basePrompt.slice(0, atIdx)
-    const cursorPos = textareaRef.current?.selectionStart || atIdx + 1
+    const cursorPos = textareaRef.current?.selectionStart ?? atIdx + 1
     const after = basePrompt.slice(cursorPos)
     const ref = `@img:${img.id}`
     setBasePrompt(`${before}${ref} ${after}`)
     setShowAtMention(false)
-    // Restore cursor after the inserted ref
     setTimeout(() => {
       if (textareaRef.current) {
-        const newPos = atIdx + ref.length + 1
+        const newPos = before.length + ref.length + 1
         textareaRef.current.focus()
         textareaRef.current.setSelectionRange(newPos, newPos)
       }
@@ -181,40 +191,31 @@ export function PromptEditorModal({
 
   // Keyboard navigation for @ mention
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!showAtMention || filteredImages.length === 0) return
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedMentionIdx(prev => Math.min(prev + 1, filteredImages.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedMentionIdx(prev => Math.max(prev - 1, 0))
-    } else if (e.key === 'Enter' && showAtMention) {
-      e.preventDefault()
-      handleInsertImage(filteredImages[selectedMentionIdx])
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      setShowAtMention(false)
+    if (showAtMention && filteredImages.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedMentionIdx(prev => Math.min(prev + 1, filteredImages.length - 1)) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedMentionIdx(prev => Math.max(prev - 1, 0)) }
+      else if (e.key === 'Enter') { e.preventDefault(); handleInsertImage(filteredImages[selectedMentionIdx]) }
+      else if (e.key === 'Escape') { e.preventDefault(); setShowAtMention(false) }
+      return
     }
-  }
 
-  // Backspace detection: if user deletes an image reference, clean it up
-  const handleBackspaceDelete = () => {
-    // Check if cursor is right after an @img:xxx reference and delete it entirely
-    const cursorPos = textareaRef.current?.selectionStart || 0
-    const textBefore = basePrompt.slice(0, cursorPos)
-    const match = textBefore.match(/@img:(\S+)\s*$/)
-    if (match) {
-      const newVal = textBefore.slice(0, textBefore.lastIndexOf(match[0]))
-      const after = basePrompt.slice(cursorPos)
-      setBasePrompt(newVal + after)
-      setTimeout(() => {
-        if (textareaRef.current) {
-          const pos = newVal.length
-          textareaRef.current.focus()
-          textareaRef.current.setSelectionRange(pos, pos)
-        }
-      }, 0)
+    // Backspace: delete @img:xxx reference + thumbnail when cursor is right after it
+    if (e.key === 'Backspace') {
+      const cursorPos = textareaRef.current?.selectionStart || 0
+      const textBefore = basePrompt.slice(0, cursorPos)
+      const match = textBefore.match(/@img:(\S+)(\s*)$/)
+      if (match) {
+        e.preventDefault()
+        const newVal = textBefore.slice(0, textBefore.lastIndexOf(match[0])) + basePrompt.slice(cursorPos)
+        setBasePrompt(newVal.replace(/\s+$/, ''))
+        setTimeout(() => {
+          if (textareaRef.current) {
+            const pos = textBefore.lastIndexOf(match[0])
+            textareaRef.current.focus()
+            textareaRef.current.setSelectionRange(pos, pos)
+          }
+        }, 0)
+      }
     }
   }
 
@@ -300,23 +301,29 @@ export function PromptEditorModal({
                 </div>
               </div>
             )}
-            {/* Always-visible image thumbnail strip */}
+            {/* Always-visible: referenced image thumbnails (like main prompt area) */}
+            {referencedImages.length > 0 && (
+              <div className="mt-2">
+                <p className="text-[10px] text-muted-foreground mb-1.5">已引用的参考图</p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {referencedImages.map(img => (
+                    <div key={img.id} className="flex-shrink-0 w-16 h-16 rounded-xl border border-border/30 overflow-hidden relative group">
+                      <img src={img.url} alt={img.id} className="w-full h-full object-cover" />
+                      <button onClick={() => removeImageRef(img.id)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* All uploaded images available for reference */}
             {imagePreviews.length > 0 && !showAtMention && (
               <div className="mt-2">
                 <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1">
-                  <ImageIcon size={11} />已上传图片（点击引用，或输入 @ 搜索）
+                  <ImageIcon size={11} />输入 @ 引用图片
                 </p>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {imagePreviews.map(img => (
-                    <button key={img.id} onClick={() => setBasePrompt(prev => prev + ` @img:${img.id}`)}
-                      className="flex-shrink-0 w-16 h-16 rounded-xl border border-border/30 overflow-hidden hover:border-primary/50 hover:ring-1 hover:ring-primary/20 transition-all group relative">
-                      <img src={img.url} alt={img.id} className="w-full h-full object-cover" />
-                      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
-                        <span className="text-[8px] text-white opacity-0 group-hover:opacity-100 bg-black/50 px-1.5 py-0.5 rounded">引用</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
               </div>
             )}
           </div>
