@@ -860,7 +860,7 @@ function refreshAllIntel(){
   loadIntelData();
 }
 
-/* ===== INTEL PAUSE TOGGLE ===== */
+/* ===== INTEL PAUSE TOGGLE (per-portal) ===== */
 var isIntelPaused=false;
 function togglePauseIntel(){
   isIntelPaused=!isIntelPaused;
@@ -877,11 +877,11 @@ function togglePauseIntel(){
   fetch(API+'/api/portal-intel/pause',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({pause:isIntelPaused})
+    body:JSON.stringify({slug:PORTAL_SLUG,pause:isIntelPaused})
   }).catch(function(e){console.error('togglePauseIntel failed:',e)});
 }
 function checkPauseStatus(){
-  fetch(API+'/api/portal-intel/pause')
+  fetch(API+'/api/portal-intel/pause?slug='+encodeURIComponent(PORTAL_SLUG))
     .then(function(r){return r.json()})
     .then(function(data){
       if(data&&data.paused){
