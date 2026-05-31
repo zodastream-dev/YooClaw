@@ -192,8 +192,8 @@ export function PromptEditorModal({
   // Keyboard navigation for @ mention
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showAtMention && filteredImages.length > 0) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedMentionIdx(prev => Math.min(prev + 1, filteredImages.length - 1)) }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedMentionIdx(prev => Math.max(prev - 1, 0)) }
+      if (e.key === 'ArrowRight') { e.preventDefault(); setSelectedMentionIdx(prev => Math.min(prev + 1, filteredImages.length - 1)) }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); setSelectedMentionIdx(prev => Math.max(prev - 1, 0)) }
       else if (e.key === 'Enter') { e.preventDefault(); handleInsertImage(filteredImages[selectedMentionIdx]) }
       else if (e.key === 'Escape') { e.preventDefault(); setShowAtMention(false) }
       return

@@ -459,20 +459,26 @@ export function VideoCreatePage() {
     setShowMentions(false)
   }
 
-  // Insert @-reference into prompt
-  const handleInsertMention = (refLabel: string) => {
+  // Insert @-reference into prompt with @img:N format
+  const handleInsertMention = (_label: string, imgIdx: number) => {
     const before = prompt.slice(0, mentionAnchorIdx)
     const after = prompt.slice(textareaRef.current?.selectionStart || mentionAnchorIdx + 1 + mentionFilter.length)
-    const newPrompt = before + `@${refLabel} ` + after
+    const ref = `@img:${imgIdx}`
+    const newPrompt = `${before}${ref} ${after}`
     setPrompt(newPrompt)
     setShowMentions(false)
     setSelectedMentionIdx(0)
-    // Restore focus
     setTimeout(() => {
       textareaRef.current?.focus()
-      const newCursorPos = before.length + refLabel.length + 2
-      textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos)
+      const pos = before.length + ref.length + 1
+      textareaRef.current?.setSelectionRange(pos, pos)
     }, 0)
+  }
+
+  // Remove a referenced image from prompt and previews
+  const removeMentionedImage = (imgIdx: number) => {
+    const cleaned = prompt.replace(new RegExp(`@img:${imgIdx}\\s*`, 'g'), '').replace(/\s+$/, '')
+    setPrompt(cleaned)
   }
 
   // Get filtered mention file list
@@ -482,24 +488,37 @@ export function VideoCreatePage() {
       .filter(f => !mentionFilter || f.label.includes(mentionFilter))
   }
 
-  // Keyboard handler for @-mention navigation
+  // Keyboard handler for @-mention navigation + Backspace delete
+  const mentionListRef = useRef<HTMLDivElement>(null)
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!showMentions) return
-    const files = getMentionFiles()
-    if (files.length === 0) return
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedMentionIdx(prev => (prev + 1) % files.length)
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedMentionIdx(prev => (prev - 1 + files.length) % files.length)
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      handleInsertMention(files[selectedMentionIdx].label)
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      setShowMentions(false)
+    if (showMentions) {
+      const files = getMentionFiles()
+      if (files.length === 0) return
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedMentionIdx(prev => Math.min(prev + 1, files.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedMentionIdx(prev => Math.max(prev - 1, 0))
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        handleInsertMention(files[selectedMentionIdx].label, files[selectedMentionIdx].index)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowMentions(false)
+      }
+      return
+    }
+    // Backspace: delete @img:N atomically
+    if (e.key === 'Backspace') {
+      const cursorPos = textareaRef.current?.selectionStart || 0
+      const textBefore = prompt.slice(0, cursorPos)
+      const match = textBefore.match(/@img:(\d+)(\s*)$/)
+      if (match) {
+        e.preventDefault()
+        const newVal = textBefore.slice(0, textBefore.lastIndexOf(match[0])) + prompt.slice(cursorPos)
+        setPrompt(newVal.replace(/\s+$/, ''))
+      }
     }
   }
 
@@ -1032,6 +1051,24 @@ export function VideoCreatePage() {
 
             {/* ===== Main Input Box (Seedance Style) ===== */}
             <div className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm shadow-sm">
+              {/* Referenced images tag bar */}
+              {(() => {
+                const refs = prompt.match(/@img:(\d+)/g)?.map((m: string) => parseInt(m.replace('@img:', ''))) || []
+                const uniqRefs = [...new Set(refs)].filter((i: number) => i < imagePreviews.length)
+                if (uniqRefs.length === 0) return null
+                return (
+                  <div className="flex gap-2 px-4 pt-3 pb-1 overflow-x-auto border-b border-border/20">
+                    {uniqRefs.map((idx: number) => (
+                      <div key={idx} className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/20 group">
+                        <img src={imagePreviews[idx]} alt="" className="w-8 h-8 rounded object-cover" />
+                        <span className="text-[11px] text-muted-foreground">@img:{idx}</span>
+                        <button onClick={() => removeMentionedImage(idx)}
+                          className="ml-0.5 w-4 h-4 rounded-full bg-destructive/80 text-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[10px]">×</button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
               {/* Textarea */}
               <div className="relative">
                 <textarea
@@ -1060,7 +1097,7 @@ export function VideoCreatePage() {
                     {files.map((f, idx) => (
                         <button
                           key={f.index}
-                          onClick={() => handleInsertMention(f.label)}
+                          onClick={() => handleInsertMention(f.label, f.index)}
                           onMouseEnter={() => setSelectedMentionIdx(idx)}
                           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left ${idx === selectedMentionIdx ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-white/5'}`}
                         >
@@ -1637,6 +1674,8 @@ export function VideoCreatePage() {
                         try { await cancelVideoTask(submitId) } catch {}
                       }
                       setIsPolling(false)
+                      setSubmitId(null)
+                      if (TASK_KEY) localStorage.removeItem(TASK_KEY)
                       setShowMentions(false)
                       setMentionClipId(null)
                     }}
