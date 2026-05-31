@@ -3512,7 +3512,7 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
 const portalIntelCache = new Map<string, { data: any; expiry: number }>();
 const PORTAL_INTEL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (was 5 min)
 const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-intel-cache.json');
-let isIntelPaused = false; // Global pause flag for background intel tasks
+const pausedPortals = new Set<string>(); // Per-portal pause state (Set of paused portal slugs)
 
 // Load persisted cache from file on startup
 function loadPortalIntelCache() {
@@ -3643,18 +3643,25 @@ app.post('/api/portal-intel', async (req, res) => {
 });
 
 // ========== POST/GET /api/portal-intel/pause ==========
-// Toggle pause/resume for all background intel tasks (cache warmer).
-app.get('/api/portal-intel/pause', (_req, res) => {
-  res.json({ paused: isIntelPaused });
+// Per-portal pause/resume for background intel tasks (cache warmer).
+// Each portal independently controls whether its sources are warmed.
+app.get('/api/portal-intel/pause', (req, res) => {
+  const slug = (req.query.slug as string) || '';
+  if (slug) {
+    res.json({ paused: pausedPortals.has(slug), pausedPortals: [...pausedPortals] });
+  } else {
+    res.json({ pausedPortals: [...pausedPortals] });
+  }
 });
 
 app.post('/api/portal-intel/pause', (req, res) => {
-  const { pause } = req.body || {};
-  if (typeof pause === 'boolean') {
-    isIntelPaused = pause;
-    console.log(`[PortalIntel] Background cache warmer ${pause ? 'PAUSED' : 'RESUMED'}`);
+  const { slug, pause } = req.body || {};
+  if (slug && typeof pause === 'boolean') {
+    if (pause) pausedPortals.add(slug);
+    else pausedPortals.delete(slug);
+    console.log(`[PortalIntel] Portal ${slug} ${pause ? 'PAUSED' : 'RESUMED'} (${pausedPortals.size} paused total)`);
   }
-  res.json({ success: true, paused: isIntelPaused });
+  res.json({ success: true, pausedPortals: [...pausedPortals] });
 });
 
 // ========== Background Cache Warmer ==========
@@ -3668,10 +3675,6 @@ async function warmAllPortalCaches() {
     console.log('[CacheWarmer] Already in progress, skipping...');
     return;
   }
-  if (isIntelPaused) {
-    console.log('[CacheWarmer] Intel updates are paused, skipping...');
-    return;
-  }
   cacheWarmingActive = true;
   try {
     const portalSites = await getAllPortalSites();
@@ -3681,9 +3684,11 @@ async function warmAllPortalCaches() {
       return;
     }
 
-    // Collect unique sources across all portals
+    // Collect unique sources across all portals, tracking which portals use each source
     const sourceMap = new Map<string, any>();
+    const sourcePortals = new Map<string, Set<string>>(); // cacheKey → Set of portal slugs
     portalSites.forEach((site: any) => {
+      const slug = site.slug;
       const match = site.html_content?.match(/var WIDGETS=(\[[\s\S]*?\]);/);
       if (!match) return;
       try {
@@ -3700,7 +3705,9 @@ async function warmAllPortalCaches() {
               });
               if (!sourceMap.has(cacheKey)) {
                 sourceMap.set(cacheKey, src);
+                sourcePortals.set(cacheKey, new Set());
               }
+              sourcePortals.get(cacheKey)!.add(slug);
             });
           }
         });
@@ -3715,10 +3722,16 @@ async function warmAllPortalCaches() {
       return;
     }
 
-    // Skip already-cached sources (re-warm if expired OR if cached 0 results — may be transient failure)
+    // Skip already-cached sources AND sources whose ALL portals are paused
     const now = Date.now();
     const toWarm: { key: string; src: any }[] = [];
     sourceMap.forEach((src, key) => {
+      // Check if ALL portals using this source are paused
+      const portals = sourcePortals.get(key);
+      if (portals && portals.size > 0 && [...portals].every(p => pausedPortals.has(p))) {
+        console.log(`[CacheWarmer] Skipping "${src.name}" — all portals paused (${[...portals].join(', ')})`);
+        return;
+      }
       const cached = portalIntelCache.get(key);
       const isEmpty = cached && Array.isArray(cached.data) && cached.data.length === 0;
       if (!cached || cached.expiry <= now || isEmpty) {
