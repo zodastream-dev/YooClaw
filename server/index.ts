@@ -3524,11 +3524,18 @@ async function autoCleanAiModel() {
     let fixed = 0;
     for (const row of rows) {
       const html = row.html_content || '';
-      // Extract WIDGETS array from inline JavaScript
-      const match = html.match(/WIDGETS\s*=\s*(\[[\s\S]*?\]);/);
-      if (!match) continue;
+      // Find WIDGETS assignment using bracket counting (handles nested arrays/objects)
+      const idx = html.indexOf('WIDGETS');
+      if (idx < 0) continue;
+      const start = html.indexOf('[', idx);
+      if (start < 0) continue;
+      let depth = 0, end = start;
+      for (let i = start; i < html.length; i++) {
+        if (html[i] === '[') depth++;
+        else if (html[i] === ']') { depth--; if (depth === 0) { end = i + 1; break; } }
+      }
       try {
-        const widgets = JSON.parse(match[1]);
+        const widgets = JSON.parse(html.substring(start, end));
         let changed = false;
         for (const w of widgets) {
           if (w.type === 'intel-monitor' || w.type === 'monitor') {
@@ -3550,8 +3557,9 @@ async function autoCleanAiModel() {
           }
         }
         if (changed) {
-          // Replace old WIDGETS with fixed version
-          const newHtml = html.replace(match[0], 'WIDGETS = ' + JSON.stringify(widgets) + ';');
+          const oldAssignment = html.substring(idx, end);
+          const newAssignment = 'WIDGETS = ' + JSON.stringify(widgets);
+          const newHtml = html.replace(oldAssignment, newAssignment);
           await sql`UPDATE report_sites SET html_content = ${newHtml} WHERE id = ${row.id}`;
         }
       } catch (_) { /* JSON parse error, skip */ }
