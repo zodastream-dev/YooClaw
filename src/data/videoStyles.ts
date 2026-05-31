@@ -130,3 +130,24 @@ export function getStyle(id: string): VideoStyle {
 
 export const DEFAULT_STYLE_ID = 'cinematic'
 export const DEFAULT_STYLE = STYLES[DEFAULT_STYLE_ID]
+
+// ============================================================
+// 背景音乐选项
+// ============================================================
+export interface BgmOption {
+  id: string
+  label: string
+  /** 拼接到提示词中的描述 */
+  promptText: string
+}
+
+export const BGM_OPTIONS: BgmOption[] = [
+  { id: 'interstellar', label: '🌌 星际穿越 · 管风琴', promptText: '背景音乐：电影《星际穿越》主题曲，宏伟的管风琴旋律，震撼心灵' },
+  { id: 'light_piano', label: '🎹 轻快钢琴', promptText: '背景音乐：轻快流动的钢琴曲，温暖治愈，节奏明快' },
+  { id: 'electronic_beat', label: '🎛️ 电子节拍', promptText: '背景音乐：时尚电子节拍，低音脉动，现代感十足' },
+  { id: 'string_quartet', label: '🎻 弦乐四重奏', promptText: '背景音乐：优雅的弦乐四重奏，舒缓悠扬，高级感' },
+  { id: 'ambient_pad', label: '🎵 氛围合成器', promptText: '背景音乐：空灵的氛围合成器铺垫，梦幻飘渺，沉浸感' },
+  { id: 'none', label: '🔇 无背景音乐', promptText: '' },
+]
+
+export const DEFAULT_BGM_ID = 'none'

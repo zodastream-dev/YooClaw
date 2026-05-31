@@ -10,7 +10,7 @@ import { generateVideoPayload } from '@/data/promptBuilder'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
 import type { VideoTemplate } from '@/data/videoTemplates'
 import { VideoHistory } from '@/components/VideoHistory'
-
+import { PromptEditorModal } from '@/components/PromptEditorModal'
 interface GeneratedVideo {
   id: string
   title: string
@@ -145,13 +145,8 @@ export function VideoCreatePage() {
   const [activeSceneCategory, setActiveSceneCategory] = useState('网红探店')
   const [showSceneStyle, setShowSceneStyle] = useState(true)
   const [userSceneInput, setUserSceneInput] = useState('')  // 用户对场景的补充描述
+  const [editorScene, setEditorScene] = useState<SceneTemplate | null>(null)  // 弹窗编辑的场景
 
-  // Auto-generate prompt when scene, style, or user input changes
-  useEffect(() => {
-    if (!selectedScene || !selectedStyle) return
-    const payload = generateVideoPayload(selectedScene.id, selectedStyle.id, userSceneInput)
-    setPrompt(payload.prompt)
-  }, [selectedScene?.id, selectedStyle?.id, userSceneInput])
   const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
   const [transitionDurations, setTransitionDurations] = useState<string[]>([])
 
@@ -762,6 +757,17 @@ export function VideoCreatePage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Prompt Editor Modal */}
+      {editorScene && (
+        <PromptEditorModal
+          scene={editorScene}
+          currentStyleId={selectedStyle?.id || DEFAULT_STYLE_ID}
+          currentUserInput={userSceneInput}
+          imagePreviews={imagePreviews.map((url, i) => ({ id: `img-${i}`, url }))}
+          onSave={(finalPrompt) => { setPrompt(finalPrompt); setEditorScene(null) }}
+          onClose={() => setEditorScene(null)}
+        />
+      )}
       {/* Top Header Bar */}
       <header className="flex-shrink-0 flex items-center justify-between px-4 sm:px-5 py-2.5 border-b border-border bg-card/80 backdrop-blur-sm z-10">
         <button onClick={() => navigate('/chat')} className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -797,7 +803,7 @@ export function VideoCreatePage() {
               </div>
               <div className="space-y-2">
                 {Object.values(SCENES).filter(s => s.category === activeSceneCategory).map(scene => (
-                  <button key={scene.id} onClick={() => setSelectedScene(scene)}
+                  <button key={scene.id} onClick={() => { setSelectedScene(scene); setEditorScene(scene) }}
                     className={`w-full text-left px-4 py-3 rounded-xl border transition-all hover:shadow-sm ${
                       selectedScene?.id === scene.id ? 'border-primary bg-primary/5 ring-1 ring-primary/20 shadow-md shadow-primary/5' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'
                     }`}>
