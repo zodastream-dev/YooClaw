@@ -70,6 +70,15 @@ const KLING_MODES = [
   { value: 'std', label: 'Std', desc: '720P 标准' },
 ] as const
 
+ // Kling model → supported gen types
+const KLING_MODEL_GEN_TYPES: Record<string, string[]> = {
+  'kling-v3': ['text2video', 'image2video', 'multi_image2video', 'frames2video'],
+  'kling-v3-omni': ['text2video', 'image2video', 'multi_image2video'],
+  'kling-v2-5-turbo': ['text2video', 'image2video'],
+  'kling-v1-6': ['text2video', 'image2video'],
+  'kling-v1-5': ['text2video', 'image2video'],
+}
+
 const KLING_RATIOS = [
   { value: '16:9', label: '16:9', desc: '横屏' },
   { value: '9:16', label: '9:16', desc: '竖屏' },
@@ -749,8 +758,9 @@ export function VideoCreatePage() {
   const safeConfig = genTypeConfig
     || (provider === 'kling' ? KLING_GEN_TYPES[0] : GEN_TYPE_CONFIG[0]);
   const GenIcon = safeConfig.icon
-  const genTypeOptions = provider === 'kling' ? KLING_GEN_TYPES : GEN_TYPE_CONFIG
-  // v3-omni only supports omni-video endpoint, not text2video/image2video/multi-image2video
+  const genTypeOptions = provider === 'kling'
+    ? (KLING_GEN_TYPES as any).filter((g: any) => (KLING_MODEL_GEN_TYPES[klingModel] || ['text2video', 'image2video']).includes(g.key))
+    : GEN_TYPE_CONFIG
   const klingModelOptions = KLING_MODELS
   const modelLabel = MODEL_VERSIONS.find(m => m.value === modelVersion)?.label || modelVersion
 
@@ -1328,7 +1338,13 @@ export function VideoCreatePage() {
                               const active = klingModel === m.value
                               return (
                                 <button key={m.value}
-                                  onClick={() => { setKlingModel(m.value); setOpenKlingModel(false); setDuration(KLING_MODEL_DURATIONS[m.value]?.[0] || '5') }}
+                                  onClick={() => {
+                                    setKlingModel(m.value)
+                                    setOpenKlingModel(false)
+                                    setDuration(KLING_MODEL_DURATIONS[m.value]?.[0] || '5')
+                                    const supported = KLING_MODEL_GEN_TYPES[m.value] || ['text2video', 'image2video']
+                                    if (!supported.includes(genType)) setGenType(supported[0] as any)
+                                  }}
                                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
                                 >
                                   <span className={active ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{m.label}</span>
@@ -1458,7 +1474,13 @@ export function VideoCreatePage() {
                         const active = klingModel === m.value
                         return (
                           <button key={m.value}
-                            onClick={() => { setKlingModel(m.value); setOpenKlingModel(false); setDuration(KLING_MODEL_DURATIONS[m.value]?.[0] || '5') }}
+                            onClick={() => {
+                              setKlingModel(m.value)
+                              setOpenKlingModel(false)
+                              setDuration(KLING_MODEL_DURATIONS[m.value]?.[0] || '5')
+                              const supported = KLING_MODEL_GEN_TYPES[m.value] || ['text2video', 'image2video']
+                              if (!supported.includes(genType)) setGenType(supported[0] as any)
+                            }}
                             className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
                           >
                             <span className={active ? 'text-violet-400 font-medium' : 'text-foreground/80'}>{m.label}</span>
