@@ -3629,12 +3629,10 @@ app.post('/api/portal-intel', async (req, res) => {
       }
     };
 
-    // Process in chunks of 3 (concurrency control)
-    for (let i = 0; i < sources.length; i += 3) {
-      const chunk = sources.slice(i, i + 3).map((src: any, chunkIdx: number) => processSource(src, i + chunkIdx));
-      const chunkResults = await Promise.all(chunk);
-      results.push(...chunkResults);
-    }
+    // Process all sources in parallel (with individual catch for robustness)
+    const allPromises = sources.map((src: any, idx: number) => processSource(src, idx));
+    const allResults = await Promise.all(allPromises);
+    results.push(...allResults);
 
     res.json({ success: true, results });
   } catch (err: any) {
