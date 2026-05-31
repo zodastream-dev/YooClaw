@@ -4088,7 +4088,7 @@ function buildConcatCommand(inputPaths: string[], durations: number[], outputPat
   } catch {}
   const filterPart = audioPart ? `${xfadeFilter};${audioPart}` : xfadeFilter;
   const mapPart = audioPart ? '-map "[outv]" -map "[outa]"' : '-map "[outv]"';
-  return `ffmpeg ${inputs} -filter_complex "${filterPart}" ${mapPart} -c:v mpeg4 -q:v 2${audioPart ? ' -c:a aac -b:a 128k' : ''} -y "${outputPath}"`;
+  return `/usr/local/bin/ffmpeg ${inputs} -filter_complex "${filterPart}" ${mapPart} -c:v libx264 -preset fast -crf 23${audioPart ? ' -c:a aac -b:a 128k' : ''} -y "${outputPath}"`;
   return `ffmpeg ${inputs} -filter_complex "${xfadeFilter}" -map "[outv]" -c:v libopenh264 -preset fast -crf 23 -an -y "${outputPath}"`;
 }
 
