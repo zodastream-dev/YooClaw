@@ -480,7 +480,7 @@ export async function concatVideos(ids: string[]) {
   return apiRequest<{ videoUrl: string; title: string }>('POST', '/api/v1/videos/concat', { ids })
 }
 export async function uploadVideo(formData: FormData) {
-  const token = localStorage.getItem('yooclaw_token')
+  const token = localStorage.getItem(TOKEN_KEY)
   const resp = await fetch(`${API_BASE}/api/v1/videos/upload`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
