@@ -27,9 +27,13 @@ function $(id){return document.getElementById(id)}
 
 /* ===== INIT ===== */
 (function(){
-  setTimeout(function(){loadIntelData()},500);
-  setTimeout(function(){initDashboard()},300);
-  setTimeout(function(){checkPauseStatus()},800);
+  // Render left panel immediately (sources are already in WIDGETS, no API dependency)
+  var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
+  renderSourceFilters(monitors);
+  // Start data fetch with minimal delay (was 500ms)
+  setTimeout(function(){loadIntelData()},50);
+  setTimeout(function(){initDashboard()},100);
+  setTimeout(function(){checkPauseStatus()},200);
 })();
 
 /* ===== LOAD INTEL DATA ===== */

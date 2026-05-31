@@ -260,7 +260,9 @@ export function PortalBuilderPage() {
     let defaultProvider = 'all', defaultModel = 'deepseek-v3.1', defaultKeywords: string[] = []
     if (existingIntelCount === 0) { defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系'] }
     else if (existingIntelCount === 1) { defaultProvider = 'all'; defaultModel = 'metaso-pro'; defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车'] }
-    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: INTEL_PROMPTS['行业信号'] || '' }] })
+    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '行业信号', aiProvider: defaultProvider, aiModel: defaultModel, apiKey: '', keywords: defaultKeywords, objects: [], updateFrequency: 'daily', customPrompt: INTEL_PROMPTS['行业信号'] || '' }] })
+    setAddModalObjectInput('')
+    setAddModalKeywordInput('')
     setAddModalType(type)
     setShowAddModal(true)
   }, [widgets])
