@@ -21,10 +21,14 @@ function playBgmPreview(bgmId: string, audioUrl?: string) {
 
   // If a real audio file is provided, play it
   if (audioUrl) {
-    const audio = new Audio(audioUrl)
-    ;(window as any).__bgmCtx = audio
+    const audio = document.createElement('audio')
+    audio.src = audioUrl
     audio.volume = 0.6
-    audio.play().catch(() => {})
+    audio.preload = 'auto'
+    ;(window as any).__bgmCtx = audio
+    audio.onloadeddata = () => { audio.play().catch((e) => console.log('BGM play error:', e)) }
+    audio.onerror = () => { console.log('BGM load error:', audio.error) }
+    audio.load()
     return
   }
   const ctx = new AudioContext()
@@ -71,6 +75,7 @@ function playBgmPreview(bgmId: string, audioUrl?: string) {
         .forEach((ch,i)=>ch.forEach(f=>{note(f,NOW+i*2,2,0.04);note(f*2,NOW+i*2,2,0.02)}))
       for(let i=0;i<8;i++)note(880+i*220,NOW+i*0.8,0.5,0.015)
       break
+    case 'custom':
     case 'none': break
   }
   setTimeout(()=>ctx.close(),9000)
