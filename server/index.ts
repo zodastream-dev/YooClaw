@@ -3518,7 +3518,12 @@ const pausedPortals = new Set<string>(); // Per-portal pause state (Set of pause
 // Auto-clean invalid aiModel values on startup (self-healing)
 async function autoCleanAiModel() {
   try {
-    const db = postgres(process.env.DATABASE_URL || '');
+    const db = postgres(process.env.DATABASE_URL || '', {
+      ssl: { rejectUnauthorized: false },
+      prepare: false,  // Required for Supabase Transaction mode pooler
+      connect_timeout: 10,
+      idle_timeout: 5000,
+    });
     const VALID_MODELS = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
     const rows = await db`SELECT id, slug, widgets FROM report_sites WHERE type='portal'`;
     let fixed = 0;
