@@ -69,7 +69,9 @@ export async function klingCreate(
   params: KlingVideoParams
 ): Promise<KlingCreateResult> {
   const token = getToken();
-  const url = `${KLING_BASE}/v1/videos/${endpoint}`;
+  const url = endpoint
+    ? `${KLING_BASE}/v1/videos/${endpoint}`
+    : `${KLING_BASE}/v1/videos`;
 
   console.log(`[Kling] POST ${endpoint}`, JSON.stringify(params).slice(0, 200));
 
@@ -103,7 +105,9 @@ export async function klingQuery(
   taskId: string
 ): Promise<KlingQueryResult> {
   const token = getToken();
-  const url = `${KLING_BASE}/v1/videos/${endpoint}/${taskId}`;
+  const url = endpoint
+    ? `${KLING_BASE}/v1/videos/${endpoint}/${taskId}`
+    : `${KLING_BASE}/v1/videos/${taskId}`;
 
   const res = await fetch(url, {
     headers: { 'Authorization': `Bearer ${token}` },
