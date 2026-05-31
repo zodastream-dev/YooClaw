@@ -138,7 +138,11 @@ export function PromptEditorModal({
     }
   }, [styleId])
 
-  // ===== Handle @ mention =====
+  const [selectedMentionIdx, setSelectedMentionIdx] = useState(0)
+
+  // ===== Handle @ mention with keyboard nav =====
+  const filteredImages = imagePreviews.filter(img => !atFilter || img.id.includes(atFilter))
+
   const handleBasePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setBasePrompt(value)
@@ -151,6 +155,7 @@ export function PromptEditorModal({
         setShowAtMention(true)
         setAtFilter(afterAt)
         setAtIdx(atPos)
+        setSelectedMentionIdx(0)
         return
       }
     }
@@ -158,12 +163,59 @@ export function PromptEditorModal({
   }
 
   const handleInsertImage = (img: { id: string; url: string }) => {
-    if (!atIdx && atIdx !== 0) return
     const before = basePrompt.slice(0, atIdx)
-    const after = basePrompt.slice(textareaRef.current?.selectionStart || atIdx)
+    const cursorPos = textareaRef.current?.selectionStart || atIdx + 1
+    const after = basePrompt.slice(cursorPos)
     const ref = `@img:${img.id}`
     setBasePrompt(`${before}${ref} ${after}`)
     setShowAtMention(false)
+    // Restore cursor after the inserted ref
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newPos = atIdx + ref.length + 1
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(newPos, newPos)
+      }
+    }, 0)
+  }
+
+  // Keyboard navigation for @ mention
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!showAtMention || filteredImages.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedMentionIdx(prev => Math.min(prev + 1, filteredImages.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedMentionIdx(prev => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter' && showAtMention) {
+      e.preventDefault()
+      handleInsertImage(filteredImages[selectedMentionIdx])
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setShowAtMention(false)
+    }
+  }
+
+  // Backspace detection: if user deletes an image reference, clean it up
+  const handleBackspaceDelete = () => {
+    // Check if cursor is right after an @img:xxx reference and delete it entirely
+    const cursorPos = textareaRef.current?.selectionStart || 0
+    const textBefore = basePrompt.slice(0, cursorPos)
+    const match = textBefore.match(/@img:(\S+)\s*$/)
+    if (match) {
+      const newVal = textBefore.slice(0, textBefore.lastIndexOf(match[0]))
+      const after = basePrompt.slice(cursorPos)
+      setBasePrompt(newVal + after)
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const pos = newVal.length
+          textareaRef.current.focus()
+          textareaRef.current.setSelectionRange(pos, pos)
+        }
+      }, 0)
+    }
   }
 
   // ===== BGM 试听 =====
@@ -225,18 +277,22 @@ export function PromptEditorModal({
                 ref={textareaRef}
                 value={basePrompt}
                 onChange={handleBasePromptChange}
+                onKeyDown={handleTextareaKeyDown}
                 rows={6}
                 className="w-full px-3 py-2.5 text-sm bg-background border border-border/30 rounded-xl outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 resize-none placeholder:text-muted-foreground/40 transition-all"
-                placeholder="输入或编辑提示词，输入 @ 引用已上传的图片..."
+                placeholder="输入或编辑提示词，输入 @ 引用已上传的图片，Backspace 可删除引用..."
               />
             </div>
-            {/* @ mention dropdown — show thumbnails not just text */}
+            {/* @ mention dropdown — keyboard navigable with selection highlight */}
             {showAtMention && imagePreviews.length > 0 && (
               <div className="mt-1 border border-border/30 rounded-lg bg-card shadow-lg p-1.5">
+                <p className="text-[9px] text-muted-foreground px-1 pb-1">↑↓ 选择 · Enter 确认 · Esc 取消</p>
                 <div className="flex gap-2 overflow-x-auto">
-                  {imagePreviews.filter(img => !atFilter || img.id.includes(atFilter)).map(img => (
+                  {filteredImages.map((img, idx) => (
                     <button key={img.id} onClick={() => handleInsertImage(img)}
-                      className="flex-shrink-0 flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity">
+                      className={`flex-shrink-0 flex flex-col items-center gap-0.5 rounded-lg p-1 transition-all ${
+                        idx === selectedMentionIdx ? 'bg-primary/10 ring-1 ring-primary/30 scale-105' : 'hover:bg-muted/30'
+                      }`}>
                       <img src={img.url} alt={img.id} className="w-14 h-14 rounded-lg border border-border/30 object-cover" />
                       <span className="text-[9px] text-muted-foreground">@{img.id}</span>
                     </button>

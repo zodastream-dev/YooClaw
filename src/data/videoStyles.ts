@@ -149,7 +149,7 @@ export const BGM_OPTIONS: BgmOption[] = [
   { id: 'electronic_beat', label: '🎛️ 电子节拍', promptText: '背景音乐：时尚电子节拍，低音脉动，现代感十足' },
   { id: 'string_quartet', label: '🎻 弦乐四重奏', promptText: '背景音乐：优雅的弦乐四重奏，舒缓悠扬，高级感' },
   { id: 'ambient_pad', label: '🎵 氛围合成器', promptText: '背景音乐：空灵的氛围合成器铺垫，梦幻飘渺，沉浸感' },
-  { id: 'custom', label: '🎼 自有选择', promptText: '背景音乐：选择合适的背景音乐' },
+  { id: 'custom', label: '🎼 自由选择', promptText: '背景音乐：选择合适的背景音乐' },
   { id: 'none', label: '🔇 无背景音乐', promptText: '' },
 ]
 
