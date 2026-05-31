@@ -82,7 +82,7 @@ export interface DbVideo {
 }
 
 // ========== Postgres Connection ==========
-let sql: postgres.Sql<{}>;
+export let sql: postgres.Sql<{}>;
 
 // ========== Password Hashing ==========
 const SCRYPT_KEYLEN = 64;
