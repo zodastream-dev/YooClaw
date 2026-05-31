@@ -750,7 +750,7 @@ export function VideoCreatePage() {
   const GenIcon = safeConfig.icon
   const genTypeOptions = provider === 'kling' ? KLING_GEN_TYPES : GEN_TYPE_CONFIG
   // v3-omni only supports omni-video endpoint, not text2video/image2video/multi-image2video
-  const klingModelOptions = KLING_MODELS.filter(m => m.value !== 'kling-v3-omni')
+  const klingModelOptions = KLING_MODELS
   const modelLabel = MODEL_VERSIONS.find(m => m.value === modelVersion)?.label || modelVersion
 
   const anyOpen = openGenType || openModel || openRatio || openDuration
