@@ -4727,11 +4727,10 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       const klingSingleMode: 'std' | 'pro' = 'std'; // default 720P
       const negPrompt = (req.body as any).negativePrompt || '';
 
-      // Omni: Kling unified v3-omni API uses POST /v1/videos with reference_images
+      // Omni: Kling v3-omni uses text2video endpoint + reference_images in prompt
       const isOmni = klingSingleModel === 'kling-v3-omni'
-      console.log(`[Kling:Single] model=${klingSingleModel} isOmni=${isOmni} genType=${gt} endpoint=${isOmni ? 'unified' : (gt==='image2video'?'image2video':'text2video')}`)
+      console.log(`[Kling:Single] model=${klingSingleModel} isOmni=${isOmni} genType=${gt}`)
 
-      // Build params
       const klingParams: KlingVideoParams = {
         model_name: klingSingleModel,
         mode: klingSingleMode,
@@ -4741,7 +4740,28 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         negative_prompt: negPrompt,
       };
 
-      if (gt === 'image2video' || gt === 'multi_image2video') {
+      // For Omni, rewrite params: use model (not model_name), reference_images, text2video endpoint
+      if (isOmni) {
+        delete (klingParams as any).model_name;
+        (klingParams as any).model = 'Kling-V3-Omni';
+        if (imageList.length > 0) {
+          const urls: string[] = [];
+          for (const img of imageList) {
+            const result = saveKlingImage(img, 'single-kl');
+            if (!result) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片上传失败' } });
+            urls.push(result.url);
+          }
+          (klingParams as any).reference_images = urls.map(url => ({ image_url: url }));
+          const refs = urls.map((_, i) => `<<<image_${i + 1}>>>`).join(' ');
+          (klingParams as any).prompt = refs + ' ' + (promptStr || '');
+        } else if (promptStr) {
+          (klingParams as any).prompt = promptStr;
+        }
+        delete (klingParams as any).image;
+        delete (klingParams as any).image_list;
+        klingParams.duration = String(dur);
+        klingParams.aspect_ratio = rat;
+      } else if (gt === 'image2video' || gt === 'multi_image2video') {
         if (imageList.length === 0) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '需要上传图片' } });
         }
@@ -4751,16 +4771,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
           if (!result) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片上传失败' } });
           urls.push(result.url);
         }
-        if (isOmni) {
-          // Omni uses reference_images + prompt references like <<<image_1>>>
-          delete (klingParams as any).model_name;
-          (klingParams as any).model = 'Kling-V3-Omni';
-          (klingParams as any).reference_images = urls.map(url => ({ image_url: url }));
-          if (promptStr) {
-            const refs = urls.map((_, i) => `<<<image_${i + 1}>>>`).join(' ');
-            (klingParams as any).prompt = refs + ' ' + promptStr;
-          }
-        } else if (gt === 'multi_image2video') {
+        if (gt === 'multi_image2video') {
           klingParams.image_list = urls.map(url => ({ image: url }));
           if (promptStr) klingParams.prompt = promptStr;
         } else {
@@ -4768,15 +4779,11 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
           if (promptStr) klingParams.prompt = promptStr;
         }
       } else {
-        if (isOmni) {
-          delete (klingParams as any).model_name;
-          (klingParams as any).model = 'Kling-V3-Omni';
-        }
         klingParams.prompt = promptStr;
       }
 
-      // Endpoint: Omni uses unified /v1/videos, others use type-specific
-      const klingEndpoint = isOmni ? '' : ((gt === 'image2video' || gt === 'multi_image2video') ? 'image2video' : 'text2video');
+      // Endpoint: Omni uses text2video, others use type-specific
+      const klingEndpoint = isOmni ? 'text2video' : ((gt === 'image2video' || gt === 'multi_image2video') ? 'image2video' : 'text2video');
 
       // Camera control
       const cc = (req.body as any).cameraControl;
