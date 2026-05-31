@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { generateVideo, videoTaskStatus, cancelVideoTask } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check, ChevronUp, Type, Camera, Volume2 } from 'lucide-react'
-import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
-import type { VideoTemplate } from '@/data/videoTemplates'
+import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check, ChevronUp, Type, Camera, Volume2, Bot, Palette } from 'lucide-react'
+import { SCENES, DEFAULT_SCENE_ID, type SceneTemplate } from '@/data/videoScenes'
+import { STYLES, DEFAULT_STYLE_ID, type VideoStyle } from '@/data/videoStyles'
+import { generateVideoPayload } from '@/data/promptBuilder'
 import { VideoHistory } from '@/components/VideoHistory'
 
 interface GeneratedVideo {
@@ -111,7 +112,8 @@ export function VideoCreatePage() {
 
   const [activeCategory, setActiveCategory] = useState('all')
   const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('image')
-  const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null)
+  const [selectedScene, setSelectedScene] = useState<SceneTemplate | null>(SCENES[DEFAULT_SCENE_ID])
+  const [selectedStyle, setSelectedStyle] = useState<VideoStyle | null>(STYLES[DEFAULT_STYLE_ID])
 
   // Image upload state — supports multiple images
   const [imageFiles, setImageFiles] = useState<File[]>([])
@@ -134,6 +136,19 @@ export function VideoCreatePage() {
 
   // Transition prompts for multiframe2video
   const [showTemplates, setShowTemplates] = useState(false) // mobile template panel
+
+  // Scene + Style 两步提示词系统
+  const sceneCategoryKeys = [...new Set(Object.values(SCENES).map(s => s.category))]
+  const [activeSceneCategory, setActiveSceneCategory] = useState('网红探店')
+  const [showSceneStyle, setShowSceneStyle] = useState(true)
+  const [userSceneInput, setUserSceneInput] = useState('')  // 用户对场景的补充描述
+
+  // Auto-generate prompt when scene, style, or user input changes
+  useEffect(() => {
+    if (!selectedScene || !selectedStyle) return
+    const payload = generateVideoPayload(selectedScene.id, selectedStyle.id, userSceneInput)
+    setPrompt(payload.prompt)
+  }, [selectedScene?.id, selectedStyle?.id, userSceneInput])
   const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
   const [transitionDurations, setTransitionDurations] = useState<string[]>([])
 
@@ -821,6 +836,63 @@ export function VideoCreatePage() {
 
         {/* ===== CENTER: Main Content ===== */}
         <main className="flex-1 overflow-y-auto bg-background" style={{ minWidth: 0 }}>
+          {/* ===== Scene + Style Quick Prompt Builder ===== */}
+          <div className="px-4 sm:px-6 pt-3 pb-2 border-b border-border/30 bg-card/30">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
+                <Sparkles size={13} className="text-primary" />快速生成提示词
+              </h3>
+              <button onClick={() => setShowSceneStyle(!showSceneStyle)} className="text-[10px] text-muted-foreground hover:text-foreground">
+                {showSceneStyle ? '收起' : '展开'}
+              </button>
+            </div>
+            {showSceneStyle && (
+              <div className="space-y-2">
+                {/* Step 1: Scene */}
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1 font-medium flex items-center gap-1"><Bot size={10} />步骤1: 选择场景</p>
+                  <div className="flex gap-1 overflow-x-auto scrollbar-none flex-wrap mb-1">
+                    {sceneCategoryKeys.map(cat => (
+                      <button key={cat} onClick={() => setActiveSceneCategory(cat)} className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-medium transition-all ${activeSceneCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>{cat}</button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+                    {Object.values(SCENES).filter(s => s.category === activeSceneCategory).slice(0, 6).map(scene => (
+                      <button key={scene.id} onClick={() => setSelectedScene(scene)}
+                        className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg border text-[10px] leading-tight transition-all whitespace-nowrap ${
+                          selectedScene?.id === scene.id ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-border/30 bg-background/40 text-muted-foreground hover:border-primary/20 hover:text-foreground'
+                        }`}>
+                        <span className="block truncate max-w-24">{scene.label}</span>
+                        <span className="text-[9px] opacity-60">{scene.duration}s</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Step 2: Style */}
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1 font-medium flex items-center gap-1"><Palette size={10} />步骤2: 选择风格</p>
+                  <div className="flex gap-1 overflow-x-auto scrollbar-none">
+                    {Object.values(STYLES).slice(0, 8).map(style => (
+                      <button key={style.id} onClick={() => setSelectedStyle(style)}
+                        className={`flex-shrink-0 px-2.5 py-1 rounded-lg border text-[10px] font-medium transition-all whitespace-nowrap ${
+                          selectedStyle?.id === style.id ? 'border-primary bg-primary/5 text-primary' : 'border-border/30 bg-background/40 text-muted-foreground hover:border-primary/20 hover:text-foreground'
+                        }`}>
+                        {style.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Preview + user input */}
+                {selectedScene && selectedStyle && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0">{selectedScene.label} + {selectedStyle.label}</span>
+                    <input value={userSceneInput} onChange={e => setUserSceneInput(e.target.value)} placeholder="补充场景描述（可选）..."
+                      className="flex-1 min-w-0 px-2 py-1 text-[10px] bg-background border border-border/30 rounded-md outline-none focus:border-primary/30" />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {/* ===== Provider Switcher ===== */}
           <div className="flex border-b border-border/30 px-4 sm:px-6 pt-2">
             <button onClick={() => { if (provider !== 'dreamina') { setProvider('dreamina'); setGenType('text2video'); } }}
