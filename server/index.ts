@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import fs from 'fs';
 import { exec, spawn, execSync } from 'child_process';
+import postgres from 'postgres';
 import {
   initDatabase,
   hashPassword,
@@ -3514,6 +3515,48 @@ const PORTAL_INTEL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (was 5 min)
 const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-intel-cache.json');
 const pausedPortals = new Set<string>(); // Per-portal pause state (Set of paused portal slugs)
 
+// Auto-clean invalid aiModel values on startup (self-healing)
+async function autoCleanAiModel() {
+  try {
+    const db = postgres(process.env.DATABASE_URL || '');
+    const VALID_MODELS = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
+    const rows = await db`SELECT id, slug, widgets FROM report_sites WHERE type='portal'`;
+    let fixed = 0;
+    for (const row of rows) {
+      let widgets: any = row.widgets;
+      if (typeof widgets === 'string') widgets = JSON.parse(widgets);
+      if (!Array.isArray(widgets)) continue;
+      let changed = false;
+      for (const w of widgets) {
+        if (w.type === 'intel-monitor' || w.type === 'monitor') {
+          const sources = (w.sources || []).concat((w.config || {}).sources || []);
+          for (const s of sources) {
+            if (s.aiModel && !VALID_MODELS.includes(s.aiModel)) {
+              console.log('[AutoClean] Fixing aiModel "' + s.aiModel + '" -> deepseek-v4-flash in', row.slug || row.id, w.name, s.name);
+              s.aiModel = 'deepseek-v4-flash';
+              changed = true;
+              fixed++;
+            }
+          }
+          if (w.aiModel && !VALID_MODELS.includes(w.aiModel)) {
+            console.log('[AutoClean] Fixing top-level aiModel "' + w.aiModel + '" in', row.slug || row.id, w.name);
+            w.aiModel = 'deepseek-v4-flash';
+            changed = true;
+            fixed++;
+          }
+        }
+      }
+      if (changed) {
+        await db`UPDATE report_sites SET widgets = ${JSON.stringify(widgets)} WHERE id = ${row.id}`;
+      }
+    }
+    console.log('[AutoClean] Cleaned ' + fixed + ' invalid aiModel values');
+    await db.end();
+  } catch (err: any) {
+    console.warn('[AutoClean] Skipped (non-critical):', err.message);
+  }
+}
+
 // Load persisted cache from file on startup
 function loadPortalIntelCache() {
   try {
@@ -5760,6 +5803,8 @@ async function start() {
 
   // Load persisted intelligence cache from file
   loadPortalIntelCache();
+  // Auto-clean invalid aiModel values (self-healing, non-critical)
+  autoCleanAiModel();
   // Periodic cache save every 5 minutes
   setInterval(() => savePortalIntelCache(), 5 * 60 * 1000);
   // Background cache warming: startup (deferred 30s) + every 20 minutes
