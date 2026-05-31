@@ -18,157 +18,53 @@ interface PromptEditorModalProps {
 // ============================================================
 function playBgmPreview(bgmId: string) {
   ;(window as any).__bgmCtx?.close()
-  const ctx = new AudioContext(); (window as any).__bgmCtx = ctx
+  const ctx = new AudioContext()
+  ;(window as any).__bgmCtx = ctx
+  ctx.resume()
+  const NOW = ctx.currentTime + 0.05
 
-  function playNote(_ctx: AudioContext, dest: AudioNode, rev: AudioNode, freq: number, time: number, dur: number, vol: number, type: OscillatorType, harmonics: number[]) {
-    harmonics.forEach((hGain, i) => {
-      if (hGain <= 0) return
-      const osc = _ctx.createOscillator()
-      const gain = _ctx.createGain()
-      osc.type = type; osc.frequency.value = freq * (i + 1)
-      const atk = Math.min(0.06, dur * 0.1), dec = dur * 0.2, rel = dur * 0.3
-      gain.gain.setValueAtTime(0, time)
-      gain.gain.linearRampToValueAtTime(vol * hGain, time + atk)
-      gain.gain.linearRampToValueAtTime(vol * hGain * 0.7, time + atk + dec)
-      gain.gain.setValueAtTime(vol * hGain * 0.7, time + dur - rel)
-      gain.gain.linearRampToValueAtTime(0, time + dur)
-      osc.connect(gain); gain.connect(dest); gain.connect(rev)
-      osc.start(time); osc.stop(time + dur)
-    })
+  function note(freq: number, start: number, dur: number, vol: number, type: OscillatorType = 'sine') {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0, start)
+    g.gain.linearRampToValueAtTime(vol, start + 0.02)
+    g.gain.linearRampToValueAtTime(vol * 0.7, start + dur * 0.3)
+    g.gain.setValueAtTime(vol * 0.7, start + dur * 0.6)
+    g.gain.linearRampToValueAtTime(0, start + dur)
+    o.connect(g); g.connect(ctx.destination)
+    o.start(start); o.stop(start + dur)
   }
-
-  function playChord(_ctx: AudioContext, dest: AudioNode, rev: AudioNode, chord: number[], time: number, dur: number, vol: number, type: OscillatorType, harmonics: number[]) {
-    chord.forEach(f => playNote(_ctx, dest, rev, f, time, dur, vol, type, harmonics))
-  }
-
-  const organHarmonics = [1.0, 0.6, 0.35, 0.15, 0.08]
-  const pianoHarmonics = [1.0, 0.5, 0.25, 0.1, 0.05]
-  const stringHarmonics = [1.0, 0.7, 0.4, 0.2, 0.1]
-
-  // Master gain → destination
-  const master = ctx.createGain()
-  master.gain.value = 0.5
-  master.connect(ctx.destination)
-
-  // Reverb send/return
-  const totalDur = 8
-  const reverbSend = ctx.createGain()
-  reverbSend.gain.value = 0.3
-  const delay = ctx.createDelay(1.0)
-  delay.delayTime.value = 0.35
-  const feedback = ctx.createGain()
-  feedback.gain.value = 0.3
-  reverbSend.connect(delay)
-  delay.connect(feedback)
-  feedback.connect(delay)
-  feedback.connect(master)  // reverb return to master
-
-  let t = ctx.currentTime + 0.1
 
   switch (bgmId) {
-    case 'interstellar': {
-      // Slow C-minor organ progression: Cm → Ab → Eb → Bb
-      const chords = [
-        [130.81, 155.56, 196.00],   // C-Eb-G (Cm)
-        [103.83, 130.81, 155.56],   // Ab-C-Eb (Ab)
-        [155.56, 196.00, 233.08],   // Eb-G-Bb (Eb)
-        [116.54, 146.83, 174.61],   // Bb-D-F (Bb)
-      ]
-      chords.forEach((chord, i) => {
-        playChord(ctx, merger, chord, t + i * 1.8, 1.5, 0.4, 'sine', organHarmonics)
-        // Bass note
-        playNote(ctx, merger, chord[0] / 2, t + i * 1.8, 1.5, 0.5, 'sine', [1.0, 0.4, 0.15])
-      })
-      // Fade at end
-      master.gain.setValueAtTime(0.6, t + 7)
-      master.gain.linearRampToValueAtTime(0, t + totalDur)
+    case 'interstellar':
+      [[130.81,155.56,196.00],[103.83,130.81,155.56],[155.56,196.00,233.08],[116.54,146.83,174.61]]
+        .forEach((ch,i) => { const t=NOW+i*1.8; ch.forEach(f=>{note(f,t,1.6,0.12);note(f*2,t,1.6,0.06);note(f*3,t,1.6,0.03)}); note(ch[0]/2,t,1.6,0.18) })
       break
-    }
-
-    case 'light_piano': {
-      // Upbeat C-major melody
-      const melody = [523.25, 587.33, 659.25, 783.99, 880.00, 783.99, 659.25, 523.25, 440.00, 523.25, 587.33, 659.25]
-      melody.forEach((freq, i) => {
-        playNote(ctx, merger, freq, t + i * 0.22, 0.18, 0.5, 'triangle', pianoHarmonics)
-      })
-      // Left hand chords
-      const lh = [[261.63, 329.63, 392.00], [293.66, 349.23, 440.00], [261.63, 329.63, 392.00], [196.00, 246.94, 329.63]]
-      lh.forEach((ch, i) => playChord(ctx, merger, ch, t + i * 2.0, 1.6, 0.2, 'triangle', pianoHarmonics))
-      master.gain.setValueAtTime(0.6, t + 7)
-      master.gain.linearRampToValueAtTime(0, t + totalDur)
+    case 'light_piano':
+      [523.25,587.33,659.25,783.99,880.00,783.99,659.25,523.25,440.00,523.25,587.33,659.25]
+        .forEach((f,i)=>note(f,NOW+i*0.22,0.16,0.2,'triangle'))
+      [[261.63,329.63,392.00],[293.66,349.23,440.00]].forEach((ch,i)=>ch.forEach(f=>note(f,NOW+i*3,2.5,0.06,'triangle')))
       break
-    }
-
-    case 'electronic_beat': {
-      // Kick pattern
-      const kickFreq = 60
-      for (let i = 0; i < 16; i++) {
-        if ([0, 3, 6, 9, 12, 15].includes(i % 16)) {
-          const kGain = ctx.createGain()
-          kGain.gain.setValueAtTime(0.8, t + i * 0.25)
-          kGain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.25 + 0.15)
-          const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.setValueAtTime(120, t + i * 0.25); osc.frequency.linearRampToValueAtTime(40, t + i * 0.25 + 0.1)
-          osc.connect(kGain); kGain.connect(dry)
-          osc.start(t + i * 0.25); osc.stop(t + i * 0.25 + 0.15)
-        }
+    case 'electronic_beat':
+      for(let i=0;i<16;i++)if([0,3,6,9,12,15].includes(i)){
+        const t2=NOW+i*0.25,o=ctx.createOscillator();o.type='sine';o.frequency.setValueAtTime(150,t2);o.frequency.linearRampToValueAtTime(40,t2+0.1)
+        const g2=ctx.createGain();g2.gain.setValueAtTime(0.4,t2);g2.gain.exponentialRampToValueAtTime(0.001,t2+0.15)
+        o.connect(g2);g2.connect(ctx.destination);o.start(t2);o.stop(t2+0.15)
       }
-      // Bass synth
-      const bassNotes = [130.81, 130.81, 164.81, 146.83, 130.81, 110.00, 98.00, 110.00]
-      bassNotes.forEach((f, i) => playNote(ctx, dry, f, t + i * 0.5, 0.3, 0.3, 'sawtooth', [1.0, 0.5, 0.2]))
-      master.gain.setValueAtTime(0.5, t + 7)
-      master.gain.linearRampToValueAtTime(0, t + totalDur)
+      [130.81,130.81,164.81,146.83,130.81,110.00,98.00,110.00].forEach((f,i)=>note(f,NOW+i*0.5,0.2,0.12,'sawtooth'))
       break
-    }
-
-    case 'string_quartet': {
-      // Elegant G-major progression: G → Em → C → D
-      const chords = [
-        [196.00, 246.94, 293.66, 392.00],   // G-B-D-G
-        [164.81, 196.00, 246.94, 329.63],   // E-G-B-E
-        [130.81, 164.81, 196.00, 261.63],   // C-E-G-C
-        [146.83, 185.00, 220.00, 293.66],   // D-F#-A-D
-      ]
-      chords.forEach((ch, i) => {
-        ch.forEach((freq, j) => {
-          // Stagger entry for string section feel
-          playNote(ctx, merger, freq, t + i * 2.0 + j * 0.08, 1.7, 0.15 + j * 0.02, 'sine', stringHarmonics)
-        })
-      })
-      master.gain.setValueAtTime(0.6, t + 7)
-      master.gain.linearRampToValueAtTime(0, t + totalDur)
+    case 'string_quartet':
+      [[196,246.94,293.66],[164.81,196,246.94],[130.81,164.81,196],[146.83,185,220]]
+        .forEach((ch,i)=>ch.forEach((f,j)=>note(f,NOW+i*2+j*0.06,1.6,0.08)))
       break
-    }
-
-    case 'ambient_pad': {
-      // Floating ambient D-minor
-      const droneChords = [
-        [146.83, 174.61, 220.00, 293.66],   // Dm (D-F-A-D)
-        [110.00, 130.81, 164.81, 220.00],   // Am (A-C-E-A)
-        [130.81, 164.81, 196.00, 261.63],   // C major
-        [98.00, 123.47, 146.83, 196.00],    // G major
-      ]
-      droneChords.forEach((ch, i) => {
-        ch.forEach((freq, j) => {
-          const vol = 0.12 + Math.random() * 0.04
-          playNote(ctx, merger, freq, t + i * 2.0 + j * 0.25, 2.0, vol, 'sine', [1.0, 0.4, 0.15, 0.08])
-        })
-      })
-      // High shimmer
-      for (let i = 0; i < 12; i++) {
-        const f = 880 + (i % 4) * 110
-        playNote(ctx, wet, f, t + i * 0.6, 0.5, 0.04, 'sine', [1.0, 0.3])
-      }
-      master.gain.setValueAtTime(0.5, t + 7)
-      master.gain.linearRampToValueAtTime(0, t + totalDur)
+    case 'ambient_pad':
+      [[146.83,174.61,220],[110,130.81,164.81],[130.81,164.81,196],[98,123.47,146.83]]
+        .forEach((ch,i)=>ch.forEach(f=>{note(f,NOW+i*2,2,0.04);note(f*2,NOW+i*2,2,0.02)}))
+      for(let i=0;i<8;i++)note(880+i*220,NOW+i*0.8,0.5,0.015)
       break
-    }
-
-    case 'none':
-      break
+    case 'none': break
   }
-
-  // Auto-stop after preview
-  setTimeout(() => ctx.close(), totalDur * 1000 + 500)
+  setTimeout(()=>ctx.close(),9000)
 }
 
 export function PromptEditorModal({
