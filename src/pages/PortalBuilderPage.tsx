@@ -256,11 +256,7 @@ export function PortalBuilderPage() {
 
   const openAddModal = useCallback((type: 'report-generator' | 'intel-monitor') => {
     setAddReportForm({ title: '行业分析报告', defaultCompany: '', analysisMethods: ['SWOT', 'PEST'], searchPlatform: 'metaso', searchApiKey: '', sysPrompt: '你是一个行业研究分析师。', userPrompt: '请用 HTML 格式输出行业研究报告。' })
-    const existingIntelCount = widgets.filter((w) => w.type === 'intel-monitor').length
-    let defaultProvider = 'all', defaultModel = 'deepseek-v3.1', defaultKeywords: string[] = []
-    if (existingIntelCount === 0) { defaultKeywords = ['特朗普', 'Trump', '关税', '贸易战', '中美关系'] }
-    else if (existingIntelCount === 1) { defaultProvider = 'all'; defaultModel = 'metaso-pro'; defaultKeywords = ['比亚迪', 'BYD', '电动汽车', '新能源车'] }
-    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '行业信号', aiProvider: defaultProvider, aiModel: defaultModel, apiKey: '', keywords: defaultKeywords, objects: [], updateFrequency: 'daily', customPrompt: INTEL_PROMPTS['行业信号'] || '' }] })
+    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: INTEL_PROMPTS['行业信号'] || '' }] })
     setAddModalObjectInput('')
     setAddModalKeywordInput('')
     setAddModalType(type)
