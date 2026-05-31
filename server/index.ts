@@ -4040,7 +4040,7 @@ app.post('/api/v1/videos/upload', authMiddleware, upload.array('videos', 6), asy
 
 
 // In-memory video task store (survives across requests, reset on server restart)
-const VALID_GEN_TYPES = ['text2video', 'image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale', 'multi_clip'] as const;
+const VALID_GEN_TYPES = ['text2video', 'image2video', 'multimodal2video', 'multiframe2video', 'frames2video', 'image_upscale', 'multi_clip', 'multi_image2video'] as const;
 const VALID_MODEL_VERSIONS = ['seedance2.0fast', 'seedance2.0', 'seedance2.0_vip', 'seedance2.0fast_vip', '3.0', '3.5pro'] as const;
 
 interface VideoTask {
