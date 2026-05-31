@@ -5813,11 +5813,10 @@ async function start() {
       }
       const outputFn = `merged-${crypto.randomUUID().slice(0, 10)}.mp4`;
       const outputPath = path.join(VIDEO_DIR, outputFn);
-      // Use concat demuxer for batch concat (no re-encoding, keeps original H.264 — plays in all browsers)
-      const listPath = outputPath.replace(/\.mp4$/, '-list.txt');
-      fs.writeFileSync(listPath, tmpPaths.map(p => `file '${p}'`).join('\n'));
-      await execAsync(`ffmpeg -f concat -safe 0 -i "${listPath}" -c:v copy -c:a copy -y "${outputPath}"`, { timeout: 120000, cwd: '/tmp' });
-      try { fs.unlinkSync(listPath); } catch {}
+      // Use xfade (only approach that handles different resolutions on this server)
+      const durations = selected.map((v: any) => parseInt(v.duration || '5'));
+      const concatCmd = buildConcatCommand(tmpPaths, durations, outputPath);
+      await execAsync(concatCmd, { timeout: 300000, cwd: '/tmp' });
       tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
       const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
       const videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
