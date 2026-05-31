@@ -4745,6 +4745,9 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       if (isOmni) {
         delete (klingParams as any).model_name;
         (klingParams as any).model = 'Kling-V3-Omni';
+        // Omni uses 'seconds' not 'duration'
+        delete (klingParams as any).duration;
+        (klingParams as any).seconds = String(dur);
         if (imageList.length > 0) {
           const urls: string[] = [];
           for (const img of imageList) {
@@ -4760,8 +4763,6 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         }
         delete (klingParams as any).image;
         delete (klingParams as any).image_list;
-        klingParams.duration = String(dur);
-        klingParams.aspect_ratio = rat;
       } else if (gt === 'image2video' || gt === 'multi_image2video') {
         if (imageList.length === 0) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '需要上传图片' } });
