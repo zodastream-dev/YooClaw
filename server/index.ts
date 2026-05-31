@@ -4043,7 +4043,7 @@ interface MultiClipTask {
 const multiClipTasks = new Map<string, MultiClipTask>();
 
 /** Build FFmpeg xfade crossfade filter — scales to 1280x720, handles different resolutions */
-function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: number = 24): string {
+function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: number = 30): string {
   const n = durations.length;
   const parts: string[] = [];
   const TW = 1280, TH = 720;
@@ -4069,7 +4069,7 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
 
 /** Build ffmpeg concat command — xfade crossfade with mpeg4 encoder + audio concat (if all clips have audio) */
 function buildConcatCommand(inputPaths: string[], durations: number[], outputPath: string): string {
-  const xfadeFilter = buildXfadeFilter(durations, 1, 24);
+  const xfadeFilter = buildXfadeFilter(durations, 1, 30);
   const inputs = inputPaths.map(p => `-i "${p}"`).join(' ');
   const n = inputPaths.length;
   // Only add audio if ALL clips have audio streams (check via ffprobe)
