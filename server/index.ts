@@ -4729,6 +4729,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
 
       // Omni: Kling unified v3-omni API uses POST /v1/videos with reference_images
       const isOmni = klingSingleModel === 'kling-v3-omni'
+      console.log(`[Kling:Single] model=${klingSingleModel} isOmni=${isOmni} genType=${gt} endpoint=${isOmni ? 'unified' : (gt==='image2video'?'image2video':'text2video')}`)
 
       // Build params
       const klingParams: KlingVideoParams = {
