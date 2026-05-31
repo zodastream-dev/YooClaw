@@ -3563,7 +3563,12 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
     : (typeof src.keywords === 'string' ? src.keywords.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : []);
   const provider = src.aiProvider || 'deepseek';
   const apiKey = src.apiKey || (provider === 'metaso' ? process.env.METASO_API_KEY : provider === 'tavily' ? process.env.TAVILY_API_KEY : process.env.DEEPSEEK_API_KEY) || '';
-  const model = src.aiModel || 'deepseek-v4-flash';
+  const VALID_MODELS = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
+  let model = src.aiModel || 'deepseek-v4-flash';
+  if (!VALID_MODELS.includes(model)) {
+    console.warn('[fetchIntelForSource] Invalid aiModel "' + model + '", falling back to deepseek-v4-flash');
+    model = 'deepseek-v4-flash';
+  }
   if (!apiKey) throw new Error('未配置API Key');
 
   // -- Single-call helper: delegates to intel-pipeline --

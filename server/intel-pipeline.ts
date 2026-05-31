@@ -124,7 +124,13 @@ function getProviderKey(provider: string): string {
 
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
   const provider = src.aiProvider || 'all';
-  const model = src.aiModel || 'deepseek-v4-flash';
+  // Validate model name — only allow DeepSeek models, fallback to deepseek-v4-flash
+  const VALID_MODELS = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
+  let model = src.aiModel || 'deepseek-v4-flash';
+  if (!VALID_MODELS.includes(model)) {
+    console.warn('[Intel] Invalid aiModel "' + model + '", falling back to deepseek-v4-flash');
+    model = 'deepseek-v4-flash';
+  }
 
   // -- V3: Generate AI-optimized search keywords (cached per config fingerprint) --
   let aiKw: string[] = [];
