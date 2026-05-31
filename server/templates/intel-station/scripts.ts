@@ -25,6 +25,9 @@ var INTEL_PROMPTS={
 
 function $(id){return document.getElementById(id)}
 
+// Global state (must be before INIT IIFE which accesses these via renderSourceFilters)
+var expandedSources={};
+
 /* ===== INIT ===== */
 (function(){
   // Render left panel immediately (sources are already in WIDGETS, no API dependency)
@@ -141,7 +144,6 @@ async function loadIntelData(){
 })();
 
 /* ===== RENDER SOURCE FILTERS (expandable tree) ===== */
-var expandedSources={};
 function renderSourceFilters(monitors){
   var widgetSources=[];
   monitors.forEach(function(mw,monitorIdx){
