@@ -4069,7 +4069,7 @@ function buildConcatCommand(inputPaths: string[], durations: number[], outputPat
   try {
     const allHaveAudio = inputPaths.every(p => {
       try {
-        execSync(`ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "${p}"`, { timeout: 5000 });
+        execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 "${p}"`, { timeout: 5000 });
         return true;
       } catch { return false; }
     });
