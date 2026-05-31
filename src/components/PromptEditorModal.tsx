@@ -78,7 +78,6 @@ export function PromptEditorModal({
   const [showDialogue, setShowDialogue] = useState(false)
   const [dialogueText, setDialogueText] = useState('')
   const [bgmId, setBgmId] = useState(DEFAULT_BGM_ID)
-  const [showImages, setShowImages] = useState(false)
   const [showAtMention, setShowAtMention] = useState(false)
   const [atFilter, setAtFilter] = useState('')
   const [atIdx, setAtIdx] = useState(0)
@@ -215,34 +214,38 @@ export function PromptEditorModal({
                 className="w-full px-3 py-2.5 text-sm bg-background border border-border/30 rounded-xl outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 resize-none placeholder:text-muted-foreground/40 transition-all"
                 placeholder="输入或编辑提示词，输入 @ 引用已上传的图片..."
               />
-              {imagePreviews.length > 0 && (
-                <button onClick={() => setShowImages(!showImages)}
-                  className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors">
-                  <ImageIcon size={14} />
-                </button>
-              )}
             </div>
-            {/* @ mention dropdown */}
+            {/* @ mention dropdown — show thumbnails not just text */}
             {showAtMention && imagePreviews.length > 0 && (
-              <div className="mt-1 border border-border/30 rounded-lg bg-card shadow-lg max-h-32 overflow-y-auto">
-                {imagePreviews.filter(img => !atFilter || img.id.includes(atFilter)).map(img => (
-                  <button key={img.id} onClick={() => handleInsertImage(img)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/30 transition-colors text-left">
-                    <ImageIcon size={12} className="text-muted-foreground" />
-                    <span className="truncate">@{img.id}</span>
-                  </button>
-                ))}
+              <div className="mt-1 border border-border/30 rounded-lg bg-card shadow-lg p-1.5">
+                <div className="flex gap-2 overflow-x-auto">
+                  {imagePreviews.filter(img => !atFilter || img.id.includes(atFilter)).map(img => (
+                    <button key={img.id} onClick={() => handleInsertImage(img)}
+                      className="flex-shrink-0 flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity">
+                      <img src={img.url} alt={img.id} className="w-14 h-14 rounded-lg border border-border/30 object-cover" />
+                      <span className="text-[9px] text-muted-foreground">@{img.id}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
-            {/* Image gallery for quick reference */}
-            {showImages && imagePreviews.length > 0 && (
-              <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
-                {imagePreviews.map(img => (
-                  <button key={img.id} onClick={() => { setBasePrompt(prev => prev + ` @img:${img.id}`); setShowImages(false) }}
-                    className="flex-shrink-0 w-14 h-14 rounded-lg border border-border/30 overflow-hidden hover:border-primary/40 transition-colors">
-                    <img src={img.url} alt={img.id} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+            {/* Always-visible image thumbnail strip */}
+            {imagePreviews.length > 0 && !showAtMention && (
+              <div className="mt-2">
+                <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1">
+                  <ImageIcon size={11} />已上传图片（点击引用，或输入 @ 搜索）
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {imagePreviews.map(img => (
+                    <button key={img.id} onClick={() => setBasePrompt(prev => prev + ` @img:${img.id}`)}
+                      className="flex-shrink-0 w-16 h-16 rounded-xl border border-border/30 overflow-hidden hover:border-primary/50 hover:ring-1 hover:ring-primary/20 transition-all group relative">
+                      <img src={img.url} alt={img.id} className="w-full h-full object-cover" />
+                      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
+                        <span className="text-[8px] text-white opacity-0 group-hover:opacity-100 bg-black/50 px-1.5 py-0.5 rounded">引用</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
