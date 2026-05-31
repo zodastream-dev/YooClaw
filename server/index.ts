@@ -4341,7 +4341,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
                 let endpoint = '';
                 const baseParams: KlingVideoParams = { model_name: model, mode: modeVal, sound: soundVal };
                 if (clip.inputType === 'multi_image' && clip.imageUrls && clip.imageUrls.length >= 2) {
-                  endpoint = 'multi-image2video';
+                  endpoint = 'image2video';
                   const { task_id } = await klingCreate(endpoint, {
                     ...baseParams,
                     image_list: clip.imageUrls.map(url => ({ image: url })),
@@ -4727,9 +4727,8 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       const klingSingleMode: 'std' | 'pro' = 'std'; // default 720P
       const negPrompt = (req.body as any).negativePrompt || '';
 
-      // Map genType to Kling endpoint
-      const klingEndpoint = gt === 'multi_image2video' ? 'multi-image2video'
-        : (gt === 'image2video' ? 'image2video' : 'text2video');
+      // Map genType to Kling endpoint (multi_image uses image2video with image_list)
+      const klingEndpoint = (gt === 'image2video' || gt === 'multi_image2video') ? 'image2video' : 'text2video';
 
       // Build params
       const klingParams: KlingVideoParams = {
