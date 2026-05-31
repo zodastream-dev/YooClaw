@@ -4744,7 +4744,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       // For Omni, rewrite params: use model (not model_name), reference_images, text2video endpoint
       if (isOmni) {
         delete (klingParams as any).model_name;
-        (klingParams as any).model = 'Kling-V3-Omni';
+        (klingParams as any).model = 'kling-o3';
         // Omni uses 'seconds' not 'duration'
         delete (klingParams as any).duration;
         (klingParams as any).seconds = String(dur);
