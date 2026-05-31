@@ -4723,6 +4723,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
     if (singleProv === 'kling') {
       // ===== KLING SINGLE VIDEO FLOW =====
       const klingSingleModel = (req.body as any).klingModel || 'kling-v3';
+      console.log(`[Kling:Single] RECEIVED klingModel=${klingSingleModel} genType=${gt} provider=${(req.body as any).provider}`)
       const klingSingleSound = !!(req.body as any).sound;
       const klingSingleMode: 'std' | 'pro' = 'std'; // default 720P
       const negPrompt = (req.body as any).negativePrompt || '';
