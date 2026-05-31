@@ -459,47 +459,84 @@ export function VideoCreatePage() {
     setShowMentions(false)
   }
 
-  // Insert @-reference into prompt
-  const handleInsertMention = (refLabel: string) => {
+  // Insert @-reference into prompt with actual image ID
+  const handleInsertMention = (refLabel: string, imgIdx: number) => {
     const before = prompt.slice(0, mentionAnchorIdx)
     const after = prompt.slice(textareaRef.current?.selectionStart || mentionAnchorIdx + 1 + mentionFilter.length)
-    const newPrompt = before + `@${refLabel} ` + after
+    const ref = `@img:${imgIdx}`
+    const newPrompt = `${before}${ref} ${after}`
     setPrompt(newPrompt)
     setShowMentions(false)
     setSelectedMentionIdx(0)
-    // Restore focus
     setTimeout(() => {
       textareaRef.current?.focus()
-      const newCursorPos = before.length + refLabel.length + 2
-      textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos)
+      const pos = before.length + ref.length + 1
+      textareaRef.current?.setSelectionRange(pos, pos)
     }, 0)
   }
 
-  // Get filtered mention file list
+  // Get filtered mention file list with actual indices
   const getMentionFiles = () => {
     return imagePreviews
       .map((preview, i) => ({ preview, label: `参考图${i + 1}`, index: i }))
       .filter(f => !mentionFilter || f.label.includes(mentionFilter))
   }
 
-  // Keyboard handler for @-mention navigation
+  // Keyboard handler for @-mention navigation + Backspace image delete
+  const mentionListRef = useRef<HTMLDivElement>(null)
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!showMentions) return
-    const files = getMentionFiles()
-    if (files.length === 0) return
+    if (showMentions) {
+      const files = getMentionFiles()
+      if (files.length === 0) return
 
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedMentionIdx(prev => (prev + 1) % files.length)
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedMentionIdx(prev => (prev - 1 + files.length) % files.length)
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      handleInsertMention(files[selectedMentionIdx].label)
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      setShowMentions(false)
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        const next = Math.min(selectedMentionIdx + 1, files.length - 1)
+        setSelectedMentionIdx(next)
+        // Scroll into view
+        setTimeout(() => {
+          const el = mentionListRef.current?.children[next] as HTMLElement
+          el?.scrollIntoView({ block: 'nearest' })
+        }, 0)
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        const prev = Math.max(selectedMentionIdx - 1, 0)
+        setSelectedMentionIdx(prev)
+        setTimeout(() => {
+          const el = mentionListRef.current?.children[prev] as HTMLElement
+          el?.scrollIntoView({ block: 'nearest' })
+        }, 0)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        handleInsertMention(files[selectedMentionIdx].label, files[selectedMentionIdx].index)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowMentions(false)
+      }
+      return
+    }
+
+    // Backspace: delete @img:N reference + thumbnail
+    if (e.key === 'Backspace') {
+      const cursorPos = textareaRef.current?.selectionStart || 0
+      const textBefore = prompt.slice(0, cursorPos)
+      const match = textBefore.match(/@img:(\d+)(\s*)$/)
+      if (match) {
+        e.preventDefault()
+        const imgIdx = parseInt(match[1])
+        const newVal = textBefore.slice(0, textBefore.lastIndexOf(match[0])) + prompt.slice(cursorPos)
+        setPrompt(newVal.replace(/\s+$/, ''))
+        // Also remove thumbnail
+        setImagePreviews(prev => prev.filter((_, i) => i !== imgIdx))
+        setImageFiles(prev => prev.filter((_, i) => i !== imgIdx))
+        setTimeout(() => {
+          if (textareaRef.current) {
+            const pos = textBefore.lastIndexOf(match[0])
+            textareaRef.current.focus()
+            textareaRef.current.setSelectionRange(pos, pos)
+          }
+        }, 0)
+      }
     }
   }
 
@@ -1053,14 +1090,14 @@ export function VideoCreatePage() {
                   const files = getMentionFiles()
                   if (files.length === 0) return null
                   return (
-                  <div className="absolute left-4 right-4 bottom-2 z-50 bg-[#1e1e2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 space-y-1 max-h-[200px] overflow-y-auto">
+                  <div ref={mentionListRef} className="absolute left-4 right-4 bottom-2 z-50 bg-[#1e1e2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 space-y-1 max-h-[200px] overflow-y-auto">
                     <div className="flex items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground">
                       <span>引用已上传的参考文件（↑↓选择 Enter确认 Esc关闭）</span>
                     </div>
                     {files.map((f, idx) => (
                         <button
                           key={f.index}
-                          onClick={() => handleInsertMention(f.label)}
+                          onClick={() => handleInsertMention(f.label, f.index)}
                           onMouseEnter={() => setSelectedMentionIdx(idx)}
                           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left ${idx === selectedMentionIdx ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-white/5'}`}
                         >
@@ -1068,7 +1105,7 @@ export function VideoCreatePage() {
                             <img src={f.preview} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div>
-                            <div className="text-xs font-medium text-foreground">@{f.label}</div>
+                            <div className="text-xs font-medium text-foreground">@img:{f.index}</div>
                             <div className="text-[10px] text-muted-foreground">图片参考</div>
                           </div>
                         </button>
