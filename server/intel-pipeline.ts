@@ -221,7 +221,10 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。优先提供最近30天内的资讯。';
   const kwText = mergedKwArr.join('、') || '相关';
   let up: string;
-  const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, 50)).substring(0, 8000) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
+  // Multi-object sources: use larger context window (100 items / 15k chars) to avoid crowding out objects
+  const contextItems = objectName ? 100 : 50;
+  const contextChars = objectName ? 15000 : 8000;
+  const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, contextItems)).substring(0, contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
   if (objectName) {
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
@@ -262,10 +265,47 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       }
     } else { results = rawItems.length > 0 ? rawItems : []; }
   }
-  // DeepSeek 可能返回空数组 []，此时降级到 rawItems
+  // DeepSeek 可能返回空数组 []，此时降级重试或使用 rawItems
   if ((!results || results.length === 0) && rawItems.length > 0) {
-    console.log('[Intel] DeepSeek returned empty, falling back to ' + rawItems.length + ' rawItems');
-    results = rawItems;
+    // Retry once with a simpler prompt (lower temperature, asking for raw extraction)
+    console.log('[Intel] DeepSeek returned empty, retrying with simpler prompt...');
+    try {
+      const retryUp = '从以下搜索结果中直接提取资讯，每条提取标题、摘要、来源、日期、URL。输出JSON数组：\n原始搜索结果：\n' + JSON.stringify(rawItems.slice(0, 30)).substring(0, 10000);
+      const retryResp = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || '') },
+        body: JSON.stringify({ model, max_tokens: 4096, temperature: 0.1, messages: [{ role: 'system', content: '你是一个数据提取助手。从搜索结果中提取资讯。仅输出JSON数组。' }, { role: 'user', content: retryUp }] }),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (retryResp.ok) {
+        const retryData = await retryResp.json();
+        let retryContent = retryData.choices[0].message.content;
+        retryContent = retryContent.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+        try {
+          const retryResults = JSON.parse(retryContent);
+          if (Array.isArray(retryResults) && retryResults.length > 0) {
+            console.log('[Intel] Retry succeeded with ' + retryResults.length + ' items');
+            results = retryResults;
+          }
+        } catch (e) {
+          // Retry parse also failed, fall through to rawItems
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Intel] Retry failed:', e.message);
+    }
+    // If still empty, fall back to rawItems with basic enrichment
+    if (!results || results.length === 0) {
+      console.log('[Intel] Falling back to ' + rawItems.length + ' rawItems');
+      results = rawItems.slice(0, 30).map((item: any) => ({
+        title: item.title || '',
+        summary: (item.snippet || item.content || '').substring(0, 80),
+        source: (item._searchProvider || (item.url ? new URL(item.url).hostname : '')) || '',
+        date: item.date || '',
+        url: item.url || '',
+        _provider: item._searchProvider || '',
+      }));
+    }
   }
 
   // 构建原始 URL 白名单（从搜索结果中提取），用于过滤 AI 幻觉 URL

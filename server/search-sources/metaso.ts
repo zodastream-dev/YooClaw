@@ -1,15 +1,26 @@
 import type { RawSearchItem, SearchModule } from './types';
 
+async function fetchMetaso(query: string, apiKey: string, timeoutMs = 25000): Promise<Response> {
+  return await fetch('https://metaso.cn/api/open/search/v2', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({ question: query, lang: 'zh' }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
 const metasoModule: SearchModule = {
   name: 'metaso',
   label: '秘塔搜索',
   async search(query: string, apiKey: string): Promise<RawSearchItem[]> {
-    const resp = await fetch('https://metaso.cn/api/open/search/v2', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ question: query, lang: 'zh' }),
-      signal: AbortSignal.timeout(25000),
-    });
+    let resp: Response;
+    try {
+      resp = await fetchMetaso(query, apiKey, 30000);
+    } catch (e: any) {
+      // Retry once with longer timeout
+      console.warn('[MetasoSearch] First attempt failed: ' + e.message + ', retrying...');
+      resp = await fetchMetaso(query, apiKey, 40000);
+    }
     if (!resp.ok) {
       const errText = await resp.text();
       throw new Error('秘塔API错误: ' + resp.status + ' ' + errText.substring(0, 200));
