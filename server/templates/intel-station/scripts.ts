@@ -279,9 +279,22 @@ function selectObjectFilter(srcName,objName,wi,si){
 }
 
 /* ===== RENDER INTEL FEED ===== */
+// Parse Chinese/ISO date strings to timestamps for sorting
+function parseDate(d){
+  if(!d)return 0;
+  // Try ISO format: 2026-05-25
+  var iso=d.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(iso)return new Date(iso[1],iso[2]-1,iso[3]).getTime();
+  // Try Chinese format: 2026年05月25日
+  var cn=d.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if(cn)return new Date(cn[1],cn[2]-1,cn[3]).getTime();
+  return 0;
+}
 function renderIntelFeed(data){
   console.log('[renderIntelFeed] called with data.length=', data.length, 'first _sourceName=', data.length>0?data[0]._sourceName:'N/A');
   if(data.length===0){$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据</div>';return}
+  // Sort by date descending (newest first)
+  data.sort(function(a,b){return parseDate(b.date)-parseDate(a.date)});
   var html='';
   data.forEach(function(item,i){
     var keywords=(item.keywords||[]).slice(0,3);
