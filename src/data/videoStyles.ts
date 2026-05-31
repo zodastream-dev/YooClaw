@@ -139,10 +139,12 @@ export interface BgmOption {
   label: string
   /** 拼接到提示词中的描述 */
   promptText: string
+  /** 可选：试听用的音频文件路径（/audio/xxx.m4a） */
+  audioUrl?: string
 }
 
 export const BGM_OPTIONS: BgmOption[] = [
-  { id: 'interstellar', label: '🌌 星际穿越 · 管风琴', promptText: '背景音乐：电影《星际穿越》主题曲，宏伟的管风琴旋律，震撼心灵' },
+  { id: 'interstellar', label: '🌌 星际穿越 · 管风琴', promptText: '背景音乐：电影《星际穿越》主题曲，宏伟的管风琴旋律，震撼心灵', audioUrl: '/audio/interstellar.m4a' },
   { id: 'light_piano', label: '🎹 轻快钢琴', promptText: '背景音乐：轻快流动的钢琴曲，温暖治愈，节奏明快' },
   { id: 'electronic_beat', label: '🎛️ 电子节拍', promptText: '背景音乐：时尚电子节拍，低音脉动，现代感十足' },
   { id: 'string_quartet', label: '🎻 弦乐四重奏', promptText: '背景音乐：优雅的弦乐四重奏，舒缓悠扬，高级感' },

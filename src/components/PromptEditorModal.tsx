@@ -14,10 +14,19 @@ interface PromptEditorModalProps {
 }
 
 // ============================================================
-// 试听引擎
+// 试听引擎 — 优先播放真实音频文件，合成音作为兜底
 // ============================================================
-function playBgmPreview(bgmId: string) {
+function playBgmPreview(bgmId: string, audioUrl?: string) {
   ;(window as any).__bgmCtx?.close()
+
+  // If a real audio file is provided, play it
+  if (audioUrl) {
+    const audio = new Audio(audioUrl)
+    ;(window as any).__bgmCtx = audio
+    audio.volume = 0.6
+    audio.play().catch(() => {})
+    return
+  }
   const ctx = new AudioContext()
   ;(window as any).__bgmCtx = ctx
   ctx.resume()
@@ -156,12 +165,13 @@ export function PromptEditorModal({
   const handleBgmPreview = (id: string) => {
     if (playingBgm === id) {
       setPlayingBgm(null)
-      ;(window as any).__bgmCtx?.close()
+      ;(window as any).__bgmCtx?.close?.() || (window as any).__bgmCtx?.pause?.()
       return
     }
     setPlayingBgm(id)
-    playBgmPreview(id)
-    setTimeout(() => setPlayingBgm(null), 4000)
+    const bgm = BGM_OPTIONS.find(b => b.id === id)
+    playBgmPreview(id, bgm?.audioUrl)
+    setTimeout(() => setPlayingBgm(null), 12000)
   }
 
   // ===== Build final prompt =====
