@@ -7,6 +7,8 @@ import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutD
 import { SCENES, DEFAULT_SCENE_ID, type SceneTemplate } from '@/data/videoScenes'
 import { STYLES, DEFAULT_STYLE_ID, type VideoStyle } from '@/data/videoStyles'
 import { generateVideoPayload } from '@/data/promptBuilder'
+import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
+import type { VideoTemplate } from '@/data/videoTemplates'
 import { VideoHistory } from '@/components/VideoHistory'
 
 interface GeneratedVideo {
