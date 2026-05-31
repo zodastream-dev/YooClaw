@@ -128,15 +128,16 @@ export function VideoHistory() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setProcessing(true); setMsg('')
     try {
       const fd = new FormData()
-      fd.append('video', file)
-      fd.append('title', file.name.replace(/\.[^.]+$/, ''))
+      for (let i = 0; i < Math.min(files.length, 6); i++) {
+        fd.append('videos', files[i])
+      }
       await uploadVideo(fd)
-      setMsg(`已上传: ${file.name}`)
+      setMsg(`已上传 ${Math.min(files.length, 6)} 个视频`)
       load()
     } catch (e: any) { setMsg(e.message || '上传失败') }
     finally { setProcessing(false); if (fileInputRef.current) fileInputRef.current.value = '' }
@@ -207,7 +208,7 @@ export function VideoHistory() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-foreground/80 hover:text-foreground transition-all">
             <Upload size={14} />上传视频
           </button>
-          <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleUpload} />
+          <input ref={fileInputRef} type="file" accept="video/*" multiple className="hidden" onChange={handleUpload} />
           {selected.length > 0 && (
             <>
               <button onClick={handleDownload}

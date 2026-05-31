@@ -3915,29 +3915,45 @@ if (!fs.existsSync(VIDEO_DIR)) {
 import multer from 'multer';
 const upload = multer({
   dest: '/tmp/',
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max per file
   fileFilter: (_req, file, cb) => {
     const allowed = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
     cb(null, allowed.includes(file.mimetype) || file.originalname.endsWith('.mp4'));
   },
 });
 
-app.post('/api/v1/videos/upload', authMiddleware, upload.single('video'), async (req: any, res) => {
+app.post('/api/v1/videos/upload', authMiddleware, upload.array('videos', 6), async (req: any, res) => {
   try {
-    const file = req.file;
-    if (!file) return res.status(400).json({ error: { code: 'NO_FILE', message: '请选择视频文件' } });
-    const title = req.body.title || file.originalname.replace(/\.[^.]+$/, '');
-    const duration = req.body.duration || '0';
-    const outputFn = `upload-${crypto.randomUUID().slice(0, 10)}.mp4`;
-    const outputPath = path.join(VIDEO_DIR, outputFn);
-    fs.copyFileSync(file.path, outputPath);
-    try { fs.unlinkSync(file.path); } catch {}
-    const videoUrl = `${process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com'}/videos/${outputFn}`;
-    await saveVideo({
-      userId: req.user.userId,
-      title,
-      prompt: title,
-      duration,
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) return res.status(400).json({ error: { code: 'NO_FILE', message: '请选择视频文件' } });
+    const uploaded: any[] = [];
+    for (const file of files) {
+      const title = req.body.title || file.originalname.replace(/\.[^.]+$/, '');
+      const outputFn = `upload-${crypto.randomUUID().slice(0, 10)}.mp4`;
+      const outputPath = path.join(VIDEO_DIR, outputFn);
+      fs.copyFileSync(file.path, outputPath);
+      try { fs.unlinkSync(file.path); } catch {}
+      const videoUrl = `${process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com'}/videos/${outputFn}`;
+      await saveVideo({
+        userId: req.user.userId,
+        title: files.length > 1 ? `${title}` : title,
+        prompt: title,
+        duration: '0',
+        resolution: '720p',
+        ratio: '16:9',
+        inputType: 'upload',
+        videoUrl,
+        videoPath: outputPath,
+        submitId: `upload-${crypto.randomUUID().slice(0, 12)}`,
+      });
+      uploaded.push({ videoUrl, title });
+    }
+    res.json({ data: { uploaded, count: uploaded.length } });
+  } catch (err: any) {
+    console.error('[Video Upload Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '上传失败: ' + err.message } });
+  }
+});
       resolution: '720p',
       ratio: '16:9',
       inputType: 'upload',
