@@ -14,84 +14,54 @@ interface PromptEditorModalProps {
 }
 
 // ============================================================
-// 试听引擎 — 用 Web Audio API 生成简单的音乐片段预览
+// 试听引擎
 // ============================================================
 function playBgmPreview(bgmId: string) {
-  // 停止之前的播放
   ;(window as any).__bgmCtx?.close()
+  const ctx = new AudioContext(); (window as any).__bgmCtx = ctx
 
-  const ctx = new AudioContext()
-  ;(window as any).__bgmCtx = ctx
-
-  // ====== Convolution-style reverb via delay nodes ======
-  function createReverb(ctx: AudioContext, time: number, dur: number): AudioNode {
-    const delay = ctx.createDelay(1.0)
-    delay.delayTime.value = 0.4
-    const feedback = ctx.createGain()
-    feedback.gain.value = 0.35
-    const wet = ctx.createGain()
-    wet.gain.setValueAtTime(0.25, time)
-    wet.gain.linearRampToValueAtTime(0, time + dur + 0.5)
-    delay.connect(feedback)
-    feedback.connect(delay)
-    feedback.connect(wet)
-    return wet
-  }
-
-  // ====== Play a single note with harmonics layer ======
-  function playNote(ctx: AudioContext, dest: AudioNode, freq: number, time: number, dur: number, volume: number, type: OscillatorType, harmonics: number[]) {
+  function playNote(_ctx: AudioContext, dest: AudioNode, rev: AudioNode, freq: number, time: number, dur: number, vol: number, type: OscillatorType, harmonics: number[]) {
     harmonics.forEach((hGain, i) => {
       if (hGain <= 0) return
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = type
-      osc.frequency.value = freq * (i + 1)  // fundamental × harmonic
-      // ADSR envelope
-      const attack = Math.min(0.06, dur * 0.1)
-      const decay = dur * 0.2
-      const release = dur * 0.3
+      const osc = _ctx.createOscillator()
+      const gain = _ctx.createGain()
+      osc.type = type; osc.frequency.value = freq * (i + 1)
+      const atk = Math.min(0.06, dur * 0.1), dec = dur * 0.2, rel = dur * 0.3
       gain.gain.setValueAtTime(0, time)
-      gain.gain.linearRampToValueAtTime(volume * hGain, time + attack)
-      gain.gain.linearRampToValueAtTime(volume * hGain * 0.7, time + attack + decay)
-      gain.gain.setValueAtTime(volume * hGain * 0.7, time + dur - release)
+      gain.gain.linearRampToValueAtTime(vol * hGain, time + atk)
+      gain.gain.linearRampToValueAtTime(vol * hGain * 0.7, time + atk + dec)
+      gain.gain.setValueAtTime(vol * hGain * 0.7, time + dur - rel)
       gain.gain.linearRampToValueAtTime(0, time + dur)
-      osc.connect(gain)
-      gain.connect(dest)
-      osc.start(time)
-      osc.stop(time + dur)
+      osc.connect(gain); gain.connect(dest); gain.connect(rev)
+      osc.start(time); osc.stop(time + dur)
     })
   }
 
-  // ====== Play chord (multiple notes simultaneously) ======
-  function playChord(ctx: AudioContext, dest: AudioNode, chord: number[], time: number, dur: number, vol: number, type: OscillatorType, harmonics: number[]) {
-    chord.forEach(freq => playNote(ctx, dest, freq, time, dur, vol, type, harmonics))
+  function playChord(_ctx: AudioContext, dest: AudioNode, rev: AudioNode, chord: number[], time: number, dur: number, vol: number, type: OscillatorType, harmonics: number[]) {
+    chord.forEach(f => playNote(_ctx, dest, rev, f, time, dur, vol, type, harmonics))
   }
 
-  // Default organ harmonics (rich pipe organ sound)
   const organHarmonics = [1.0, 0.6, 0.35, 0.15, 0.08]
   const pianoHarmonics = [1.0, 0.5, 0.25, 0.1, 0.05]
   const stringHarmonics = [1.0, 0.7, 0.4, 0.2, 0.1]
 
-  // Master gain
+  // Master gain → destination
   const master = ctx.createGain()
-  master.gain.value = 0.6
+  master.gain.value = 0.5
   master.connect(ctx.destination)
 
-  const totalDur = 8 // seconds preview
-  const reverbDest = createReverb(ctx, ctx.currentTime, totalDur)
-
-  // Combined destination
-  const merger = ctx.createGain()
-  merger.gain.value = 1.0
-  master.connect(ctx.destination)
-  // Route: notes → merger → (dry to destination, wet to reverb)
-  const dry = ctx.createGain(); dry.gain.value = 0.6; dry.connect(ctx.destination)
-  const wet = ctx.createGain(); wet.gain.value = 0.3; wet.connect(reverbDest)
-
-  function route(oscDest: AudioNode) {
-    oscDest.connect(dry)
-    oscDest.connect(wet)
-  }
+  // Reverb send/return
+  const totalDur = 8
+  const reverbSend = ctx.createGain()
+  reverbSend.gain.value = 0.3
+  const delay = ctx.createDelay(1.0)
+  delay.delayTime.value = 0.35
+  const feedback = ctx.createGain()
+  feedback.gain.value = 0.3
+  reverbSend.connect(delay)
+  delay.connect(feedback)
+  feedback.connect(delay)
+  feedback.connect(master)  // reverb return to master
 
   let t = ctx.currentTime + 0.1
 
