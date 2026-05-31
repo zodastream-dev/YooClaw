@@ -4727,8 +4727,10 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       const klingSingleMode: 'std' | 'pro' = 'std'; // default 720P
       const negPrompt = (req.body as any).negativePrompt || '';
 
-      // Map genType to Kling endpoint (multi_image uses image2video with image_list)
-      const klingEndpoint = (gt === 'image2video' || gt === 'multi_image2video') ? 'image2video' : 'text2video';
+      // Map genType to Kling endpoint (omni uses its own endpoint)
+      const isOmni = klingSingleModel === 'kling-v3-omni'
+      const klingEndpoint = isOmni ? 'omni-video'
+        : (gt === 'image2video' || gt === 'multi_image2video') ? 'image2video' : 'text2video';
 
       // Build params
       const klingParams: KlingVideoParams = {
@@ -4744,19 +4746,23 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         if (imageList.length === 0) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '需要上传图片' } });
         }
-        // Upload images to kling-imgs first
         const urls: string[] = [];
         for (const img of imageList) {
           const result = saveKlingImage(img, 'single-kl');
           if (!result) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片上传失败' } });
           urls.push(result.url);
         }
-        if (gt === 'multi_image2video') {
+        if (isOmni || gt === 'multi_image2video') {
+          // Omni always uses image_list; multi-image also uses image_list
           klingParams.image_list = urls.map(url => ({ image: url }));
         } else {
           klingParams.image = urls[0];
         }
         if (promptStr) klingParams.prompt = promptStr;
+      } else if (isOmni) {
+        // Omni text-only: prompt required
+        if (!promptStr) return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '需要输入提示词' } });
+        klingParams.prompt = promptStr;
       } else {
         klingParams.prompt = promptStr;
       }
