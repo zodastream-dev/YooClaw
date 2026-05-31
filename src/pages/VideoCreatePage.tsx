@@ -781,121 +781,58 @@ export function VideoCreatePage() {
       {/* Three-Column Layout */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ===== LEFT SIDEBAR: Template Library (desktop) ===== */}
+        {/* ===== LEFT SIDEBAR: Scene + Style ===== */}
         <aside className="hidden lg:flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-card overflow-hidden">
-          {/* Header */}
           <div className="px-4 py-3 border-b border-border flex-shrink-0 flex items-center justify-between">
-            <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles size={15} className="text-primary" />视频模板库</h3>
-            {selectedTemplate && (
-              <button onClick={handleClearTemplate} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"><X size={12} />清空</button>
-            )}
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles size={15} className="text-primary" />快速生成提示词</h3>
+            <button onClick={() => { setSelectedScene(SCENES[DEFAULT_SCENE_ID]); setSelectedStyle(STYLES[DEFAULT_STYLE_ID]); setUserSceneInput('') }} className="text-xs text-muted-foreground hover:text-destructive transition-colors">重置</button>
           </div>
-          {/* Filters */}
-          <div className="px-3 py-2 space-y-1.5 flex-shrink-0 border-b border-border/30">
-            <div className="flex gap-1 overflow-x-auto scrollbar-none">
-              {[
-                { key: 'all' as const, label: '全部' },
-                { key: 'image' as const, label: '图生视频' },
-                { key: 'text' as const, label: '文生视频' },
-              ].map(m => (
-                <button key={m.key} onClick={() => setInputMode(m.key)} className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-medium transition-all flex-shrink-0 ${inputMode === m.key ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* Category tabs */}
-          <div className="px-3 py-2 flex gap-1 overflow-x-auto scrollbar-none flex-shrink-0 border-b border-border/30">
-            {templateCategories.map(cat => (
-              <button key={cat.key} onClick={() => setActiveCategory(cat.key)} className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-medium transition-all flex-shrink-0 ${activeCategory === cat.key ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                <span className="mr-1">{cat.icon}</span>{cat.label}
-              </button>
-            ))}
-          </div>
-          {/* Template cards — scrollable */}
-          <div className="flex-1 overflow-y-auto p-3">
-            <div className="grid grid-cols-1 gap-2">
-              {filteredTemplates.map(tpl => {
-                const isSelected = selectedTemplate?.id === tpl.id
-                return (
-                  <button key={tpl.id} onClick={() => handleSelectTemplate(tpl)} className={`text-left p-3 rounded-xl border transition-all ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'}`}>
-                    <div className="flex items-start gap-2.5">
-                      <span className="text-lg flex-shrink-0">{tpl.icon}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold truncate">{tpl.name}</div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{tpl.description || tpl.prompt}</div>
-                        <div className="flex items-center gap-1 mt-1.5">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.duration}s</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{tpl.ratio}</span>
-                        </div>
-                      </div>
-                    </div>
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-3 pt-3 pb-1.5">
+              <p className="text-[10px] text-muted-foreground mb-1.5 font-medium flex items-center gap-1"><Bot size={11} />步骤1: 选择场景</p>
+              <div className="flex gap-1 overflow-x-auto scrollbar-none flex-wrap mb-2">
+                {sceneCategoryKeys.map(cat => (
+                  <button key={cat} onClick={() => setActiveSceneCategory(cat)} className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-medium transition-all ${activeSceneCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>{cat}</button>
+                ))}
+              </div>
+              <div className="space-y-1">
+                {Object.values(SCENES).filter(s => s.category === activeSceneCategory).map(scene => (
+                  <button key={scene.id} onClick={() => setSelectedScene(scene)}
+                    className={`w-full text-left px-3 py-2 rounded-lg border transition-all ${
+                      selectedScene?.id === scene.id ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'
+                    }`}>
+                    <p className="text-[11px] font-medium leading-tight">{scene.label}</p>
+                    <p className="text-[9px] text-muted-foreground mt-0.5 line-clamp-2">{scene.action}</p>
+                    <p className="text-[9px] text-muted-foreground/60 mt-0.5">{scene.duration}s</p>
                   </button>
-                )
-              })}
+                ))}
+              </div>
+            </div>
+            <div className="px-3 py-2"><div className="border-t border-border/30" /></div>
+            <div className="px-3 pb-2">
+              <p className="text-[10px] text-muted-foreground mb-1.5 font-medium flex items-center gap-1"><Palette size={11} />步骤2: 选择风格</p>
+              <div className="grid grid-cols-2 gap-1">
+                {Object.values(STYLES).map(style => (
+                  <button key={style.id} onClick={() => setSelectedStyle(style)}
+                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-medium transition-all text-center ${
+                      selectedStyle?.id === style.id ? 'border-primary bg-primary/5 text-primary' : 'border-border/30 bg-background/40 text-foreground/70 hover:border-primary/20 hover:text-foreground'
+                    }`}>
+                    {style.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
+          {selectedScene && selectedStyle && (
+            <div className="px-3 py-2.5 border-t border-border/30 bg-muted/20 flex-shrink-0 space-y-1.5">
+              <p className="text-[9px] text-muted-foreground">{selectedScene.label} + {selectedStyle.label}</p>
+              <input value={userSceneInput} onChange={e => setUserSceneInput(e.target.value)} placeholder="补充场景描述（可选）..."
+                className="w-full px-2 py-1 text-[10px] bg-background border border-border/30 rounded-md outline-none focus:border-primary/30" />
+            </div>
+          )}
         </aside>
-
         {/* ===== CENTER: Main Content ===== */}
         <main className="flex-1 overflow-y-auto bg-background" style={{ minWidth: 0 }}>
-          {/* ===== Scene + Style Quick Prompt Builder ===== */}
-          <div className="px-4 sm:px-6 pt-3 pb-2 border-b border-border/30 bg-card/30">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
-                <Sparkles size={13} className="text-primary" />快速生成提示词
-              </h3>
-              <button onClick={() => setShowSceneStyle(!showSceneStyle)} className="text-[10px] text-muted-foreground hover:text-foreground">
-                {showSceneStyle ? '收起' : '展开'}
-              </button>
-            </div>
-            {showSceneStyle && (
-              <div className="space-y-2">
-                {/* Step 1: Scene */}
-                <div>
-                  <p className="text-[10px] text-muted-foreground mb-1 font-medium flex items-center gap-1"><Bot size={10} />步骤1: 选择场景</p>
-                  <div className="flex gap-1 overflow-x-auto scrollbar-none flex-wrap mb-1">
-                    {sceneCategoryKeys.map(cat => (
-                      <button key={cat} onClick={() => setActiveSceneCategory(cat)} className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-medium transition-all ${activeSceneCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>{cat}</button>
-                    ))}
-                  </div>
-                  <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-                    {Object.values(SCENES).filter(s => s.category === activeSceneCategory).slice(0, 6).map(scene => (
-                      <button key={scene.id} onClick={() => setSelectedScene(scene)}
-                        className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg border text-[10px] leading-tight transition-all whitespace-nowrap ${
-                          selectedScene?.id === scene.id ? 'border-primary bg-primary/5 text-primary font-medium' : 'border-border/30 bg-background/40 text-muted-foreground hover:border-primary/20 hover:text-foreground'
-                        }`}>
-                        <span className="block truncate max-w-24">{scene.label}</span>
-                        <span className="text-[9px] opacity-60">{scene.duration}s</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Step 2: Style */}
-                <div>
-                  <p className="text-[10px] text-muted-foreground mb-1 font-medium flex items-center gap-1"><Palette size={10} />步骤2: 选择风格</p>
-                  <div className="flex gap-1 overflow-x-auto scrollbar-none">
-                    {Object.values(STYLES).slice(0, 8).map(style => (
-                      <button key={style.id} onClick={() => setSelectedStyle(style)}
-                        className={`flex-shrink-0 px-2.5 py-1 rounded-lg border text-[10px] font-medium transition-all whitespace-nowrap ${
-                          selectedStyle?.id === style.id ? 'border-primary bg-primary/5 text-primary' : 'border-border/30 bg-background/40 text-muted-foreground hover:border-primary/20 hover:text-foreground'
-                        }`}>
-                        {style.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Preview + user input */}
-                {selectedScene && selectedStyle && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground flex-shrink-0">{selectedScene.label} + {selectedStyle.label}</span>
-                    <input value={userSceneInput} onChange={e => setUserSceneInput(e.target.value)} placeholder="补充场景描述（可选）..."
-                      className="flex-1 min-w-0 px-2 py-1 text-[10px] bg-background border border-border/30 rounded-md outline-none focus:border-primary/30" />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
           {/* ===== Provider Switcher ===== */}
           <div className="flex border-b border-border/30 px-4 sm:px-6 pt-2">
             <button onClick={() => { if (provider !== 'dreamina') { setProvider('dreamina'); setGenType('text2video'); } }}
