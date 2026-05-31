@@ -782,40 +782,40 @@ export function VideoCreatePage() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ===== LEFT SIDEBAR: Scene + Style ===== */}
-        <aside className="hidden lg:flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex-shrink-0 flex items-center justify-between">
-            <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles size={15} className="text-primary" />快速生成提示词</h3>
-            <button onClick={() => { setSelectedScene(SCENES[DEFAULT_SCENE_ID]); setSelectedStyle(STYLES[DEFAULT_STYLE_ID]); setUserSceneInput('') }} className="text-xs text-muted-foreground hover:text-destructive transition-colors">重置</button>
+        <aside className="hidden lg:flex w-[300px] flex-shrink-0 flex-col border-r border-border bg-card overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border flex-shrink-0 flex items-center justify-between bg-card/80 backdrop-blur-sm">
+            <h3 className="text-sm font-bold flex items-center gap-2 tracking-tight"><Sparkles size={16} className="text-primary" />快速生成提示词</h3>
+            <button onClick={() => { setSelectedScene(SCENES[DEFAULT_SCENE_ID]); setSelectedStyle(STYLES[DEFAULT_STYLE_ID]); setUserSceneInput('') }} className="text-xs text-muted-foreground hover:text-destructive transition-colors font-medium">重置</button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <div className="px-3 pt-3 pb-1.5">
-              <p className="text-[10px] text-muted-foreground mb-1.5 font-medium flex items-center gap-1"><Bot size={11} />步骤1: 选择场景</p>
-              <div className="flex gap-1 overflow-x-auto scrollbar-none flex-wrap mb-2">
+            <div className="px-4 pt-4 pb-1">
+              <p className="text-xs text-muted-foreground mb-2.5 font-semibold flex items-center gap-1.5 uppercase tracking-wider"><Bot size={13} />步骤1 · 选择场景</p>
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-none flex-wrap mb-3">
                 {sceneCategoryKeys.map(cat => (
-                  <button key={cat} onClick={() => setActiveSceneCategory(cat)} className={`whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-medium transition-all ${activeSceneCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>{cat}</button>
+                  <button key={cat} onClick={() => setActiveSceneCategory(cat)} className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium transition-all ${activeSceneCategory === cat ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'}`}>{cat}</button>
                 ))}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {Object.values(SCENES).filter(s => s.category === activeSceneCategory).map(scene => (
                   <button key={scene.id} onClick={() => setSelectedScene(scene)}
-                    className={`w-full text-left px-3 py-2 rounded-lg border transition-all ${
-                      selectedScene?.id === scene.id ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all hover:shadow-sm ${
+                      selectedScene?.id === scene.id ? 'border-primary bg-primary/5 ring-1 ring-primary/20 shadow-md shadow-primary/5' : 'border-border/30 bg-background/40 hover:border-primary/20 hover:bg-muted/30'
                     }`}>
-                    <p className="text-[11px] font-medium leading-tight">{scene.label}</p>
-                    <p className="text-[9px] text-muted-foreground mt-0.5 line-clamp-2">{scene.action}</p>
-                    <p className="text-[9px] text-muted-foreground/60 mt-0.5">{scene.duration}s</p>
+                    <p className="text-xs font-semibold leading-tight">{scene.label}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{scene.action}</p>
+                    <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground font-medium">{scene.duration}s</span>
                   </button>
                 ))}
               </div>
             </div>
-            <div className="px-3 py-2"><div className="border-t border-border/30" /></div>
-            <div className="px-3 pb-2">
-              <p className="text-[10px] text-muted-foreground mb-1.5 font-medium flex items-center gap-1"><Palette size={11} />步骤2: 选择风格</p>
-              <div className="grid grid-cols-2 gap-1">
+            <div className="px-4 py-3"><div className="border-t border-border/20" /></div>
+            <div className="px-4 pb-3">
+              <p className="text-xs text-muted-foreground mb-2.5 font-semibold flex items-center gap-1.5 uppercase tracking-wider"><Palette size={13} />步骤2 · 选择风格</p>
+              <div className="grid grid-cols-2 gap-1.5">
                 {Object.values(STYLES).map(style => (
                   <button key={style.id} onClick={() => setSelectedStyle(style)}
-                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-medium transition-all text-center ${
-                      selectedStyle?.id === style.id ? 'border-primary bg-primary/5 text-primary' : 'border-border/30 bg-background/40 text-foreground/70 hover:border-primary/20 hover:text-foreground'
+                    className={`px-3 py-2 rounded-xl border text-xs font-medium transition-all ${
+                      selectedStyle?.id === style.id ? 'border-primary bg-primary/5 text-primary shadow-sm shadow-primary/5' : 'border-border/30 bg-background/40 text-foreground/70 hover:border-primary/20 hover:text-foreground hover:bg-muted/20'
                     }`}>
                     {style.label}
                   </button>
@@ -824,10 +824,12 @@ export function VideoCreatePage() {
             </div>
           </div>
           {selectedScene && selectedStyle && (
-            <div className="px-3 py-2.5 border-t border-border/30 bg-muted/20 flex-shrink-0 space-y-1.5">
-              <p className="text-[9px] text-muted-foreground">{selectedScene.label} + {selectedStyle.label}</p>
+            <div className="px-4 py-3 border-t border-border/30 bg-muted/10 flex-shrink-0 space-y-2">
+              <p className="text-xs font-medium text-foreground/80">
+                <span className="text-primary">{selectedScene.label}</span> + <span className="text-violet-400">{selectedStyle.label}</span>
+              </p>
               <input value={userSceneInput} onChange={e => setUserSceneInput(e.target.value)} placeholder="补充场景描述（可选）..."
-                className="w-full px-2 py-1 text-[10px] bg-background border border-border/30 rounded-md outline-none focus:border-primary/30" />
+                className="w-full px-3 py-2 text-xs bg-background border border-border/30 rounded-lg outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 placeholder:text-muted-foreground/50 transition-all" />
             </div>
           )}
         </aside>
