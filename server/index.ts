@@ -3954,19 +3954,6 @@ app.post('/api/v1/videos/upload', authMiddleware, upload.array('videos', 6), asy
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '上传失败: ' + err.message } });
   }
 });
-      resolution: '720p',
-      ratio: '16:9',
-      inputType: 'upload',
-      videoUrl,
-      videoPath: outputPath,
-      submitId: `upload-${crypto.randomUUID().slice(0, 12)}`,
-    });
-    res.json({ data: { videoUrl, title, id: `upload-${crypto.randomUUID().slice(0, 8)}` } });
-  } catch (err: any) {
-    console.error('[Video Upload Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '上传失败' } });
-  }
-});
 
 
 // In-memory video task store (survives across requests, reset on server restart)
