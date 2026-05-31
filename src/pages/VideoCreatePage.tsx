@@ -114,6 +114,7 @@ export function VideoCreatePage() {
 
   const [activeCategory, setActiveCategory] = useState('all')
   const [inputMode, setInputMode] = useState<'all' | 'text' | 'image'>('image')
+  const [selectedTemplate, setSelectedTemplate] = useState<VideoTemplate | null>(null)
   const [selectedScene, setSelectedScene] = useState<SceneTemplate | null>(SCENES[DEFAULT_SCENE_ID])
   const [selectedStyle, setSelectedStyle] = useState<VideoStyle | null>(STYLES[DEFAULT_STYLE_ID])
 
