@@ -4057,7 +4057,7 @@ function buildXfadeFilter(durations: number[], xfadeDuration: number = 1, fps: n
   let prevLabel = 'v0';
   for (let i = 1; i < n; i++) {
     let cumulativeSec = 0;
-    for (let j = 0; j <= i; j++) cumulativeSec += durations[j];
+    for (let j = 0; j < i; j++) cumulativeSec += durations[j];
     const offset = cumulativeSec - i * xfadeDuration;
     const outLabel = i < n - 1 ? `x${i}` : 'outv';
     parts.push(`[${prevLabel}][v${i}]xfade=transition=fade:duration=${xfadeDuration}:offset=${offset},format=yuv420p[${outLabel}]`);
