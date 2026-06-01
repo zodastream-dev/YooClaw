@@ -61,7 +61,6 @@ const KLING_SOUND_MODELS = ['kling-v2-5-turbo', 'kling-v3']
 const KLING_GEN_TYPES = [
   { key: 'text2video', label: '文生视频', icon: Wand2 },
   { key: 'image2video', label: '图生视频', icon: ImageIcon },
-  { key: 'multi_image2video', label: '多图故事', icon: Film },
   { key: 'frames2video', label: '首尾帧', icon: Grid3X3 },
 ] as const
 
@@ -71,9 +70,10 @@ const KLING_MODES = [
 ] as const
 
  // Kling model → supported gen types
+// Kling Beijing API only supports text2video/image2video/frames2video; no multi-image
 const KLING_MODEL_GEN_TYPES: Record<string, string[]> = {
-  'kling-v3': ['text2video', 'image2video', 'multi_image2video', 'frames2video'],
-  'kling-v3-omni': ['text2video', 'image2video', 'multi_image2video'],
+  'kling-v3': ['text2video', 'image2video', 'frames2video'],
+  'kling-v3-omni': ['text2video', 'image2video'],
   'kling-v2-5-turbo': ['text2video', 'image2video'],
   'kling-v1-6': ['text2video', 'image2video'],
   'kling-v1-5': ['text2video', 'image2video'],
