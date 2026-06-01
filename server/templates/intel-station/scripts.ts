@@ -264,6 +264,7 @@ function selectSourceFilter(srcName,wi,si){
   renderSourceFilters(monitors);
   buildIntelSubFilters(monitors);
   buildObjectFilters(monitors);
+  var feed=$('intelFeed');if(feed)feed.scrollTop=0;
 }
 
 function selectObjectFilter(srcName,objName,wi,si){
@@ -278,6 +279,7 @@ function selectObjectFilter(srcName,objName,wi,si){
   renderSourceFilters(monitors);
   buildIntelSubFilters(monitors);
   buildObjectFilters(monitors);
+  var feed=$('intelFeed');if(feed)feed.scrollTop=0;
 }
 
 /* ===== RENDER INTEL FEED ===== */

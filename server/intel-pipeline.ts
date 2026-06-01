@@ -243,7 +243,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。优先提供最近30天内的资讯。';
+  const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。每条情报必须提供约100字的摘要。';
   const kwText = mergedKwArr.join('、') || '相关';
   let up: string;
   // Multi-object sources: use larger context window (100 items / 15k chars) to avoid crowding out objects
@@ -254,13 +254,13 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
-      '要求：1.标题+摘要(80字)+来源+时间+url\n2.去重过滤无关\n3.30天优先\n' +
+      '要求：1.标题+摘要(~100字)+来源+时间+url\n2.去重过滤无关\n3.摘要必须充实，禁止留空\n' +
       '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":""}]\n' +
       '5. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n6.无url留空 7.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
-      '要求：1.标题+摘要(80字)+来源+时间+url\n2.按重要性排序，30天优先\n' +
-      '3.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":""}]\n' +
+      '要求：1.标题+摘要(~100字)+来源+时间+url\n2.按重要性排序\n3.摘要必须充实，禁止留空\n' +
+      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":""}]\n' +
       '4. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n5.无url留空 6.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
   }
 
@@ -410,8 +410,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   if (hallucinatedUrls.length > 0) {
     console.warn('[Intel] Filtered ' + hallucinatedUrls.length + ' hallucinated URLs: ' + hallucinatedUrls.slice(0, 5).join(', '));
   }
-  // 30-day freshness filter with empty-date capping
-  const cutoff = Date.now() - 30 * 86400000;
+  // 1-year freshness filter with empty-date capping
+  const cutoff = Date.now() - 365 * 86400000;
   let filteredCount = 0;
   results = results.filter(function (r: any) {
     if (!r.date || !r.date.trim()) return true; // keep for now, capping below
