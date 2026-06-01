@@ -4745,7 +4745,6 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       if (isOmni) {
         delete (klingParams as any).model_name;
         (klingParams as any).model = 'kling-o3';
-        // Omni uses 'seconds' and 'image_url' (not reference_images)
         delete (klingParams as any).duration;
         (klingParams as any).seconds = String(dur);
         if (imageList.length > 0) {
@@ -4755,14 +4754,18 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             if (!result) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片上传失败' } });
             urls.push(result.url);
           }
-          (klingParams as any).image_url = urls[0]; // Omni takes image_url for reference
-          const refs = urls.map((_, i) => `<<<image_${i + 1}>>>`).join(' ');
-          (klingParams as any).prompt = refs + ' ' + (promptStr || '');
+          // Use image_list (not reference_images — causes Internal Error on text2video)
+          if (gt === 'multi_image2video') {
+            (klingParams as any).image_list = urls.map((url: string) => ({ image: url }));
+          } else {
+            (klingParams as any).image = urls[0];
+          }
+          if (promptStr) (klingParams as any).prompt = promptStr;
         } else if (promptStr) {
           (klingParams as any).prompt = promptStr;
         }
-        delete (klingParams as any).image;
-        delete (klingParams as any).image_list;
+        delete (klingParams as any).reference_images;
+        delete (klingParams as any).image_url;
       } else if (gt === 'image2video' || gt === 'multi_image2video') {
         if (imageList.length === 0) {
           return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '需要上传图片' } });
@@ -4784,8 +4787,9 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
         klingParams.prompt = promptStr;
       }
 
-      // Endpoint: Omni uses text2video, others use type-specific
-      const klingEndpoint = isOmni ? 'text2video' : ((gt === 'image2video' || gt === 'multi_image2video') ? 'image2video' : 'text2video');
+      // Endpoint: Omni always text2video; others use type-specific
+      const klingEndpoint = isOmni ? 'text2video'
+        : (gt === 'image2video' || gt === 'multi_image2video') ? 'image2video' : 'text2video';
 
       // Camera control
       const cc = (req.body as any).cameraControl;
