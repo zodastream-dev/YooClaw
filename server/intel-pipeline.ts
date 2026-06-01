@@ -356,8 +356,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     if (finalUrl && !rawUrlSet.has(finalUrl.toLowerCase().trim())) {
       // 宽松校验：检查是否为有效的 http(s) URL
       const looksReal = /^https?:\/\/[^\s]+$/.test(finalUrl);
-      if (looksReal && rawUrlSet.size === 0) {
-        // 无搜索结果时，AI 可能编造 URL；只有在有搜索结果时才信任白名单外的 URL
+      if (looksReal && rawUrlSet.size > 0) {
+        // 有搜索结果时，不在白名单内的 URL 可能是 AI 幻觉，标记为不安全
         hallucinatedUrls.push(finalUrl);
         finalUrl = '';
       }
@@ -470,6 +470,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   if (objectName) {
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const parsedPattern = objectName.split(/[,，]\s*/).filter(Boolean).map(escapeRegExp).join('|');
+    if (!parsedPattern) { console.warn('[Intel] EHR skipped — empty pattern for objectName: "' + objectName + '"'); return results.slice(0, 30); }
     const objPattern = new RegExp('(' + parsedPattern + ')', 'i');
     const before = results.length;
     results = results.filter((r: any) => {
