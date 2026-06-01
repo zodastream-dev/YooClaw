@@ -4728,9 +4728,8 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       const klingSingleMode: 'std' | 'pro' = 'std'; // default 720P
       const negPrompt = (req.body as any).negativePrompt || '';
 
-      // Omni: Kling v3-omni uses text2video endpoint + reference_images in prompt
+      // Omni: Kling v3-omni uses text2video endpoint with image_list
       const isOmni = klingSingleModel === 'kling-v3-omni'
-      console.log(`[Kling:Single] model=${klingSingleModel} isOmni=${isOmni} genType=${gt}`)
 
       const klingParams: KlingVideoParams = {
         model_name: klingSingleModel,
@@ -4850,6 +4849,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
                 videoPath: outputPath,
                 submitId: parentId,
               });
+              console.log('[Kling:Single] Video saved to DB:', outputFn);
             } catch (dbErr: any) { console.error('[Kling:Single] DB save failed:', dbErr.message); }
           } catch (err: any) {
             console.error('[Kling:Single] Background error:', err.message);
