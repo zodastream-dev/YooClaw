@@ -71,7 +71,7 @@ export async function klingCreate(
   const token = getToken();
   const url = endpoint
     ? `${KLING_BASE}/v1/videos/${endpoint}`
-    : `${KLING_BASE}/v1/videos`;
+    : `${KLING_BASE}/v1/video/generate`;  // Omni uses /v1/video/generate
 
   console.log(`[Kling] POST ${endpoint}`, JSON.stringify(params).slice(0, 200));
 
@@ -107,7 +107,7 @@ export async function klingQuery(
   const token = getToken();
   const url = endpoint
     ? `${KLING_BASE}/v1/videos/${endpoint}/${taskId}`
-    : `${KLING_BASE}/v1/videos/${taskId}`;
+    : `${KLING_BASE}/v1/video/query/${taskId}`;  // Omni query
 
   const res = await fetch(url, {
     headers: { 'Authorization': `Bearer ${token}` },

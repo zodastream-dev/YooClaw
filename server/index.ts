@@ -4745,7 +4745,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
       if (isOmni) {
         delete (klingParams as any).model_name;
         (klingParams as any).model = 'kling-o3';
-        // Omni uses 'seconds' not 'duration'
+        // Omni uses 'seconds' and 'image_url' (not reference_images)
         delete (klingParams as any).duration;
         (klingParams as any).seconds = String(dur);
         if (imageList.length > 0) {
@@ -4755,7 +4755,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             if (!result) return res.status(500).json({ error: { code: 'UPLOAD_FAILED', message: '图片上传失败' } });
             urls.push(result.url);
           }
-          (klingParams as any).reference_images = urls.map(url => ({ image_url: url }));
+          (klingParams as any).image_url = urls[0]; // Omni takes image_url for reference
           const refs = urls.map((_, i) => `<<<image_${i + 1}>>>`).join(' ');
           (klingParams as any).prompt = refs + ' ' + (promptStr || '');
         } else if (promptStr) {
