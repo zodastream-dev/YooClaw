@@ -314,6 +314,16 @@ function renderIntelFeed(data){
     if(item._object){
       html+='<span class="intel-obj-tag">'+escHtml(item._object)+'</span>';
     }
+    if(item._sentiment){
+      var sentMap={正面:'sent-pos',负面:'sent-neg',中性:'sent-neu'};
+      var sentCls=sentMap[item._sentiment]||'sent-neu';
+      html+='<span class="intel-sentiment-tag '+sentCls+'">'+escHtml(item._sentiment)+'</span>';
+    }
+    if(item._reliability){
+      var relMap={已确认:'rel-confirmed',传闻:'rel-rumor',待核实:'rel-pending'};
+      var relCls=relMap[item._reliability]||'rel-pending';
+      html+='<span class="intel-reliability-tag '+relCls+'">'+escHtml(item._reliability)+'</span>';
+    }
     if(url){
       html+='<span class="intel-card-title" style="color:var(--cyan);cursor:pointer">'+(item.title||'无标题')+'</span>';
     } else {
@@ -323,6 +333,7 @@ function renderIntelFeed(data){
     html+='<div class="intel-card-source">'+escHtml(sourceLabel)+'</div>';
     html+='</div>';
     if(item.summary)html+='<div class="intel-card-summary">'+(item.summary||'')+'</div>';
+    if(item._intent)html+='<div class="intel-card-intent">竞对意图：'+escHtml(item._intent)+'</div>';
     html+='<div class="intel-card-footer">';
     html+='<div class="intel-card-tags">';
     keywords.forEach(function(kw){html+='<span class="intel-tag">'+escHtml(kw)+'</span>'});

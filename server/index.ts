@@ -3515,56 +3515,22 @@ const PORTAL_INTEL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (was 5 min)
 const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-intel-cache.json');
 const pausedPortals = new Set<string>(); // Per-portal pause state (Set of paused portal slugs)
 
-// Auto-clean invalid aiModel values on startup (self-healing)
-// Widgets are embedded in html_content as JSON, not a separate DB column.
+// Auto-clean: replace "metaso-pro" aiModel in stored HTML (safe string replace, no JSON parsing)
 async function autoCleanAiModel() {
   try {
-    const VALID_MODELS = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
-    const rows = await sql`SELECT id, slug, html_content FROM report_sites WHERE type='portal'`;
+    const rows = await sql`SELECT id, slug, html_content FROM report_sites WHERE type='portal' AND html_content LIKE '%metaso-pro%'`;
+    if (rows.length === 0) { console.log('[AutoClean] No portals with metaso-pro found'); return; }
+    console.log('[AutoClean] Found ' + rows.length + ' portals with metaso-pro');
     let fixed = 0;
     for (const row of rows) {
-      const html = row.html_content || '';
-      // Find WIDGETS assignment using bracket counting (handles nested arrays/objects)
-      const idx = html.indexOf('WIDGETS');
-      if (idx < 0) continue;
-      const start = html.indexOf('[', idx);
-      if (start < 0) continue;
-      let depth = 0, end = start;
-      for (let i = start; i < html.length; i++) {
-        if (html[i] === '[') depth++;
-        else if (html[i] === ']') { depth--; if (depth === 0) { end = i + 1; break; } }
+      const newHtml = row.html_content.replace(/"aiModel"\s*:\s*"metaso-pro"/g, '"aiModel":"deepseek-v4-flash"');
+      if (newHtml !== row.html_content) {
+        await sql`UPDATE report_sites SET html_content = ${newHtml} WHERE id = ${row.id}`;
+        fixed++;
+        console.log('[AutoClean] Fixed: ' + (row.slug || row.id));
       }
-      try {
-        const widgets = JSON.parse(html.substring(start, end));
-        let changed = false;
-        for (const w of widgets) {
-          if (w.type === 'intel-monitor' || w.type === 'monitor') {
-            const sources = (w.sources || []).concat((w.config || {}).sources || []);
-            for (const s of sources) {
-              if (s.aiModel && !VALID_MODELS.includes(s.aiModel)) {
-                console.log('[AutoClean] Fixing aiModel "' + s.aiModel + '" in', row.slug || row.id, w.title, s.name);
-                s.aiModel = 'deepseek-v4-flash';
-                changed = true;
-                fixed++;
-              }
-            }
-            if (w.aiModel && !VALID_MODELS.includes(w.aiModel)) {
-              console.log('[AutoClean] Fixing top-level aiModel in', row.slug || row.id, w.title);
-              w.aiModel = 'deepseek-v4-flash';
-              changed = true;
-              fixed++;
-            }
-          }
-        }
-        if (changed) {
-          const oldAssignment = html.substring(idx, end);
-          const newAssignment = 'WIDGETS = ' + JSON.stringify(widgets);
-          const newHtml = html.replace(oldAssignment, newAssignment);
-          await sql`UPDATE report_sites SET html_content = ${newHtml} WHERE id = ${row.id}`;
-        }
-      } catch (_) { /* JSON parse error, skip */ }
     }
-    console.log('[AutoClean] Cleaned ' + fixed + ' invalid aiModel values');
+    console.log('[AutoClean] Cleaned ' + fixed + ' portals');
   } catch (err: any) {
     console.warn('[AutoClean] Skipped (non-critical):', err.message);
   }
@@ -5851,7 +5817,19 @@ async function start() {
   setInterval(() => savePortalIntelCache(), 5 * 60 * 1000);
   // Background cache warming: startup (deferred 30s) + every 20 minutes
   setTimeout(() => warmAllPortalCaches(), 30000);
-  setInterval(() => warmAllPortalCaches(), 20 * 60 * 1000);
+  // Nightly full refresh: 3 AM server time, no await (fire-and-forget), date-locked
+  var lastNightlyRefreshDate = '';
+  setInterval(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (new Date().getHours() === 3 && lastNightlyRefreshDate !== today) {
+      lastNightlyRefreshDate = today;
+      console.log('[CacheWarmer] Nightly full refresh starting');
+      portalIntelCache.clear();
+      warmAllPortalCaches().catch(e => console.error('[CacheWarmer] Nightly refresh failed:', e.message));
+    } else {
+      warmAllPortalCaches().catch(e => console.error('[CacheWarmer] Warm failed:', e.message));
+    }
+  }, 20 * 60 * 1000);
 
   // ===== Bulk Video Operations =====
   // Batch delete videos

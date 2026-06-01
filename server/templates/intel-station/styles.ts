@@ -97,6 +97,14 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 /* Object tag on intel cards */
 .intel-obj-tag{font-size:9px;padding:1px 6px;border-radius:3px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.15));color:var(--cyan);font-weight:500;margin-right:6px;white-space:nowrap;flex-shrink:0}
 .intel-provider-tag{font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(251,191,36,0.12);color:var(--monitorAccent);font-weight:500;margin-right:6px;white-space:nowrap;flex-shrink:0}
+.intel-sentiment-tag,.intel-reliability-tag{font-size:9px;padding:1px 6px;border-radius:3px;font-weight:500;margin-right:6px;white-space:nowrap;flex-shrink:0}
+.intel-sentiment-tag.sent-pos{background:rgba(34,197,94,0.12);color:#22c55e}
+.intel-sentiment-tag.sent-neg{background:rgba(239,68,68,0.12);color:#ef4444}
+.intel-sentiment-tag.sent-neu{background:rgba(148,163,184,0.12);color:#94a3b8}
+.intel-reliability-tag.rel-confirmed{background:rgba(34,197,94,0.10);color:#22c55e}
+.intel-reliability-tag.rel-rumor{background:rgba(245,158,11,0.12);color:#f59e0b}
+.intel-reliability-tag.rel-pending{background:rgba(148,163,184,0.10);color:#94a3b8}
+.intel-card-intent{font-size:11px;color:var(--text-secondary);line-height:1.5;margin-bottom:6px;padding-left:4px;border-left:2px solid rgba(168,85,247,0.3)}
 
 /* ===== CENTER COLUMN - Intel Feed ===== */
 .center-col{grid-area:center;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary)}

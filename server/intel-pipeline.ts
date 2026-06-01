@@ -57,14 +57,20 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
   const objCtx = objectName ? '监控对象：' + objectName : '';
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
-  const sp = '你是搜索关键词优化专家。今天是' + today + '。根据情报监控配置，生成8-12个高价值中文搜索关键词用于多渠道搜索引擎查询。要求：1.优先具体产品名/技术术语/事件名称（如"韬芯片""鸿蒙NEXT""Mate80"）2.必须包含时效性关键词（如"最新""本月""2026年"）3.覆盖6个维度：产品发布、技术突破、财报业绩、人事变动、竞争动态、政策监管 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]';
+  // Split: 行业信号 → macro trend keywords; competitors/others → product/event keywords
+  const isIndustrySignal = category.includes('行业') || category.includes('信号');
+  const sp = isIndustrySignal
+    ? '你是搜索关键词优化专家，专注于宏观行业趋势。今天是' + today + '。根据情报监控配置，生成8-12个宏观行业搜索关键词。要求：1.优先产业链变化、技术路线图、市场格局、政策法规、商业模式创新 2.禁止具体产品评测、单品价格、参数配置、产品促销 3.形式如"手机出货量2026Q2趋势""智能手机芯片供应链变化"等趋势性短语 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]'
+    : '你是搜索关键词优化专家。今天是' + today + '。根据情报监控配置，生成8-12个高价值中文搜索关键词用于多渠道搜索引擎查询。要求：1.优先具体产品名/技术术语/事件名称（如"韬芯片""鸿蒙NEXT""Mate80"）2.必须包含时效性关键词（如"最新""本月""2026年"）3.覆盖6个维度：产品发布、技术突破、财报业绩、人事变动、竞争动态、政策监管 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]';
 
   const up = '情报属性：' + category + '\n' +
     (objCtx ? objCtx + '\n' : '') +
     '当前日期：' + today + '\n' +
     '用户关键词：' + (userKw || '（无）') + '\n' +
     '配置描述：' + (prompt || '（无）') + '\n\n' +
-    '请优先生成包含具体产品名、技术名词、事件名称的时效性关键词。仅输出JSON数组，不要任何解释。';
+    (isIndustrySignal
+      ? '请优先生成宏观趋势、产业链变化、市场格局类关键词。仅输出JSON数组，不要任何解释。'
+      : '请优先生成包含具体产品名、技术名词、事件名称的时效性关键词。仅输出JSON数组，不要任何解释。');
 
   try {
     const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -254,14 +260,16 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
-      '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
-      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":""}]\n' +
-      '5. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n6.无url留空 7.仅JSON\n\n原始搜索结果：\n' + searchContext;
+      '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
+      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":""}]\n' +
+      '5. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
+      '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n7.无url留空 8.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.按重要性排序，摘要禁止留空\n' +
-      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":""}]\n' +
-      '4. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n5.无url留空 6.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
+      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":""}]\n' +
+      '5. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实\n' +
+      '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n7.无url留空 8.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -454,5 +462,34 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     console.log('[Intel] Capping empty-date items from ' + emptyItems.length + ' to 5 (keeping ' + datedItems.length + ' dated)');
     results = datedItems.concat(emptyItems.slice(0, 5));
   }
+  // EHR: discard items that don't mention the monitored object in title or summary
+  if (objectName) {
+    const parsedPattern = objectName.split(/[,，]\s*/).filter(Boolean).join('|');
+    const objPattern = new RegExp('(' + parsedPattern + ')', 'i');
+    const before = results.length;
+    results = results.filter((r: any) => {
+      const text = (r.title || '') + ' ' + (r.summary || '');
+      if (!objPattern.test(text)) {
+        return false;
+      }
+      return true;
+    });
+    if (results.length < before) console.log('[Intel] EHR filtered ' + (before - results.length) + ' items for "' + objectName + '"');
+  }
+  // URL noise filter: cut e-commerce, product-catalog, auto/media pollution
+  const URL_NOISE_RULES = [
+    /(product|item|buy|price|mall|detail|goods)\./i,
+    /\/(mall|shop|store|product|catalog|goods)\//i,
+    /\.(zol|pconline|smzdm|autohome|dongchedi|xcar)\.com/i,
+  ];
+  const noiseBefore = results.length;
+  results = results.filter((r: any) => {
+    const u = (r.url || r.link || '').toLowerCase();
+    if (!u) return true;
+    const isNoise = URL_NOISE_RULES.some(re => re.test(u));
+    if (isNoise) console.log('[Intel] Noise filtered: ' + u.substring(0, 60));
+    return !isNoise;
+  });
+  if (results.length < noiseBefore) console.log('[Intel] Noise filter removed ' + (noiseBefore - results.length) + ' items');
   return results.slice(0, 30);
 }
