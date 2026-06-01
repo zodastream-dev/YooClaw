@@ -15,6 +15,7 @@ var allIntelData=[];
 var currentFilter='all';
 var aiChatHistory=[];
 var currentCenterTab='intel';
+var PROVIDER_NAMES={metaso:'秘塔',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily'};
 
 var INTEL_PROMPTS={
   '行业信号':'你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\\n\\n重点关注的信号类型：\\n- 技术突破：新技术、新标准、研发进展\\n- 新品发布：产品迭代、型号更新、功能升级\\n- 市场格局：出货量变化、市场份额转移、新进入者\\n- 产业链：上下游供需变化、关键零部件动态\\n- 政策法规：行业政策调整、监管动态、标准制定\\n- 产业趋势：需求转移、商业模式创新、投资动向\\n\\n你的工作原则：\\n- 优先关注「变化」而非「现状」\\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\\n- 优先提供最近30天内的资讯，标注大致时间\\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
@@ -307,7 +308,8 @@ function renderIntelFeed(data){
     html+='<div class="intel-card"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
     if(item._provider){
-      html+='<span class="intel-provider-tag">'+escHtml(item._provider)+'</span>';
+      var pName=PROVIDER_NAMES[item._provider]||item._provider;
+      html+='<span class="intel-provider-tag">'+escHtml(pName)+'</span>';
     }
     if(item._object){
       html+='<span class="intel-obj-tag">'+escHtml(item._object)+'</span>';
