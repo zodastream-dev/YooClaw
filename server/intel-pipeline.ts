@@ -100,7 +100,7 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
     try { keywords = JSON.parse(content); }
     catch {
       // Try extracting JSON array from text
-      const m = content.match(/\[.*\]/s);
+      const m = content.match(/\[.*?\]/s);
       if (m) keywords = JSON.parse(m[0]);
       else throw new Error('No JSON array found in response: ' + content.substring(0, 200));
     }
@@ -126,6 +126,19 @@ function getProviderKey(provider: string): string {
   // weibo/zhihu/xiaohongshu modules use Metaso API (domestic Chinese content)
   if (provider === 'weibo' || provider === 'zhihu' || provider === 'xiaohongshu') return process.env.METASO_API_KEY || '';
   return '';
+}
+
+// Safely truncate a JSON array of objects without breaking JSON syntax
+function safeJsonTruncate(items: any[], maxChars: number): string {
+  let result = '[';
+  for (let i = 0; i < items.length; i++) {
+    const itemStr = JSON.stringify(items[i]);
+    if (result.length + itemStr.length + 2 > maxChars) break; // +2 for ",]"
+    if (i > 0) result += ',';
+    result += itemStr;
+  }
+  result += ']';
+  return result;
 }
 
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
@@ -255,15 +268,15 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // Multi-object sources: use larger context window (100 items / 15k chars) to avoid crowding out objects
   const contextItems = objectName ? 100 : 50;
   const contextChars = objectName ? 15000 : 8000;
-  const searchContext = hasSearch ? JSON.stringify(rawItems.slice(0, contextItems)).substring(0, contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
+  const searchContext = hasSearch ? safeJsonTruncate(rawItems.slice(0, contextItems), contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
   if (objectName) {
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
-      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":""}]\n' +
-      '5. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
-      '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n7.无url留空 8.仅JSON\n\n原始搜索结果：\n' + searchContext;
+      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":""}]\n' +
+      '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
+      '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n8.无url留空 9.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.按重要性排序，摘要禁止留空\n' +
@@ -288,7 +301,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   try { results = JSON.parse(content); }
   catch (e1) {
     // 尝试提取 JSON 数组
-    let m = content.match(/\[\s*(?:\{[\s\S]*?\})\s*(?:,\s*\{[\s\S]*?\})*\s*\]/);
+    let m = content.match(/\[\s*(?:\{[\s\S]*?\}\s*(?:,\s*\{[\s\S]*?\})*)?\s*\]/);
     if (!m) m = content.match(/\[[\s\S]*\]/);
     if (m) {
       try { results = JSON.parse(m[0]); }
@@ -460,7 +473,10 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   });
   if (filteredCount > 0) console.log('[Intel] Filtered ' + filteredCount + ' items older than 365 days');
   // Cap empty-date items at 5 to prevent stale data dominating results
-  const emptyItems = results.filter((r: any) => !r.date || !r.date.trim());
+  const reliabilityOrder: Record<string, number> = { '已确认': 3, '待核实': 2, '传闻': 1 };
+  const emptyItems = results
+    .filter((r: any) => !r.date || !r.date.trim())
+    .sort((a: any, b: any) => (reliabilityOrder[b._reliability || ''] || 0) - (reliabilityOrder[a._reliability || ''] || 0));
   const datedItems = results.filter((r: any) => r.date && r.date.trim());
   if (emptyItems.length > 5) {
     console.log('[Intel] Capping empty-date items from ' + emptyItems.length + ' to 5 (keeping ' + datedItems.length + ' dated)');
@@ -490,7 +506,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   ];
   const noiseBefore = results.length;
   results = results.filter((r: any) => {
-    const u = (r.url || r.link || '').toLowerCase();
+    const u = (r.link || '').toLowerCase();
     if (!u) return true;
     const isNoise = URL_NOISE_RULES.some(re => re.test(u));
     if (isNoise) console.log('[Intel] Noise filtered: ' + u.substring(0, 60));

@@ -4,9 +4,6 @@
 export function intelStationScripts(apiBase: string, slug: string, wlistJson: string): string {
   return `
 var API='${apiBase}';
-var DEFAULT_DEEPSEEK_KEY='${process.env.DEEPSEEK_API_KEY || ""}';
-var DEFAULT_METASO_KEY='${process.env.METASO_API_KEY || ""}';
-var DEFAULT_TAVILY_KEY='${process.env.TAVILY_API_KEY || ""}';
 var WIDGETS=${wlistJson};
 var PORTAL_SLUG='${slug.replace(/'/g, "\\'")}';
 var currentSourceFilters=['全部'];
@@ -79,10 +76,9 @@ async function loadIntelData(){
       return;
     }
     sources.forEach(function(src){
-      // Always use default key for known providers; only use custom key for 'custom' provider
-      var knownProviders={metaso:DEFAULT_METASO_KEY,tavily:DEFAULT_TAVILY_KEY,deepseek:DEFAULT_DEEPSEEK_KEY,codebuddy:DEFAULT_DEEPSEEK_KEY};
-      if(knownProviders[src.aiProvider])src.apiKey=knownProviders[src.aiProvider];
-      else if(!src.apiKey)src.apiKey=DEFAULT_DEEPSEEK_KEY;
+      // Backend uses environment variables for API keys. Never expose keys to the client.
+      var knownProviders=['metaso','tavily','deepseek','codebuddy'];
+      if(knownProviders.indexOf(src.aiProvider)>=0&&!src.apiKey)src.apiKey='';
       // Fix invalid model names — override clearly wrong ones
       var validModels=['deepseek-v','deepseek-r','deepseek-c','gpt-','claude-','qwen-'];
       var hasValidModel=validModels.some(function(prefix){return (src.aiModel||'').indexOf(prefix)===0;});
@@ -293,13 +289,29 @@ function parseDate(d){
   // Try Chinese format: 2026年05月25日
   var cn=d.match(/(\\d{4})年(\\d{1,2})月(\\d{1,2})日/);
   if(cn)return new Date(cn[1],cn[2]-1,cn[3]).getTime();
+  // Relative dates
+  var now=Date.now();
+  if(/刚刚/.test(d))return now;
+  var h=d.match(/(\d+)\s*小时前/);
+  if(h)return now-parseInt(h[1])*3600000;
+  var m=d.match(/(\d+)\s*分钟前/);
+  if(m)return now-parseInt(m[1])*60000;
+  if(/昨天/.test(d))return now-86400000;
+  var day=d.match(/(\d+)\s*天前/);
+  if(day)return now-parseInt(day[1])*86400000;
   return 0;
 }
 function renderIntelFeed(data){
   console.log('[renderIntelFeed] called with data.length=', data.length, 'first _sourceName=', data.length>0?data[0]._sourceName:'N/A');
   if(data.length===0){$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据</div>';return}
   // Sort by date descending (newest first)
-  data.sort(function(a,b){return parseDate(b.date)-parseDate(a.date)});
+  data.sort(function(a,b){
+    var da=parseDate(a.date),db=parseDate(b.date);
+    if(da===0&&db===0)return 0;
+    if(da===0)return 1;
+    if(db===0)return-1;
+    return db-da;
+  });
   var html='';
   data.forEach(function(item,i){
     var keywords=(item.keywords||[]).slice(0,3);
@@ -980,7 +992,7 @@ function removeKeyword(wi,si,el){
 }
 
 /* ===== UTILS ===== */
-function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function initDashboard(){
   renderSentimentGauge(52);
   renderKPITrend();
@@ -989,7 +1001,22 @@ function initDashboard(){
 }
 
 function updateDashboard(data){
-  var sentiment=Math.floor(Math.random()*40+40);
+  // Compute sentiment score from actual _sentiment fields (正面/负面/中性)
+  var sentiment=52;
+  if(data&&data.length>0){
+    var pos=0,neg=0,neu=0;
+    data.forEach(function(item){
+      var s=(item._sentiment||'').trim();
+      if(s==='正面')pos++;
+      else if(s==='负面')neg++;
+      else neu++;
+    });
+    var total=pos+neg+neu;
+    if(total>0){
+      // Map to 0-100: negative=0, neutral=50, positive=100, weighted average
+      sentiment=Math.round((pos*100+neu*50+neg*0)/total);
+    }
+  }
   renderSentimentGauge(sentiment);
   renderSourceChannels(data);
   updateBriefing(data);
