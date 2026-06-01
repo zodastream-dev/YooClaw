@@ -1,5 +1,5 @@
 // Intel pipeline: search + DeepSeek analysis
-import { getSearchModule, getAllModules } from './search-sources/index.js';
+import { getSearchModule, getAllModules, getAllModulesIntl } from './search-sources/index.js';
 import crypto from 'crypto';
 
 // -- V3: AI-generated search keywords cache --
@@ -187,8 +187,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // Run all queries across all engines in parallel
   const seen = new Set<string>();
 
-  if (provider === 'all') {
-    const modules = getAllModules();
+  if (provider === 'all' || provider === 'all+en') {
+    const modules = provider === 'all+en' ? getAllModulesIntl() : getAllModules();
+    console.log('[Intel:' + provider + '] Using ' + modules.length + ' modules (Tavily: ' + (provider === 'all+en' ? 'included' : 'excluded') + ')');
     const allTasks: Promise<{ provider: string; items: any[]; queryIdx: number }>[] = [];
     queries.forEach((q, qi) => {
       modules.forEach((mod) => {
@@ -212,7 +213,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         // Silently skip failures (logged below)
       }
     }
-    console.log('[Intel:all] Total unique results across ' + queries.length + ' queries: ' + rawItems.length);
+    console.log('[Intel:' + provider + '] Total unique results across ' + queries.length + ' queries: ' + rawItems.length);
   } else {
     // Single provider: run all queries sequentially to avoid rate limits
     const searchMod = getSearchModule(provider);

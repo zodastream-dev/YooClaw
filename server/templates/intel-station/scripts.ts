@@ -285,10 +285,10 @@ function selectObjectFilter(srcName,objName,wi,si){
 function parseDate(d){
   if(!d)return 0;
   // Try ISO format: 2026-05-25
-  var iso=d.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  var iso=d.match(/(\\d{4})-(\\d{1,2})-(\\d{1,2})/);
   if(iso)return new Date(iso[1],iso[2]-1,iso[3]).getTime();
   // Try Chinese format: 2026年05月25日
-  var cn=d.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  var cn=d.match(/(\\d{4})年(\\d{1,2})月(\\d{1,2})日/);
   if(cn)return new Date(cn[1],cn[2]-1,cn[3]).getTime();
   return 0;
 }
@@ -323,7 +323,7 @@ function renderIntelFeed(data){
     html+='<div class="intel-card-tags">';
     keywords.forEach(function(kw){html+='<span class="intel-tag">'+escHtml(kw)+'</span>'});
     html+='</div>';
-    html+='<div class="intel-card-time">'+(item.date||'刚刚')+'</div>';
+    html+='<div class="intel-card-time">'+(item.date||'日期未知')+'</div>';
     html+='</div>';
     html+='</div>';
   });
