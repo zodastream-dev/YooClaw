@@ -415,18 +415,24 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   if (emptyDateCount > 0) {
     console.log('[Intel] ' + emptyDateCount + ' items have empty dates (kept, may degrade freshness)');
   }
+  let filteredCount = 0;
   results = results.filter(function (r: any) {
     if (!r.date || !r.date.trim()) return true;
     // Try parsing Chinese format: "2026年05月30日"
     const cnMatch = r.date.match(/(\\d{4})年(\\d{1,2})月(\\d{1,2})日/);
     if (cnMatch) {
       const ts = new Date(parseInt(cnMatch[1]), parseInt(cnMatch[2]) - 1, parseInt(cnMatch[3])).getTime();
-      return ts > cutoff;
+      if (ts <= cutoff) { filteredCount++; return false; }
+      return true;
     }
     // Try ISO format: "2026-05-30"
     const ts = new Date(r.date).getTime();
-    if (!isNaN(ts)) return ts > cutoff;
+    if (!isNaN(ts)) {
+      if (ts <= cutoff) { filteredCount++; return false; }
+      return true;
+    }
     return true; // keep if unparseable
   });
+  if (filteredCount > 0) console.log('[Intel] Filtered ' + filteredCount + ' items older than 30 days');
   return results.slice(0, 30);
 }
