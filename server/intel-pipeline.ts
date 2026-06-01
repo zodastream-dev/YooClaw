@@ -410,6 +410,24 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   if (hallucinatedUrls.length > 0) {
     console.warn('[Intel] Filtered ' + hallucinatedUrls.length + ' hallucinated URLs: ' + hallucinatedUrls.slice(0, 5).join(', '));
   }
+  // Fallback: fill empty summaries from raw search results or title
+  let filledSummaries = 0;
+  results.forEach((r: any) => {
+    if (r.summary && r.summary.trim()) return;
+    // Try matching raw search result by title
+    const rawMatch = rawItems.find((raw: any) =>
+      (raw.title || '').toLowerCase().trim() === (r.title || '').toLowerCase().trim()
+    );
+    if (rawMatch && (rawMatch.snippet || rawMatch.content)) {
+      r.summary = (rawMatch.snippet || rawMatch.content || '').substring(0, 120);
+      filledSummaries++;
+    } else {
+      // Fallback: generate from title
+      r.summary = (r.title || '').length > 20 ? (r.title || '') : ('关于' + (r.title || '') + '的报道');
+      filledSummaries++;
+    }
+  });
+  if (filledSummaries > 0) console.log('[Intel] Filled ' + filledSummaries + ' empty summaries');
   // 1-year freshness filter with empty-date capping
   const cutoff = Date.now() - 365 * 86400000;
   let filteredCount = 0;
