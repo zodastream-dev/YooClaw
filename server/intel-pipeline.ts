@@ -409,30 +409,31 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   if (hallucinatedUrls.length > 0) {
     console.warn('[Intel] Filtered ' + hallucinatedUrls.length + ' hallucinated URLs: ' + hallucinatedUrls.slice(0, 5).join(', '));
   }
-  // 30-day freshness filter
+  // 30-day freshness filter with empty-date capping
   const cutoff = Date.now() - 30 * 86400000;
-  const emptyDateCount = results.filter((r: any) => !r.date || !r.date.trim()).length;
-  if (emptyDateCount > 0) {
-    console.log('[Intel] ' + emptyDateCount + ' items have empty dates (kept, may degrade freshness)');
-  }
   let filteredCount = 0;
   results = results.filter(function (r: any) {
-    if (!r.date || !r.date.trim()) return true;
-    // Try parsing Chinese format: "2026年05月30日"
+    if (!r.date || !r.date.trim()) return true; // keep for now, capping below
     const cnMatch = r.date.match(/(\\d{4})年(\\d{1,2})月(\\d{1,2})日/);
     if (cnMatch) {
       const ts = new Date(parseInt(cnMatch[1]), parseInt(cnMatch[2]) - 1, parseInt(cnMatch[3])).getTime();
       if (ts <= cutoff) { filteredCount++; return false; }
       return true;
     }
-    // Try ISO format: "2026-05-30"
     const ts = new Date(r.date).getTime();
     if (!isNaN(ts)) {
       if (ts <= cutoff) { filteredCount++; return false; }
       return true;
     }
-    return true; // keep if unparseable
+    return true;
   });
   if (filteredCount > 0) console.log('[Intel] Filtered ' + filteredCount + ' items older than 30 days');
+  // Cap empty-date items at 5 to prevent stale data dominating results
+  const emptyItems = results.filter((r: any) => !r.date || !r.date.trim());
+  const datedItems = results.filter((r: any) => r.date && r.date.trim());
+  if (emptyItems.length > 5) {
+    console.log('[Intel] Capping empty-date items from ' + emptyItems.length + ' to 5 (keeping ' + datedItems.length + ' dated)');
+    results = datedItems.concat(emptyItems.slice(0, 5));
+  }
   return results.slice(0, 30);
 }
