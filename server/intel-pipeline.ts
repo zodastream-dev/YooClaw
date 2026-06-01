@@ -409,19 +409,24 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   if (hallucinatedUrls.length > 0) {
     console.warn('[Intel] Filtered ' + hallucinatedUrls.length + ' hallucinated URLs: ' + hallucinatedUrls.slice(0, 5).join(', '));
   }
-  // 30-day freshness filter: items with valid dates older than 30 days are removed;
-  // items with empty dates are kept (they may be from search results where dates
-  // couldn't be recovered, but they're likely recent since search engines prioritize recency)
+  // 30-day freshness filter
   const cutoff = Date.now() - 30 * 86400000;
   const emptyDateCount = results.filter((r: any) => !r.date || !r.date.trim()).length;
   if (emptyDateCount > 0) {
     console.log('[Intel] ' + emptyDateCount + ' items have empty dates (kept, may degrade freshness)');
   }
   results = results.filter(function (r: any) {
-    if (!r.date || !r.date.trim()) return true; // keep if no date available
+    if (!r.date || !r.date.trim()) return true;
+    // Try parsing Chinese format: "2026年05月30日"
+    const cnMatch = r.date.match(/(\\d{4})年(\\d{1,2})月(\\d{1,2})日/);
+    if (cnMatch) {
+      const ts = new Date(parseInt(cnMatch[1]), parseInt(cnMatch[2]) - 1, parseInt(cnMatch[3])).getTime();
+      return ts > cutoff;
+    }
+    // Try ISO format: "2026-05-30"
     const ts = new Date(r.date).getTime();
-    if (isNaN(ts)) return true; // keep if unparseable
-    return ts > cutoff;
+    if (!isNaN(ts)) return ts > cutoff;
+    return true; // keep if unparseable
   });
   return results.slice(0, 30);
 }
