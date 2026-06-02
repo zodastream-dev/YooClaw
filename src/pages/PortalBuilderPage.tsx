@@ -249,14 +249,14 @@ export function PortalBuilderPage() {
   })
   const [addMonitorForm, setAddMonitorForm] = useState({
     title: '', sources: [{
-      id: '', name: '新建监控源', aiProvider: 'all', aiModel: 'deepseek-v3.1',
+      id: '', name: '新建监控源', aiProvider: 'all+cn-news', aiModel: 'deepseek-v3.1',
       apiKey: '', keywords: [] as string[], objects: [] as IntelObject[], updateFrequency: 'daily', customPrompt: '',
     }],
   })
 
   const openAddModal = useCallback((type: 'report-generator' | 'intel-monitor') => {
     setAddReportForm({ title: '行业分析报告', defaultCompany: '', analysisMethods: ['SWOT', 'PEST'], searchPlatform: 'metaso', searchApiKey: '', sysPrompt: '你是一个行业研究分析师。', userPrompt: '请用 HTML 格式输出行业研究报告。' })
-    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: INTEL_PROMPTS['行业信号'] || '' }] })
+    setAddMonitorForm({ title: '情报源', sources: [{ id: genId('s'), name: '行业信号', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], objects: [], updateFrequency: 'daily', customPrompt: INTEL_PROMPTS['行业信号'] || '' }] })
     setAddModalObjectInput('')
     setAddModalKeywordInput('')
     setAddModalType(type)
@@ -313,7 +313,7 @@ export function PortalBuilderPage() {
     updateWidget(widgetId, (w) => {
       if (w.type !== 'intel-monitor') return w
       const sources = [...(w.config.sources || [])]
-      sources.push({ id: genId('s'), name: `监控源 #${sources.length + 1}`, aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], updateFrequency: 'daily', customPrompt: '' })
+      sources.push({ id: genId('s'), name: `监控源 #${sources.length + 1}`, aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: [], updateFrequency: 'daily', customPrompt: '' })
       return { ...w, config: { ...w.config, sources } }
     })
   }, [updateWidget])
@@ -574,10 +574,10 @@ export function PortalBuilderPage() {
       id, type: 'intel-monitor', title: '情报监控', expanded: false,
       config: {
         sources: [
-          { id: genId('s'), name: '行业信号', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['技术突破', '新品发布', '出货量', '市场份额', '产业链', '行业报告', '政策法规', '产业趋势'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
-          { id: genId('s'), name: '目标客户情报', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'], updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。' },
-          { id: genId('s'), name: '竞争对手情报', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'], updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。' },
-          { id: genId('s'), name: '自身舆情监控', aiProvider: 'all', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'], updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。' },
+          { id: genId('s'), name: '行业信号', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['技术突破', '新品发布', '出货量', '市场份额', '产业链', '行业报告', '政策法规', '产业趋势'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
+          { id: genId('s'), name: '目标客户情报', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'], updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。' },
+          { id: genId('s'), name: '竞争对手情报', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'], updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。' },
+          { id: genId('s'), name: '自身舆情监控', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'], updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。' },
         ],
       },
     }
@@ -1812,7 +1812,7 @@ export function PortalBuilderPage() {
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="block text-sm font-semibold text-muted-foreground mb-1.5">AI 引擎</label>
-                              <select value={addMonitorForm.sources[0]?.aiProvider || 'all'}
+                              <select value={addMonitorForm.sources[0]?.aiProvider || 'all+cn-news'}
                                 onChange={(e) => setAddMonitorForm((f) => ({ ...f, sources: [{ ...f.sources[0], aiProvider: e.target.value }] }))}
                                 className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all">
                                 {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
