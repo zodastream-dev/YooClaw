@@ -111,6 +111,13 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .center-header{padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;position:relative}
 .center-header::after{content:'';position:absolute;bottom:-1px;left:0;width:80px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:1px}
 .center-header h2{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+/* Intel Stats Bar */
+.intel-stats-bar{display:flex;align-items:center;gap:0;padding:10px 24px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;background:var(--bg-card)}
+.stat-card{display:flex;flex-direction:column;align-items:center;min-width:64px;padding:6px 14px}
+.stat-val{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2}
+.stat-total .stat-val{font-size:24px;background:linear-gradient(135deg,#00d4ff,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-lbl{font-size:9px;font-weight:600;color:var(--text-secondary);margin-top:2px;white-space:nowrap;text-transform:uppercase;letter-spacing:0.5px}
+.stat-divider{width:1px;height:32px;background:linear-gradient(180deg,transparent,var(--border),transparent);flex-shrink:0}
 .intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
 .intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all .3s;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
 .intel-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:background .3s}

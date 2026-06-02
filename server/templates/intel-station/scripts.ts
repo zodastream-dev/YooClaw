@@ -12,7 +12,7 @@ var allIntelData=[];
 var currentFilter='all';
 var aiChatHistory=[];
 var currentCenterTab='intel';
-var PROVIDER_NAMES={metaso:'秘塔',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily'};
+var PROVIDER_NAMES={metaso:'秘塔',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网'};
 
 var INTEL_PROMPTS={
   '行业信号':'你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\\n\\n重点关注的信号类型：\\n- 技术突破：新技术、新标准、研发进展\\n- 新品发布：产品迭代、型号更新、功能升级\\n- 市场格局：出货量变化、市场份额转移、新进入者\\n- 产业链：上下游供需变化、关键零部件动态\\n- 政策法规：行业政策调整、监管动态、标准制定\\n- 产业趋势：需求转移、商业模式创新、投资动向\\n\\n你的工作原则：\\n- 优先关注「变化」而非「现状」\\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\\n- 优先提供最近30天内的资讯，标注大致时间\\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
@@ -111,6 +111,7 @@ async function loadIntelData(){
       renderIntelFeed(filtered);
     }
     updateDashboard(allIntelData);
+    renderIntelStatsBar(allIntelData);
     $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
     $("updateInfo").textContent="上次更新: "+new Date().toLocaleTimeString("zh-CN");
     $("updateInfo").style.display="";
@@ -159,7 +160,8 @@ function renderSourceFilters(monitors){
     var hasObj=objects.length>0;
     var expanded=!!expandedSources[src.name];
     var isSourceActive=currentSourceFilters.length>0&&currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf(src.name)>=0;
-    var providerLabel=src.aiProvider||'deepseek';
+    var providerDisplayNames={'all':'全渠道','all+cn-news':'全渠道','all+en':'全渠道+英文','deepseek':'DeepSeek','metaso':'秘塔','tavily':'Tavily','multi-engine':'多引擎','wechat':'微信','weibo':'微博','zhihu':'知乎','xiaohongshu':'小红书'};
+    var providerLabel=providerDisplayNames[src.aiProvider]||src.aiProvider||'DeepSeek';
     var kws=(src.keywords||[]);
     var freqLabel={hourly:'每小时',daily:'每日',weekly:'每周',monthly:'每月'}[src.updateFrequency]||'每日';
     html+='<div class="source-card'+(isSourceActive?' source-active':'')+'">';
@@ -1022,6 +1024,32 @@ function updateDashboard(data){
   updateBriefing(data);
 }
 
+function renderIntelStatsBar(data){
+  var bar=$('intelStatsBar');
+  if(!bar)return;
+  if(!data||!data.length){bar.style.display='none';return;}
+  var pos=0,neg=0,neu=0,confirmed=0,rumor=0,pending=0,hasIntent=0;
+  data.forEach(function(item){
+    var s=(item._sentiment||'').trim();
+    if(s==='正面')pos++;else if(s==='负面')neg++;else neu++;
+    var r=(item._reliability||'').trim();
+    if(r==='已确认')confirmed++;else if(r==='传闻')rumor++;else pending++;
+    if(item._intent&&item._intent.trim())hasIntent++;
+  });
+  var total=data.length;
+  bar.style.display='flex';
+  bar.innerHTML=
+    '<div class="stat-card stat-total"><div class="stat-val">'+total+'</div><div class="stat-lbl">情报总数</div></div>'+
+    '<div class="stat-divider"></div>'+
+    '<div class="stat-card stat-pos"><div class="stat-val">'+pos+'</div><div class="stat-lbl">🟢 正面</div></div>'+
+    '<div class="stat-card stat-neu"><div class="stat-val">'+neu+'</div><div class="stat-lbl">🟡 中性</div></div>'+
+    '<div class="stat-card stat-neg"><div class="stat-val">'+neg+'</div><div class="stat-lbl">🔴 负面</div></div>'+
+    '<div class="stat-divider"></div>'+
+    '<div class="stat-card stat-confirmed"><div class="stat-val">'+confirmed+'</div><div class="stat-lbl">✓ 已确认</div></div>'+
+    '<div class="stat-card stat-rumor"><div class="stat-val">'+rumor+'</div><div class="stat-lbl">~ 传闻</div></div>'+
+    (hasIntent>0?'<div class="stat-card stat-intent"><div class="stat-val">'+hasIntent+'</div><div class="stat-lbl">⚔ 竞对意图</div></div>':'');
+}
+
 function renderSentimentGauge(value){
   var canvas=$('sentimentCanvas');
   if(!canvas)return;
@@ -1054,6 +1082,8 @@ function renderSourceChannels(data){
     metaso:'秘塔搜索',tavily:'Tavily','multi-engine':'多引擎',wechat:'微信公众号',
     weibo:'微博',zhihu:'知乎',xiaohongshu:'小红书',openai:'OpenAI',
     deepseek:'DeepSeek',codebuddy:'CodeBuddy',custom:'自定义',all:'全渠道',
+    'tianapi-generalnews':'天聚综合新闻','tianapi-keji':'天聚科技新闻','tianapi-ai':'天聚AI资讯','tianapi-guonei':'天聚国内新闻',
+    'tianapi-world':'天聚国际新闻','tianapi-social':'天聚社会新闻','tianapi-caijing':'天聚财经新闻','tianapi-internet':'天聚互联网资讯',
   };
   var html='';
   if(data&&data.length>0){
