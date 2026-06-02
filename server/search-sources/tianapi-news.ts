@@ -63,7 +63,7 @@ function createTianapiModule(category: string, label: string): SearchModule {
         }
         const data = await resp.json();
         if (data.code !== 200) {
-          console.warn('[Tianapi:' + category + '] API error: ' + (data.msg || 'unknown'));
+          console.warn('[Tianapi:' + category + '] API code=' + data.code + ' msg=' + (data.msg || 'unknown') + ' query=' + (query || '(latest)'));
           return [];
         }
 
