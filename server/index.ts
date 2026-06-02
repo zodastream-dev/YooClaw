@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import fs from 'fs';
+import multer from 'multer';
 import { exec, spawn, execSync } from 'child_process';
 import {
   initDatabase,
@@ -3958,7 +3959,6 @@ if (!fs.existsSync(VIDEO_DIR)) {
 }
 
 // ===== Video Upload =====
-import multer from 'multer';
 const upload = multer({
   dest: '/tmp/',
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max per file
