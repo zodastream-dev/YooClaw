@@ -1,6 +1,28 @@
 // 天聚数行新闻资讯搜索源 — factory pattern, one file = 8 modules
 import type { RawSearchItem, SearchModule } from './types';
 
+// =============================================================================
+// Global rate-limited queue for all tianapi calls (max 1 req/sec)
+// Prevents "API调用频率超限" errors under concurrent portal loads
+// =============================================================================
+let tianapiQueue: Promise<any> = Promise.resolve();
+
+function enqueueTianapi<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = tianapiQueue;
+  const next = prev.then(async () => {
+    await new Promise(resolve => setTimeout(resolve, 1100)); // 1.1s gap (safe margin)
+    return fn();
+  }).catch(async (e) => {
+    // Ensure gap even on error, then re-throw
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    throw e;
+  });
+  // Always advance the queue to avoid stale promise blocking
+  tianapiQueue = next.catch(() => {});
+  return next;
+}
+// =============================================================================
+
 // Categories: API path → Chinese label for UI
 export const TIANAPI_CATEGORIES: Record<string, string> = {
   keji: '科技',
@@ -31,9 +53,10 @@ function createTianapiModule(category: string, label: string): SearchModule {
       if (query) url.searchParams.set('word', query);
 
       try {
-        const resp = await fetch(url.toString(), {
+        const apiUrl = url.toString();
+        const resp = await enqueueTianapi(() => fetch(apiUrl, {
           signal: AbortSignal.timeout(15000),
-        });
+        }));
         if (!resp.ok) {
           console.warn('[Tianapi:' + category + '] HTTP ' + resp.status);
           return [];
