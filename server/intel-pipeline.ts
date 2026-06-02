@@ -22,7 +22,48 @@ function srcFingerprint(src: any, objectName?: string): string {
   })).digest('hex');
 }
 
-async function generateSearchKeywords(src: any, objectName?: string): Promise<string[]> {
+// Build a global context snapshot from all portal sources — used to infer industry
+// when individual source keywords are empty (zero-cost disambiguation, Gemini's proposal)
+function buildGlobalContext(allSources: any[], currentObjName?: string): string {
+  if (!allSources || allSources.length === 0) return '';
+
+  const lines: string[] = [];
+
+  // Collect industry signals (non-competitor, non-sentiment sources)
+  const industrySrcs = allSources.filter((s: any) => {
+    const n = (s.name || '').toLowerCase();
+    return (n.includes('行业') || n.includes('信号')) && !n.includes('竞') && !n.includes('对手') && !n.includes('舆情');
+  });
+  if (industrySrcs.length > 0) {
+    const industryObjects = industrySrcs.flatMap((s: any) =>
+      (s.objects || []).map((o: any) => o.name).filter(Boolean)
+    );
+    if (industryObjects.length > 0) {
+      lines.push('该门户的行业信号源监控对象：' + industryObjects.join('、'));
+    }
+  }
+
+  // Collect all competitor/object names across ALL sources (for industry hint)
+  const allObjects = allSources.flatMap((s: any) =>
+    (s.objects || []).map((o: any) => o.name).filter(Boolean)
+  );
+  const otherObjects = allObjects.filter(n => n !== currentObjName);
+  if (otherObjects.length > 0) {
+    lines.push('同门户其他监控对象：' + otherObjects.join('、'));
+  }
+
+  // Collect source names as domain hints
+  const sourceNames = allSources.map((s: any) => s.name).filter(Boolean);
+  if (sourceNames.length > 0) {
+    lines.push('该门户包含以下监控源：' + sourceNames.join('、'));
+  }
+
+  return lines.length > 0
+    ? '——门户全局背景——\n' + lines.join('\n') + '\n请根据以上信息推断行业领域。如果当前监控对象名称是通用词汇，务必结合推断的行业生成限定性关键词。'
+    : '';
+}
+
+async function generateSearchKeywords(src: any, objectName?: string, allSources?: any[]): Promise<string[]> {
   const fp = srcFingerprint(src, objectName);
 
   // Check memory cache (successful or failed)
@@ -41,7 +82,7 @@ async function generateSearchKeywords(src: any, objectName?: string): Promise<st
     return inFlight;
   }
 
-  const promise = doGenerateKeywords(src, objectName, fp);
+  const promise = doGenerateKeywords(src, objectName, fp, allSources);
   kwInFlight.set(fp, promise);
 
   try {
@@ -51,7 +92,7 @@ async function generateSearchKeywords(src: any, objectName?: string): Promise<st
   }
 }
 
-async function doGenerateKeywords(src: any, objectName: string | undefined, fp: string): Promise<string[]> {
+async function doGenerateKeywords(src: any, objectName: string | undefined, fp: string, allSources?: any[]): Promise<string[]> {
   const category = src.name || '情报';
   const prompt = (src.customPrompt || '').substring(0, 400);
   const userKw = (Array.isArray(src.keywords) ? src.keywords : []).join('、');
@@ -64,6 +105,11 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
     ? '你是搜索关键词优化专家，专注于宏观行业趋势。今天是' + today + '。根据情报监控配置，生成8-12个宏观行业搜索关键词。要求：1.优先产业链变化、技术路线图、市场格局、政策法规、商业模式创新 2.禁止具体产品评测、单品价格、参数配置、产品促销 3.形式如"手机出货量2026Q2趋势""智能手机芯片供应链变化"等趋势性短语 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]'
     : '你是搜索关键词优化专家。今天是' + today + '。根据情报监控配置，生成8-12个高价值中文搜索关键词用于多渠道搜索引擎查询。要求：1.优先具体产品名/技术术语/事件名称（如"韬芯片""鸿蒙NEXT""Mate80"）2.必须包含时效性关键词（如"最新""本月""2026年"）3.覆盖6个维度：产品发布、技术突破、财报业绩、人事变动、竞争动态、政策监管 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]';
 
+  // Build global context for zero-cost industry inference (Gemini's proposed optimization)
+  const globalCtx = allSources && allSources.length > 0
+    ? buildGlobalContext(allSources, objectName)
+    : '';
+
   // Competitor sources: add industry context to avoid ambiguous generic names
   const isCompetitor = category.includes('竞') || category.includes('对手');
   const objectIndustryKw = src.objects && src.objects.length > 0
@@ -72,11 +118,12 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
   const industryCtx = isCompetitor
     ? (objectIndustryKw.length > 0
         ? '注意：监控对象业务领域为「' + objectIndustryKw.join('、') + '」。生成关键词时必须结合该业务领域，避免通用名称歧义。'
-        : '注意：监控对象名称可能是通用词汇（如店铺名、品牌名），生成关键词时必须加入具体业务领域或行业限定（如"宠物品牌"、"宠物店"、"科技公司"），确保搜索结果精准相关。')
+        : (globalCtx ? '' : '注意：监控对象名称可能是通用词汇（如店铺名、品牌名），生成关键词时必须加入具体业务领域或行业限定（如"宠物品牌"、"宠物店"、"科技公司"），确保搜索结果精准相关。'))
     : '';
 
   const up = '情报属性：' + category + '\n' +
     (objCtx ? objCtx + '\n' : '') +
+    (globalCtx ? globalCtx + '\n' : '') +
     (industryCtx ? industryCtx + '\n' : '') +
     '当前日期：' + today + '\n' +
     '用户关键词：' + (userKw || '（无）') + '\n' +
@@ -156,7 +203,7 @@ function safeJsonTruncate(items: any[], maxChars: number): string {
   return result;
 }
 
-export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string): Promise<any[]> {
+export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string, allSources?: any[]): Promise<any[]> {
   const provider = src.aiProvider || 'all';
   // Validate model name — only allow DeepSeek models, fallback to deepseek-v4-flash
   const VALID_MODELS = ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'];
@@ -169,7 +216,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // -- V3: Generate AI-optimized search keywords (cached per config fingerprint) --
   let aiKw: string[] = [];
   try {
-    aiKw = await generateSearchKeywords(src, objectName);
+    aiKw = await generateSearchKeywords(src, objectName, allSources);
   } catch (e: any) {
     console.warn('[Intel:V3] Keyword generation error, falling back to user keywords:', e.message);
   }
