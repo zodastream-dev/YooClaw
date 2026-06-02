@@ -64,8 +64,20 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
     ? '你是搜索关键词优化专家，专注于宏观行业趋势。今天是' + today + '。根据情报监控配置，生成8-12个宏观行业搜索关键词。要求：1.优先产业链变化、技术路线图、市场格局、政策法规、商业模式创新 2.禁止具体产品评测、单品价格、参数配置、产品促销 3.形式如"手机出货量2026Q2趋势""智能手机芯片供应链变化"等趋势性短语 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]'
     : '你是搜索关键词优化专家。今天是' + today + '。根据情报监控配置，生成8-12个高价值中文搜索关键词用于多渠道搜索引擎查询。要求：1.优先具体产品名/技术术语/事件名称（如"韬芯片""鸿蒙NEXT""Mate80"）2.必须包含时效性关键词（如"最新""本月""2026年"）3.覆盖6个维度：产品发布、技术突破、财报业绩、人事变动、竞争动态、政策监管 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]';
 
+  // Competitor sources: add industry context to avoid ambiguous generic names
+  const isCompetitor = category.includes('竞') || category.includes('对手');
+  const objectIndustryKw = src.objects && src.objects.length > 0
+    ? src.objects.map((o: any) => o.keywords || []).flat().filter(Boolean)
+    : [];
+  const industryCtx = isCompetitor
+    ? (objectIndustryKw.length > 0
+        ? '注意：监控对象业务领域为「' + objectIndustryKw.join('、') + '」。生成关键词时必须结合该业务领域，避免通用名称歧义。'
+        : '注意：监控对象名称可能是通用词汇（如店铺名、品牌名），生成关键词时必须加入具体业务领域或行业限定（如"宠物品牌"、"宠物店"、"科技公司"），确保搜索结果精准相关。')
+    : '';
+
   const up = '情报属性：' + category + '\n' +
     (objCtx ? objCtx + '\n' : '') +
+    (industryCtx ? industryCtx + '\n' : '') +
     '当前日期：' + today + '\n' +
     '用户关键词：' + (userKw || '（无）') + '\n' +
     '配置描述：' + (prompt || '（无）') + '\n\n' +
@@ -173,11 +185,29 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   const queries: string[] = [];
   const thisMonth = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
 
+  // Build enriched object context from object's keywords (industry/business type hints)
+  const targetObj = objectName
+    ? (src.objects || []).find((o: any) => o.name === objectName)
+    : undefined;
+  const objIndustryKw = targetObj && targetObj.keywords && targetObj.keywords.length > 0
+    ? targetObj.keywords.join(' ')
+    : '';
+
   if (mergedKwArr.length > 0) {
     const BATCH_SIZE = 3;
     for (let i = 0; i < mergedKwArr.length; i += BATCH_SIZE) {
       const batch = mergedKwArr.slice(i, i + BATCH_SIZE);
-      const q = batch.map(k => objectName ? `${objectName} ${k}` : k).join(' OR ');
+      const q = batch.map(k => {
+        const trimmed = k.trim();
+        if (!objectName) return trimmed;
+        // Avoid duplicating objectName if keyword already contains it
+        if (trimmed.toLowerCase().includes(objectName.toLowerCase())) {
+          return trimmed;
+        }
+        // Prepend objectName + industry keywords for disambiguation
+        const prefix = objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName;
+        return `${prefix} ${trimmed}`;
+      }).join(' OR ');
       queries.push(q);
     }
   } else if (objectName) {
@@ -192,7 +222,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     } else {
       fallbackModifiers = '最新动态';
     }
-    queries.push(`${objectName} ${fallbackModifiers}`);
+    const fallbackPrefix = objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName;
+    queries.push(`${fallbackPrefix} ${fallbackModifiers}`);
     console.log(`[Intel] No keywords available for "${src.name}", using fallback query`);
   } else {
     queries.push(src.name || '');
@@ -200,7 +231,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // Append recency query as a separate search for latest coverage
   if (objectName) {
-    queries.push(`${objectName} 最新动态 ${thisMonth}`);
+    const recencyPrefix = objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName;
+    queries.push(`${recencyPrefix} 最新动态 ${thisMonth}`);
   }
 
   // 1. Search — run ALL queries in parallel across all engines
@@ -217,10 +249,11 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       tavilyStatus = 'included';
     } else if (provider === 'all+cn-news') {
       // Base modules + ONLY tianapi-generalnews (not all 8 tianapi categories)
-      modules = getAllModules();
+      // Metaso temporarily paused to save quota during development/testing
+      modules = getAllModules().filter(m => m.name !== 'metaso');
       const generalNews = getSearchModule('tianapi-generalnews');
       if (generalNews) modules.push(generalNews);
-      tavilyStatus = 'excluded, tianapi-generalnews only';
+      tavilyStatus = 'excluded, metaso paused, tianapi-generalnews only';
     } else {
       modules = getAllModules();
       tavilyStatus = 'excluded, tianapi excluded';

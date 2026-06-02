@@ -50,7 +50,27 @@ function createTianapiModule(category: string, label: string): SearchModule {
       const url = new URL('https://apis.tianapi.com/' + category + '/index');
       url.searchParams.set('key', apiKey);
       url.searchParams.set('num', '10');
-      if (query) url.searchParams.set('word', query);
+      // Tianapi word param: no OR syntax, limited length, simple query only
+      if (query) {
+        let searchWord = query;
+        // Remove OR operators (tianapi doesn't support boolean syntax)
+        searchWord = searchWord.replace(/\s+OR\s+/gi, ' ');
+        // Deduplicate repeated words (e.g. "宠爱一生 宠爱一生")
+        const words = searchWord.split(/\s+/).filter(Boolean);
+        const seenWords = new Set<string>();
+        const uniqueWords: string[] = [];
+        for (const w of words) {
+          const lower = w.toLowerCase();
+          if (!seenWords.has(lower)) {
+            seenWords.add(lower);
+            uniqueWords.push(w);
+          }
+        }
+        searchWord = uniqueWords.join(' ');
+        // Limit length to avoid API issues
+        if (searchWord.length > 80) searchWord = searchWord.substring(0, 80);
+        url.searchParams.set('word', searchWord);
+      }
 
       try {
         const apiUrl = url.toString();

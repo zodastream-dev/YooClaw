@@ -112,12 +112,22 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .center-header::after{content:'';position:absolute;bottom:-1px;left:0;width:80px;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:1px}
 .center-header h2{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 /* Intel Stats Bar */
-.intel-stats-bar{display:flex;align-items:center;gap:0;padding:10px 24px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;background:var(--bg-card)}
-.stat-card{display:flex;flex-direction:column;align-items:center;min-width:64px;padding:6px 14px}
-.stat-val{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2}
-.stat-total .stat-val{font-size:24px;background:linear-gradient(135deg,#00d4ff,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.stat-lbl{font-size:9px;font-weight:600;color:var(--text-secondary);margin-top:2px;white-space:nowrap;text-transform:uppercase;letter-spacing:0.5px}
-.stat-divider{width:1px;height:32px;background:linear-gradient(180deg,transparent,var(--border),transparent);flex-shrink:0}
+.intel-stats-bar{display:flex;align-items:center;gap:0;padding:12px 24px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;background:var(--bg-card)}
+.stat-card{display:flex;flex-direction:column;align-items:center;min-width:80px;padding:10px 18px;border-radius:10px;transition:all .2s;cursor:default}
+.stat-card:hover{background:rgba(0,212,255,0.04)}
+.stat-val{font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2}
+.stat-total .stat-val{font-size:30px;background:linear-gradient(135deg,#00d4ff,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-lbl{font-size:10px;font-weight:600;color:var(--text-secondary);margin-top:4px;white-space:nowrap;text-transform:uppercase;letter-spacing:0.5px}
+.stat-divider{width:1px;height:40px;background:linear-gradient(180deg,transparent,var(--border),transparent);flex-shrink:0;margin:0 4px}
+/* Sentiment summary card (clickable to expand) */
+.stat-sentiment{cursor:pointer;position:relative}
+.stat-sentiment:hover{background:rgba(0,212,255,0.08);box-shadow:0 0 12px rgba(0,212,255,0.08)}
+.stat-sentiment::after{content:'▼';font-size:8px;color:var(--text-secondary);margin-top:2px;opacity:0.5}
+.sentiment-detail{display:flex;align-items:center;gap:0;overflow:hidden;max-width:0;opacity:0;transition:all .35s cubic-bezier(.4,0,.2,1)}
+.sentiment-detail.expanded{max-width:300px;opacity:1}
+.sentiment-detail .stat-card{min-width:56px;padding:8px 12px}
+.sentiment-detail .stat-val{font-size:16px}
+.sentiment-detail .stat-lbl{font-size:9px}
 .intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
 .intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all .3s;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
 .intel-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:background .3s}

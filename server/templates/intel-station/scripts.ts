@@ -744,7 +744,7 @@ function renderSourceForm(wi,si){
   s+='<div class="model-config-body" style="display:none;margin-top:8px">';
   s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
   s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
-  [{v:'all',l:'🌐 全渠道（推荐）'},{v:'metaso',l:'秘塔搜索（Metaso）'},{v:'tavily',l:'Tavily 搜索'},{v:'multi-engine',l:'多引擎搜索'},{v:'wechat',l:'微信公众号'},{v:'weibo',l:'微博'},{v:'zhihu',l:'知乎'},{v:'xiaohongshu',l:'小红书'},{v:'deepseek',l:'DeepSeek（仅知识库）'},{v:'custom',l:'自定义 API'}].forEach(function(p){
+  [{v:'all+cn-news',l:'🌐 全渠道（含天聚新闻，推荐）'},{v:'all',l:'🌐 全渠道（含秘塔）'},{v:'metaso',l:'秘塔搜索（Metaso）'},{v:'tavily',l:'Tavily 搜索'},{v:'multi-engine',l:'多引擎搜索'},{v:'wechat',l:'微信公众号'},{v:'weibo',l:'微博'},{v:'zhihu',l:'知乎'},{v:'xiaohongshu',l:'小红书'},{v:'deepseek',l:'DeepSeek（仅知识库）'},{v:'custom',l:'自定义 API'}].forEach(function(p){
     s+='<option value="'+p.v+'"'+(src.aiProvider===p.v?' selected':'')+'>'+p.l+'</option>';
   });
   s+='</select></div>';
@@ -885,7 +885,7 @@ function addNewSource(){
     return;
   }
   var srcs=w.sources||(w.config&&w.config.sources)||[];
-  srcs.push({name:'行业信号',aiProvider:'deepseek',aiModel:'deepseek-v4-flash',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:INTEL_PROMPTS['行业信号']||''});
+  srcs.push({name:'行业信号',aiProvider:'all+cn-news',aiModel:'deepseek-v4-flash',apiKey:'',keywords:[],objects:[],updateFrequency:'daily',customPrompt:INTEL_PROMPTS['行业信号']||''});
   if(w.config&&w.config.sources)w.config.sources=srcs;
   w.sources=srcs;
   var newSi=srcs.length-1;
@@ -1024,6 +1024,15 @@ function updateDashboard(data){
   updateBriefing(data);
 }
 
+var sentimentExpanded=false;
+function toggleSentimentDetail(){
+  sentimentExpanded=!sentimentExpanded;
+  var detail=$('sentimentDetail');
+  if(detail){
+    if(sentimentExpanded)detail.classList.add('expanded');
+    else detail.classList.remove('expanded');
+  }
+}
 function renderIntelStatsBar(data){
   var bar=$('intelStatsBar');
   if(!bar)return;
@@ -1041,9 +1050,12 @@ function renderIntelStatsBar(data){
   bar.innerHTML=
     '<div class="stat-card stat-total"><div class="stat-val">'+total+'</div><div class="stat-lbl">情报总数</div></div>'+
     '<div class="stat-divider"></div>'+
+    '<div class="stat-card stat-sentiment" id="statSentiment" onclick="toggleSentimentDetail()"><div class="stat-val">'+(pos+neg+neu>0?Math.round(pos*100/(pos+neg+neu))+'%':'-')+'</div><div class="stat-lbl">情绪指数</div></div>'+
+    '<div class="sentiment-detail'+(sentimentExpanded?' expanded':'')+'" id="sentimentDetail">'+
     '<div class="stat-card stat-pos"><div class="stat-val">'+pos+'</div><div class="stat-lbl">🟢 正面</div></div>'+
     '<div class="stat-card stat-neu"><div class="stat-val">'+neu+'</div><div class="stat-lbl">🟡 中性</div></div>'+
     '<div class="stat-card stat-neg"><div class="stat-val">'+neg+'</div><div class="stat-lbl">🔴 负面</div></div>'+
+    '</div>'+
     '<div class="stat-divider"></div>'+
     '<div class="stat-card stat-confirmed"><div class="stat-val">'+confirmed+'</div><div class="stat-lbl">✓ 已确认</div></div>'+
     '<div class="stat-card stat-rumor"><div class="stat-val">'+rumor+'</div><div class="stat-lbl">~ 传闻</div></div>'+
