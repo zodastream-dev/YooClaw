@@ -145,7 +145,7 @@ function KeywordInput({
         ))}
       </div>
       <div className="flex gap-1.5">
-        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} autoComplete="off"
           placeholder="输入关键词…" className="flex-1 px-3 py-1.5 bg-background border border-dashed border-border rounded-lg text-sm outline-none focus:border-violet-400 transition-all" />
         <button onClick={() => { addMultiple(input); setInput('') }}
           className="px-2 py-1.5 border border-violet-300 text-violet-600 rounded-lg text-[11px] font-medium hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-all shrink-0">添加</button>
@@ -219,9 +219,6 @@ export function PortalBuilderPage() {
       editModalPanelRef.current.style.margin = '';
     }
   }
-
-  // ========== Quick Start State ==========
-  const [showQuickStartModal, setShowQuickStartModal] = useState(false)
 
   // ========== Add Widget Modal ==========
   const [addModalObjectInput, setAddModalObjectInput] = useState('')
@@ -567,27 +564,6 @@ export function PortalBuilderPage() {
     }
   }
 
-  // ========== Quick Start ==========
-  const handleQuickStart = useCallback(() => {
-    const id = genId()
-    const newWidget: Widget = {
-      id, type: 'intel-monitor', title: '情报监控', expanded: false,
-      config: {
-        sources: [
-          { id: genId('s'), name: '行业信号', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['技术突破', '新品发布', '出货量', '市场份额', '产业链', '行业报告', '政策法规', '产业趋势'], updateFrequency: 'daily', customPrompt: '你是行业趋势研究分析师，擅长捕捉行业信号和产业变化。' },
-          { id: genId('s'), name: '目标客户情报', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['客户需求', '采购意向', '客户动态', '客户预算', '招标公告'], updateFrequency: 'daily', customPrompt: '你是客户情报分析师，擅长追踪目标客户的需求和动态。' },
-          { id: genId('s'), name: '竞争对手情报', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['竞争对手', '市场份额', '产品发布', '战略布局', '财报业绩', '融资动态'], updateFrequency: 'daily', customPrompt: '你是竞争情报分析师，擅长监控竞争对手的战略动向。' },
-          { id: genId('s'), name: '自身舆情监控', aiProvider: 'all+cn-news', aiModel: 'deepseek-v4-flash', apiKey: '', keywords: ['舆情监控', '品牌声誉', '媒体报道', '用户评价', '社交媒体', '负面舆情'], updateFrequency: 'daily', customPrompt: '你是舆情监控分析师，擅长追踪品牌声誉和公众舆论。' },
-        ],
-      },
-    }
-    setWidgets((prev) => [...prev, newWidget])
-    setShowQuickStartModal(false)
-    setSelectedWidgetId(id)
-    setEditingWidgetId(id)
-    setShowEditModal(true)
-  }, [])
-
   // ========== Edit Widget ==========
   const editingWidget = useMemo(() => widgets.find((w) => w.id === editingWidgetId) || null, [widgets, editingWidgetId])
   const editingSource = useMemo(() => {
@@ -675,10 +651,6 @@ export function PortalBuilderPage() {
             <div className="flex-1 overflow-y-auto p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">情报源</p>
-                <button onClick={() => setShowQuickStartModal(true)}
-                  className="text-[10px] font-medium text-violet-500 hover:text-violet-600 transition-colors flex items-center gap-1">
-                  🚀 快速开始
-                </button>
               </div>
               {/* Intel source cards — flat list, no widget container */}
               {(() => {
@@ -689,9 +661,9 @@ export function PortalBuilderPage() {
                     <div className="text-center py-6 text-muted-foreground">
                       <div className="text-2xl mb-2 opacity-30">📡</div>
                       <p className="text-[11px] mb-4">尚未添加情报源</p>
-                      <button onClick={() => setShowQuickStartModal(true)}
+                      <button onClick={() => { setAddModalType('intel-monitor'); setShowAddModal(true) }}
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg text-xs font-semibold transition-all shadow-md hover:shadow-lg">
-                        🚀 快速开始
+                        ➕ 添加情报源
                       </button>
                     </div>
                   )
@@ -1162,98 +1134,6 @@ export function PortalBuilderPage() {
             </div>
           </aside>
         </div>
-
-        {/* ========== Quick Start Confirm Modal ========== */}
-        <AnimatePresence>
-          {showQuickStartModal && (
-            <motion.div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowQuickStartModal(false)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <motion.div className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              />
-              <motion.div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-              >
-              <div className="px-7 py-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <span className="w-14 h-14 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg shadow-violet-500/20">🚀</span>
-                  <div>
-                    <h3 className="text-lg font-bold">快速开始</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">一键创建情报监控组件，包含 4 个预配置情报源</p>
-                  </div>
-                </div>
-
-                <div className="bg-muted/40 rounded-xl p-5 mb-4">
-                  <p className="text-sm font-semibold text-muted-foreground mb-3.5">📡 预配置情报源：</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { icon: '📊', name: '行业信号', desc: '追踪行业趋势、政策法规、技术突破等' },
-                      { icon: '🎯', name: '目标客户情报', desc: '监控客户需求、采购意向、招标公告等' },
-                      { icon: '⚔️', name: '竞争对手情报', desc: '跟踪市场份额、产品发布、财报等' },
-                      { icon: '🛡️', name: '自身舆情监控', desc: '监控品牌声誉、媒体报道、负面舆情等' },
-                    ].map((s) => (
-                      <div key={s.name} className="flex items-start gap-2.5 bg-background/60 rounded-lg px-3.5 py-3">
-                        <span className="text-base flex-shrink-0 mt-0.5">{s.icon}</span>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold">{s.name}</div>
-                          <div className="text-xs text-muted-foreground leading-relaxed mt-1">{s.desc}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-violet-500/5 to-purple-500/5 border border-violet-500/20 rounded-xl p-5 mb-5">
-                  <p className="text-sm font-semibold mb-3.5 text-violet-600 dark:text-violet-400">💡 点击「一键创建」后将：</p>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-violet-500/15 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 text-violet-600 dark:text-violet-400">1</span>
-                      <div>
-                        <p className="text-sm font-medium">自动创建情报监控组件</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">包含上述 4 个情报源，已预填关键词和 AI 提示词</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-violet-500/15 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 text-violet-600 dark:text-violet-400">2</span>
-                      <div>
-                        <p className="text-sm font-medium">自动打开编辑面板</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">你可以按需修改关键词、调整提示词、增删情报源</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-violet-500/15 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 text-violet-600 dark:text-violet-400">3</span>
-                      <div>
-                        <p className="text-sm font-medium">配置完成后发布门户</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">保存设置后点击「生成门户」即可部署上线</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2.5">
-                  <button onClick={() => setShowQuickStartModal(false)}
-                    className="px-5 py-2.5 border border-border rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
-                    取消
-                  </button>
-                  <button onClick={handleQuickStart}
-                    className="px-6 py-2.5 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg">
-                    🚀 一键创建
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
 
         {/* ========== Edit Widget Modal ========== */}
         <AnimatePresence>
@@ -1772,7 +1652,7 @@ export function PortalBuilderPage() {
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        <input value={addModalKeywordInput}
+                        <input value={addModalKeywordInput} autoComplete="off"
                           onChange={(e) => setAddModalKeywordInput(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const parts = addModalKeywordInput.split(/[,，、\s]+/).filter(Boolean); if (parts.length > 0) { setAddMonitorForm((f) => { const s = f.sources[0]; const newKws = [...s.keywords]; parts.forEach((k) => { if (!newKws.includes(k)) newKws.push(k) }); return { ...f, sources: [{ ...s, keywords: newKws }] } }); setAddModalKeywordInput(''); } } }}
                           placeholder="输入关键词（如：新品发布 财报 市场份额）"
