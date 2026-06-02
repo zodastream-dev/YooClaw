@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { X, Bot, Palette, Music, MessageSquare, Check, Image as ImageIcon, Play, Pause } from 'lucide-react'
+import { X, Bot, Palette, Music, MessageSquare, Check, Image as ImageIcon, Play, Pause, Sparkles, Loader2 } from 'lucide-react'
 import type { SceneTemplate } from '@/data/videoScenes'
 import { STYLES, DEFAULT_STYLE_ID, BGM_OPTIONS, DEFAULT_BGM_ID, type VideoStyle, type BgmOption } from '@/data/videoStyles'
 import { generateVideoPayload } from '@/data/promptBuilder'
+import { optimizePrompt } from '@/lib/api'
 
 interface PromptEditorModalProps {
   scene: SceneTemplate
@@ -92,6 +93,17 @@ export function PromptEditorModal({
   const [showDialogue, setShowDialogue] = useState(false)
   const [dialogueText, setDialogueText] = useState('')
   const [bgmId, setBgmId] = useState(DEFAULT_BGM_ID)
+  const [optimizing, setOptimizing] = useState(false)
+
+  const handleOptimize = async () => {
+    if (!basePrompt.trim() || optimizing) return
+    setOptimizing(true)
+    try {
+      const optimized = await optimizePrompt(basePrompt)
+      if (optimized) setBasePrompt(optimized)
+    } catch (e: any) { console.warn('Optimize failed:', e.message) }
+    finally { setOptimizing(false) }
+  }
   const [showAtMention, setShowAtMention] = useState(false)
   const [atFilter, setAtFilter] = useState('')
   const [atIdx, setAtIdx] = useState(0)
@@ -272,6 +284,15 @@ export function PromptEditorModal({
           <div>
             <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground/80 mb-2">
               <Bot size={14} className="text-primary" />基本提示词
+              <button
+                onClick={handleOptimize}
+                disabled={optimizing || !basePrompt.trim()}
+                title="AI助手 — 优化提示词结构"
+                className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] bg-primary/10 text-primary hover:bg-primary/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {optimizing ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                AI优化
+              </button>
             </label>
             <div className="relative">
               <textarea

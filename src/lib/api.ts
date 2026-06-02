@@ -500,4 +500,17 @@ export async function cancelVideoTask(submitId: string) {
 // These map to the new user-scoped APIs
 export const getSessions = getUserSessions
 export const deleteSession = deleteUserSession
+
+// ========== AI Prompt Optimization ==========
+export async function optimizePrompt(rawPrompt: string): Promise<string> {
+  const token = getToken()
+  const res = await fetch(`${API_BASE}/api/ai-chat`, {
+    method: 'POST',
+    headers: { ...headers(true), 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ message: `请将以下视频生成提示词进行结构化优化，使其更具逻辑性，便于视频引擎生成高质量视频。优化后的提示词应包含：1)场景描述（时间、地点、氛围）2)主体描述（人物/物体的外观、动作）3)镜头语言（景别、角度、运镜）4)画面细节（光影、色彩、质感）。直接输出优化后的提示词，不要加任何解释说明。\n\n原始提示词：${rawPrompt}` }),
+  })
+  if (!res.ok) throw new Error('优化失败')
+  const data = await res.json()
+  return data.reply || ''
+}
 export const renameSession = renameUserSession

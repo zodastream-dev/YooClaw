@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { generateVideo, videoTaskStatus, cancelVideoTask } from '@/lib/api'
+import { generateVideo, videoTaskStatus, cancelVideoTask, optimizePrompt } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check, ChevronUp, Type, Camera, Volume2, Bot, Palette } from 'lucide-react'
@@ -167,7 +167,18 @@ export function VideoCreatePage() {
     { id: crypto.randomUUID(), prompt: '', duration: '5', inputType: 'text' },
     { id: crypto.randomUUID(), prompt: '', duration: '5', inputType: 'text' },
   ])
-  // Per-clip image files (array — supports multiple reference images per clip)
+  // AI prompt optimization
+  const [optimizingPrompt, setOptimizingPrompt] = useState(false)
+
+  const handleOptimizePrompt = async () => {
+    if (!prompt.trim() || optimizingPrompt) return
+    setOptimizingPrompt(true)
+    try {
+      const optimized = await optimizePrompt(prompt)
+      if (optimized) setPrompt(optimized)
+    } catch (e: any) { console.warn('Optimize failed:', e.message) }
+    finally { setOptimizingPrompt(false) }
+  }  // Per-clip image files (array — supports multiple reference images per clip)
   const [clipImageFiles, setClipImageFiles] = useState<Record<string, File[]>>({})
   const [clipImagePreviews, setClipImagePreviews] = useState<Record<string, string[]>>({})
   const clipFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -1418,6 +1429,17 @@ export function VideoCreatePage() {
                       </div>
                     </div>
                   )}
+
+                  {/* AI Optimize Button */}
+                  <button
+                    onClick={handleOptimizePrompt}
+                    disabled={optimizingPrompt || !prompt.trim()}
+                    title="AI助手 — 结构化优化提示词"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {optimizingPrompt ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    AI优化
+                  </button>
 
                   {/* Spacer */}
                   <div className="flex-1" />
