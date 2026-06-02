@@ -3580,7 +3580,7 @@ function savePortalIntelCache() {
 // Fetches intelligence data from Metaso or DeepSeek API for a single source.
 // Returns array of intel items [{title, summary, source, date, link}].
 // Does NOT handle caching — caller is responsible for cache management.
-async function fetchIntelForSource(src: any): Promise<any[]> {
+async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]> {
   const kwArr = Array.isArray(src.keywords)
     ? src.keywords
     : (typeof src.keywords === 'string' ? src.keywords.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : []);
@@ -3596,7 +3596,7 @@ async function fetchIntelForSource(src: any): Promise<any[]> {
 
   // -- Single-call helper: delegates to intel-pipeline --
   const callOnce = async (effectiveKwArr: string[], objectName?: string): Promise<any[]> => {
-    return callIntel(effectiveKwArr, src, objectName);
+    return callIntel(effectiveKwArr, src, objectName, allSources);
   };
 
   // -- Objects expansion --
@@ -3646,7 +3646,7 @@ app.post('/api/portal-intel', async (req, res) => {
         console.log(`[PortalIntel] Cached data is empty for "${src.name}", re-fetching...`);
       }
       try {
-        const intelData = await fetchIntelForSource(src);
+        const intelData = await fetchIntelForSource(src, sources);
         const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
         portalIntelCache.set(cacheKey, { data: intelData, expiry: now + freqMs });
         setTimeout(() => savePortalIntelCache(), 100);
@@ -3718,7 +3718,8 @@ async function warmAllPortalCaches() {
     }
 
     // Collect unique sources across all portals, tracking which portals use each source
-    const sourceMap = new Map<string, any>();
+    interface SrcEntry { src: any; allSources: any[]; }
+    const sourceMap = new Map<string, SrcEntry>();
     const sourcePortals = new Map<string, Set<string>>(); // cacheKey → Set of portal slugs
     portalSites.forEach((site: any) => {
       const slug = site.slug;
@@ -3728,8 +3729,8 @@ async function warmAllPortalCaches() {
         const widgets = JSON.parse(match[1]);
         widgets.forEach((w: any) => {
           if (w.type === 'intel-monitor' || w.type === 'monitor') {
-            const sources = w.config?.sources || w.sources || [];
-            sources.forEach((src: any) => {
+            const widgetSources = w.config?.sources || w.sources || [];
+            widgetSources.forEach((src: any) => {
               const cacheKey = JSON.stringify({
                 name: src.name,
                 keywords: src.keywords,
@@ -3737,7 +3738,7 @@ async function warmAllPortalCaches() {
                 objects: src.objects,
               });
               if (!sourceMap.has(cacheKey)) {
-                sourceMap.set(cacheKey, src);
+                sourceMap.set(cacheKey, { src, allSources: widgetSources });
                 sourcePortals.set(cacheKey, new Set());
               }
               sourcePortals.get(cacheKey)!.add(slug);
@@ -3757,19 +3758,19 @@ async function warmAllPortalCaches() {
 
     // Skip already-cached sources AND sources whose ALL portals are paused
     const now = Date.now();
-    const toWarm: { key: string; src: any }[] = [];
-    sourceMap.forEach((src, key) => {
+    const toWarm: { key: string; src: any; allSources: any[] }[] = [];
+    sourceMap.forEach((entry, key) => {
       // Check if ALL portals using this source are paused
       const portals = sourcePortals.get(key);
       if (portals && portals.size > 0 && [...portals].every(p => pausedPortals.has(p))) {
-        console.log(`[CacheWarmer] Skipping "${src.name}" — all portals paused (${[...portals].join(', ')})`);
+        console.log(`[CacheWarmer] Skipping "${entry.src.name}" — all portals paused (${[...portals].join(', ')})`);
         return;
       }
       const cached = portalIntelCache.get(key);
       const isEmpty = cached && Array.isArray(cached.data) && cached.data.length === 0;
       if (!cached || cached.expiry <= now || isEmpty) {
-        if (isEmpty) console.log(`[CacheWarmer] Re-warming empty cache for: ${src.name || 'unnamed'}`);
-        toWarm.push({ key, src });
+        if (isEmpty) console.log(`[CacheWarmer] Re-warming empty cache for: ${entry.src.name || 'unnamed'}`);
+        toWarm.push({ key, src: entry.src, allSources: entry.allSources });
       }
     });
 
@@ -3787,8 +3788,8 @@ async function warmAllPortalCaches() {
     for (let i = 0; i < toWarm.length; i += 3) {
       const chunk = toWarm.slice(i, i + 3);
       const chunkResults = await Promise.allSettled(
-        chunk.map(async ({ key, src }) => {
-          const intelData = await fetchIntelForSource(src);
+        chunk.map(async ({ key, src, allSources }) => {
+          const intelData = await fetchIntelForSource(src, allSources);
           const freqTtl = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
           portalIntelCache.set(key, { data: intelData, expiry: Date.now() + freqTtl });
           return { key, src, count: intelData.length };
