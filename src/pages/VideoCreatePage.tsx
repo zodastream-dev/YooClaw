@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { generateVideo, videoTaskStatus, cancelVideoTask, optimizePrompt, optimizePromptPro } from '@/lib/api'
+import { generateVideo, videoTaskStatus, cancelVideoTask, optimizePromptPro } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check, ChevronUp, Type, Camera, Volume2, Bot, Palette } from 'lucide-react'
@@ -169,13 +169,15 @@ export function VideoCreatePage() {
   ])
   // AI prompt optimization
   const [optimizingPrompt, setOptimizingPrompt] = useState(false)
+  const [optimizedResult, setOptimizedResult] = useState('')
 
   const handleOptimizePrompt = async () => {
     if (!prompt.trim() || optimizingPrompt) return
     setOptimizingPrompt(true)
+    setOptimizedResult('')
     try {
       const optimized = await optimizePromptPro(prompt)
-      if (optimized) setPrompt(optimized)
+      if (optimized) setOptimizedResult(optimized)
     } catch (e: any) { console.warn('Optimize failed:', e.message) }
     finally { setOptimizingPrompt(false) }
   }  // Per-clip image files (array — supports multiple reference images per clip)
@@ -1458,6 +1460,26 @@ export function VideoCreatePage() {
             </div>
           </div>
         </div>
+
+            {/* AI Optimized Result Card */}
+            {optimizedResult && (
+              <div className="mx-3 mb-3 p-3 rounded-xl bg-gradient-to-r from-violet-500/5 to-fuchsia-500/5 border border-violet-500/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles size={14} className="text-violet-400" />
+                  <span className="text-xs font-semibold text-violet-400">AI 优化结果</span>
+                  <button onClick={() => setOptimizedResult('')} className="ml-auto text-muted-foreground/50 hover:text-foreground transition-colors"><X size={14} /></button>
+                </div>
+                <div className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap max-h-[200px] overflow-y-auto mb-2 bg-background/40 rounded-lg p-2.5 border border-white/5">
+                  {optimizedResult}
+                </div>
+                <button
+                  onClick={() => { setPrompt(optimizedResult); setOptimizedResult('') }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500 text-white hover:bg-violet-600 transition-all active:scale-95"
+                >
+                  <Sparkles size={12} />使用这个提示词
+                </button>
+              </div>
+            )}
 
           {/* Multi-Clip Panel */}
           <div className={mode === 'single' ? 'hidden' : ''}>
