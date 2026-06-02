@@ -1,5 +1,6 @@
 // Intel pipeline: search + DeepSeek analysis
-import { getSearchModule, getAllModules, getAllModulesIntl } from './search-sources/index.js';
+import { getSearchModule, getAllModules, getAllModulesIntl, getAllModulesTianapi } from './search-sources/index.js';
+import type { SearchModule } from './search-sources/types.js';
 import crypto from 'crypto';
 
 // -- V3: AI-generated search keywords cache --
@@ -125,6 +126,8 @@ function getProviderKey(provider: string): string {
   if (provider === 'tavily') return process.env.TAVILY_API_KEY || '';
   // weibo/zhihu/xiaohongshu modules use Metaso API (domestic Chinese content)
   if (provider === 'weibo' || provider === 'zhihu' || provider === 'xiaohongshu') return process.env.METASO_API_KEY || '';
+  // tianapi-* modules use TIANAPI_KEY (default to user's key)
+  if (provider.startsWith('tianapi-')) return process.env.TIANAPI_KEY || '91e8fe55a49056f86b78b6d50bb25793';
   return '';
 }
 
@@ -206,9 +209,20 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // Run all queries across all engines in parallel
   const seen = new Set<string>();
 
-  if (provider === 'all' || provider === 'all+en') {
-    const modules = provider === 'all+en' ? getAllModulesIntl() : getAllModules();
-    console.log('[Intel:' + provider + '] Using ' + modules.length + ' modules (Tavily: ' + (provider === 'all+en' ? 'included' : 'excluded') + ')');
+  if (provider === 'all' || provider === 'all+en' || provider === 'all+cn-news') {
+    let modules: SearchModule[];
+    let tavilyStatus: string;
+    if (provider === 'all+en') {
+      modules = getAllModulesIntl();
+      tavilyStatus = 'included';
+    } else if (provider === 'all+cn-news') {
+      modules = getAllModulesTianapi();
+      tavilyStatus = 'excluded, tianapi included';
+    } else {
+      modules = getAllModules();
+      tavilyStatus = 'excluded, tianapi excluded';
+    }
+    console.log('[Intel:' + provider + '] Using ' + modules.length + ' modules (Tavily: ' + tavilyStatus + ')');
     const allTasks: Promise<{ provider: string; items: any[]; queryIdx: number }>[] = [];
     queries.forEach((q, qi) => {
       modules.forEach((mod) => {
