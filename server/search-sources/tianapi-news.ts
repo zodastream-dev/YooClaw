@@ -43,7 +43,7 @@ function createTianapiModule(category: string, label: string): SearchModule {
     label: '天聚' + label,
     async search(query: string, apiKey: string): Promise<RawSearchItem[]> {
       if (!apiKey) {
-        console.warn('[Tianapi:' + category + '] No API key, skipping');
+        console.log('[Tianapi:' + category + '] No API key, skipping');
         return [];
       }
 
@@ -51,14 +51,14 @@ function createTianapiModule(category: string, label: string): SearchModule {
       url.searchParams.set('key', apiKey);
       url.searchParams.set('num', '10');
       // Tianapi word param: no OR syntax, limited length, simple query only
-      // Tianapi's index is small — long compound queries return empty (code=250).
-      // Strategy: extract the most salient 1-2 keywords (prefer object/brand names).
+      // Tianapi's index is VERY shallow — only generic hot terms hit (e.g. "宠物","科技").
+      // Brand names ("疯狂小狗") and compound phrases ("宠物行业市场规模") always return empty.
+      // Strategy: extract the shortest generic term from the query; skip if none found.
+      let searchWord = '';
       if (query) {
-        let searchWord = query;
         // Remove OR operators (tianapi doesn't support boolean syntax)
-        searchWord = searchWord.replace(/\s+OR\s+/gi, ' ');
-        // Split and clean
-        const words = searchWord.split(/\s+/).filter(Boolean);
+        const cleaned = query.replace(/\s+OR\s+/gi, ' ');
+        const words = cleaned.split(/\s+/).filter(Boolean);
         const seenWords = new Set<string>();
         const uniqueWords: string[] = [];
         for (const w of words) {
@@ -68,20 +68,22 @@ function createTianapiModule(category: string, label: string): SearchModule {
             uniqueWords.push(w);
           }
         }
-        // Heuristic: tianapi works best with 1-2 core keywords (brand/entity names).
-        // Drop generic temporal words (最新, 本月, 2026年, 动态) that dilute matching.
-        const temporalWords = new Set(['最新', '本月', '今年', '2026', '2026年', '动态', '趋势', '分析', '报告', '资讯', '新闻']);
+        // Drop temporal/generic noise words
+        const temporalWords = new Set(['最新', '本月', '今年', '2026', '2026年', '动态', '趋势', '分析', '报告', '资讯', '新闻', 'q2', 'q3', 'q4']);
         const coreWords = uniqueWords.filter(w => !temporalWords.has(w) && w.length >= 2);
-        // Use first 1-2 core words for best hit-rate; fallback to first original word
-        if (coreWords.length >= 1) {
-          searchWord = coreWords.slice(0, 2).join(' ');
-        } else if (uniqueWords.length >= 1) {
-          searchWord = uniqueWords[0];
-        } else {
-          searchWord = '';
+        // Sort by length (shortest first) — tianapi prefers short generic terms
+        coreWords.sort((a, b) => a.length - b.length);
+        if (coreWords.length > 0) {
+          const shortest = coreWords[0];
+          if (shortest.length <= 6) {
+            searchWord = shortest;
+          } else {
+            // Long compound phrase: try to extract a known generic sub-term
+            const generics = ['宠物', '科技', 'AI', '汽车', '手机', '芯片', '游戏', '电商', '医疗', '教育', '金融', '房地产', '互联网', '人工智能', '新能源', '半导体'];
+            const found = generics.find(g => shortest.includes(g));
+            if (found) searchWord = found;
+          }
         }
-        // Hard limit to avoid API issues
-        if (searchWord.length > 30) searchWord = searchWord.substring(0, 30);
         if (searchWord) url.searchParams.set('word', searchWord);
       }
 
@@ -91,12 +93,13 @@ function createTianapiModule(category: string, label: string): SearchModule {
           signal: AbortSignal.timeout(15000),
         }));
         if (!resp.ok) {
-          console.warn('[Tianapi:' + category + '] HTTP ' + resp.status);
+          console.log('[Tianapi:' + category + '] HTTP ' + resp.status);
           return [];
         }
         const data = await resp.json();
         if (data.code !== 200) {
-          console.warn('[Tianapi:' + category + '] API code=' + data.code + ' msg=' + (data.msg || 'unknown') + ' query=' + (query || '(latest)'));
+          // code=250 "数据返回为空" is "no match", not an error — log at info level
+          console.log('[Tianapi:' + category + '] No match (code=' + data.code + ') for word=' + (searchWord || '(none)') + ' originalQuery=' + (query ? query.substring(0, 60) : '(none)'));
           return [];
         }
 
@@ -115,7 +118,7 @@ function createTianapiModule(category: string, label: string): SearchModule {
         console.log('[Tianapi:' + category + '] Returned ' + results.length + ' results (query: ' + (query ? query.substring(0, 50) : '(latest)') + ')');
         return results;
       } catch (e: any) {
-        console.warn('[Tianapi:' + category + '] Error:', e.message);
+        console.log('[Tianapi:' + category + '] Error (non-fatal):', e.message);
         return [];
       }
     },
