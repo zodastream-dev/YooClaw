@@ -216,8 +216,11 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       modules = getAllModulesIntl();
       tavilyStatus = 'included';
     } else if (provider === 'all+cn-news') {
-      modules = getAllModulesTianapi();
-      tavilyStatus = 'excluded, tianapi included';
+      // Base modules + ONLY tianapi-generalnews (not all 8 tianapi categories)
+      modules = getAllModules();
+      const generalNews = getSearchModule('tianapi-generalnews');
+      if (generalNews) modules.push(generalNews);
+      tavilyStatus = 'excluded, tianapi-generalnews only';
     } else {
       modules = getAllModules();
       tavilyStatus = 'excluded, tianapi excluded';
