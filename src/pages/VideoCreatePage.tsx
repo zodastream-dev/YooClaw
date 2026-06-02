@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { generateVideo, videoTaskStatus, cancelVideoTask, optimizePrompt } from '@/lib/api'
+import { generateVideo, videoTaskStatus, cancelVideoTask, optimizePrompt, optimizePromptPro } from '@/lib/api'
 import type { VideoTaskStatus } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { ArrowLeft, Clapperboard, Sparkles, ExternalLink, Copy, Loader2, LayoutDashboard, Play, Download, X, Clock, Users, Upload, Image as ImageIcon, Film, Wand2, Grid3X3, Plus, ChevronDown, Send, Box, Diamond, Check, ChevronUp, Type, Camera, Volume2, Bot, Palette } from 'lucide-react'
@@ -174,7 +174,7 @@ export function VideoCreatePage() {
     if (!prompt.trim() || optimizingPrompt) return
     setOptimizingPrompt(true)
     try {
-      const optimized = await optimizePrompt(prompt)
+      const optimized = await optimizePromptPro(prompt)
       if (optimized) setPrompt(optimized)
     } catch (e: any) { console.warn('Optimize failed:', e.message) }
     finally { setOptimizingPrompt(false) }
