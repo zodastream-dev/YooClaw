@@ -51,11 +51,13 @@ function createTianapiModule(category: string, label: string): SearchModule {
       url.searchParams.set('key', apiKey);
       url.searchParams.set('num', '10');
       // Tianapi word param: no OR syntax, limited length, simple query only
+      // Tianapi's index is small — long compound queries return empty (code=250).
+      // Strategy: extract the most salient 1-2 keywords (prefer object/brand names).
       if (query) {
         let searchWord = query;
         // Remove OR operators (tianapi doesn't support boolean syntax)
         searchWord = searchWord.replace(/\s+OR\s+/gi, ' ');
-        // Deduplicate repeated words (e.g. "宠爱一生 宠爱一生")
+        // Split and clean
         const words = searchWord.split(/\s+/).filter(Boolean);
         const seenWords = new Set<string>();
         const uniqueWords: string[] = [];
@@ -66,10 +68,21 @@ function createTianapiModule(category: string, label: string): SearchModule {
             uniqueWords.push(w);
           }
         }
-        searchWord = uniqueWords.join(' ');
-        // Limit length to avoid API issues
-        if (searchWord.length > 80) searchWord = searchWord.substring(0, 80);
-        url.searchParams.set('word', searchWord);
+        // Heuristic: tianapi works best with 1-2 core keywords (brand/entity names).
+        // Drop generic temporal words (最新, 本月, 2026年, 动态) that dilute matching.
+        const temporalWords = new Set(['最新', '本月', '今年', '2026', '2026年', '动态', '趋势', '分析', '报告', '资讯', '新闻']);
+        const coreWords = uniqueWords.filter(w => !temporalWords.has(w) && w.length >= 2);
+        // Use first 1-2 core words for best hit-rate; fallback to first original word
+        if (coreWords.length >= 1) {
+          searchWord = coreWords.slice(0, 2).join(' ');
+        } else if (uniqueWords.length >= 1) {
+          searchWord = uniqueWords[0];
+        } else {
+          searchWord = '';
+        }
+        // Hard limit to avoid API issues
+        if (searchWord.length > 30) searchWord = searchWord.substring(0, 30);
+        if (searchWord) url.searchParams.set('word', searchWord);
       }
 
       try {
