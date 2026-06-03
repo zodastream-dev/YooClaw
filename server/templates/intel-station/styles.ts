@@ -282,13 +282,13 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 @media(max-width:1280px){.main-layout{grid-template-columns:280px 1fr 300px;grid-template-rows:1fr auto;grid-template-areas:"left center right""left bottom right"}}
 @media(max-width:1024px){.main-layout{grid-template-columns:1fr;height:100%;grid-template-rows:1fr auto;grid-template-areas:"center""bottom"}.left-col,.right-col{display:none}}
 /* Sentiment Stats Grid */
-.sentiment-stats{margin-top:12px;display:grid;gap:6px}
-.sstat-row{display:flex;gap:6px}
-.sstat-cell{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 6px;border-radius:8px;background:rgba(15,23,42,0.5);border:1px solid rgba(0,212,255,0.08);transition:all .2s}
-.sstat-cell:hover{border-color:rgba(0,212,255,0.25);background:rgba(0,212,255,0.04)}
-.sstat-val{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2}
-.sstat-cell.sstat-total .sstat-val{font-size:22px;background:linear-gradient(135deg,#00d4ff,#f0f)}
-.sstat-lbl{font-size:9px;font-weight:600;color:var(--text-secondary);margin-top:3px;white-space:nowrap;text-transform:uppercase;letter-spacing:0.3px}
+.sentiment-stats{margin-top:8px}
+.sstat-row{display:flex;gap:4px;margin-bottom:4px}
+.sstat-cell{flex:1;display:flex;flex-direction:column;align-items:center;padding:6px 4px;border-radius:6px;background:rgba(15,23,42,0.5);border:1px solid rgba(0,212,255,0.06)}
+.sstat-cell:hover{border-color:rgba(0,212,255,0.2)}
+.sstat-val{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1}
+.sstat-cell.sstat-total .sstat-val{font-size:17px;background:linear-gradient(135deg,#00d4ff,#f0f)}
+.sstat-lbl{font-size:8px;font-weight:500;color:var(--text-secondary);margin-top:2px;white-space:nowrap}
 
 @media(max-width:768px){.top-bar{padding:10px 16px}.center-header{padding:12px 16px}.intel-feed{padding:12px 16px}}`;
 }

@@ -43,7 +43,6 @@ export function intelStationBody(sn: string): string {
       <span class="update-info" id="updateInfo" style="display:none"></span>
       <button class="btn-refresh-intel" id="btnRefreshIntel" onclick="refreshAllIntel()" title="立即更新所有情报">🔄 立即更新</button>
     </div>
-    <!-- Tech Stats Bar -->
     <div class="intel-subfilters" id="intelSubFilters" style="display:none"></div>
     <div class="intel-objfilters" id="intelObjFilters" style="display:none"></div>
     <div class="intel-loading" id="intelLoading">
