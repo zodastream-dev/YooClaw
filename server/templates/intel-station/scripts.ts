@@ -111,7 +111,7 @@ async function loadIntelData(){
       renderIntelFeed(filtered);
     }
     updateDashboard(allIntelData);
-    renderIntelStatsBar(allIntelData);
+    renderSentimentStats(allIntelData);
     $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
     $("updateInfo").textContent="上次更新: "+new Date().toLocaleTimeString("zh-CN");
     $("updateInfo").style.display="";
@@ -1024,42 +1024,36 @@ function updateDashboard(data){
   updateBriefing(data);
 }
 
-var sentimentExpanded=false;
-function toggleSentimentDetail(){
-  sentimentExpanded=!sentimentExpanded;
-  var detail=$('sentimentDetail');
-  if(detail){
-    if(sentimentExpanded)detail.classList.add('expanded');
-    else detail.classList.remove('expanded');
-  }
-}
-function renderIntelStatsBar(data){
-  var bar=$('intelStatsBar');
-  if(!bar)return;
-  if(!data||!data.length){bar.style.display='none';return;}
+function renderSentimentStats(data){
+  var container=document.getElementById('sentimentStats');
+  if(!container)return;
+  if(!data||!data.length){container.style.display='none';return;}
+  container.style.display='';
   var pos=0,neg=0,neu=0,confirmed=0,rumor=0,pending=0,hasIntent=0;
-  data.forEach(function(item){
-    var s=(item._sentiment||'').trim();
+  for(var i=0;i<data.length;i++){
+    var s=(data[i]._sentiment||'').trim();
     if(s==='正面')pos++;else if(s==='负面')neg++;else neu++;
-    var r=(item._reliability||'').trim();
+    var r=(data[i]._reliability||'').trim();
     if(r==='已确认')confirmed++;else if(r==='传闻')rumor++;else pending++;
-    if(item._intent&&item._intent.trim())hasIntent++;
+    if(data[i]._intent&&data[i]._intent.trim())hasIntent++;
+  }
+  var total=data.length,all=pos+neg+neu;
+  var pct=all>0?Math.round(pos*100/all)+'%':'-';
+  [
+    ['sstatTotal',total],['sstatIndex',pct],['sstatPos',pos],['sstatNeu',neu],
+    ['sstatNeg',neg],['sstatConfirmed',confirmed],['sstatRumor',rumor],['sstatIntent',hasIntent]
+  ].forEach(function(pair){
+    var el=document.getElementById(pair[0]);
+    if(!el)return;
+    var v=el.querySelector('.sstat-val');
+    if(v)v.textContent=pair[1];
   });
-  var total=data.length;
-  bar.style.display='flex';
-  bar.innerHTML=
-    '<div class="stat-card stat-total"><div class="stat-val">'+total+'</div><div class="stat-lbl">情报总数</div></div>'+
-    '<div class="stat-divider"></div>'+
-    '<div class="stat-card stat-sentiment" id="statSentiment" onclick="toggleSentimentDetail()"><div class="stat-val">'+(pos+neg+neu>0?Math.round(pos*100/(pos+neg+neu))+'%':'-')+'</div><div class="stat-lbl">情绪指数</div></div>'+
-    '<div class="sentiment-detail'+(sentimentExpanded?' expanded':'')+'" id="sentimentDetail">'+
-    '<div class="stat-card stat-pos"><div class="stat-val">'+pos+'</div><div class="stat-lbl">🟢 正面</div></div>'+
-    '<div class="stat-card stat-neu"><div class="stat-val">'+neu+'</div><div class="stat-lbl">🟡 中性</div></div>'+
-    '<div class="stat-card stat-neg"><div class="stat-val">'+neg+'</div><div class="stat-lbl">🔴 负面</div></div>'+
-    '</div>'+
-    '<div class="stat-divider"></div>'+
-    '<div class="stat-card stat-confirmed"><div class="stat-val">'+confirmed+'</div><div class="stat-lbl">✓ 已确认</div></div>'+
-    '<div class="stat-card stat-rumor"><div class="stat-val">'+rumor+'</div><div class="stat-lbl">~ 传闻</div></div>'+
-    (hasIntent>0?'<div class="stat-card stat-intent"><div class="stat-val">'+hasIntent+'</div><div class="stat-lbl">⚔ 竞对意图</div></div>':'');
+  var ic=document.getElementById('sstatIntentCell');
+  var rr=document.getElementById('sstatRumorRow');
+  if(rr){
+    if(hasIntent>0){if(ic)ic.style.display='';rr.style.display='';}
+    else{rr.style.display=rumor===0?'none':'';if(ic&&rumor>0)ic.style.display='none';}
+  }
 }
 
 function renderSentimentGauge(value){

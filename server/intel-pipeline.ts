@@ -296,12 +296,12 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       tavilyStatus = 'included';
     } else if (provider === 'all+cn-news') {
       // Base modules + ONLY tianapi-generalnews (not all 8 tianapi categories)
-      // Metaso temporarily paused to save quota during development/testing.
+      // Metaso re-enabled
       // Also exclude weibo/zhihu/xiaohongshu because they internally call metaso API.
-      modules = getAllModules().filter(m => m.name !== 'metaso' && m.name !== 'weibo' && m.name !== 'zhihu' && m.name !== 'xiaohongshu');
+      modules = getAllModules().filter(m => m.name !== 'weibo' && m.name !== 'zhihu' && m.name !== 'xiaohongshu');
       const generalNews = getSearchModule('tianapi-generalnews');
       if (generalNews) modules.push(generalNews);
-      tavilyStatus = 'excluded, metaso+weibo+zhihu+xhs paused, tianapi-generalnews only';
+      tavilyStatus = 'excluded, weibo+zhihu+xhs paused, metaso+tianapi-generalnews active';
     } else {
       modules = getAllModules();
       tavilyStatus = 'excluded, tianapi excluded';

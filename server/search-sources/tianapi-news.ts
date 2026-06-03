@@ -98,8 +98,12 @@ function createTianapiModule(category: string, label: string): SearchModule {
         }
         const data = await resp.json();
         if (data.code !== 200) {
-          // code=250 "数据返回为空" is "no match", not an error — log at info level
-          console.log('[Tianapi:' + category + '] No match (code=' + data.code + ') for word=' + (searchWord || '(none)') + ' originalQuery=' + (query ? query.substring(0, 60) : '(none)'));
+          // code=150 "API可用次数不足" (quota exhausted) vs code=250 "数据返回为空" (no match)
+          if (data.code === 150) {
+            console.warn('[Tianapi:' + category + '] QUOTA EXHAUSTED (code=150) — 天聚API可用次数不足，请充值! word=' + (searchWord || '(none)'));
+          } else {
+            console.log('[Tianapi:' + category + '] No match (code=' + data.code + ') for word=' + (searchWord || '(none)') + ' originalQuery=' + (query ? query.substring(0, 60) : '(none)'));
+          }
           return [];
         }
 
