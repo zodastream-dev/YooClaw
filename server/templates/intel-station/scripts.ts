@@ -1048,12 +1048,6 @@ function renderSentimentStats(data){
     var v=el.querySelector('.sstat-val');
     if(v)v.textContent=pair[1];
   });
-  var ic=document.getElementById('sstatIntentCell');
-  var rr=document.getElementById('sstatRumorRow');
-  if(rr){
-    if(hasIntent>0){if(ic)ic.style.display='';rr.style.display='';}
-    else{rr.style.display=rumor===0?'none':'';if(ic&&rumor>0)ic.style.display='none';}
-  }
 }
 
 function renderSentimentGauge(value){
