@@ -600,8 +600,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       return strictRegex.test(text);
     });
     if (results.length < before) console.log('[Intel] EHR filtered ' + (before - results.length) + ' items for "' + objectName + '"');
-    // Safety net: if EHR was too aggressive (< 5 results), relax to partial token match
-    if (results.length < 5) {
+    // Safety net: if EHR was too aggressive (< 10 results), relax to partial token match
+    if (results.length < 10) {
       const relaxedTokens = names.map(n => {
         const tokens = n.match(/[\u4e00-\u9fff]+|[a-zA-Z0-9]+/g) || [n];
         return tokens.sort((a: string, b: string) => b.length - a.length)[0];
@@ -615,9 +615,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         console.log('[Intel] EHR relaxed to tokens: ' + relaxedTokens + ' → ' + results.length + ' results for "' + objectName + '"');
       }
       // If still too few, keep all original results
-      if (results.length < 5) {
+      if (results.length < 10) {
         console.log('[Intel] EHR keeping all ' + before + ' results for "' + objectName + '" (too few after strict+relaxed filter)');
-        results = beforeResults.slice(0, 10);
+        results = beforeResults.slice(0, 15);
       }
     }
   }
