@@ -374,13 +374,19 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
       '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":""}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
-      '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n8.无url留空 9.仅JSON\n\n原始搜索结果：\n' + searchContext;
+      '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
+      '8. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道的结果至少提供 2 条（如果该渠道有结果的话）\n' +
+      '9. 优先提供不同渠道的独有信息，避免同一信息由多个渠道重复提供\n' +
+      '10.无url留空 11.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.按重要性排序，摘要禁止留空\n' +
       '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":""}]\n' +
       '5. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实\n' +
-      '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n7.无url留空 8.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
+      '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
+      '7. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道至少提供 2 条（如果该渠道有结果的话）\n' +
+      '8. 优先提供不同渠道的独有信息，避免同一信息由多个渠道重复提供\n' +
+      '9.无url留空 10.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -583,18 +589,37 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // EHR: discard items that don't mention the monitored object in title or summary
   if (objectName) {
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const parsedPattern = objectName.split(/[,，]\s*/).filter(Boolean).map(escapeRegExp).join('|');
-    if (!parsedPattern) { console.warn('[Intel] EHR skipped — empty pattern for objectName: "' + objectName + '"'); return results.slice(0, 30); }
-    const objPattern = new RegExp('(' + parsedPattern + ')', 'i');
+    const names = objectName.split(/[,，]\s*/).filter(Boolean);
+    const strictPattern = names.map(escapeRegExp).join('|');
+    if (!strictPattern) { console.warn('[Intel] EHR skipped — empty pattern for objectName: "' + objectName + '"'); return results.slice(0, 30); }
+    const strictRegex = new RegExp('(' + strictPattern + ')', 'i');
     const before = results.length;
+    const beforeResults = [...results]; // Save copy for safety net
     results = results.filter((r: any) => {
       const text = (r.title || '') + ' ' + (r.summary || '');
-      if (!objPattern.test(text)) {
-        return false;
-      }
-      return true;
+      return strictRegex.test(text);
     });
     if (results.length < before) console.log('[Intel] EHR filtered ' + (before - results.length) + ' items for "' + objectName + '"');
+    // Safety net: if EHR was too aggressive (< 5 results), relax to partial token match
+    if (results.length < 5) {
+      const relaxedTokens = names.map(n => {
+        const tokens = n.match(/[\u4e00-\u9fff]+|[a-zA-Z0-9]+/g) || [n];
+        return tokens.sort((a: string, b: string) => b.length - a.length)[0];
+      }).filter((t: string | undefined): t is string => !!t && t.length >= 2).map(escapeRegExp).join('|');
+      if (relaxedTokens && relaxedTokens !== strictPattern) {
+        const relaxedRegex = new RegExp('(' + relaxedTokens + ')', 'i');
+        results = beforeResults.filter((r: any) => {
+          const text = (r.title || '') + ' ' + (r.summary || '');
+          return relaxedRegex.test(text);
+        });
+        console.log('[Intel] EHR relaxed to tokens: ' + relaxedTokens + ' → ' + results.length + ' results for "' + objectName + '"');
+      }
+      // If still too few, keep all original results
+      if (results.length < 5) {
+        console.log('[Intel] EHR keeping all ' + before + ' results for "' + objectName + '" (too few after strict+relaxed filter)');
+        results = beforeResults.slice(0, 10);
+      }
+    }
   }
   // URL noise filter: cut e-commerce, product-catalog, auto/media pollution
   const URL_NOISE_RULES = [
