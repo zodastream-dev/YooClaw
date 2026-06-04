@@ -372,7 +372,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
-      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":""}]\n' +
+      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
       '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
       '8. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道的结果至少提供 2 条（如果该渠道有结果的话）\n' +
@@ -390,7 +390,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.按重要性排序，摘要禁止留空\n' +
-      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":"","_valueScore":""}]\n' +
+      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":"","_valueScore":50}]\n' +
       '5. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实\n' +
       '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
       '7. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道至少提供 2 条（如果该渠道有结果的话）\n' +
