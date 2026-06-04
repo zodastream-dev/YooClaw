@@ -372,21 +372,39 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
-      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":""}]\n' +
+      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":""}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
       '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
       '8. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道的结果至少提供 2 条（如果该渠道有结果的话）\n' +
       '9. 优先提供不同渠道的独有信息，避免同一信息由多个渠道重复提供\n' +
-      '10.无url留空 11.仅JSON\n\n原始搜索结果：\n' + searchContext;
+      '10.无url留空\n' +
+      '11. _valueScore 商业价值判分标准（0-100整数，必填，严禁留空或填0）：\n' +
+      '  【90-100 战略级】影响投资决策或战略方向：官方财报/重大并购/核心高管变更/监管政策突变/行业龙头份额变化>5%/颠覆性技术突破\n' +
+      '  【75-89 战术级】需业务部门响应：竞品新品发布/关键供应链变动/大客户中标或流失/技术标准更新/重要合作伙伴动态\n' +
+      '  【60-74 关注级】值得了解的动态：行业趋势报告/市场数据更新/一般性产品迭代/专利申报/渠道政策调整\n' +
+      '  【40-59 参考级】背景信息：常规营销/一般性媒体报道/非核心市场动态/行业科普\n' +
+      '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
+      '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
+      '  评分只看商业价值不看情感倾向，重复信息降10-20分\n' +
+      '12.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.按重要性排序，摘要禁止留空\n' +
-      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":""}]\n' +
+      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":"","_valueScore":""}]\n' +
       '5. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实\n' +
       '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
       '7. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道至少提供 2 条（如果该渠道有结果的话）\n' +
       '8. 优先提供不同渠道的独有信息，避免同一信息由多个渠道重复提供\n' +
-      '9.无url留空 10.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
+      '9. 无url留空\n' +
+      '10. _valueScore 商业价值判分标准（0-100整数，必填，严禁留空或填0）：\n' +
+      '  【90-100 战略级】影响投资决策或战略方向：官方财报/重大并购/核心高管变更/监管政策突变/行业龙头份额变化>5%/颠覆性技术突破\n' +
+      '  【75-89 战术级】需业务部门响应：竞品新品发布/关键供应链变动/大客户中标或流失/技术标准更新/重要合作伙伴动态\n' +
+      '  【60-74 关注级】值得了解的动态：行业趋势报告/市场数据更新/一般性产品迭代/专利申报/渠道政策调整\n' +
+      '  【40-59 参考级】背景信息：常规营销/一般性媒体报道/非核心市场动态/行业科普\n' +
+      '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
+      '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
+      '  评分只看商业价值不看情感倾向，重复信息降10-20分\n' +
+      '11.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -491,6 +509,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       _reliability: r._reliability || '',
       _intent: r._intent || '',
       _object: r._object || '',
+      _valueScore: parseInt(r._valueScore) || 50,
     };
   });
 

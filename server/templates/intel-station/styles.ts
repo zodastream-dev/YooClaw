@@ -124,6 +124,12 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .intel-tag{font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(0,212,255,0.08);color:var(--cyan);border:1px solid rgba(0,212,255,0.15)}
 .intel-card-time{font-size:11px;color:var(--text-secondary);white-space:nowrap}
 
+/* ===== V2.0: Value Score ===== */
+.intel-score-badge{font-size:10px;padding:1px 7px;border-radius:4px;border:1.5px solid;font-weight:700;margin-right:4px;white-space:nowrap;flex-shrink:0;letter-spacing:0.3px}
+.intel-card-high{background:var(--bg-card);border:1px solid rgba(245,158,11,0.35);border-radius:12px;padding:14px 16px;margin-bottom:12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(245,158,11,0.08),0 2px 8px rgba(0,0,0,0.15)}
+.intel-card-high::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,rgba(245,158,11,0.8),rgba(245,158,11,0.3));border-radius:0 2px 2px 0}
+.intel-card-high:hover{border-color:rgba(245,158,11,0.5);transform:translateY(-1px);box-shadow:0 4px 24px rgba(245,158,11,0.15),0 0 16px rgba(168,85,247,0.08),inset 0 1px 0 rgba(255,255,255,0.03)}
+
 /* ===== CENTER TABS ===== */
 .center-tabs{display:flex;gap:2px;background:rgba(15,23,42,0.4);border-radius:10px;padding:3px;border:1px solid var(--border)}
 .ct-tab{padding:6px 18px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:all .25s;white-space:nowrap;font-family:inherit;background:transparent;border:none}

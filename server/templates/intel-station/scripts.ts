@@ -306,8 +306,11 @@ function parseDate(d){
 function renderIntelFeed(data){
   console.log('[renderIntelFeed] called with data.length=', data.length, 'first _sourceName=', data.length>0?data[0]._sourceName:'N/A');
   if(data.length===0){$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据</div>';return}
-  // Sort by date descending (newest first)
+  // Sort by _valueScore descending (商业价值优先)
   data.sort(function(a,b){
+    var sa=parseInt(a._valueScore)||0,sb=parseInt(b._valueScore)||0;
+    if(sa!==sb)return sb-sa;
+    // 同分时按日期降序排列
     var da=parseDate(a.date),db=parseDate(b.date);
     if(da===0&&db===0)return 0;
     if(da===0)return 1;
@@ -316,11 +319,18 @@ function renderIntelFeed(data){
   });
   var html='';
   data.forEach(function(item,i){
+    var score=parseInt(item._valueScore)||0;
+    var cardClass=score>=75?'intel-card intel-card-high':'intel-card';
     var keywords=(item.keywords||[]).slice(0,3);
     var url=item.url||item.link||item.sourceUrl||item.href||'';
     var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
-    html+='<div class="intel-card"'+clickAttr+'>';
+    html+='<div class="'+cardClass+'"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
+    // V2.0: 价值分徽章
+    if(score>0){
+      var scoreColor=score>=75?'var(--score-high)':score>=60?'var(--score-mid)':'var(--score-low)';
+      html+='<span class="intel-score-badge" style="border-color:'+scoreColor+';color:'+scoreColor+'">'+score+'分</span>';
+    }
     if(item._provider){
       var pName=PROVIDER_NAMES[item._provider]||item._provider;
       html+='<span class="intel-provider-tag">'+escHtml(pName)+'</span>';

@@ -38,7 +38,10 @@ export function generateIntelStationHtml(
     '--bg-card:' + scheme.bgCard + ';' +
     '--border:' + scheme.border + ';' +
     '--text-primary:' + scheme.textPrimary + ';' +
-    '--text-secondary:' + scheme.textSecondary + ';';
+    '--text-secondary:' + scheme.textSecondary + ';' +
+    '--score-high:#f59e0b;' +
+    '--score-mid:var(--cyan);' +
+    '--score-low:' + scheme.textSecondary + ';';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
