@@ -43,21 +43,21 @@ export function getSearchModule(name: string): SearchModule | undefined {
 }
 
 // "all" provider: Chinese-centric sources only
-// tavily excluded (English dominance) + tianapi-* excluded (separate API quota, user selects explicitly)
+// tavily excluded (English dominance) + weibo excluded (low yield) + tianapi-* excluded (separate API quota)
 export function getAllModules(): SearchModule[] {
   return Object.entries(modules)
-    .filter(([name]) => name !== 'tavily' && !name.startsWith('tianapi-'))
+    .filter(([name]) => name !== 'tavily' && name !== 'weibo' && !name.startsWith('tianapi-'))
     .map(([, mod]) => mod);
 }
 
-// "all+cn-news" provider: all sources including tianapi Chinese news (but NOT tavily English)
+// "all+cn-news" provider: all sources including tianapi Chinese news (but NOT tavily English or weibo)
 export function getAllModulesTianapi(): SearchModule[] {
-  return Object.values(modules).filter((mod) => mod.name !== 'tavily');
+  return Object.values(modules).filter((mod) => mod.name !== 'tavily' && mod.name !== 'weibo');
 }
 
-// "all+en" provider: all sources including English international (tavily)
+// "all+en" provider: all sources including English international (tavily, but NOT weibo)
 export function getAllModulesIntl(): SearchModule[] {
-  return Object.values(modules);
+  return Object.values(modules).filter((mod) => mod.name !== 'weibo');
 }
 
 export function hasSearchModule(name: string): boolean {
