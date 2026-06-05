@@ -1,0 +1,272 @@
+// V2.1 Daily Briefing — 晨报生成 + PushPlus 微信推送 + 8AM 自排程调度器
+import { getAllPortalSites, getReportSiteBySlug } from './db.js';
+
+// ========== Types ==========
+interface IntelItem {
+  title: string;
+  summary: string;
+  source: string;
+  _valueScore: number;
+  _provider: string;
+  url?: string;
+  date?: string;
+}
+
+type PortalIntelCache = Map<string, { data: any[]; expiry: number }>;
+
+// ========== Prompts ==========
+
+function makeBriefingPrompt(
+  portalName: string,
+  highValueIntel: IntelItem[]
+): { system: string; user: string } {
+  const today = new Date().toLocaleDateString('zh-CN', {
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+  });
+  const intelText = highValueIntel.map((item, i) =>
+    `${i + 1}. [价值分${item._valueScore}] ${item.title}
+   摘要：${item.summary}
+   来源：${item.source}`
+  ).join('\n\n');
+
+  const system = `你是顶级战略顾问，为「${portalName}」的高管撰写每日晨报内参。
+你的文字风格：像资深幕僚而非新闻聚合器——精准、冷静、有判断力。
+
+写作原则：
+1. 不是摘要拼凑，而是"把几条新闻讲成一个故事"
+2. 先给结论（3句话内讲完今日最有价值的信息），再展开细节
+3. 每条关键信息后附"研判"——这不是描述，是你的专业判断
+4. 用 Markdown 格式：**加粗关键数据**、用 > 引用原文关键信息
+5. 如果需要决策建议，用 📌 标记
+6. 总长度控制在 300 字左右（不含标题）
+
+禁止：
+- 不要写"根据搜索结果""据悉""据报道"等冗余措辞
+- 不要复读摘要，要提炼核心
+- 不要用模糊词汇（"可能""或将""有望"），有把握就说，没把握就写"待确认"
+
+输出格式：
+## 📊 {今日日期} 晨报
+（正文）`;
+
+  const user = `今天是${today}。
+
+以下是过去24小时价值最高的情报（共${highValueIntel.length}条）。请基于这些内容生成高管晨报内参。
+
+情报列表：
+${intelText}
+
+请直接输出晨报，不要任何前缀说明。`;
+
+  return { system, user };
+}
+
+// ========== DeepSeek Generation ==========
+
+async function generateBriefing(
+  portalName: string,
+  highValueIntel: IntelItem[],
+  model = 'deepseek-v4-pro'
+): Promise<string> {
+  const { system, user } = makeBriefingPrompt(portalName, highValueIntel);
+
+  const resp = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || ''),
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 800,
+      temperature: 0.4,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!resp.ok) throw new Error('Briefing generation failed: HTTP ' + resp.status);
+  const data = await resp.json();
+  return data.choices[0].message.content.trim();
+}
+
+// ========== PushPlus 微信推送 ==========
+
+async function pushWechatMessage(
+  token: string,
+  title: string,
+  content: string,
+): Promise<boolean> {
+  try {
+    const resp = await fetch('https://www.pushplus.plus/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        title,
+        content,
+        template: 'markdown',
+        channel: 'wechat',
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!resp.ok) {
+      console.error('[BriefingPush] PushPlus HTTP error:', resp.status);
+      return false;
+    }
+
+    const data = await resp.json();
+    if (data.code === 200) {
+      console.log('[BriefingPush] Sent successfully:', title);
+      return true;
+    }
+    console.error('[BriefingPush] PushPlus API error:', data.code, data.msg);
+    return false;
+  } catch (e: any) {
+    console.error('[BriefingPush] Failed:', e.message);
+    return false;
+  }
+}
+
+// ========== Per-Portal Briefing Pipeline ==========
+
+const lastBriefingDate = new Map<string, string>(); // slug → YYYY-MM-DD
+
+async function runDailyBriefing(
+  slug: string,
+  portalIntelCache: PortalIntelCache,
+): Promise<boolean> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (lastBriefingDate.get(slug) === today) {
+    console.log(`[Briefing] ${slug}: already sent today, skipping`);
+    return false;
+  }
+
+  try {
+    const site = await getReportSiteBySlug(slug, 'portal');
+    if (!site) { console.log(`[Briefing] ${slug}: portal not found`); return false; }
+
+    // Extract pushToken from WIDGETS config in HTML
+    const pushToken = process.env.PUSHPLUS_TOKEN || '';
+    if (!pushToken) {
+      console.log(`[Briefing] ${slug}: no PUSHPLUS_TOKEN configured`);
+      return false;
+    }
+
+    // Gather intel from all cached entries related to this portal
+    const allIntel: IntelItem[] = [];
+    const now = Date.now();
+    for (const [, entry] of portalIntelCache) {
+      if (entry.expiry <= now) continue;
+      if (!Array.isArray(entry.data)) continue;
+      for (const item of entry.data) {
+        const score = parseInt(item._valueScore) || 0;
+        if (score >= 60) {
+          allIntel.push({
+            title: item.title || '',
+            summary: item.summary || '',
+            source: item._provider || item.source || '',
+            _valueScore: score,
+            _provider: item._provider || '',
+            url: item.link || item.url || '',
+            date: item.date || '',
+          });
+        }
+      }
+    }
+
+    // Select top-N by _valueScore, dedup by title
+    const seen = new Set<string>();
+    const topN = allIntel
+      .filter(item => {
+        const key = item.title.toLowerCase().trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => b._valueScore - a._valueScore)
+      .slice(0, 5);
+
+    if (topN.length < 3) {
+      console.log(`[Briefing] ${slug}: only ${topN.length} high-value items (<3), skipping`);
+      return false;
+    }
+
+    // Generate and push
+    const portalName = (site as any).title || slug;
+    console.log(`[Briefing] ${slug}: generating briefing from ${topN.length} items...`);
+    const briefing = await generateBriefing(portalName, topN);
+    console.log(`[Briefing] ${slug}: generated (${briefing.length} chars)`);
+
+    const success = await pushWechatMessage(
+      pushToken,
+      `${portalName} · 每日情报晨报 (${today})`,
+      briefing,
+    );
+
+    if (success) {
+      lastBriefingDate.set(slug, today);
+      console.log(`[Briefing] ${slug}: pushed successfully`);
+    }
+    return success;
+  } catch (e: any) {
+    console.error(`[Briefing] ${slug}: failed —`, e.message);
+    return false;
+  }
+}
+
+// ========== Scheduler ==========
+
+export async function runAllDailyBriefings(
+  portalIntelCache: PortalIntelCache,
+): Promise<void> {
+  console.log('[Briefing] Starting daily briefing round');
+  try {
+    const allSites = await getAllPortalSites();
+    if (allSites.length === 0) {
+      console.log('[Briefing] No portal sites found');
+      return;
+    }
+
+    let pushed = 0;
+    for (const site of allSites) {
+      const ok = await runDailyBriefing(site.slug, portalIntelCache);
+      if (ok) pushed++;
+      // Short delay between portals
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    console.log(`[Briefing] Round complete: ${pushed}/${allSites.length} portals pushed`);
+  } catch (e: any) {
+    console.error('[Briefing] Scheduler error:', e.message);
+  }
+}
+
+let briefingTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function scheduleNextBriefing(
+  portalIntelCache: PortalIntelCache,
+): void {
+  const now = new Date();
+  const next8am = new Date(now);
+  next8am.setHours(8, 0, 0, 0);
+  if (now >= next8am) {
+    next8am.setDate(next8am.getDate() + 1);
+  }
+
+  const msUntil8am = next8am.getTime() - now.getTime();
+  const hours = Math.floor(msUntil8am / 3600000);
+  const mins = Math.floor((msUntil8am % 3600000) / 60000);
+  console.log(`[Briefing] Next briefing in ${hours}h ${mins}m (${next8am.toLocaleString('zh-CN')})`);
+
+  if (briefingTimer) clearTimeout(briefingTimer);
+  briefingTimer = setTimeout(() => {
+    runAllDailyBriefings(portalIntelCache).finally(() => {
+      scheduleNextBriefing(portalIntelCache);
+    });
+  }, msUntil8am);
+}

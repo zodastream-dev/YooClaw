@@ -59,6 +59,7 @@ import {
 
 import { callIntel } from "./intel-pipeline.js";
 import { generateIntelStationHtml } from './templates/intel-station/index.js';
+import { scheduleNextBriefing } from './briefing.js';
 
 import {
   TRIPLE_BACKTICK,
@@ -5856,6 +5857,9 @@ async function start() {
       warmAllPortalCaches().catch(e => console.error('[CacheWarmer] Warm failed:', e.message));
     }
   }, 20 * 60 * 1000);
+
+  // ===== V2.1 Daily Briefing: 8:00 AM self-scheduling =====
+  scheduleNextBriefing(portalIntelCache);
 
   // ===== Bulk Video Operations =====
   // Batch delete videos
