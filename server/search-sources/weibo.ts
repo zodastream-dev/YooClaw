@@ -1,14 +1,14 @@
-// 微博搜索源 — 通过秘塔 API + site:weibo.com 搜索微博内容
+// 微博搜索源 — 通过秘塔搜索 API + site:weibo.com 搜索微博内容（V2.1: 搜索接口10点/次）
 import type { RawSearchItem, SearchModule } from './types';
 
 async function fetchWithRetry(apiKey: string, query: string, maxRetries = 2): Promise<Response> {
   let lastError: any;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await fetch('https://metaso.cn/api/open/search/v2', {
+      return await fetch('https://metaso.cn/api/v1/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify({ question: `${query} site:weibo.com`, lang: 'zh' }),
+        body: JSON.stringify({ q: `${query} site:weibo.com`, scope: '网页', size: 15 }),
         signal: AbortSignal.timeout(25000),
       });
     } catch (e: any) {
@@ -37,13 +37,13 @@ const weiboModule: SearchModule = {
         return [];
       }
       const data = await resp.json();
-      const rawData = data.data?.references || data.data || data.results || data.items || [];
-      const results: any[] = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.references || [rawData]);
+      const rawData = data.data?.items || data.data?.results || data.data || data.results || data.items || [];
+      const results: any[] = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || [rawData]);
       console.log('[WeiboSearch] Metaso returned ' + results.length + ' results (site:weibo.com)');
       return results.slice(0, 15).map((r: any) => ({
         title: r.title || r.name || '',
         url: r.url || r.link || '',
-        snippet: r.snippet || r.summary || r.content || r.aiSummary || '',
+        snippet: r.snippet || r.summary || r.content || '',
         date: r.date || r.publishedAt || r.publishTime || '',
       }));
     } catch (e: any) {
