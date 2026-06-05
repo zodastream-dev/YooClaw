@@ -3647,7 +3647,7 @@ async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]>
 // Returns intelligence data for requested sources. Uses 30-min in-memory cache.
 app.post('/api/portal-intel', async (req, res) => {
   try {
-    const { sources } = req.body || {};
+    const { sources, force } = req.body || {};
     if (!Array.isArray(sources) || sources.length === 0) {
       return res.status(400).json({ error: 'sources array is required' });
     }
@@ -3657,6 +3657,11 @@ app.post('/api/portal-intel', async (req, res) => {
 
     const processSource = async (src: any, idx: number) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
+      // Bypass cache when force refresh is requested
+      if (force) {
+        portalIntelCache.delete(cacheKey);
+        console.log(`[PortalIntel] Force refresh: cleared cache for "${src.name}"`);
+      }
       const cached = portalIntelCache.get(cacheKey);
       // Only serve from cache if non-empty (empty may be transient failure)
       if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {

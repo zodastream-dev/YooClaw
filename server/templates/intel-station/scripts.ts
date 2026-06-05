@@ -38,17 +38,19 @@ var expandedSources={};
 })();
 
 /* ===== LOAD INTEL DATA ===== */
-async function loadIntelData(){
+async function loadIntelData(forceRefresh){
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   if(monitors.length===0){
     $('intelLoading').innerHTML='<p style="color:var(--text-secondary)">暂无监控源配置</p>';
     return;
   }
+  if(forceRefresh)console.log('[loadIntelData] Force refresh: bypassing all caches');
   $('intelLoading').style.display='block';
   $('feedStatus').textContent='获取情报中...';
-  // Check localStorage cache first (30min TTL matches backend)
+  // Check localStorage cache first (30min TTL matches backend) — skip if forceRefresh
   var cacheKey='portal-intel-'+PORTAL_SLUG;
   var cachedData=null;
+  if(!forceRefresh){
   try{
     var cachedRaw=localStorage.getItem(cacheKey);
     if(cachedRaw){
@@ -66,6 +68,7 @@ async function loadIntelData(){
       } else {cachedData=null;}
     }
   }catch(e){cachedData=null;}
+  }
   try {
     var sources=[];
     monitors.forEach(function(mw){
@@ -84,7 +87,7 @@ async function loadIntelData(){
       var hasValidModel=validModels.some(function(prefix){return (src.aiModel||'').indexOf(prefix)===0;});
       if(!src.aiModel||!hasValidModel)src.aiModel='deepseek-v4-flash';
     });
-    var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources})});
+    var result=await fetch(API+'/api/portal-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:sources,force:!!forceRefresh})});
     if(!result.ok)throw new Error('API error: '+result.status);
     var data=await result.json();
     allIntelData=[];
@@ -915,7 +918,7 @@ function refreshAllIntel(){
   $('feedStatus').textContent='强制更新中...';
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   renderSourceFilters(monitors);
-  loadIntelData();
+  loadIntelData(true);
 }
 
 /* ===== INTEL PAUSE TOGGLE (per-portal) ===== */
