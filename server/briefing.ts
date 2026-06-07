@@ -2,7 +2,7 @@
 import { getAllPortalSites, getReportSiteBySlug } from './db.js';
 import fs from 'fs';
 import path from 'path';
-import net from 'net';
+import tls from 'tls';
 
 // ========== Types ==========
 interface IntelItem {
