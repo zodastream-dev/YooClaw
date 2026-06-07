@@ -218,6 +218,7 @@ async function sendEmail(
 
     return new Promise((resolve) => {
       const socket = tls.connect(port, host, { rejectUnauthorized: false }, () => {
+        let ready = false;
         const queue: Array<{ cmd: string; expect: RegExp }> = [];
         const send = (cmd: string, expect: RegExp) => queue.push({ cmd, expect });
         const flush = () => {
@@ -232,10 +233,14 @@ async function sendEmail(
         send(`RCPT TO:<${to}>`, /2\d\d/);
         send('DATA', /3\d\d/);
         send(message, /2\d\d/);
-        flush();
 
         socket.on('data', (d: Buffer) => {
           const text = d.toString();
+          // Wait for initial greeting (220) before starting queue
+          if (!ready) {
+            if (text.includes('220')) { ready = true; flush(); }
+            return;
+          }
           if (text.match(/^5\d\d/) && queue.length > 0) {
             console.error('[BriefingEmail] SMTP error:', text.substring(0, 200));
             socket.destroy(); resolve(false);
@@ -243,7 +248,7 @@ async function sendEmail(
           }
           if (queue.length > 0 && text.match(queue[0].expect)) {
             queue.shift();
-            if (queue.length === 0) { socket.write('QUIT\r\n'); socket.end(); resolve(true); }
+            if (queue.length === 0) { socket.write('QUIT\r\n'); socket.end(); console.log('[BriefingEmail] Sent to:', to); resolve(true); }
             else { flush(); }
           }
         });
