@@ -173,6 +173,65 @@ async function pushWechatMessage(
   }
 }
 
+// ========== SMTP Email 发送 ==========
+
+async function sendEmail(
+  to: string,
+  subject: string,
+  mdContent: string,
+): Promise<boolean> {
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || '465');
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    console.log('[BriefingEmail] SMTP not configured, skipping');
+    return false;
+  }
+
+  const html = mdContent
+    .replace(/^## (.+)$/gm, '<h2 style="color:#1a1a2e;font-size:18px">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^> (.+)$/gm, '<blockquote style="border-left:3px solid #00d4ff;padding-left:12px;color:#555;margin:8px 0">$1</blockquote>')
+    .replace(/\n\n/g, '</p><p style="line-height:1.8">')
+    .replace(/\n/g, '<br>');
+
+  const body = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Microsoft YaHei',sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f8f9fa"><div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.08)"><p style="line-height:1.8">${html}</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0"><p style="font-size:12px;color:#999">由 YooClaw 情报分析门户自动生成 · ${new Date().toLocaleDateString('zh-CN')}</p></div></div>`;
+
+  try {
+    const auth = Buffer.from(`\x00${user}\x00${pass}`).toString('base64');
+    const message = [
+      `From: ${user}`, `To: ${to}`,
+      `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+      'Content-Type: text/html; charset=UTF-8', 'MIME-Version: 1.0', '', body, '.',
+    ].join('\r\n');
+
+    return new Promise((resolve) => {
+      const socket = tls.connect(port, host, { rejectUnauthorized: false }, () => {
+        let step = 0; let buf = '';
+        socket.on('data', (d: Buffer) => {
+          buf += d.toString();
+          if (step === 0 && buf.includes('220')) { socket.write('EHLO yooclaw\r\n'); step = 1; }
+          else if (step === 1 && buf.match(/250.*AUTH/)) { socket.write('AUTH PLAIN\r\n'); step = 2; }
+          else if (step === 2 && buf.includes('334')) { socket.write(auth + '\r\n'); step = 3; }
+          else if (step === 3 && buf.includes('235')) { socket.write(`MAIL FROM:<${user}>\r\n`); step = 4; }
+          else if (step === 4 && buf.includes('250')) { socket.write(`RCPT TO:<${to}>\r\n`); step = 5; }
+          else if (step === 5 && buf.includes('250')) { socket.write('DATA\r\n'); step = 6; }
+          else if (step === 6 && buf.includes('354')) { socket.write(message + '\r\n'); step = 7; }
+          else if (step === 7 && buf.match(/250.*(queued|OK|Accepted)/)) { socket.write('QUIT\r\n'); socket.end(); resolve(true); }
+          else if (buf.match(/^5\d\d/) && step >= 3) { console.error('[BriefingEmail] SMTP error:', buf.substring(0, 200)); socket.destroy(); resolve(false); }
+        });
+        socket.on('error', () => resolve(false));
+        socket.setTimeout(15000, () => { socket.destroy(); resolve(false); });
+      });
+    });
+  } catch (e: any) {
+    console.error('[BriefingEmail] Failed:', e.message);
+    return false;
+  }
+}
+
 // ========== Per-Portal Briefing Pipeline ==========
 
 const lastBriefingDate = new Map<string, string>(); // slug → YYYY-MM-DD
