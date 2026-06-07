@@ -3741,7 +3741,7 @@ app.post('/api/portal/instant-push', async (req, res) => {
   if (!slug) return res.status(400).json({ error: 'slug required' });
   console.log(`[InstantPush] Manual trigger for ${slug}`);
   // Run async — respond immediately, push happens in background
-  runDailyBriefing(slug, portalIntelCache).then((ok) => {
+  runDailyBriefing(slug, portalIntelCache, true).then((ok) => {
     console.log(`[InstantPush] ${slug}: ${ok ? 'success' : 'skipped/failed'}`);
   }).catch(e => {
     console.error(`[InstantPush] ${slug}: error —`, e.message);

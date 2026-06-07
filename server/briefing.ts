@@ -248,10 +248,11 @@ const lastBriefingDate = new Map<string, string>(); // slug → YYYY-MM-DD
 export async function runDailyBriefing(
   slug: string,
   portalIntelCache: PortalIntelCache,
+  force = false,
 ): Promise<boolean> {
   const today = new Date().toISOString().slice(0, 10);
 
-  if (lastBriefingDate.get(slug) === today) {
+  if (!force && lastBriefingDate.get(slug) === today) {
     console.log(`[Briefing] ${slug}: already sent today, skipping`);
     return false;
   }
