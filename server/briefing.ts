@@ -218,18 +218,18 @@ async function sendEmail(
 
     return new Promise((resolve) => {
       const socket = tls.connect(port, host, { rejectUnauthorized: false }, () => {
-        let step = 0; let buf = '';
+        let step = 0;
         socket.on('data', (d: Buffer) => {
-          buf += d.toString();
-          if (step === 0 && buf.includes('220')) { socket.write('EHLO yooclaw\r\n'); step = 1; }
-          else if (step === 1 && buf.match(/250.*AUTH/)) { socket.write('AUTH PLAIN\r\n'); step = 2; }
-          else if (step === 2 && buf.includes('334')) { socket.write(auth + '\r\n'); step = 3; }
-          else if (step === 3 && buf.includes('235')) { socket.write(`MAIL FROM:<${user}>\r\n`); step = 4; }
-          else if (step === 4 && buf.includes('250')) { socket.write(`RCPT TO:<${to}>\r\n`); step = 5; }
-          else if (step === 5 && buf.includes('250')) { socket.write('DATA\r\n'); step = 6; }
-          else if (step === 6 && buf.includes('354')) { socket.write(message + '\r\n'); step = 7; }
-          else if (step === 7 && buf.match(/250.*(queued|OK|Accepted)/)) { socket.write('QUIT\r\n'); socket.end(); resolve(true); }
-          else if (buf.match(/^5\d\d/) && step >= 3) { console.error('[BriefingEmail] SMTP error:', buf.substring(0, 200)); socket.destroy(); resolve(false); }
+          const text = d.toString();
+          if (step === 0 && text.includes('220')) { socket.write('EHLO yooclaw\r\n'); step = 1; }
+          else if (step === 1 && text.includes('AUTH')) { socket.write('AUTH PLAIN\r\n'); step = 2; }
+          else if (step === 2 && text.includes('334')) { socket.write(auth + '\r\n'); step = 3; }
+          else if (step === 3 && text.includes('235')) { socket.write(`MAIL FROM:<${user}>\r\n`); step = 4; }
+          else if (step === 4 && text.match(/^2\d\d/)) { socket.write(`RCPT TO:<${to}>\r\n`); step = 5; }
+          else if (step === 5 && text.match(/^2\d\d/)) { socket.write('DATA\r\n'); step = 6; }
+          else if (step === 6 && text.includes('354')) { socket.write(message + '\r\n'); step = 7; }
+          else if (step === 7 && text.match(/^2\d\d/)) { socket.write('QUIT\r\n'); socket.end(); resolve(true); }
+          else if (text.match(/^5\d\d/) && step >= 3) { console.error('[BriefingEmail] SMTP error:', text.substring(0, 200)); socket.destroy(); resolve(false); }
         });
         socket.on('error', () => resolve(false));
         socket.setTimeout(15000, () => { socket.destroy(); resolve(false); });
