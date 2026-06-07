@@ -177,7 +177,7 @@ async function pushWechatMessage(
 
 const lastBriefingDate = new Map<string, string>(); // slug → YYYY-MM-DD
 
-async function runDailyBriefing(
+export async function runDailyBriefing(
   slug: string,
   portalIntelCache: PortalIntelCache,
 ): Promise<boolean> {

@@ -59,7 +59,7 @@ import {
 
 import { callIntel } from "./intel-pipeline.js";
 import { generateIntelStationHtml } from './templates/intel-station/index.js';
-import { scheduleNextBriefing, getPushConfig, setPushConfig } from './briefing.js';
+import { scheduleNextBriefing, getPushConfig, setPushConfig, runDailyBriefing } from './briefing.js';
 
 import {
   TRIPLE_BACKTICK,
@@ -3733,6 +3733,20 @@ app.post('/api/portal/push-config', (req, res) => {
   const result = setPushConfig(slug, cfg);
   console.log(`[PushConfig] ${slug}: enabled=${result.enabled}, email=${result.email || '(none)'}`);
   res.json({ data: result });
+});
+
+// ========== V2.1 Instant Push (manual trigger) ==========
+app.post('/api/portal/instant-push', async (req, res) => {
+  const { slug } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug required' });
+  console.log(`[InstantPush] Manual trigger for ${slug}`);
+  // Run async — respond immediately, push happens in background
+  runDailyBriefing(slug, portalIntelCache).then((ok) => {
+    console.log(`[InstantPush] ${slug}: ${ok ? 'success' : 'skipped/failed'}`);
+  }).catch(e => {
+    console.error(`[InstantPush] ${slug}: error —`, e.message);
+  });
+  res.json({ success: true, message: '推送已触发，稍后查看结果' });
 });
 
 // ========== Background Cache Warmer ==========

@@ -214,6 +214,7 @@ function renderSourceFilters(monitors){
   html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
   html+='<span style="font-size:12px;color:var(--text-secondary)">📨 推送设置</span>';
   html+='<button class="add-source-btn" id="btnTogglePush" onclick="togglePushEnabled()" style="border-style:solid;border-color:rgba(0,212,255,0.15);font-size:11px;padding:4px 12px;flex:none;margin:0">推送中</button>';
+  html+='<button class="add-source-btn" onclick="instantPushNow()" style="border-style:solid;border-color:rgba(0,212,255,0.15);font-size:11px;padding:4px 12px;flex:none;margin:0;color:var(--cyan);font-weight:600">⚡ 立即推送</button>';
   html+='</div>';
   html+='<input type="email" id="inputPushEmail" placeholder="输入接收晨报的邮箱地址" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:11px;font-family:inherit;outline:none" onchange="savePushEmail()">';
   html+='</div>';
@@ -1018,6 +1019,25 @@ function savePushEmail() {
       body: JSON.stringify({ slug: PORTAL_SLUG, email: email }),
     }).catch(function(e) { console.error('savePushEmail failed:', e); });
   }, 800);
+}
+
+function instantPushNow() {
+  var btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '推送中...';
+  fetch(API + '/api/portal/instant-push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug: PORTAL_SLUG }),
+  }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      alert(d.message || '推送已触发，请查看微信/邮箱');
+    }).catch(function(e) {
+      alert('推送失败: ' + e.message);
+    }).finally(function() {
+      btn.disabled = false;
+      btn.textContent = '⚡ 立即推送';
+    });
 }
 
 function deleteSource(wi,si){
