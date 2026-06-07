@@ -209,14 +209,16 @@ function renderSourceFilters(monitors){
   html+='<button class="add-source-btn" onclick="refreshAllIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);flex:1;margin-top:0">🔄 更新情报</button>';
   html+='<button class="add-source-btn" id="btnPauseIntel" onclick="togglePauseIntel()" style="border-style:solid;border-color:rgba(0,212,255,0.15);flex:1;margin-top:0">⏸ 停止更新</button>';
   html+='</div>';
-  // V2.1: Push controls (email + toggle)
-  html+='<div style="margin-top:12px;padding:10px 12px;background:rgba(0,212,255,0.03);border-radius:8px;border:1px solid var(--border)">';
-  html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
-  html+='<span style="font-size:12px;color:var(--text-secondary)">📨 推送设置</span>';
-  html+='<button class="add-source-btn" id="btnTogglePush" onclick="togglePushEnabled()" style="border-style:solid;border-color:rgba(0,212,255,0.15);font-size:11px;padding:4px 12px;flex:none;margin:0">推送中</button>';
-  html+='<button class="add-source-btn" onclick="instantPushNow()" style="border-style:solid;border-color:rgba(0,212,255,0.15);font-size:11px;padding:4px 12px;flex:none;margin:0;color:var(--cyan);font-weight:600">⚡ 立即推送</button>';
+  // V2.1: Push controls
+  html+='<div style="margin-top:12px;padding:12px 14px;background:rgba(0,212,255,0.03);border-radius:8px;border:1px solid var(--border)">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  html+='<span style="font-size:13px;color:var(--text-secondary);font-weight:500">📨 推送设置</span>';
+  html+='<div style="display:flex;gap:6px;flex-shrink:0">';
+  html+='<button id="btnTogglePush" onclick="togglePushEnabled()" style="padding:4px 14px;border:1px solid rgba(34,197,94,0.4);border-radius:6px;background:rgba(34,197,94,0.06);color:#22c55e;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s">推送中</button>';
+  html+='<button onclick="instantPushNow()" style="padding:4px 14px;border:1px solid rgba(0,212,255,0.3);border-radius:6px;background:rgba(0,212,255,0.06);color:var(--cyan);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s">⚡ 立即推送</button>';
   html+='</div>';
-  html+='<input type="email" id="inputPushEmail" placeholder="输入接收晨报的邮箱地址" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:11px;font-family:inherit;outline:none" onchange="savePushEmail()">';
+  html+='</div>';
+  html+='<input type="email" id="inputPushEmail" placeholder="输入接收晨报的邮箱地址" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box" onchange="savePushEmail()">';
   html+='</div>';
   $('sourceGroups').innerHTML=html;
 }
@@ -989,12 +991,14 @@ function updatePushToggleUI() {
   if (!btn) return;
   if (pushEnabled) {
     btn.innerHTML = '推送中';
-    btn.style.borderColor = 'rgba(34,197,94,0.5)';
+    btn.style.borderColor = 'rgba(34,197,94,0.4)';
     btn.style.color = '#22c55e';
+    btn.style.background = 'rgba(34,197,94,0.06)';
   } else {
     btn.innerHTML = '已停止';
-    btn.style.borderColor = 'rgba(239,68,68,0.5)';
+    btn.style.borderColor = 'rgba(239,68,68,0.4)';
     btn.style.color = '#ef4444';
+    btn.style.background = 'rgba(239,68,68,0.06)';
   }
 }
 
