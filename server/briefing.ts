@@ -135,7 +135,7 @@ async function generateBriefing(
         { role: 'user', content: user },
       ],
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(60000),
   });
 
   if (!resp.ok) throw new Error('Briefing generation failed: HTTP ' + resp.status);
