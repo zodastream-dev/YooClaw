@@ -208,6 +208,7 @@ async function sendEmail(
 
   const body = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Microsoft YaHei',sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f8f9fa"><div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.08)"><p style="line-height:1.8">${html}</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0"><p style="font-size:12px;color:#999">由 YooClaw 情报分析门户自动生成 · ${new Date().toLocaleDateString('zh-CN')}</p></div></div>`;
 
+  console.log('[BriefingEmail] Attempting SMTP send to:', to, 'via', host);
   try {
     const auth = Buffer.from(`\x00${user}\x00${pass}`).toString('base64');
     const message = [
