@@ -59,7 +59,7 @@ import {
 
 import { callIntel } from "./intel-pipeline.js";
 import { generateIntelStationHtml } from './templates/intel-station/index.js';
-import { scheduleNextBriefing } from './briefing.js';
+import { scheduleNextBriefing, getPushConfig, setPushConfig } from './briefing.js';
 
 import {
   TRIPLE_BACKTICK,
@@ -3715,6 +3715,24 @@ app.post('/api/portal-intel/pause', (req, res) => {
     console.log(`[PortalIntel] Portal ${slug} ${pause ? 'PAUSED' : 'RESUMED'} (${pausedPortals.size} paused total)`);
   }
   res.json({ success: true, pausedPortals: [...pausedPortals] });
+});
+
+// ========== V2.1 Portal Push Config API (email + toggle) ==========
+app.get('/api/portal/push-config', (req, res) => {
+  const slug = (req.query.slug as string) || '';
+  if (!slug) return res.status(400).json({ error: 'slug required' });
+  res.json({ data: getPushConfig(slug) });
+});
+
+app.post('/api/portal/push-config', (req, res) => {
+  const { slug, enabled, email } = req.body || {};
+  if (!slug) return res.status(400).json({ error: 'slug required' });
+  const cfg: any = {};
+  if (typeof enabled === 'boolean') cfg.enabled = enabled;
+  if (typeof email === 'string') cfg.email = email.trim() || undefined;
+  const result = setPushConfig(slug, cfg);
+  console.log(`[PushConfig] ${slug}: enabled=${result.enabled}, email=${result.email || '(none)'}`);
+  res.json({ data: result });
 });
 
 // ========== Background Cache Warmer ==========

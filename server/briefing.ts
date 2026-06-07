@@ -1,5 +1,8 @@
-// V2.1 Daily Briefing — 晨报生成 + PushPlus 微信推送 + 8AM 自排程调度器
+// V2.1 Daily Briefing — 晨报生成 + PushPlus 微信推送 + SMTP 邮件推送 + 8AM 自排程调度器
 import { getAllPortalSites, getReportSiteBySlug } from './db.js';
+import fs from 'fs';
+import path from 'path';
+import net from 'net';
 
 // ========== Types ==========
 interface IntelItem {
@@ -12,7 +15,45 @@ interface IntelItem {
   date?: string;
 }
 
+interface PushConfig {
+  enabled: boolean;
+  email?: string;
+}
+
 type PortalIntelCache = Map<string, { data: any[]; expiry: number }>;
+
+// ========== Push Config Storage ==========
+const PUSH_CONFIG_FILE = path.join(process.cwd(), 'cache', 'portal-push-config.json');
+
+function loadPushConfig(): Record<string, PushConfig> {
+  try {
+    if (fs.existsSync(PUSH_CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(PUSH_CONFIG_FILE, 'utf-8'));
+    }
+  } catch (e: any) { console.warn('[PushConfig] Load failed:', e.message); }
+  return {};
+}
+
+function savePushConfig(config: Record<string, PushConfig>): void {
+  try {
+    const dir = path.dirname(PUSH_CONFIG_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(PUSH_CONFIG_FILE, JSON.stringify(config, null, 2));
+  } catch (e: any) { console.error('[PushConfig] Save failed:', e.message); }
+}
+
+export function getPushConfig(slug: string): PushConfig {
+  const config = loadPushConfig();
+  return config[slug] || { enabled: true };
+}
+
+export function setPushConfig(slug: string, cfg: Partial<PushConfig>): PushConfig {
+  const config = loadPushConfig();
+  const existing = config[slug] || { enabled: true };
+  config[slug] = { ...existing, ...cfg };
+  savePushConfig(config);
+  return config[slug];
+}
 
 // ========== Prompts ==========
 
@@ -151,10 +192,19 @@ async function runDailyBriefing(
     const site = await getReportSiteBySlug(slug, 'portal');
     if (!site) { console.log(`[Briefing] ${slug}: portal not found`); return false; }
 
-    // Extract pushToken from WIDGETS config in HTML
+    // Check push enabled
+    const pushCfg = getPushConfig(slug);
+    if (!pushCfg.enabled) {
+      console.log(`[Briefing] ${slug}: push is disabled`);
+      lastBriefingDate.set(slug, today); // mark as handled to prevent retry
+      return false;
+    }
+
+    // Check at least one channel configured
     const pushToken = process.env.PUSHPLUS_TOKEN || '';
-    if (!pushToken) {
-      console.log(`[Briefing] ${slug}: no PUSHPLUS_TOKEN configured`);
+    const pushEmail = pushCfg.email || '';
+    if (!pushToken && !pushEmail) {
+      console.log(`[Briefing] ${slug}: no push channels configured (no token, no email)`);
       return false;
     }
 
@@ -197,23 +247,38 @@ async function runDailyBriefing(
       return false;
     }
 
-    // Generate and push
+    // Push to WeChat + Email
     const portalName = (site as any).title || slug;
     console.log(`[Briefing] ${slug}: generating briefing from ${topN.length} items...`);
     const briefing = await generateBriefing(portalName, topN);
     console.log(`[Briefing] ${slug}: generated (${briefing.length} chars)`);
 
-    const success = await pushWechatMessage(
-      pushToken,
-      `${portalName} · 每日情报晨报 (${today})`,
-      briefing,
-    );
+    let pushed = false;
 
-    if (success) {
-      lastBriefingDate.set(slug, today);
-      console.log(`[Briefing] ${slug}: pushed successfully`);
+    // PushPlus WeChat
+    if (pushToken) {
+      const wxOk = await pushWechatMessage(
+        pushToken,
+        `${portalName} · 每日情报晨报 (${today})`,
+        briefing,
+      );
+      if (wxOk) pushed = true;
     }
-    return success;
+
+    // Email
+    if (pushEmail) {
+      const emailOk = await sendEmail(
+        pushEmail,
+        `${portalName} · 每日情报晨报 (${today})`,
+        briefing,
+      );
+      if (emailOk) pushed = true;
+    }
+
+    if (pushed) {
+      lastBriefingDate.set(slug, today);
+      console.log(`[Briefing] ${slug}: pushed successfully (wechat=${!!pushToken}, email=${!!pushEmail})`);
+    }
   } catch (e: any) {
     console.error(`[Briefing] ${slug}: failed —`, e.message);
     return false;
