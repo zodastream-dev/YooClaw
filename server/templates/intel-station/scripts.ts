@@ -217,8 +217,10 @@ function renderSourceFilters(monitors){
   html+='<button id="btnTogglePush" onclick="togglePushEnabled()" style="padding:4px 14px;border:1px solid rgba(34,197,94,0.4);border-radius:6px;background:rgba(34,197,94,0.06);color:#22c55e;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s">推送中</button>';
   html+='<button onclick="instantPushNow()" style="padding:4px 14px;border:1px solid rgba(0,212,255,0.3);border-radius:6px;background:rgba(0,212,255,0.06);color:var(--cyan);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s">⚡ 立即推送</button>';
   html+='</div>';
+  html+='<div style="display:flex;gap:6px">';
+  html+='<input type="email" id="inputPushEmail" placeholder="输入接收晨报的邮箱地址" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box">';
+  html+='<button onclick="savePushEmail()" style="padding:5px 14px;border:1px solid rgba(0,212,255,0.3);border-radius:6px;background:rgba(0,212,255,0.08);color:var(--cyan);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s">保存</button>';
   html+='</div>';
-  html+='<input type="email" id="inputPushEmail" placeholder="输入接收晨报的邮箱地址" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box" onchange="savePushEmail()">';
   html+='</div>';
   $('sourceGroups').innerHTML=html;
 }
@@ -1012,17 +1014,15 @@ function togglePushEnabled() {
   }).catch(function(e) { console.error('togglePushEnabled failed:', e); });
 }
 
-var pushEmailTimer = null;
 function savePushEmail() {
-  clearTimeout(pushEmailTimer);
-  pushEmailTimer = setTimeout(function() {
-    var email = ($('inputPushEmail') || {}).value || '';
-    fetch(API + '/api/portal/push-config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: PORTAL_SLUG, email: email }),
-    }).catch(function(e) { console.error('savePushEmail failed:', e); });
-  }, 800);
+  var email = ($('inputPushEmail') || {}).value || '';
+  fetch(API + '/api/portal/push-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug: PORTAL_SLUG, email: email }),
+  }).then(function(r) { return r.json(); })
+    .then(function() { alert('邮箱已保存: ' + (email || '(已清空)')); })
+    .catch(function(e) { alert('保存失败: ' + e.message); });
 }
 
 function instantPushNow() {
