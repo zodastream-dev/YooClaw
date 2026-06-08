@@ -296,14 +296,12 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   }
 
   // --- V2.5: Domain whitelist for authority source filtering ---
-  // Detect banking/finance sources: check source name, keywords, and customPrompt
-  const catCheck = (src.name || '').toLowerCase();
-  const promptCheck = (src.customPrompt || '').toLowerCase();
-  const kwCheck = (Array.isArray(src.keywords) ? src.keywords.join(' ').toLowerCase() : '');
-  const isBanking = catCheck.includes('银行') || catCheck.includes('金融')
-    || promptCheck.includes('银行') || promptCheck.includes('商业银行') || promptCheck.includes('省分行')
-    || kwCheck.includes('金监总局') || kwCheck.includes('央行') || kwCheck.includes('银团')
-    || kwCheck.includes('城投') || kwCheck.includes('对公') || kwCheck.includes('存贷款');
+  // Detect banking/finance sources based on actual monitoring content (not just source name)
+  const kwText = (Array.isArray(src.keywords) ? src.keywords.join(' ') : '') + ' '
+    + (src.objects || []).map((o: any) => (o.name || '') + ' ' + ((o.keywords || []).join(' '))).join(' ');
+  const bankingTerms = ['金监总局', '央行', '银团', '城投', '存贷款', '银行', '金融', '对公',
+    'LPR', '利率', '信贷', '不良贷款', '拨备', '评级', '发债', '反洗钱', '监管处罚'];
+  const isBanking = bankingTerms.some(t => kwText.includes(t));
   const BANKING_WHITELIST = [
     'people.com.cn', 'xinhuanet.com', 'caixin.com', '21jingji.com',
     'yicai.com', 'cls.cn', 'finance.sina.com.cn', 'cbirc.gov.cn', 'pbc.gov.cn',
