@@ -99,10 +99,13 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
   const objCtx = objectName ? '监控对象：' + objectName : '';
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
-  // Split: 行业信号 → macro trend keywords; competitors/others → product/event keywords
+  // Split: 行业信号 → macro trend keywords; target clients → corporate risk/opportunity keywords; competitors → product/event keywords
   const isIndustrySignal = (category.includes('行业') || category.includes('信号')) && !category.includes('竞') && !category.includes('对手') && !category.includes('舆情');
+  const isTargetClient = (category.includes('客户') || category.includes('目标')) && !category.includes('竞');
   const sp = isIndustrySignal
     ? '你是搜索关键词优化专家，专注于宏观行业趋势。今天是' + today + '。根据情报监控配置，生成6-10个宏观行业搜索关键词。要求：1.优先产业链变化、技术路线图、市场格局、政策法规、商业模式创新 2.禁止具体产品评测、单品价格、参数配置、产品促销 3.形式如"手机出货量2026Q2趋势""智能手机芯片供应链变化"等趋势性短语 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]'
+    : isTargetClient
+      ? '你是企业客户情报分析专家，为银行对公业务监控核心客户动态。今天是' + today + '。根据监控对象，生成6-10个搜索关键词。要求：1.聚焦客户经营风险（财报/评级/债务/违约）、融资需求（发债/增发/招标）、银行关系（战略合作/授信变动）、战略调整（并购/重组/业务转型）2.禁止客户日常经营新闻、品牌营销活动、社会责任报告 3.形式如"中国中铁2026年Q2财报业绩""国家电网评级调整最新"等 4.关键词不限长度，精准优于简短 5.仅输出JSON数组'
     : '你是搜索关键词优化专家。今天是' + today + '。根据情报监控配置，生成6-10个高价值中文搜索关键词用于多渠道搜索引擎查询。要求：1.优先具体产品名/技术术语/事件名称（如"韬芯片""鸿蒙NEXT""Mate80"）2.必须包含时效性关键词（如"最新""本月""2026年"）3.覆盖6个维度：产品发布、技术突破、财报业绩、人事变动、竞争动态、政策监管 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]';
 
   // Build global context for zero-cost industry inference (Gemini's proposed optimization)
@@ -203,6 +206,20 @@ function safeJsonTruncate(items: any[], maxChars: number): string {
   return result;
 }
 
+// ========== V2.5: Credibility engine (domain-based, zero-token) ==========
+
+function getCredibility(url: string, whitelist: string[]): string {
+  if (!url) return 'MEDIUM';
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+    if (whitelist.some(d => host.includes(d))) return 'HIGH';
+    // Semi-authoritative sources
+    if (/\.(sina\.com\.cn|eastmoney\.com|xueqiu\.com|163\.com|qq\.com)$/.test(host)) return 'MEDIUM';
+    if (/\.(gov\.cn|edu\.cn)$/.test(host)) return 'HIGH';
+  } catch {}
+  return 'LOW';
+}
+
 export async function callIntel(effectiveKwArr: string[], src: any, objectName?: string, allSources?: any[]): Promise<any[]> {
   const provider = src.aiProvider || 'all';
   // Validate model name — only allow DeepSeek models, fallback to deepseek-v4-flash
@@ -266,6 +283,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       fallbackModifiers = '最新趋势 OR 行业分析 OR 市场动态';
     } else if (catName.includes('竞争') || catName.includes('对手')) {
       fallbackModifiers = '新品 OR 战略 OR 财报 OR 最新动态';
+    } else if (catName.includes('客户') || catName.includes('目标')) {
+      fallbackModifiers = '财报 OR 评级 OR 债务 OR 战略 OR 融资';
     } else {
       fallbackModifiers = '最新动态';
     }
@@ -274,6 +293,31 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     console.log(`[Intel] No keywords available for "${src.name}", using fallback query`);
   } else {
     queries.push(src.name || '');
+  }
+
+  // --- V2.5: Domain whitelist for authority source filtering ---
+  // Detect banking/finance sources and apply domain whitelist
+  const catCheck = (src.name || '').toLowerCase();
+  const isBanking = catCheck.includes('银行') || catCheck.includes('金融');
+  const BANKING_WHITELIST = [
+    'people.com.cn', 'xinhuanet.com', 'caixin.com', '21jingji.com',
+    'yicai.com', 'cls.cn', 'finance.sina.com.cn', 'cbirc.gov.cn', 'pbc.gov.cn',
+  ];
+  const domainWhitelist: string[] = isBanking ? BANKING_WHITELIST : [];
+
+  // Generate whitelist-augmented queries for banking sources
+  // These run alongside regular queries; whitelist results get _credibility: HIGH
+  if (domainWhitelist.length > 0 && objectName) {
+    const siteFilter = domainWhitelist.map(d => `site:${d}`).join(' OR ');
+    const whitelistPrefix = objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName;
+    // Add 1-2 whitelist queries with high-priority keywords
+    if (mergedKwArr.length > 0) {
+      const topKw = mergedKwArr.slice(0, 3).join(' OR ');
+      queries.push(`${whitelistPrefix} (${topKw}) ${siteFilter}`);
+    } else {
+      queries.push(`${whitelistPrefix} 最新动态 ${siteFilter}`);
+    }
+    console.log('[Intel:V2.5] Added whitelist query for banking source');
   }
 
   // Append recency query as a separate search for latest coverage
@@ -368,12 +412,18 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   const contextChars = objectName ? 15000 : 8000;
   const searchContext = hasSearch ? safeJsonTruncate(rawItems.slice(0, contextItems), contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
   if (objectName) {
+    // Detect source type for specialized instructions
+    const catCheck = (src.name || '').toLowerCase();
+    const isTarget = catCheck.includes('客户') || catCheck.includes('目标');
+    const isComp = catCheck.includes('竞争') || catCheck.includes('对手');
+
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
-      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50}]\n' +
+      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50,"_noiseType":"对公业务"}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
+      '6.1 _noiseType（必填，取"对公业务"/"零售噪音"/"营销通稿"）：判断本条情报是否属于对公/战略/风险管理内容。零售产品（信用卡/消费贷/App更新/社区活动/理财推销）必须标注为"零售噪音"或"营销通稿"\n' +
       '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
       '8. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道的结果至少提供 2 条（如果该渠道有结果的话）\n' +
       '9. 优先提供不同渠道的独有信息，避免同一信息由多个渠道重复提供\n' +
@@ -386,6 +436,12 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
       '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
       '  评分只看商业价值不看情感倾向，重复信息降10-20分\n' +
+      (isTarget
+        ? '  目标客户专项：客户评级下调/债务违约/重大亏损 → 90+; 客户战略调整/融资需求 → 75-89; 客户日常经营新闻 → ≤50\n'
+        : '') +
+      (isComp
+        ? '  竞争对手专项：竞对与核心客户签战略协议/银团牵头权变动 → 90+; 竞对新产品/机构调整 → 75-89; 竞对一般性营销 → ≤50\n'
+        : '') +
       '12.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
@@ -510,6 +566,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       _intent: r._intent || '',
       _object: r._object || '',
       _valueScore: parseInt(r._valueScore) || 50,
+      _credibility: getCredibility(finalUrl, domainWhitelist),
+      _noiseType: r._noiseType || '对公业务',
     };
   });
 
@@ -646,6 +704,32 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     /\/(mall|shop|store|product|catalog|goods)\//i,
     /\.(zol|pconline|smzdm|autohome|dongchedi|xcar)\.com/i,
   ];
+  // --- V2.5: Drop retail/marketing noise based on _noiseType self-classification ---
+  const beforeNoiseCheck = results.length;
+  const isBankingSource = ((src.name || '') + ' ').includes('银行') || 
+    ((src.name || '') + ' ').includes('金融');
+  if (isBankingSource) {
+    results = results.filter((r: any) => {
+      const nt = r._noiseType || '';
+      const vs = r._valueScore || 0;
+      // Drop retail noise: if Model self-classified as retail noise AND scored low
+      if ((nt.includes('零售') || nt.includes('营销') || nt.includes('噪音')) && vs < 60) {
+        console.log('[Intel:V2.5] Dropped retail noise:', (r.title || '').substring(0, 50));
+        return false;
+      }
+      // Contradiction check: Model classified as noise but scored high → untrustworthy, drop
+      if ((nt.includes('零售') || nt.includes('营销')) && vs >= 60) {
+        console.log('[Intel:V2.5] Contradiction: noise type but high score, dropping:', (r.title || '').substring(0, 50));
+        return false;
+      }
+      return true;
+    });
+    if (results.length < beforeNoiseCheck) {
+      console.log('[Intel:V2.5] Banking noise filter removed ' + (beforeNoiseCheck - results.length) + ' items');
+    }
+  }
+
+  // --- URL noise filter (e-commerce, auto media, etc.) ---
   const noiseBefore = results.length;
   results = results.filter((r: any) => {
     const u = (r.link || '').toLowerCase();
