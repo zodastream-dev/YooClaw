@@ -129,6 +129,11 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .intel-card-high{background:var(--bg-card);border:1px solid rgba(245,158,11,0.35);border-radius:12px;padding:14px 16px;margin-bottom:12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(245,158,11,0.08),0 2px 8px rgba(0,0,0,0.15)}
 .intel-card-high::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,rgba(245,158,11,0.8),rgba(245,158,11,0.3));border-radius:0 2px 2px 0}
 .intel-card-high:hover{border-color:rgba(245,158,11,0.5);transform:translateY(-1px);box-shadow:0 4px 24px rgba(245,158,11,0.15),0 0 16px rgba(168,85,247,0.08),inset 0 1px 0 rgba(255,255,255,0.03)}
+/* V2.5: CRITICAL risk card — red highlight */
+.intel-card-critical{background:var(--bg-card);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:14px 16px;margin-bottom:12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(239,68,68,0.1),0 2px 8px rgba(0,0,0,0.15)}
+.intel-card-critical::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,rgba(239,68,68,0.9),rgba(239,68,68,0.3));border-radius:0 2px 2px 0;animation:critical-pulse 2s ease-in-out infinite}
+.intel-card-critical:hover{border-color:rgba(239,68,68,0.6);transform:translateY(-1px);box-shadow:0 4px 24px rgba(239,68,68,0.2),0 0 16px rgba(239,68,68,0.1)}
+@keyframes critical-pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 
 /* ===== CENTER TABS ===== */
 .center-tabs{display:flex;gap:2px;background:rgba(15,23,42,0.4);border-radius:10px;padding:3px;border:1px solid var(--border)}

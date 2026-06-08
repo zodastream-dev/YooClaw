@@ -336,7 +336,10 @@ function renderIntelFeed(data){
   var html='';
   data.forEach(function(item,i){
     var score=parseInt(item._valueScore)||0;
-    var cardClass=score>=75?'intel-card intel-card-high':'intel-card';
+    var riskLevel=item._riskLevel||'NORMAL';
+    var cardClass='intel-card';
+    if(score>=75) cardClass+=' intel-card-high';
+    if(riskLevel==='CRITICAL') cardClass+=' intel-card-critical';
     var keywords=(item.keywords||[]).slice(0,3);
     var url=item.url||item.link||item.sourceUrl||item.href||'';
     var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
@@ -357,6 +360,13 @@ function renderIntelFeed(data){
       html+='<span class="intel-cred-tag" style="background:rgba(34,197,94,0.12);color:#22c55e;border-color:rgba(34,197,94,0.3)">高可信</span>';
     } else if(cred==='LOW'){
       html+='<span class="intel-cred-tag" style="background:rgba(239,68,68,0.08);color:#ef4444;border-color:rgba(239,68,68,0.2)">待验证</span>';
+    }
+    // V2.5: Risk level badge
+    var risk=item._riskLevel||'NORMAL';
+    if(risk==='CRITICAL'){
+      html+='<span class="intel-risk-tag" style="background:rgba(239,68,68,0.12);color:#ef4444;border-color:rgba(239,68,68,0.35);font-weight:700">🚨 高危</span>';
+    } else if(risk==='WARNING'){
+      html+='<span class="intel-risk-tag" style="background:rgba(245,158,11,0.12);color:#f97316;border-color:rgba(245,158,11,0.35)">⚠ 预警</span>';
     }
     if(item._object){
       html+='<span class="intel-obj-tag">'+escHtml(item._object)+'</span>';

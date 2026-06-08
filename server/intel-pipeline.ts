@@ -421,7 +421,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
       '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
-      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50,"_noiseType":"对公业务"}]\n' +
+      '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50,"_riskLevel":"NORMAL","_noiseType":"对公业务"}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
       '6.1 _noiseType（必填，取"对公业务"/"零售噪音"/"营销通稿"）：判断本条情报是否属于对公/战略/风险管理内容。零售产品（信用卡/消费贷/App更新/社区活动/理财推销）必须标注为"零售噪音"或"营销通稿"\n' +
       '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
@@ -442,11 +442,20 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       (isComp
         ? '  竞争对手专项：竞对与核心客户签战略协议/银团牵头权变动 → 90+; 竞对新产品/机构调整 → 75-89; 竞对一般性营销 → ≤50\n'
         : '') +
-      '12.仅JSON\n\n原始搜索结果：\n' + searchContext;
+      '12. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
+      '  四维判定框架：\n' +
+      '  a) 高管动态：核心高管离职/空降/被调查/监管约谈 → CRITICAL; 高管重要场合战略表态 → WARNING\n' +
+      '  b) 战略布局：新业务线/新部门成立/海外扩张/重大收购 → WARNING; 常规业务调整 → NORMAL\n' +
+      '  c) 资金成本：信用评级上调/下调、发债利差变化>50bp、千万级以上监管罚单 → CRITICAL; 评级展望调整 → WARNING\n' +
+      '  d) 项目动态：重大银团牵头权被对手夺走/核心客户主办行变更 → CRITICAL; 与地方政府/海外机构新签MOU → WARNING\n' +
+      '  CRITICAL: 直接影响核心竞争力或资产安全，需24h内响应\n' +
+      '  WARNING: 需要业务部门关注，本周内制定应对策略\n' +
+      '  NORMAL: 常规情报，作为背景信息储备\n' +
+      '13.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.按重要性排序，摘要禁止留空\n' +
-      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":"","_valueScore":50}]\n' +
+      '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":"","_valueScore":50,"_riskLevel":"NORMAL"}]\n' +
       '5. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实\n' +
       '6. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
       '7. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道至少提供 2 条（如果该渠道有结果的话）\n' +
@@ -460,7 +469,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
       '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
       '  评分只看商业价值不看情感倾向，重复信息降10-20分\n' +
-      '11.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
+      '11. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：CRITICAL=核心高管变动/监管处罚/重大违约/份额骤降; WARNING=竞品新产品/战略调整/评级展望变化; NORMAL=一般动态\n' +
+      '12.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -566,6 +576,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       _intent: r._intent || '',
       _object: r._object || '',
       _valueScore: parseInt(r._valueScore) || 50,
+      _riskLevel: r._riskLevel || 'NORMAL',
       _credibility: getCredibility(finalUrl, domainWhitelist),
       _noiseType: r._noiseType || '对公业务',
     };
