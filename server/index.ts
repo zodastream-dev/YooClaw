@@ -456,6 +456,93 @@ function fixAiCssErrors(html: string): string {
 }
 
 // ========== Portal HTML Generator ==========
+
+// V2.5: Banking template — pre-configured 4-quadrant intelligence sources
+function getBankingWidgets(): any[] {
+  return [
+    {
+      type: 'intel-monitor',
+      title: '行业信号',
+      config: {
+        sources: [{
+          name: '行业信号',
+          aiProvider: 'all+cn-news',
+          aiModel: 'deepseek-v4-flash',
+          apiKey: '',
+          keywords: [
+            '金监总局 窗口指导', '地方专债 分配额度', '信贷投向 考核指标',
+            '地方政府工作报告 基础设施项目', '央行货币政策执行报告',
+            '银行业净息差 趋势', '资本新规 落地', 'LPR报价 最新',
+            '数字人民币试点 扩容', '金融科技监管沙盒'
+          ],
+          objects: [],
+          updateFrequency: 'daily',
+          customPrompt: '你是银行业趋势研究分析师，为商业银行高管提供行业信号监测。重点关注：监管政策（金监总局/央行新规、资本充足率）、利率/利差（LPR调整、净息差走势）、数字金融（数字人民币试点、金融科技监管沙盒）、信贷结构（房地产贷款集中度、绿色信贷占比）、地方政府基建规划。注意：优先宏观政策变化和行业结构趋势，拒绝零售产品、App更新等低价值内容。'
+        }]
+      }
+    },
+    {
+      type: 'intel-monitor',
+      title: '目标客户情报',
+      config: {
+        sources: [{
+          name: '目标客户情报',
+          aiProvider: 'all+cn-news',
+          aiModel: 'deepseek-v4-pro',
+          apiKey: '',
+          keywords: ['央企融资需求', '国企改革', '城投平台 债务展期'],
+          objects: [
+            { name: '中国中铁', keywords: ['基建订单', '海外工程', '应收账款', '评级'] },
+            { name: '中国交建', keywords: ['港口建设', '一带一路', 'PPP项目', '融资'] },
+            { name: '中国建筑', keywords: ['城市更新', '保障房', '房地产开发', '订单'] },
+            { name: '国家电网', keywords: ['电网投资', '新能源', '电力改革', '债券'] },
+          ],
+          updateFrequency: 'daily',
+          customPrompt: '你是商业银行客户情报分析师，为核心对公客户风险监控提供前瞻性情报。监控维度：经营动态（财报/合同/业务调整）、融资需求（发债/增发/招标）、信用风险（评级调整/负面舆情/违约）、银行关系（他行合作/授信变动/主办行变更）。重点关注：客户评级下调、重大亏损、战略转型、与竞争对手银行的合作动态。'
+        }]
+      }
+    },
+    {
+      type: 'intel-monitor',
+      title: '竞争对手情报',
+      config: {
+        sources: [{
+          name: '竞争对手情报',
+          aiProvider: 'all+cn-news',
+          aiModel: 'deepseek-v4-pro',
+          apiKey: '',
+          keywords: ['分行行长 战略合作协议', '银团贷款 牵头行', '对公贷款 竞争'],
+          objects: [
+            { name: '工商银行', keywords: ['金融科技', '海外分行', '数字人民币', '绿色金融'] },
+            { name: '建设银行', keywords: ['住房金融', '基建贷款', '科技投入', '普惠金融'] },
+            { name: '农业银行', keywords: ['三农金融', '县域金融', '乡村振兴', '数字乡村'] },
+            { name: '中国银行', keywords: ['跨境业务', '外汇交易', '海外扩张', '投行'] },
+            { name: '招商银行', keywords: ['零售银行', '财富管理', '私人银行', '数字化'] },
+          ],
+          updateFrequency: 'daily',
+          customPrompt: '你是竞争情报分析师，采用四维监控框架跟踪竞争对手：1.高管动态（行长发言/署名文章/人事任免）、2.战略布局（新产品/机构调整/海外扩张）、3.资金成本（债券利差/评级变动/存款策略）、4.项目动态（银团贷款牵头权/地方政府MOU签署）。重点关注：竞对与核心客户或地方政府签战略协议、银团牵头权变动、千万级以上监管罚单。'
+        }]
+      }
+    },
+    {
+      type: 'intel-monitor',
+      title: '自身舆情监控',
+      config: {
+        sources: [{
+          name: '自身舆情监控',
+          aiProvider: 'all+cn-news',
+          aiModel: 'deepseek-v4-flash',
+          apiKey: '',
+          keywords: ['金监局 监管处罚', '不良贷款率', '银行 违规放贷'],
+          objects: [],
+          updateFrequency: 'daily',
+          customPrompt: '你是舆情监控分析师，追踪银行品牌声誉和潜在监管风险。关注：金监局/央行处罚通知、重大不良贷款核销传闻、高管合规被查、网点爆雷/客户投诉事件。每条舆情标注情感倾向和响应优先级。'
+        }]
+      }
+    }
+  ];
+}
+
 function generatePortalHtml(siteName: string, siteDesc: string, template: string, apiBase: string, slug: string, widgets?: any[]): string {
   // Map template to colorScheme for intel-station
   let colorScheme = 'tech-blue';
@@ -463,7 +550,15 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
     colorScheme = 'white-base';
   } else if (template === 'intel-station-sky-blue' || template === 'sky-blue') {
     colorScheme = 'sky-blue';
+  } else if (template === 'banking') {
+    colorScheme = 'banking-blue';
   }
+
+  // V2.5: Banking template — inject 4-quadrant banking WIDGETS if user hasn't provided custom widgets
+  if (template === 'banking' && (!widgets || widgets.length === 0)) {
+    widgets = getBankingWidgets();
+  }
+
   // All templates now use intel-station layout
   return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
   

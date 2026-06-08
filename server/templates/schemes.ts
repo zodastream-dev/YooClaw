@@ -1,7 +1,7 @@
 // server/templates/schemes.ts
 // Color scheme constants for IntelStation portal template
 
-export type ColorScheme = 'tech-blue' | 'white-base' | 'sky-blue';
+export type ColorScheme = 'tech-blue' | 'white-base' | 'sky-blue' | 'banking-blue';
 
 export interface SchemeColors {
   cyan: string;
@@ -56,5 +56,18 @@ export const COLOR_SCHEMES: Record<ColorScheme, SchemeColors> = {
     border: 'rgba(14,165,233,0.15)',
     textPrimary: '#0c4a6e',
     textSecondary: '#0369a1'
+  },
+  'banking-blue': {
+    cyan: '#38bdf8',
+    purple: '#818cf8',
+    neonBlue: '#38bdf8',
+    neonPurple: '#a78bfa',
+    neonPink: '#f472b6',
+    bgPrimary: '#0a1628',
+    bgSecondary: '#0f1f3a',
+    bgCard: 'rgba(15,31,58,0.7)',
+    border: 'rgba(56,189,248,0.12)',
+    textPrimary: '#e2e8f0',
+    textSecondary: '#94a3b8'
   }
 };
