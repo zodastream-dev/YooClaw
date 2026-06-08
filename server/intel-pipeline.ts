@@ -477,7 +477,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || '') },
     body: JSON.stringify({ model, max_tokens: 8192, temperature: 0.5, messages: [{ role: 'system', content: sp }, { role: 'user', content: up }] }),
-    signal: AbortSignal.timeout(120000),
+    signal: AbortSignal.timeout(180000),
   });
   if (!resp.ok) { const t = await resp.text(); throw new Error('DeepSeek: ' + resp.status + ' ' + t.substring(0, 200)); }
   const data = await resp.json();
