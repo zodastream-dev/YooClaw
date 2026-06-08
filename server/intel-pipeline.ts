@@ -307,15 +307,15 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // Generate whitelist-augmented queries for banking sources
   // These run alongside regular queries; whitelist results get _credibility: HIGH
-  if (domainWhitelist.length > 0 && objectName) {
+  if (domainWhitelist.length > 0) {
     const siteFilter = domainWhitelist.map(d => `site:${d}`).join(' OR ');
-    const whitelistPrefix = objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName;
-    // Add 1-2 whitelist queries with high-priority keywords
-    if (mergedKwArr.length > 0) {
-      const topKw = mergedKwArr.slice(0, 3).join(' OR ');
-      queries.push(`${whitelistPrefix} (${topKw}) ${siteFilter}`);
-    } else {
-      queries.push(`${whitelistPrefix} 最新动态 ${siteFilter}`);
+    const whitelistPrefix = objectName 
+      ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
+      : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
+    queries.push(`${whitelistPrefix} ${siteFilter}`);
+    // Also add a second whitelist query with more general banking terms
+    if (!objectName && mergedKwArr.length > 3) {
+      queries.push(`${mergedKwArr.slice(3, 6).join(' OR ')} ${siteFilter}`);
     }
     console.log('[Intel:V2.5] Added whitelist query for banking source');
   }
@@ -593,7 +593,19 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
 
     let recoveredDates = 0;
+    let recoveredProviders = 0;
     for (const r of results) {
+      // V2.5: Recover missing _provider from raw search items
+      if (!r._provider || r._provider === 'all+cn-news' || r._provider === 'all') {
+        if (r.link) {
+          const raw = rawByUrl.get(r.link.toLowerCase().trim());
+          if (raw?._searchProvider) { r._provider = raw._searchProvider; recoveredProviders++; }
+        }
+        if ((!r._provider || r._provider === 'all+cn-news' || r._provider === 'all') && r.title) {
+          const raw = rawByTitle.get(r.title.toLowerCase().trim());
+          if (raw?._searchProvider) { r._provider = raw._searchProvider; recoveredProviders++; }
+        }
+      }
       // Try exact URL match first (most reliable)
       if (!r.date && r.link) {
         const raw = rawByUrl.get(r.link.toLowerCase().trim());
@@ -621,6 +633,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
     if (recoveredDates > 0) {
       console.log('[Intel] Recovered ' + recoveredDates + ' dates from raw search results');
+    }
+    if (recoveredProviders > 0) {
+      console.log('[Intel:V2.5] Recovered ' + recoveredProviders + ' _provider fields');
     }
   }
 
