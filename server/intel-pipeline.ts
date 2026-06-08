@@ -316,12 +316,12 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
       : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
     queries.push(`${whitelistPrefix} ${siteFilter}`);
-    // Also add a second whitelist query with more general banking terms
-    if (!objectName && mergedKwArr.length > 3) {
-      queries.push(`${mergedKwArr.slice(3, 6).join(' OR ')} ${siteFilter}`);
-    }
-    console.log('[Intel:V2.5] Added whitelist query for banking source');
+    // V2.5.1: Only 1 whitelist query per source (avoid query explosion × cost)
+    console.log('[Intel:V2.5] Added 1 whitelist query for banking source (keeping 1 to control cost)');
   }
+
+  // V2.5.1: Cap total queries at 6 to prevent cost explosion from whitelist + recency + fallback
+  if (queries.length > 6) queries.length = 6;
 
   // Append recency query as a separate search for latest coverage
   if (objectName) {
