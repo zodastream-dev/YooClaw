@@ -320,8 +320,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     console.log('[Intel:V2.5] Added 1 whitelist query for banking source (keeping 1 to control cost)');
   }
 
-  // V2.5.1: Cap total queries at 6 to prevent cost explosion from whitelist + recency + fallback
-  if (queries.length > 6) queries.length = 6;
+  // V2.5.1: Cap total queries at 8 (banking mode drops zhihu/xhs, so we can afford more queries)
+  if (queries.length > 8) queries.length = 8;
 
   // Append recency query as a separate search for latest coverage
   if (objectName) {
@@ -342,13 +342,16 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       modules = getAllModulesIntl();
       tavilyStatus = 'included';
     } else if (provider === 'all+cn-news') {
-      // Base modules + ONLY tianapi-generalnews (not all 8 tianapi categories)
-      // Metaso + weibo/zhihu/xiaohongshu all active (they share metaso API)
       modules = getAllModules();
-      
       const generalNews = getSearchModule('tianapi-generalnews');
       if (generalNews) modules.push(generalNews);
-      tavilyStatus = 'excluded, metaso+weibo+zhihu+xhs+tianapi active';
+      // V2.5: Banking sources — drop zhihu/xiaohongshu (low signal for executive intel)
+      if (isBanking) {
+        modules = modules.filter(m => m.name !== 'zhihu' && m.name !== 'xiaohongshu' && m.name !== 'weibo');
+        tavilyStatus = 'excluded, metaso+tianapi only (banking mode)';
+      } else {
+        tavilyStatus = 'excluded, metaso+weibo+zhihu+xhs+tianapi active';
+      }
     } else {
       modules = getAllModules();
       tavilyStatus = 'excluded, tianapi excluded';
