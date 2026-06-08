@@ -296,9 +296,14 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   }
 
   // --- V2.5: Domain whitelist for authority source filtering ---
-  // Detect banking/finance sources and apply domain whitelist
+  // Detect banking/finance sources: check source name, keywords, and customPrompt
   const catCheck = (src.name || '').toLowerCase();
-  const isBanking = catCheck.includes('银行') || catCheck.includes('金融');
+  const promptCheck = (src.customPrompt || '').toLowerCase();
+  const kwCheck = (Array.isArray(src.keywords) ? src.keywords.join(' ').toLowerCase() : '');
+  const isBanking = catCheck.includes('银行') || catCheck.includes('金融')
+    || promptCheck.includes('银行') || promptCheck.includes('商业银行') || promptCheck.includes('省分行')
+    || kwCheck.includes('金监总局') || kwCheck.includes('央行') || kwCheck.includes('银团')
+    || kwCheck.includes('城投') || kwCheck.includes('对公') || kwCheck.includes('存贷款');
   const BANKING_WHITELIST = [
     'people.com.cn', 'xinhuanet.com', 'caixin.com', '21jingji.com',
     'yicai.com', 'cls.cn', 'finance.sina.com.cn', 'cbirc.gov.cn', 'pbc.gov.cn',
@@ -733,7 +738,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // --- V2.5: Drop retail/marketing noise based on _noiseType self-classification ---
   const beforeNoiseCheck = results.length;
   const isBankingSource = ((src.name || '') + ' ').includes('银行') || 
-    ((src.name || '') + ' ').includes('金融');
+    ((src.name || '') + ' ').includes('金融') ||
+    ((src.customPrompt || '') + ' ').includes('银行') ||
+    ((src.customPrompt || '') + ' ').includes('省分行');
   if (isBankingSource) {
     results = results.filter((r: any) => {
       const nt = r._noiseType || '';
