@@ -235,7 +235,7 @@ export function decryptResource(
   const decipher = crypto.createDecipheriv(
     'aes-256-gcm',
     Buffer.from(key),
-    Buffer.from(nonce)
+    Buffer.from(nonce, 'base64')
   );
   decipher.setAuthTag(authTag);
   if (associatedData) {
