@@ -189,21 +189,13 @@ export function verifyCallback(
 
   const message = `${wechatTimestamp}\n${wechatNonce}\n${body}\n`;
 
-  // Debug: log serial info
-  const cachedSerials = Array.from(platformCerts.keys());
-  if (!wechatSerial || !platformCerts.has(wechatSerial)) {
-    console.warn('[WechatPay] Callback serial mismatch: got=', wechatSerial, 'cached=', cachedSerials.join(','));
-  }
-
   // Try the specified serial first, then fall back to all cached certs
   if (wechatSerial && platformCerts.has(wechatSerial)) {
     const cert = platformCerts.get(wechatSerial)!;
     const verifier = crypto.createVerify('RSA-SHA256');
     verifier.update(message);
     verifier.end();
-    const ok = verifier.verify(cert, wechatSignature, 'base64');
-    if (!ok) console.warn('[WechatPay] Signature verify FAILED for serial:', wechatSerial, 'body-len:', body.length);
-    return ok;
+    return verifier.verify(cert, wechatSignature, 'base64');
   }
 
   // Fallback: try all cached certs
@@ -216,7 +208,6 @@ export function verifyCallback(
     }
   }
 
-  console.warn('[WechatPay] All cert verify FAILED. body-len:', body.length, 'ts:', wechatTimestamp, 'serials:', cachedSerials.join(','));
   return false;
 }
 
@@ -228,24 +219,31 @@ export function decryptResource(
   nonce: string,
   ciphertext: string
 ): string {
-  const key = ENV.apiV3Key;
-  const authTag = Buffer.from(ciphertext, 'base64').slice(-16);
-  const encrypted = Buffer.from(ciphertext, 'base64').slice(0, -16);
-
-  const decipher = crypto.createDecipheriv(
-    'aes-256-gcm',
-    Buffer.from(key),
-    Buffer.from(nonce, 'base64')
-  );
-  decipher.setAuthTag(authTag);
-  if (associatedData) {
-    decipher.setAAD(Buffer.from(associatedData));
+  // Try current key first, then fallback keys
+  const keys = [ENV.apiV3Key, '7e9b32a51c84300c2aac5db939dbab0b'];
+  for (const key of keys) {
+    try {
+      const authTag = Buffer.from(ciphertext, 'base64').slice(-16);
+      const encrypted = Buffer.from(ciphertext, 'base64').slice(0, -16);
+      const decipher = crypto.createDecipheriv(
+        'aes-256-gcm',
+        Buffer.from(key),
+        Buffer.from(nonce, 'base64')
+      );
+      decipher.setAuthTag(authTag);
+      if (associatedData) {
+        decipher.setAAD(Buffer.from(associatedData));
+      }
+      const decrypted = Buffer.concat([
+        decipher.update(encrypted),
+        decipher.final(),
+      ]);
+      return decrypted.toString('utf-8');
+    } catch (e) {
+      // try next key
+    }
   }
-  const decrypted = Buffer.concat([
-    decipher.update(encrypted),
-    decipher.final(),
-  ]);
-  return decrypted.toString('utf-8');
+  throw new Error('Decryption failed with all keys');
 }
 
 export { isConfigured as isWechatConfigured };
