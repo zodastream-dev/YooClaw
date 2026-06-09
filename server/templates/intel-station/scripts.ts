@@ -12,7 +12,7 @@ var allIntelData=[];
 var currentFilter='all';
 var aiChatHistory=[];
 var currentCenterTab='intel';
-var PROVIDER_NAMES={metaso:'秘塔',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网'};
+var PROVIDER_NAMES={metaso:'秘塔',serper:'Serper',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网'};
 
 var INTEL_PROMPTS={
   '行业信号':'你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\\n\\n重点关注的信号类型：\\n- 技术突破：新技术、新标准、研发进展\\n- 新品发布：产品迭代、型号更新、功能升级\\n- 市场格局：出货量变化、市场份额转移、新进入者\\n- 产业链：上下游供需变化、关键零部件动态\\n- 政策法规：行业政策调整、监管动态、标准制定\\n- 产业趋势：需求转移、商业模式创新、投资动向\\n\\n你的工作原则：\\n- 优先关注「变化」而非「现状」\\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\\n- 优先提供最近30天内的资讯，标注大致时间\\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
@@ -761,7 +761,7 @@ function renderSourceForm(wi,si){
     s+='<span class="obj-t">'+escHtml(o.name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(o.name)+'\\',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
-  s+='<div class="kw-add-row"><input class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}" autocomplete="off">';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}" autocomplete="off" name="obj'+wi+'_'+si+'">';
   s+='<button class="kw-add-btn" onclick="addObject('+wi+','+si+')">+</button></div>';
   s+='</div>';
   // Keywords
@@ -771,14 +771,14 @@ function renderSourceForm(wi,si){
     s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+wi+','+si+',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
-  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}" autocomplete="off">';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}" autocomplete="off" name="kw'+wi+'_'+si+'">';
   s+='<button class="kw-add-btn" onclick="addKeyword('+wi+','+si+')">+</button></div>';
   s+='</div>';
   // Custom prompt
   var defaultPrompt=INTEL_PROMPTS[src.name]||'';
   var promptVal=src.customPrompt||defaultPrompt;
   s+='<div class="mb-group"><label class="mb-label">自定义提示词 <span>（可选）</span></label>';
-  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:180px" placeholder="自定义此监控源的分析提示词..." autocomplete="off">'+escHtml(promptVal)+'</textarea>';
+  s+='<textarea class="mb-area" id="srcPrompt_'+wi+'_'+si+'" style="min-height:180px" placeholder="自定义此监控源的分析提示词..." autocomplete="off" name="prompt'+wi+'_'+si+'">'+escHtml(promptVal)+'</textarea>';
   s+='</div>';
   // Model config (collapsed by default)
   s+='<div class="mb-group" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">';
