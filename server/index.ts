@@ -4074,7 +4074,9 @@ app.post('/api/p/config/:slug', async (req, res) => {
     }
 
     const apiBase = process.env.API_URL || process.env.FRONTEND_URL || `https://${req.get('host')}` || `http://localhost:${APP_PORT}`;
-    const htmlContent = generatePortalHtml(site.title, '', 'intel-station', apiBase, slug, widgets);
+    // Preserve original template — detect from existing HTML content
+    const existingTemplate = (site.html_content || '').includes('banking-blue') ? 'banking' : 'intel-station';
+    const htmlContent = generatePortalHtml(site.title, '', existingTemplate, apiBase, slug, widgets);
     await createReportSite(site.user_id, slug, site.title, site.company_name, htmlContent, 'portal');
 
     res.json({ data: { success: true, slug } });

@@ -787,7 +787,7 @@ function renderSourceForm(wi,si){
   s+='<div class="model-config-body" style="display:none;margin-top:8px">';
   s+='<div class="mb-row"><div class="mb-group"><label class="mb-label">AI 引擎</label>';
   s+='<select class="mb-select" id="srcProvider_'+wi+'_'+si+'">';
-  [{v:'all+cn-news',l:'🌐 全渠道（含天聚新闻，推荐）'},{v:'all',l:'🌐 全渠道（含秘塔）'},{v:'metaso',l:'秘塔搜索（Metaso）'},{v:'tavily',l:'Tavily 搜索'},{v:'multi-engine',l:'多引擎搜索'},{v:'wechat',l:'微信公众号'},{v:'weibo',l:'微博'},{v:'zhihu',l:'知乎'},{v:'xiaohongshu',l:'小红书'},{v:'deepseek',l:'DeepSeek（仅知识库）'},{v:'custom',l:'自定义 API'}].forEach(function(p){
+  [{v:'all+cn-news',l:'🌐 全渠道（含天聚新闻，推荐）'},{v:'all',l:'🌐 全渠道（含秘塔）'},{v:'metaso',l:'秘塔搜索（Metaso）'},{v:'serper',l:'🔍 Serper (Google)'},{v:'tavily',l:'Tavily 搜索'},{v:'multi-engine',l:'多引擎搜索'},{v:'wechat',l:'微信公众号'},{v:'weibo',l:'微博'},{v:'zhihu',l:'知乎'},{v:'xiaohongshu',l:'小红书'},{v:'deepseek',l:'DeepSeek（仅知识库）'},{v:'custom',l:'自定义 API'}].forEach(function(p){
     s+='<option value="'+p.v+'"'+(src.aiProvider===p.v?' selected':'')+'>'+p.l+'</option>';
   });
   s+='</select></div>';
