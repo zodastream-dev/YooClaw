@@ -736,34 +736,6 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     /\/(mall|shop|store|product|catalog|goods)\//i,
     /\.(zol|pconline|smzdm|autohome|dongchedi|xcar)\.com/i,
   ];
-  // --- V2.5: Drop retail/marketing noise based on _noiseType self-classification ---
-  const beforeNoiseCheck = results.length;
-  const isBankingSource = ((src.name || '') + ' ').includes('银行') || 
-    ((src.name || '') + ' ').includes('金融') ||
-    ((src.customPrompt || '') + ' ').includes('银行') ||
-    ((src.customPrompt || '') + ' ').includes('省分行') ||
-    bankingCheck.includes('金监总局') || bankingCheck.includes('央行');
-  if (isBankingSource) {
-    results = results.filter((r: any) => {
-      const nt = r._noiseType || '';
-      const vs = r._valueScore || 0;
-      // Drop retail noise: if Model self-classified as retail noise AND scored low
-      if ((nt.includes('零售') || nt.includes('营销') || nt.includes('噪音')) && vs < 60) {
-        console.log('[Intel:V2.5] Dropped retail noise:', (r.title || '').substring(0, 50));
-        return false;
-      }
-      // Contradiction check: Model classified as noise but scored high → untrustworthy, drop
-      if ((nt.includes('零售') || nt.includes('营销')) && vs >= 60) {
-        console.log('[Intel:V2.5] Contradiction: noise type but high score, dropping:', (r.title || '').substring(0, 50));
-        return false;
-      }
-      return true;
-    });
-    if (results.length < beforeNoiseCheck) {
-      console.log('[Intel:V2.5] Banking noise filter removed ' + (beforeNoiseCheck - results.length) + ' items');
-    }
-  }
-
   // --- URL noise filter (e-commerce, auto media, etc.) ---
   const noiseBefore = results.length;
   results = results.filter((r: any) => {
