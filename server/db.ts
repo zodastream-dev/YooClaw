@@ -81,6 +81,76 @@ export interface DbVideo {
   created_at: string;
 }
 
+// ========== Payment Types ==========
+export interface DbMembershipPlan {
+  id: number;
+  name: string;
+  tier: 'free' | 'basic' | 'premium';
+  price_yuan: number;
+  duration_days: number;
+  monthly_credits: number;
+  features: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DbCreditPackage {
+  id: number;
+  name: string;
+  credits: number;
+  price_yuan: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DbUserMembership {
+  id: number;
+  user_id: string;
+  plan_id: number;
+  tier: 'free' | 'basic' | 'premium';
+  started_at: string;
+  expires_at: string;
+  auto_renew: boolean;
+  created_at: string;
+}
+
+export interface DbOrder {
+  id: string;
+  user_id: string;
+  order_type: 'membership' | 'credit_package';
+  product_id: number;
+  product_name: string;
+  amount_yuan: number;
+  status: 'pending' | 'paid' | 'expired' | 'refunded';
+  payment_method: 'wechat' | 'alipay' | null;
+  payment_url: string;
+  paid_at: string | null;
+  created_at: string;
+  expired_at: string;
+}
+
+export interface DbPaymentRecord {
+  id: number;
+  order_id: string;
+  user_id: string;
+  method: 'wechat' | 'alipay';
+  transaction_id: string;
+  amount_yuan: number;
+  raw_callback: string;
+  created_at: string;
+}
+
+export interface DbCreditTransaction {
+  id: number;
+  user_id: string;
+  type: 'charge' | 'consume' | 'refund' | 'monthly_grant';
+  amount: number;
+  balance_after: number;
+  description: string;
+  related_id: string;
+  created_at: string;
+}
+
 // ========== Postgres Connection ==========
 export let sql: postgres.Sql<{}>;
 
@@ -228,6 +298,139 @@ export async function initDatabase(): Promise<void> {
       created_at TIMESTAMPTZ DEFAULT now()
     )
   `;
+
+// ========== Payment Tables ==========
+  // Membership plans
+  await sql`
+    CREATE TABLE IF NOT EXISTS membership_plans (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(64) NOT NULL,
+      tier VARCHAR(16) NOT NULL CHECK (tier IN ('free', 'basic', 'premium')),
+      price_yuan INTEGER NOT NULL DEFAULT 0,
+      duration_days INTEGER NOT NULL,
+      monthly_credits INTEGER NOT NULL DEFAULT 0,
+      features TEXT NOT NULL DEFAULT '[]',
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  // Credit packages
+  await sql`
+    CREATE TABLE IF NOT EXISTS credit_packages (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(64) NOT NULL,
+      credits INTEGER NOT NULL,
+      price_yuan INTEGER NOT NULL,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  // User memberships
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_memberships (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plan_id INTEGER NOT NULL,
+      tier VARCHAR(16) NOT NULL CHECK (tier IN ('free', 'basic', 'premium')),
+      started_at TIMESTAMPTZ DEFAULT now(),
+      expires_at TIMESTAMPTZ,
+      auto_renew BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  // User credits (one row per user)
+  await sql`
+    CREATE TABLE IF NOT EXISTS user_credits (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      balance INTEGER NOT NULL DEFAULT 0,
+      total_earned INTEGER NOT NULL DEFAULT 0,
+      total_spent INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  // Orders
+  await sql`
+    CREATE TABLE IF NOT EXISTS orders (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      order_type VARCHAR(16) NOT NULL CHECK (order_type IN ('membership', 'credit_package')),
+      product_id INTEGER NOT NULL,
+      product_name VARCHAR(128) NOT NULL,
+      amount_yuan INTEGER NOT NULL,
+      status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'expired', 'refunded')),
+      payment_method VARCHAR(16) CHECK (payment_method IN ('wechat', 'alipay')),
+      payment_url TEXT DEFAULT '',
+      paid_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      expired_at TIMESTAMPTZ DEFAULT (now() + interval '15 minutes')
+    )
+  `;
+
+  // Payment records
+  await sql`
+    CREATE TABLE IF NOT EXISTS payment_records (
+      id SERIAL PRIMARY KEY,
+      order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      method VARCHAR(16) NOT NULL CHECK (method IN ('wechat', 'alipay')),
+      transaction_id VARCHAR(128) NOT NULL,
+      amount_yuan INTEGER NOT NULL,
+      raw_callback TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  // Credit transactions
+  await sql`
+    CREATE TABLE IF NOT EXISTS credit_transactions (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type VARCHAR(16) NOT NULL CHECK (type IN ('charge', 'consume', 'refund', 'monthly_grant')),
+      amount INTEGER NOT NULL,
+      balance_after INTEGER NOT NULL DEFAULT 0,
+      description VARCHAR(256) DEFAULT '',
+      related_id VARCHAR(128) DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  // Seed default plans
+  const existingPlans = await sql`SELECT COUNT(*)::int as cnt FROM membership_plans`;
+  if (existingPlans[0].cnt === 0) {
+    await sql`
+      INSERT INTO membership_plans (name, tier, price_yuan, duration_days, monthly_credits, features) VALUES
+      ('免费版', 'free', 0, 99999, 0, '["基础AI对话","每日10次","1个分析门户"]'),
+      ('基础会员（月付）', 'basic', 29, 30, 500, '["无限AI对话","每日简报","每月500积分","3个分析门户","视频生成8折"]'),
+      ('基础会员（年付）', 'basic', 199, 365, 500, '["无限AI对话","每日简报","每月500积分","5个分析门户","视频生成8折"]'),
+      ('高级会员（月付）', 'premium', 69, 30, 2000, '["无限AI对话","每日简报","每月2000积分","10个分析门户","视频生成5折","专属功能"]'),
+      ('高级会员（年付）', 'premium', 499, 365, 2000, '["无限AI对话","每日简报","每月2000积分","无限分析门户","视频生成5折","专属功能"]')
+    `;
+  }
+
+  // Seed default credit packages
+  const existingPkgs = await sql`SELECT COUNT(*)::int as cnt FROM credit_packages`;
+  if (existingPkgs[0].cnt === 0) {
+    await sql`
+      INSERT INTO credit_packages (name, credits, price_yuan) VALUES
+      ('100积分', 100, 10),
+      ('500积分', 500, 40),
+      ('2000积分', 2000, 120),
+      ('5000积分', 5000, 250)
+    `;
+  }
+
+  // Payment indexes
+  await sql`CREATE INDEX IF NOT EXISTS idx_user_memberships_user_id ON user_memberships(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_payment_records_order_id ON payment_records(order_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_id ON credit_transactions(user_id)`;
+
+  console.log('[DB] Payment tables initialized');
 
 // Add type column if not exists (migration for existing tables)
   await sql`
@@ -716,3 +919,239 @@ export async function getVideoById(id: string): Promise<DbVideo | undefined> {
   if (rows.length === 0) return undefined;
   return rows[0] as unknown as DbVideo;
 }
+
+// ======================== Payment Operations ========================
+
+// --- Membership Plans ---
+export async function getMembershipPlans(activeOnly = true): Promise<DbMembershipPlan[]> {
+  if (activeOnly) {
+    const rows = await sql`SELECT * FROM membership_plans WHERE is_active = true ORDER BY price_yuan ASC`;
+    return rows as unknown as DbMembershipPlan[];
+  }
+  const rows = await sql`SELECT * FROM membership_plans ORDER BY price_yuan ASC`;
+  return rows as unknown as DbMembershipPlan[];
+}
+
+export async function getMembershipPlanById(id: number): Promise<DbMembershipPlan | undefined> {
+  const rows = await sql`SELECT * FROM membership_plans WHERE id = ${id}`;
+  if (rows.length === 0) return undefined;
+  return rows[0] as unknown as DbMembershipPlan;
+}
+
+// --- Credit Packages ---
+export async function getCreditPackages(activeOnly = true): Promise<DbCreditPackage[]> {
+  if (activeOnly) {
+    const rows = await sql`SELECT * FROM credit_packages WHERE is_active = true ORDER BY price_yuan ASC`;
+    return rows as unknown as DbCreditPackage[];
+  }
+  const rows = await sql`SELECT * FROM credit_packages ORDER BY price_yuan ASC`;
+  return rows as unknown as DbCreditPackage[];
+}
+
+export async function getCreditPackageById(id: number): Promise<DbCreditPackage | undefined> {
+  const rows = await sql`SELECT * FROM credit_packages WHERE id = ${id}`;
+  if (rows.length === 0) return undefined;
+  return rows[0] as unknown as DbCreditPackage;
+}
+
+// --- User Membership ---
+export async function getUserMembership(userId: string): Promise<DbUserMembership | undefined> {
+  const rows = await sql`
+    SELECT * FROM user_memberships
+    WHERE user_id = ${userId} AND expires_at > now()
+    ORDER BY expires_at DESC LIMIT 1
+  `;
+  if (rows.length === 0) return undefined;
+  return rows[0] as unknown as DbUserMembership;
+}
+
+export async function activateMembership(
+  userId: string,
+  planId: number,
+  tier: string,
+  durationDays: number,
+  monthlyCredits: number
+): Promise<DbUserMembership> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + durationDays * 86400000);
+
+  const rows = await sql`
+    INSERT INTO user_memberships (user_id, plan_id, tier, started_at, expires_at)
+    VALUES (${userId}, ${planId}, ${tier}, now(), ${expiresAt.toISOString()})
+    RETURNING *
+  `;
+
+  // Grant first month credits immediately
+  if (monthlyCredits > 0) {
+    const balance = await addCredits(userId, monthlyCredits, 'monthly_grant', '月度赠送积分', `membership_${rows[0].id}`);
+    console.log(`[Payment] Monthly grant: ${monthlyCredits} credits to user ${userId}, balance=${balance}`);
+  }
+
+  return rows[0] as unknown as DbUserMembership;
+}
+
+// --- Credits ---
+export async function getUserCredits(userId: string): Promise<number> {
+  const rows = await sql`SELECT balance FROM user_credits WHERE user_id = ${userId}`;
+  if (rows.length === 0) return 0;
+  return Number(rows[0].balance);
+}
+
+export async function ensureUserCredits(userId: string): Promise<void> {
+  await sql`
+    INSERT INTO user_credits (user_id, balance, total_earned, total_spent)
+    VALUES (${userId}, 0, 0, 0)
+    ON CONFLICT (user_id) DO NOTHING
+  `;
+}
+
+export async function addCredits(
+  userId: string,
+  amount: number,
+  type: 'charge' | 'refund' | 'monthly_grant',
+  description: string,
+  relatedId: string = ''
+): Promise<number> {
+  await ensureUserCredits(userId);
+
+  const rows = await sql`
+    UPDATE user_credits
+    SET balance = balance + ${amount},
+        total_earned = total_earned + ${amount},
+        updated_at = now()
+    WHERE user_id = ${userId}
+    RETURNING balance
+  `;
+  const newBalance = Number(rows[0].balance);
+
+  await sql`
+    INSERT INTO credit_transactions (user_id, type, amount, balance_after, description, related_id)
+    VALUES (${userId}, ${type}, ${amount}, ${newBalance}, ${description}, ${relatedId})
+  `;
+
+  return newBalance;
+}
+
+export async function consumeCredits(
+  userId: string,
+  amount: number,
+  description: string,
+  relatedId: string = ''
+): Promise<{ success: boolean; balance: number; message: string }> {
+  await ensureUserCredits(userId);
+
+  const current = await sql`SELECT balance FROM user_credits WHERE user_id = ${userId}`;
+  const balance = Number(current[0]?.balance || 0);
+
+  if (balance < amount) {
+    return { success: false, balance, message: `积分不足（需要 ${amount}，当前 ${balance}）` };
+  }
+
+  const rows = await sql`
+    UPDATE user_credits
+    SET balance = balance - ${amount},
+        total_spent = total_spent + ${amount},
+        updated_at = now()
+    WHERE user_id = ${userId}
+    RETURNING balance
+  `;
+  const newBalance = Number(rows[0].balance);
+
+  await sql`
+    INSERT INTO credit_transactions (user_id, type, amount, balance_after, description, related_id)
+    VALUES (${userId}, 'consume', ${-amount}, ${newBalance}, ${description}, ${relatedId})
+  `;
+
+  return { success: true, balance: newBalance, message: '' };
+}
+
+export async function getCreditTransactions(
+  userId: string,
+  limit = 50
+): Promise<DbCreditTransaction[]> {
+  const rows = await sql`
+    SELECT * FROM credit_transactions
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `;
+  return rows as unknown as DbCreditTransaction[];
+}
+
+// --- Orders ---
+export async function createOrder(
+  userId: string,
+  orderType: 'membership' | 'credit_package',
+  productId: number,
+  productName: string,
+  amountYuan: number
+): Promise<DbOrder> {
+  const rows = await sql`
+    INSERT INTO orders (user_id, order_type, product_id, product_name, amount_yuan, status)
+    VALUES (${userId}, ${orderType}, ${productId}, ${productName}, ${amountYuan}, 'pending')
+    RETURNING *
+  `;
+  return rows[0] as unknown as DbOrder;
+}
+
+export async function getOrderById(orderId: string): Promise<DbOrder | undefined> {
+  const rows = await sql`SELECT * FROM orders WHERE id = ${orderId}`;
+  if (rows.length === 0) return undefined;
+  return rows[0] as unknown as DbOrder;
+}
+
+export async function getUserOrders(userId: string, limit = 20): Promise<DbOrder[]> {
+  const rows = await sql`
+    SELECT * FROM orders WHERE user_id = ${userId}
+    ORDER BY created_at DESC LIMIT ${limit}
+  `;
+  return rows as unknown as DbOrder[];
+}
+
+export async function updateOrderPaymentUrl(orderId: string, paymentUrl: string, method: 'wechat' | 'alipay'): Promise<void> {
+  await sql`
+    UPDATE orders SET payment_url = ${paymentUrl}, payment_method = ${method}, status = 'pending'
+    WHERE id = ${orderId}
+  `;
+}
+
+export async function markOrderPaid(
+  orderId: string,
+  userId: string,
+  method: 'wechat' | 'alipay',
+  transactionId: string,
+  amountYuan: number,
+  rawCallback: string
+): Promise<DbOrder | null> {
+  // Check if already paid (idempotent)
+  const existing = await sql`SELECT id, status FROM orders WHERE id = ${orderId}`;
+  if (existing.length === 0) return null;
+  if (existing[0].status === 'paid') {
+    return existing[0] as unknown as DbOrder;
+  }
+
+  // Update order
+  await sql`
+    UPDATE orders SET status = 'paid', paid_at = now()
+    WHERE id = ${orderId}
+  `;
+
+  // Record payment
+  await sql`
+    INSERT INTO payment_records (order_id, user_id, method, transaction_id, amount_yuan, raw_callback)
+    VALUES (${orderId}, ${userId}, ${method}, ${transactionId}, ${amountYuan}, ${rawCallback})
+    ON CONFLICT DO NOTHING
+  `;
+
+  const order = await sql`SELECT * FROM orders WHERE id = ${orderId}`;
+  return order[0] as unknown as DbOrder;
+}
+
+export async function expirePendingOrders(): Promise<void> {
+  await sql`
+    UPDATE orders SET status = 'expired'
+    WHERE status = 'pending' AND expired_at < now()
+  `;
+}
+
+// ======================== End Payment Operations ========================

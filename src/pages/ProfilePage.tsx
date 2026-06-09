@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore, useChatStore } from '@/lib/store'
-import { changePassword, getUserReportSites, deleteReportSite } from '@/lib/api'
-import type { ReportSite } from '@/lib/types'
-import { LayoutDashboard, User, HardDrive, Shield, KeyRound, Loader2, Check, X, LogOut, Globe, Clock, Trash2, ExternalLink, AlertTriangle, FolderOpen } from 'lucide-react'
+import { changePassword, getUserReportSites, deleteReportSite, getUserMembership, getUserCredits, getCreditTransactions } from '@/lib/api'
+import type { ReportSite, UserMembership, CreditTransaction } from '@/lib/types'
+import { LayoutDashboard, User, HardDrive, Shield, KeyRound, Loader2, Check, X, LogOut, Globe, Clock, Trash2, ExternalLink, AlertTriangle, FolderOpen, Crown, Zap } from 'lucide-react'
 import { formatBytes } from '@/lib/constants'
 
 export function ProfilePage() {
@@ -23,6 +23,12 @@ export function ProfilePage() {
   const [deleteTarget, setDeleteTarget] = useState<{ slug: string; title: string } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // 支付/会员信息
+  const [membership, setMembership] = useState<UserMembership | null>(null)
+  const [tier, setTier] = useState('free')
+  const [credits, setCredits] = useState(0)
+  const [transactions, setTransactions] = useState<CreditTransaction[]>([])
+
   const loadPortals = async () => {
     setAssetsLoading(true)
     try {
@@ -35,7 +41,23 @@ export function ProfilePage() {
     }
   }
 
-  useEffect(() => { loadPortals() }, [])
+  const loadMembershipInfo = async () => {
+    try {
+      const [memRes, credRes, tranRes] = await Promise.all([
+        getUserMembership().catch(() => ({ data: { membership: null, tier: 'free' } })),
+        getUserCredits().catch(() => ({ data: { balance: 0 } })),
+        getCreditTransactions().catch(() => ({ data: { transactions: [] } })),
+      ])
+      setMembership(memRes.data?.membership || null)
+      setTier(memRes.data?.tier || 'free')
+      setCredits(credRes.data?.balance || 0)
+      setTransactions(tranRes.data?.transactions || [])
+    } catch (e) {
+      console.error('Failed to load membership:', e)
+    }
+  }
+
+  useEffect(() => { loadPortals(); loadMembershipInfo() }, [])
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -126,6 +148,70 @@ export function ProfilePage() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Membership & Credits card */}
+        <div className="border border-border rounded-xl p-5 bg-card mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-medium flex items-center gap-2">
+              <Crown size={16} className="text-amber-500" />
+              会员与积分
+            </h2>
+            <button
+              onClick={() => navigate('/pricing')}
+              className="text-xs text-primary hover:underline"
+            >
+              {tier === 'free' ? '升级会员' : '续费/升级'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">当前会员</div>
+              <div className="text-base font-semibold">
+                {tier === 'free' ? '免费版' : tier === 'basic' ? '基础会员' : '高级会员'}
+              </div>
+              {membership?.expiresAt && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  到期: {new Date(membership.expiresAt).toLocaleDateString('zh-CN')}
+                </div>
+              )}
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">可用积分</div>
+              <div className="text-base font-semibold flex items-center gap-1">
+                <Zap size={16} className="text-amber-500" />
+                {credits}
+              </div>
+              <button
+                onClick={() => navigate('/pricing')}
+                className="text-xs text-primary hover:underline mt-1 block"
+              >
+                充值积分
+              </button>
+            </div>
+          </div>
+
+          {/* Recent transactions */}
+          {transactions.length > 0 && (
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">最近积分记录</div>
+              <div className="space-y-1.5">
+                {transactions.slice(0, 5).map((txn) => (
+                  <div key={txn.id} className="flex items-center justify-between text-xs py-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">{txn.description}</span>
+                    </div>
+                    <span className={`font-medium ${
+                      txn.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+                    }`}>
+                      {txn.amount > 0 ? '+' : ''}{txn.amount}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Storage card */}

@@ -10,6 +10,8 @@ import { GameCreatePage } from '@/pages/GameCreatePage'
 import { VideoCreatePage } from '@/pages/VideoCreatePage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { MpSubscriptionPage } from '@/pages/MpSubscriptionPage'
+import { PricingPage } from '@/pages/PricingPage'
+import { PayPage } from '@/pages/PayPage'
 import { useAuthStore } from '@/lib/store'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -123,6 +125,18 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <MpSubscriptionPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pricing"
+              element={<PricingPage />}
+            />
+            <Route
+              path="/pay/:id"
+              element={
+                <ProtectedRoute>
+                  <PayPage />
                 </ProtectedRoute>
               }
             />
