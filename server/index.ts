@@ -3778,12 +3778,30 @@ app.post('/api/portal-intel', async (req, res) => {
 
     const processSource = async (src: any, idx: number) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
-      // Bypass cache when force refresh is requested
+      const cached = portalIntelCache.get(cacheKey);
+      // V2.5: force refresh — clear cache and trigger background reprocess, but return immediately
       if (force) {
         portalIntelCache.delete(cacheKey);
-        console.log(`[PortalIntel] Force refresh: cleared cache for "${src.name}"`);
+        console.log(`[PortalIntel] Force refresh: cleared cache for "${src.name}", scheduling background fetch`);
+        // Schedule async reprocess — don't block the HTTP response
+        const bgRefresh = async () => {
+          try {
+            const intelData = await fetchIntelForSource(src, sources);
+            const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+            portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
+            setTimeout(() => savePortalIntelCache(), 100);
+            console.log(`[PortalIntel] Background refresh complete for "${src.name}": ${intelData.length} items`);
+          } catch (err: any) {
+            console.error('[PortalIntel] Background refresh failed:', err.message);
+          }
+        };
+        setTimeout(bgRefresh, 100);
+        // Return stale cache if available, otherwise empty
+        if (cached && cached.data?.length > 0) {
+          return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
+        }
+        return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
       }
-      const cached = portalIntelCache.get(cacheKey);
       // Only serve from cache if non-empty (empty may be transient failure)
       if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
         return { sourceIdx: idx, data: cached.data, fromCache: true };
@@ -3803,8 +3821,17 @@ app.post('/api/portal-intel', async (req, res) => {
       }
     };
 
-    // V2.5: Process sources sequentially to avoid DeepSeek rate limiting
-    // Parallel processing causes all 4 sources + 9 objects to compete for API, causing mass timeouts
+    // V2.5: Process sources sequentially with force-refresh returning immediately
+    // Force mode: delete caches, schedule background work, return immediately
+    // Normal mode: process sequentially to avoid DeepSeek rate limit
+    if (force) {
+      const allPromises = sources.map((src: any, idx: number) => processSource(src, idx));
+      const allResults = await Promise.all(allPromises);
+      results.push(...allResults);
+      res.json({ success: true, results, refreshing: true });
+      return;
+    }
+
     for (let idx = 0; idx < sources.length; idx++) {
       const r = await processSource(sources[idx], idx);
       results.push(r);
