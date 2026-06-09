@@ -221,7 +221,7 @@ export function decryptResource(
 ): string {
   // Docs: https://pay.weixin.qq.com/docs/merchant/development/interface-rules/certificate-callback-decryption.html
   // nonce, associated_data are base64-encoded in JSON. Auth tag is last 16 bytes of ciphertext.
-  const keys = [ENV.apiV3Key, '7e9b32a51c84300c2aac5db939dbab0b'];
+  const keys = [ENV.apiV3Key];
   const rawBytes = Buffer.from(ciphertext, 'base64');
   const authTag = rawBytes.slice(-16);
   const encrypted = rawBytes.slice(0, -16);
