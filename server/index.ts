@@ -5962,138 +5962,6 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   const distPath = path.join(__dirname, '..', 'dist');
   if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api')) {
-        res.sendFile(path.join(distPath, 'index.html'));
-      }
-    });
-    console.log('[Static] Serving frontend from', distPath);
-  } else {
-    console.log('[Static] No dist/ directory found. Run "npm run build".');
-  }
-}
-
-// ========== Start ==========
-async function start() {
-  await initDatabase();
-
-  // Start CodeBuddy persistent serve mode for AI
-  if (CODEBUDDY_API_KEY) {
-    try {
-      await startCodeBuddyCLI();
-    } catch (err: any) {
-      console.error('[Startup] CodeBuddy CLI failed:', err.message);
-    }
-  } else {
-    console.warn('[Startup] CODEBUDDY_API_KEY not set. AI features disabled.');
-  }
-
-  // Load persisted intelligence cache from file
-  loadPortalIntelCache();
-  // Auto-clean invalid aiModel values (self-healing, non-critical)
-  autoCleanAiModel();
-  // Periodic cache save every 5 minutes
-  setInterval(() => savePortalIntelCache(), 5 * 60 * 1000);
-  // Background cache warming: startup (deferred 30s) + every 20 minutes
-  setTimeout(() => warmAllPortalCaches(), 30000);
-  // Nightly full refresh: 3 AM server time, no await (fire-and-forget), date-locked
-  var lastNightlyRefreshDate = '';
-  setInterval(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    if (new Date().getHours() === 3 && lastNightlyRefreshDate !== today) {
-      lastNightlyRefreshDate = today;
-      console.log('[CacheWarmer] Nightly full refresh starting');
-      portalIntelCache.clear();
-      warmAllPortalCaches().catch(e => console.error('[CacheWarmer] Nightly refresh failed:', e.message));
-    } else {
-      warmAllPortalCaches().catch(e => console.error('[CacheWarmer] Warm failed:', e.message));
-    }
-  }, 20 * 60 * 1000);
-
-  // ===== V2.1 Daily Briefing: 8:00 AM self-scheduling =====
-  scheduleNextBriefing(portalIntelCache);
-
-  // ===== Bulk Video Operations =====
-  // Batch delete videos
-  app.post('/api/v1/videos/batch-delete', authMiddleware, async (req: any, res) => {
-    try {
-      const user = req.user;
-      const { ids } = req.body || {};
-      if (!Array.isArray(ids) || ids.length === 0) {
-        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '请提供要删除的视频 ID 列表' } });
-      }
-      let deleted = 0;
-      for (const id of ids) {
-        try { await deleteVideo(id, user.userId); deleted++; } catch {}
-      }
-      res.json({ data: { deleted } });
-    } catch (err: any) {
-      console.error('[Batch Delete Error]', err.message);
-      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '批量删除失败' } });
-    }
-  });
-
-  // Batch concat videos
-  app.post('/api/v1/videos/concat', authMiddleware, async (req: any, res) => {
-    try {
-      const user = req.user;
-      const { ids } = req.body || {};
-      if (!Array.isArray(ids) || ids.length < 2) {
-        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '请选择至少 2 个视频' } });
-      }
-      const allVideos = await getUserVideos(user.userId);
-      const selected = allVideos.filter((v: any) => ids.includes(v.id));
-      if (selected.length < 2) {
-        return res.status(400).json({ error: { code: 'NOT_FOUND', message: '部分视频未找到' } });
-      }
-      const tmpPaths: string[] = [];
-      for (const v of selected) {
-        let srcPath = v.video_path;
-        // Fallback: derive from video_url if path not stored
-        if (!srcPath && v.video_url) {
-          const fn = v.video_url.split('/').pop() || '';
-          srcPath = path.join(VIDEO_DIR, fn);
-        }
-        if (!srcPath || !fs.existsSync(srcPath)) {
-          return res.status(500).json({ error: { code: 'DOWNLOAD_FAILED', message: `文件不存在: ${v.title}` } });
-        }
-        const tmpPath = `/tmp/concat-${crypto.randomUUID().slice(0, 8)}.mp4`;
-        fs.copyFileSync(srcPath, tmpPath);
-        tmpPaths.push(tmpPath);
-      }
-      const outputFn = `merged-${crypto.randomUUID().slice(0, 10)}.mp4`;
-      const outputPath = path.join(VIDEO_DIR, outputFn);
-      // Use xfade (only approach that handles different resolutions on this server)
-      // Use xfade — get actual durations from ffprobe (DB may store '0')
-      const durations = tmpPaths.map(p => {
-        try {
-          const out = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${p}"`, { timeout: 5000 });
-          return Math.round(parseFloat(out.toString().trim()));
-        } catch { return 10; }
-      });
-      const concatCmd = buildConcatCommand(tmpPaths, durations, outputPath);
-      await execAsync(concatCmd, { timeout: 300000, cwd: '/tmp' });
-      tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
-      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
-      const videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
-      await saveVideo({
-        userId: user.userId,
-        title: `${selected.length} 个视频拼接`,
-        prompt: `合并了: ${selected.map((v: any) => v.title).join(', ')}`,
-        duration: String(selected.reduce((s: number, v: any) => s + parseInt(v.duration || '5'), 0)),
-        resolution: selected[0]?.resolution || '720p',
-        ratio: selected[0]?.ratio || '16:9',
-        inputType: 'concat',
-        videoUrl,
-        videoPath: outputPath,
-        submitId: `concat-${crypto.randomUUID().slice(0, 12)}`,
-      });
-      res.json({ data: { videoUrl, title: `${selected.length} 个视频拼接` } });
-    } catch (err: any) {
-      console.error('[Concat Error]', err.message);
-      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '拼接失败: ' + err.message } });
-    }
-  });
 
   // ======================== Payment API ========================
 
@@ -6416,6 +6284,139 @@ async function start() {
       console.error('[Payment] Fulfillment error:', err.message);
     }
   }
+
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api')) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
+    });
+    console.log('[Static] Serving frontend from', distPath);
+  } else {
+    console.log('[Static] No dist/ directory found. Run "npm run build".');
+  }
+}
+
+// ========== Start ==========
+async function start() {
+  await initDatabase();
+
+  // Start CodeBuddy persistent serve mode for AI
+  if (CODEBUDDY_API_KEY) {
+    try {
+      await startCodeBuddyCLI();
+    } catch (err: any) {
+      console.error('[Startup] CodeBuddy CLI failed:', err.message);
+    }
+  } else {
+    console.warn('[Startup] CODEBUDDY_API_KEY not set. AI features disabled.');
+  }
+
+  // Load persisted intelligence cache from file
+  loadPortalIntelCache();
+  // Auto-clean invalid aiModel values (self-healing, non-critical)
+  autoCleanAiModel();
+  // Periodic cache save every 5 minutes
+  setInterval(() => savePortalIntelCache(), 5 * 60 * 1000);
+  // Background cache warming: startup (deferred 30s) + every 20 minutes
+  setTimeout(() => warmAllPortalCaches(), 30000);
+  // Nightly full refresh: 3 AM server time, no await (fire-and-forget), date-locked
+  var lastNightlyRefreshDate = '';
+  setInterval(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (new Date().getHours() === 3 && lastNightlyRefreshDate !== today) {
+      lastNightlyRefreshDate = today;
+      console.log('[CacheWarmer] Nightly full refresh starting');
+      portalIntelCache.clear();
+      warmAllPortalCaches().catch(e => console.error('[CacheWarmer] Nightly refresh failed:', e.message));
+    } else {
+      warmAllPortalCaches().catch(e => console.error('[CacheWarmer] Warm failed:', e.message));
+    }
+  }, 20 * 60 * 1000);
+
+  // ===== V2.1 Daily Briefing: 8:00 AM self-scheduling =====
+  scheduleNextBriefing(portalIntelCache);
+
+  // ===== Bulk Video Operations =====
+  // Batch delete videos
+  app.post('/api/v1/videos/batch-delete', authMiddleware, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { ids } = req.body || {};
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '请提供要删除的视频 ID 列表' } });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        try { await deleteVideo(id, user.userId); deleted++; } catch {}
+      }
+      res.json({ data: { deleted } });
+    } catch (err: any) {
+      console.error('[Batch Delete Error]', err.message);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '批量删除失败' } });
+    }
+  });
+
+  // Batch concat videos
+  app.post('/api/v1/videos/concat', authMiddleware, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { ids } = req.body || {};
+      if (!Array.isArray(ids) || ids.length < 2) {
+        return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '请选择至少 2 个视频' } });
+      }
+      const allVideos = await getUserVideos(user.userId);
+      const selected = allVideos.filter((v: any) => ids.includes(v.id));
+      if (selected.length < 2) {
+        return res.status(400).json({ error: { code: 'NOT_FOUND', message: '部分视频未找到' } });
+      }
+      const tmpPaths: string[] = [];
+      for (const v of selected) {
+        let srcPath = v.video_path;
+        // Fallback: derive from video_url if path not stored
+        if (!srcPath && v.video_url) {
+          const fn = v.video_url.split('/').pop() || '';
+          srcPath = path.join(VIDEO_DIR, fn);
+        }
+        if (!srcPath || !fs.existsSync(srcPath)) {
+          return res.status(500).json({ error: { code: 'DOWNLOAD_FAILED', message: `文件不存在: ${v.title}` } });
+        }
+        const tmpPath = `/tmp/concat-${crypto.randomUUID().slice(0, 8)}.mp4`;
+        fs.copyFileSync(srcPath, tmpPath);
+        tmpPaths.push(tmpPath);
+      }
+      const outputFn = `merged-${crypto.randomUUID().slice(0, 10)}.mp4`;
+      const outputPath = path.join(VIDEO_DIR, outputFn);
+      // Use xfade (only approach that handles different resolutions on this server)
+      // Use xfade — get actual durations from ffprobe (DB may store '0')
+      const durations = tmpPaths.map(p => {
+        try {
+          const out = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${p}"`, { timeout: 5000 });
+          return Math.round(parseFloat(out.toString().trim()));
+        } catch { return 10; }
+      });
+      const concatCmd = buildConcatCommand(tmpPaths, durations, outputPath);
+      await execAsync(concatCmd, { timeout: 300000, cwd: '/tmp' });
+      tmpPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
+      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yooclaw.yookeer.com';
+      const videoUrl = `${FRONTEND_URL}/videos/${outputFn}`;
+      await saveVideo({
+        userId: user.userId,
+        title: `${selected.length} 个视频拼接`,
+        prompt: `合并了: ${selected.map((v: any) => v.title).join(', ')}`,
+        duration: String(selected.reduce((s: number, v: any) => s + parseInt(v.duration || '5'), 0)),
+        resolution: selected[0]?.resolution || '720p',
+        ratio: selected[0]?.ratio || '16:9',
+        inputType: 'concat',
+        videoUrl,
+        videoPath: outputPath,
+        submitId: `concat-${crypto.randomUUID().slice(0, 12)}`,
+      });
+      res.json({ data: { videoUrl, title: `${selected.length} 个视频拼接` } });
+    } catch (err: any) {
+      console.error('[Concat Error]', err.message);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '拼接失败: ' + err.message } });
+    }
+  });
 
   app.listen(APP_PORT, '0.0.0.0', () => {
     console.log('');
