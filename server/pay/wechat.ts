@@ -96,6 +96,7 @@ export async function createNativeOrder(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'User-Agent': 'YooClaw/1.0',
         'Authorization': `WECHATPAY2-SHA256-RSA2048 mchid="${ENV.mchId}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${ENV.certSerial}"`,
       },
       body,
@@ -134,6 +135,7 @@ export async function fetchPlatformCertificates(): Promise<boolean> {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
+        'Accept-Language': '*',
         'User-Agent': 'YooClaw/1.0',
         'Authorization': `WECHATPAY2-SHA256-RSA2048 mchid="${ENV.mchId}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${ENV.certSerial}"`,
       },
