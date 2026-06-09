@@ -466,24 +466,19 @@ export function Sidebar() {
               {userTier !== 'premium' && (
                 <button
                   onClick={() => { closeMobile(); navigate('/pricing') }}
-                  className="shrink-0 px-2 py-1 text-[10px] font-medium rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
-                  title="升级会员"
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
                 >
-                  升级
+                  <Crown size={12} /> 升级
                 </button>
               )}
             </div>
           )}
 
-          {/* Pricing / Upgrade CTA - only for free tier */}
-          {userTier === 'free' && (
-            <button
-              onClick={() => { closeMobile(); navigate('/pricing') }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-amber-500/10 transition-colors text-amber-600 dark:text-amber-400"
-            >
-              <Crown size={16} />
-              升级会员
-            </button>
+          {/* User tier label */}
+          {user && (
+            <div className="px-1 text-[11px] text-muted-foreground">
+              {userTier === 'free' ? '免费版' : userTier === 'basic' ? '基础会员' : '高级会员'}
+            </div>
           )}
 
           {/* Storage bar */}
