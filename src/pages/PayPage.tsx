@@ -192,7 +192,7 @@ export function PayPage() {
             <h2 className="font-semibold mb-3">{order.productName}</h2>
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>订单号</span>
-              <span className="font-mono text-xs">{order.id.slice(0, 12)}...</span>
+              <span className="font-mono text-xs">{order.id}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground mt-1">
               <span>金额</span>
@@ -203,6 +203,14 @@ export function PayPage() {
 
         {status === 'choosing' && (
           <div>
+            {/* Payment summary */}
+            {order && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 text-center">
+                <p className="text-sm text-muted-foreground mb-1">支付金额</p>
+                <p className="text-3xl font-bold text-primary">¥{order.amountYuan}</p>
+                <p className="text-xs text-muted-foreground mt-1">{order.productName}</p>
+              </div>
+            )}
             <h3 className="text-lg font-semibold mb-4">选择支付方式</h3>
             <div className="space-y-3">
               <button

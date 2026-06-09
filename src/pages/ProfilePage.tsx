@@ -143,7 +143,7 @@ export function ProfilePage() {
                 )}
               </h1>
               <p className="text-xs text-muted-foreground">
-                {user?.role === 'admin' ? '管理员' : '普通用户'}
+                {user?.role === 'admin' ? '管理员' : tier === 'free' ? '普通用户' : tier === 'basic' ? '基础会员' : '高级会员'}
                 {user?.status === 'disabled' && ' · 已禁用'}
               </p>
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Crown, Zap, ArrowRight, Check, Sparkles } from 'lucide-react'
+import { Crown, Zap, ArrowRight, Check, Sparkles, LayoutDashboard } from 'lucide-react'
 import { getMembershipPlans, getCreditPackages, createPayOrder } from '@/lib/api'
 import type { MembershipPlan, CreditPackage } from '@/lib/types'
 
@@ -74,6 +74,14 @@ export function PricingPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 py-12">
+        {/* Back to home */}
+        <button
+          onClick={() => navigate('/chat')}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6"
+        >
+          <LayoutDashboard size={16} /> 回到首页
+        </button>
+
         {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold mb-3">选择适合你的方案</h1>
