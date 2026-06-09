@@ -155,3 +155,66 @@ export interface VideoData {
   submitId: string
   createdAt: string
 }
+
+// ========== Payment Types ==========
+
+export interface MembershipPlan {
+  id: number
+  name: string
+  tier: 'free' | 'basic' | 'premium'
+  priceYuan: number
+  durationDays: number
+  monthlyCredits: number
+  features: string[]
+  isActive: boolean
+}
+
+export interface CreditPackage {
+  id: number
+  name: string
+  credits: number
+  priceYuan: number
+  isActive: boolean
+}
+
+export interface UserMembership {
+  id: number
+  userId: string
+  planId: number
+  tier: 'free' | 'basic' | 'premium'
+  startedAt: string
+  expiresAt: string
+  autoRenew: boolean
+}
+
+export interface Order {
+  id: string
+  userId: string
+  orderType: 'membership' | 'credit_package'
+  productId: number
+  productName: string
+  amountYuan: number
+  status: 'pending' | 'paid' | 'expired' | 'refunded'
+  paymentMethod: 'wechat' | 'alipay' | null
+  paymentUrl: string
+  paidAt: string | null
+  createdAt: string
+  expiredAt: string
+}
+
+export interface CreditTransaction {
+  id: number
+  userId: string
+  type: 'charge' | 'consume' | 'refund' | 'monthly_grant'
+  amount: number
+  balanceAfter: number
+  description: string
+  relatedId: string
+  createdAt: string
+}
+
+export interface PayInitiateResult {
+  paymentUrl: string
+  qrCode?: string
+  method: 'wechat' | 'alipay'
+}

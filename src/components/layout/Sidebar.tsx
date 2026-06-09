@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSessionStore, useSidebarStore, useChatStore, useThemeStore, useAuthStore } from '@/lib/store'
 import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession, getSessionMessages } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2, Globe, Gamepad2, Clapperboard, Wand2, Rss } from 'lucide-react'
+import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2, Globe, Gamepad2, Clapperboard, Wand2, Rss, Crown } from 'lucide-react'
 import { DEFAULT_SESSION_NAME, formatBytes } from '@/lib/constants'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '@/lib/types'
@@ -436,6 +436,18 @@ export function Sidebar() {
 
         {/* Bottom: User info + Storage + Theme + Logout */}
         <div className="border-t border-border px-3 py-2 flex-shrink-0 space-y-1">
+          {/* Pricing / Upgrade CTA */}
+          <button
+            onClick={() => {
+              closeMobile()
+              navigate('/pricing')
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-amber-500/10 transition-colors text-amber-600 dark:text-amber-400"
+          >
+            <Crown size={16} />
+            升级会员
+          </button>
+
           {/* User info */}
           {user && (
             <button

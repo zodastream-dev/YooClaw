@@ -547,3 +547,41 @@ export async function optimizePromptPro(rawPrompt: string): Promise<string> {
   return data.reply || ''
 }
 export const renameSession = renameUserSession
+
+// ========== Payment ==========
+
+export async function getMembershipPlans() {
+  return apiRequest<{ plans: import('./types').MembershipPlan[] }>('GET', '/api/v1/pay/plans')
+}
+
+export async function getCreditPackages() {
+  return apiRequest<{ packages: import('./types').CreditPackage[] }>('GET', '/api/v1/pay/credit-packages')
+}
+
+export async function createPayOrder(type: 'membership' | 'credit_package', productId: number) {
+  return apiRequest<{ order: import('./types').Order; needPay: boolean }>('POST', '/api/v1/pay/orders', { type, productId })
+}
+
+export async function initiatePayment(orderId: string, method: 'wechat' | 'alipay') {
+  return apiRequest<import('./types').PayInitiateResult>('POST', `/api/v1/pay/orders/${orderId}/pay`, { method })
+}
+
+export async function getPayOrder(orderId: string) {
+  return apiRequest<{ order: import('./types').Order }>('GET', `/api/v1/pay/orders/${orderId}`)
+}
+
+export async function getUserPayOrders() {
+  return apiRequest<{ orders: import('./types').Order[] }>('GET', '/api/v1/pay/orders')
+}
+
+export async function getUserMembership() {
+  return apiRequest<{ membership: import('./types').UserMembership | null; tier: string }>('GET', '/api/v1/pay/user/membership')
+}
+
+export async function getUserCredits() {
+  return apiRequest<{ balance: number }>('GET', '/api/v1/pay/user/credits')
+}
+
+export async function getCreditTransactions() {
+  return apiRequest<{ transactions: import('./types').CreditTransaction[] }>('GET', '/api/v1/pay/user/transactions')
+}

@@ -55,6 +55,23 @@ import {
   getUserVideos,
   deleteVideo,
   getVideoById,
+  // Payment
+  getMembershipPlans,
+  getMembershipPlanById,
+  getCreditPackages,
+  getCreditPackageById,
+  getUserMembership,
+  activateMembership,
+  getUserCredits,
+  addCredits,
+  consumeCredits,
+  getCreditTransactions,
+  createOrder,
+  getOrderById,
+  getUserOrders,
+  updateOrderPaymentUrl,
+  markOrderPaid,
+  expirePendingOrders,
 } from './db.js';
 
 import { callIntel } from "./intel-pipeline.js";
@@ -90,6 +107,8 @@ import {
   saveKlingImage,
   type KlingVideoParams,
 } from './kling.js';
+import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource } from './pay/wechat.js';
+import { createPagePayment, verifyCallback as verifyAlipayCallback } from './pay/alipay.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -6077,6 +6096,328 @@ async function start() {
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '拼接失败: ' + err.message } });
     }
   });
+
+  // ======================== Payment API ========================
+
+  // GET /api/v1/pay/plans - Get membership plans
+  app.get('/api/v1/pay/plans', async (_req, res) => {
+    try {
+      const plans = await getMembershipPlans();
+      res.json({ data: { plans } });
+    } catch (err: any) {
+      console.error('[Payment] Plans error:', err.message);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/pay/credit-packages - Get credit packages
+  app.get('/api/v1/pay/credit-packages', async (_req, res) => {
+    try {
+      const packages = await getCreditPackages();
+      res.json({ data: { packages } });
+    } catch (err: any) {
+      console.error('[Payment] Packages error:', err.message);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // POST /api/v1/pay/orders - Create order
+  app.post('/api/v1/pay/orders', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { type, productId } = req.body;
+
+      if (!type || !productId) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'type and productId required' } });
+        return;
+      }
+
+      if (!['membership', 'credit_package'].includes(type)) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Invalid order type' } });
+        return;
+      }
+
+      // Find product
+      let productName: string;
+      let amountYuan: number;
+
+      if (type === 'membership') {
+        const plan = await getMembershipPlanById(productId);
+        if (!plan) {
+          res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } });
+          return;
+        }
+        productName = plan.name;
+        amountYuan = plan.price_yuan;
+      } else {
+        const pkg = await getCreditPackageById(productId);
+        if (!pkg) {
+          res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Package not found' } });
+          return;
+        }
+        productName = pkg.name;
+        amountYuan = pkg.price_yuan;
+      }
+
+      // Free product: activate directly
+      if (amountYuan === 0) {
+        if (type === 'membership') {
+          const plan = await getMembershipPlanById(productId);
+          await activateMembership(userId, productId, plan!.tier, plan!.duration_days, plan!.monthly_credits);
+        }
+        const order = await createOrder(userId, type, Number(productId), productName, 0);
+        // Mark as paid immediately for free orders
+        await markOrderPaid(order.id, userId, 'wechat', 'free-' + order.id, 0, '{}');
+        const updatedOrder = await getOrderById(order.id);
+        res.json({ data: { order: updatedOrder, needPay: false } });
+        return;
+      }
+
+      // Create order
+      const order = await createOrder(userId, type, Number(productId), productName, amountYuan);
+      res.json({ data: { order, needPay: true } });
+    } catch (err: any) {
+      console.error('[Payment] Create order error:', err.message);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // POST /api/v1/pay/orders/:id/pay - Initiate payment
+  app.post('/api/v1/pay/orders/:id/pay', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { id } = req.params;
+      const { method } = req.body; // 'wechat' | 'alipay'
+
+      if (!['wechat', 'alipay'].includes(method)) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'method must be wechat or alipay' } });
+        return;
+      }
+
+      const order = await getOrderById(id);
+      if (!order) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
+        return;
+      }
+      if (order.user_id !== userId) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not your order' } });
+        return;
+      }
+      if (order.status !== 'pending') {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: `Order status is ${order.status}` } });
+        return;
+      }
+
+      let paymentUrl = '';
+      let qrCode = '';
+
+      if (method === 'wechat') {
+        const result = await createNativeOrder(order.id, order.product_name, order.amount_yuan);
+        if (!result.success) {
+          res.status(500).json({ error: { code: 'PAY_ERROR', message: result.error || 'WeChat payment failed' } });
+          return;
+        }
+        qrCode = result.codeUrl || '';
+        paymentUrl = qrCode;
+      } else {
+        const result = createPagePayment(order.id, order.product_name, order.amount_yuan);
+        if (!result.success) {
+          res.status(500).json({ error: { code: 'PAY_ERROR', message: result.error || 'Alipay payment failed' } });
+          return;
+        }
+        paymentUrl = result.paymentUrl || '';
+      }
+
+      await updateOrderPaymentUrl(order.id, paymentUrl, method);
+      res.json({ data: { paymentUrl, qrCode: method === 'wechat' ? qrCode : undefined, method } });
+    } catch (err: any) {
+      console.error('[Payment] Pay error:', err.message);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/pay/orders/:id - Get order status
+  app.get('/api/v1/pay/orders/:id', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const order = await getOrderById(req.params.id);
+      if (!order) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
+        return;
+      }
+      if (order.user_id !== userId) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not your order' } });
+        return;
+      }
+      res.json({ data: { order } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/pay/orders - Get user's orders
+  app.get('/api/v1/pay/orders', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const orders = await getUserOrders(userId);
+      res.json({ data: { orders } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/pay/user/membership - Get user membership status
+  app.get('/api/v1/pay/user/membership', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const membership = await getUserMembership(userId);
+      res.json({ data: { membership: membership || null, tier: membership?.tier || 'free' } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/pay/user/credits - Get user credits
+  app.get('/api/v1/pay/user/credits', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const balance = await getUserCredits(userId);
+      res.json({ data: { balance } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/pay/user/transactions - Get credit transaction history
+  app.get('/api/v1/pay/user/transactions', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const transactions = await getCreditTransactions(userId, 50);
+      res.json({ data: { transactions } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // POST /api/v1/pay/notify/wechat - WeChat payment callback
+  app.post('/api/v1/pay/notify/wechat', express.raw({ type: '*/*' }), async (req, res) => {
+    try {
+      const body = req.body.toString();
+      const wechatTimestamp = req.headers['wechatpay-timestamp'] as string;
+      const wechatNonce = req.headers['wechatpay-nonce'] as string;
+      const wechatSignature = req.headers['wechatpay-signature'] as string;
+
+      // Verify signature
+      if (!verifyWechatCallback(body, wechatTimestamp, wechatNonce, wechatSignature)) {
+        console.error('[Payment] WeChat callback signature verification failed');
+        res.status(400).json({ code: 'FAIL', message: '签名验证失败' });
+        return;
+      }
+
+      const callback = JSON.parse(body);
+      if (callback.event_type !== 'TRANSACTION.SUCCESS') {
+        res.json({ code: 'SUCCESS' });
+        return;
+      }
+
+      // Decrypt resource
+      const resource = callback.resource;
+      const decryptedStr = decryptResource(
+        resource.associated_data || '',
+        resource.nonce,
+        resource.ciphertext
+      );
+      const decrypted = JSON.parse(decryptedStr);
+
+      const orderId = decrypted.out_trade_no;
+      const transactionId = decrypted.transaction_id;
+      const amountFen = decrypted.amount?.total || 0;
+      const amountYuan = Math.round(amountFen / 100);
+
+      const order = await getOrderById(orderId);
+      if (!order) {
+        console.error('[Payment] WeChat callback: order not found', orderId);
+        res.json({ code: 'FAIL', message: '订单不存在' });
+        return;
+      }
+
+      // Idempotent mark as paid
+      const paidOrder = await markOrderPaid(orderId, order.user_id, 'wechat', transactionId, amountYuan, body);
+
+      if (paidOrder && paidOrder.status === 'paid') {
+        // Handle post-payment logic
+        await handlePaymentSuccess(order.user_id, order);
+      }
+
+      res.json({ code: 'SUCCESS' });
+    } catch (err: any) {
+      console.error('[Payment] WeChat callback error:', err.message);
+      res.status(500).json({ code: 'FAIL', message: err.message });
+    }
+  });
+
+  // POST /api/v1/pay/notify/alipay - Alipay payment callback
+  app.post('/api/v1/pay/notify/alipay', express.urlencoded({ extended: false }), async (req, res) => {
+    try {
+      const params = req.body as Record<string, string>;
+
+      // Verify signature
+      if (!verifyAlipayCallback(params)) {
+        console.error('[Payment] Alipay callback signature verification failed');
+        res.send('fail');
+        return;
+      }
+
+      const tradeStatus = params.trade_status;
+      if (tradeStatus !== 'TRADE_SUCCESS') {
+        res.send('success');
+        return;
+      }
+
+      const orderId = params.out_trade_no;
+      const transactionId = params.trade_no;
+      const amountYuan = parseFloat(params.total_amount || '0');
+
+      const order = await getOrderById(orderId);
+      if (!order) {
+        console.error('[Payment] Alipay callback: order not found', orderId);
+        res.send('fail');
+        return;
+      }
+
+      const paidOrder = await markOrderPaid(orderId, order.user_id, 'alipay', transactionId, Math.round(amountYuan), JSON.stringify(params));
+
+      if (paidOrder && paidOrder.status === 'paid') {
+        await handlePaymentSuccess(order.user_id, order);
+      }
+
+      res.send('success');
+    } catch (err: any) {
+      console.error('[Payment] Alipay callback error:', err.message);
+      res.send('fail');
+    }
+  });
+
+  // Handle post-payment fulfillment
+  async function handlePaymentSuccess(userId: string, order: any) {
+    try {
+      if (order.order_type === 'membership') {
+        const plan = await getMembershipPlanById(order.product_id);
+        if (plan) {
+          await activateMembership(userId, plan.id, plan.tier, plan.duration_days, plan.monthly_credits);
+          console.log(`[Payment] Customer activated: user=${userId} plan=${plan.name}`);
+        }
+      } else if (order.order_type === 'credit_package') {
+        const pkg = await getCreditPackageById(order.product_id);
+        if (pkg) {
+          await addCredits(userId, pkg.credits, 'charge', `购买${pkg.name}`, order.id);
+          console.log(`[Payment] Credits added: user=${userId} amount=${pkg.credits}`);
+        }
+      }
+    } catch (err: any) {
+      console.error('[Payment] Fulfillment error:', err.message);
+    }
+  }
 
   app.listen(APP_PORT, '0.0.0.0', () => {
     console.log('');
