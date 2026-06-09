@@ -160,11 +160,11 @@ export function PayPage() {
           </div>
           <h2 className="text-xl font-bold mb-2">支付成功</h2>
           <p className="text-muted-foreground text-sm mb-2">
-            {order?.orderType === 'membership' ? '会员已开通，立即享受全部权益' : '积分已到账，可以使用了'}
+            {order?.order_type === 'membership' ? '会员已开通，立即享受全部权益' : '积分已到账，可以使用了'}
           </p>
           {order && (
             <p className="text-xs text-muted-foreground mb-6">
-              {order.productName} - ¥{order.amountYuan}
+              {(order.product_name || order.productName)} - ¥{order.amount_yuan || order.amountYuan}
             </p>
           )}
           <button
@@ -189,26 +189,25 @@ export function PayPage() {
         {/* Order info */}
         {order && (
           <div className="bg-card border border-border rounded-xl p-5 mb-6">
-            <h2 className="font-semibold mb-3">{order.productName}</h2>
+            <h2 className="font-semibold mb-3">{order.product_name || order.productName}</h2>
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>订单号</span>
               <span className="font-mono text-xs">{order.id}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground mt-1">
               <span>金额</span>
-              <span className="text-foreground font-semibold">¥{order.amountYuan}</span>
+              <span className="text-foreground font-semibold">¥{order.amount_yuan || order.amountYuan}</span>
             </div>
           </div>
         )}
 
         {status === 'choosing' && (
           <div>
-            {/* Payment summary */}
             {order && (
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 text-center">
                 <p className="text-sm text-muted-foreground mb-1">支付金额</p>
-                <p className="text-3xl font-bold text-primary">¥{order.amountYuan}</p>
-                <p className="text-xs text-muted-foreground mt-1">{order.productName}</p>
+                <p className="text-3xl font-bold text-primary">¥{order.amount_yuan || order.amountYuan}</p>
+                <p className="text-xs text-muted-foreground mt-1">{order.product_name || order.productName}</p>
               </div>
             )}
             <h3 className="text-lg font-semibold mb-4">选择支付方式</h3>
