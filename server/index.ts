@@ -5990,7 +5990,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // POST /api/v1/pay/orders - Create order
   app.post('/api/v1/pay/orders', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const { type, productId } = req.body;
 
       if (!type || !productId) {
@@ -6051,7 +6051,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // POST /api/v1/pay/orders/:id/pay - Initiate payment
   app.post('/api/v1/pay/orders/:id/pay', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const { id } = req.params;
       const { method } = req.body; // 'wechat' | 'alipay'
 
@@ -6105,7 +6105,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/orders/:id - Get order status
   app.get('/api/v1/pay/orders/:id', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const order = await getOrderById(req.params.id);
       if (!order) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
@@ -6124,7 +6124,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/orders - Get user's orders
   app.get('/api/v1/pay/orders', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const orders = await getUserOrders(userId);
       res.json({ data: { orders } });
     } catch (err: any) {
@@ -6135,7 +6135,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/user/membership - Get user membership status
   app.get('/api/v1/pay/user/membership', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const membership = await getUserMembership(userId);
       res.json({ data: { membership: membership || null, tier: membership?.tier || 'free' } });
     } catch (err: any) {
@@ -6146,7 +6146,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/user/credits - Get user credits
   app.get('/api/v1/pay/user/credits', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const balance = await getUserCredits(userId);
       res.json({ data: { balance } });
     } catch (err: any) {
@@ -6157,7 +6157,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/user/transactions - Get credit transaction history
   app.get('/api/v1/pay/user/transactions', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const transactions = await getCreditTransactions(userId, 50);
       res.json({ data: { transactions } });
     } catch (err: any) {
