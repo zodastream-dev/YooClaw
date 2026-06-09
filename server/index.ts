@@ -3778,30 +3778,12 @@ app.post('/api/portal-intel', async (req, res) => {
 
     const processSource = async (src: any, idx: number) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
-      const cached = portalIntelCache.get(cacheKey);
-      // V2.5: force refresh — clear cache and trigger background reprocess, but return immediately
+      // Bypass cache when force refresh is requested
       if (force) {
         portalIntelCache.delete(cacheKey);
-        console.log(`[PortalIntel] Force refresh: cleared cache for "${src.name}", scheduling background fetch`);
-        // Schedule async reprocess — don't block the HTTP response
-        const bgRefresh = async () => {
-          try {
-            const intelData = await fetchIntelForSource(src, sources);
-            const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
-            portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
-            setTimeout(() => savePortalIntelCache(), 100);
-            console.log(`[PortalIntel] Background refresh complete for "${src.name}": ${intelData.length} items`);
-          } catch (err: any) {
-            console.error('[PortalIntel] Background refresh failed:', err.message);
-          }
-        };
-        setTimeout(bgRefresh, 100);
-        // Return stale cache if available, otherwise empty
-        if (cached && cached.data?.length > 0) {
-          return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
-        }
-        return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
+        console.log(`[PortalIntel] Force refresh: cleared cache for "${src.name}"`);
       }
+      const cached = portalIntelCache.get(cacheKey);
       // Only serve from cache if non-empty (empty may be transient failure)
       if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
         return { sourceIdx: idx, data: cached.data, fromCache: true };
@@ -3821,21 +3803,10 @@ app.post('/api/portal-intel', async (req, res) => {
       }
     };
 
-    // V2.5: Process sources sequentially with force-refresh returning immediately
-    // Force mode: delete caches, schedule background work, return immediately
-    // Normal mode: process sequentially to avoid DeepSeek rate limit
-    if (force) {
-      const allPromises = sources.map((src: any, idx: number) => processSource(src, idx));
-      const allResults = await Promise.all(allPromises);
-      results.push(...allResults);
-      res.json({ success: true, results, refreshing: true });
-      return;
-    }
-
-    for (let idx = 0; idx < sources.length; idx++) {
-      const r = await processSource(sources[idx], idx);
-      results.push(r);
-    }
+    // Process all sources in parallel (with individual catch for robustness)
+    const allPromises = sources.map((src: any, idx: number) => processSource(src, idx));
+    const allResults = await Promise.all(allPromises);
+    results.push(...allResults);
 
     res.json({ success: true, results });
   } catch (err: any) {
@@ -6019,7 +5990,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // POST /api/v1/pay/orders - Create order
   app.post('/api/v1/pay/orders', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const { type, productId } = req.body;
 
       if (!type || !productId) {
@@ -6080,7 +6051,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // POST /api/v1/pay/orders/:id/pay - Initiate payment
   app.post('/api/v1/pay/orders/:id/pay', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const { id } = req.params;
       const { method } = req.body; // 'wechat' | 'alipay'
 
@@ -6134,7 +6105,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/orders/:id - Get order status
   app.get('/api/v1/pay/orders/:id', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const order = await getOrderById(req.params.id);
       if (!order) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
@@ -6153,7 +6124,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/orders - Get user's orders
   app.get('/api/v1/pay/orders', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const orders = await getUserOrders(userId);
       res.json({ data: { orders } });
     } catch (err: any) {
@@ -6164,7 +6135,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/user/membership - Get user membership status
   app.get('/api/v1/pay/user/membership', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const membership = await getUserMembership(userId);
       res.json({ data: { membership: membership || null, tier: membership?.tier || 'free' } });
     } catch (err: any) {
@@ -6175,7 +6146,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/user/credits - Get user credits
   app.get('/api/v1/pay/user/credits', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const balance = await getUserCredits(userId);
       res.json({ data: { balance } });
     } catch (err: any) {
@@ -6186,7 +6157,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   // GET /api/v1/pay/user/transactions - Get credit transaction history
   app.get('/api/v1/pay/user/transactions', authMiddleware, async (req, res) => {
     try {
-      const userId = (req as any).userId;
+      const userId = (req as any).user.userId;
       const transactions = await getCreditTransactions(userId, 50);
       res.json({ data: { transactions } });
     } catch (err: any) {
