@@ -188,6 +188,7 @@ function getProviderKey(provider: string): string {
   if (provider === 'tavily') return process.env.TAVILY_API_KEY || '';
   // weibo/zhihu/xiaohongshu modules use Metaso API (domestic Chinese content)
   if (provider === 'weibo' || provider === 'zhihu' || provider === 'xiaohongshu') return process.env.METASO_API_KEY || '';
+  if (provider === 'serper') return process.env.SERPER_API_KEY || '';
   // tianapi-* modules use TIANAPI_KEY (default to user's key)
   if (provider.startsWith('tianapi-')) return process.env.TIANAPI_KEY || '91e8fe55a49056f86b78b6d50bb25793';
   return '';

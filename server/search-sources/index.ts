@@ -6,6 +6,7 @@ import wechatModule from './wechat';
 import weiboModule from './weibo';
 import zhihuModule from './zhihu';
 import xiaohongshuModule from './xiaohongshu';
+import serperModule from './serper';
 import {
   tianapiKejiModule,
   tianapiAiModule,
@@ -23,6 +24,7 @@ const modules: Record<string, SearchModule> = {
   weibo: weiboModule,
   zhihu: zhihuModule,
   xiaohongshu: xiaohongshuModule,
+  serper: serperModule,
   wechat: wechatModule,
   'multi-engine': multiEngineModule,
   // tavily is only included in explicit "all+en" provider, not in default "all"
