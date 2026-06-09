@@ -221,26 +221,32 @@ export function decryptResource(
 ): string {
   // Try current key first, then fallback keys
   const keys = [ENV.apiV3Key, '7e9b32a51c84300c2aac5db939dbab0b'];
+  const rawBytes = Buffer.from(ciphertext, 'base64');
+  // WeChat may put auth tag at beginning or end — try both
+  const layouts = [
+    { tag: rawBytes.slice(-16), data: rawBytes.slice(0, -16) },    // tag at end
+    { tag: rawBytes.slice(0, 16), data: rawBytes.slice(16) },       // tag at beginning
+  ];
   for (const key of keys) {
-    try {
-      const authTag = Buffer.from(ciphertext, 'base64').slice(-16);
-      const encrypted = Buffer.from(ciphertext, 'base64').slice(0, -16);
-      const decipher = crypto.createDecipheriv(
-        'aes-256-gcm',
-        Buffer.from(key),
-        Buffer.from(nonce, 'base64')
-      );
-      decipher.setAuthTag(authTag);
-      if (associatedData) {
-        decipher.setAAD(Buffer.from(associatedData));
+    for (const { tag: authTag, data: encrypted } of layouts) {
+      try {
+        const decipher = crypto.createDecipheriv(
+          'aes-256-gcm',
+          Buffer.from(key),
+          Buffer.from(nonce, 'base64')
+        );
+        decipher.setAuthTag(authTag);
+        if (associatedData) {
+          decipher.setAAD(Buffer.from(associatedData));
+        }
+        const decrypted = Buffer.concat([
+          decipher.update(encrypted),
+          decipher.final(),
+        ]);
+        return decrypted.toString('utf-8');
+      } catch (e) {
+        // try next layout
       }
-      const decrypted = Buffer.concat([
-        decipher.update(encrypted),
-        decipher.final(),
-      ]);
-      return decrypted.toString('utf-8');
-    } catch (e) {
-      // try next key
     }
   }
   throw new Error('Decryption failed with all keys');
