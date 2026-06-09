@@ -28,8 +28,9 @@ const metasoModule: SearchModule = {
     }
     const data = await resp.json();
     // V2.1: 搜索接口返回格式（data.items / data.results）
-    const rawData = data.data?.items || data.data?.results || data.data || data.results || data.items || [];
-    const results: any[] = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || [rawData]);
+    // V2.5: API changed — results now under top-level 'webpages' array
+    const rawData = data.webpages || data.data?.items || data.data?.results || data.data || data.results || data.items || [];
+    const results: any[] = Array.isArray(rawData) ? rawData : (rawData.results || rawData.items || rawData.webpages || [rawData]);
     return results.slice(0, 30).map((r: any) => ({
       title: r.title || r.name || '',
       url: r.url || r.link || '',
