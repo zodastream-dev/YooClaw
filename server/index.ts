@@ -107,7 +107,7 @@ import {
   saveKlingImage,
   type KlingVideoParams,
 } from './kling.js';
-import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource } from './pay/wechat.js';
+import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource, fetchPlatformCertificates } from './pay/wechat.js';
 import { createPagePayment, verifyCallback as verifyAlipayCallback } from './pay/alipay.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -6172,11 +6172,12 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       const wechatTimestamp = req.headers['wechatpay-timestamp'] as string;
       const wechatNonce = req.headers['wechatpay-nonce'] as string;
       const wechatSignature = req.headers['wechatpay-signature'] as string;
+      const wechatSerial = req.headers['wechatpay-serial'] as string;
 
-      // Verify signature (TODO: use WeChat platform cert instead of private key)
-      if (!verifyWechatCallback(body, wechatTimestamp, wechatNonce, wechatSignature)) {
-        console.warn('[Payment] WeChat callback signature verification skipped (using wrong key)', wechatTimestamp);
-        // proceed anyway - signature verification needs WeChat platform cert
+      if (!verifyWechatCallback(body, wechatTimestamp, wechatNonce, wechatSignature, wechatSerial)) {
+        console.error('[Payment] WeChat callback signature verification failed');
+        res.status(400).json({ code: 'FAIL', message: '签名验证失败' });
+        return;
       }
 
       const callback = JSON.parse(body);
@@ -6298,6 +6299,11 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
 // ========== Start ==========
 async function start() {
   await initDatabase();
+
+  // Fetch WeChat platform certs for callback verification
+  fetchPlatformCertificates().catch(e => console.warn('[Payment] Initial cert fetch failed:', e.message));
+  // Refresh every 6 hours
+  setInterval(() => fetchPlatformCertificates().catch(e => console.warn('[Payment] Cert refresh failed:', e.message)), 6 * 3600 * 1000);
 
   // Start CodeBuddy persistent serve mode for AI
   if (CODEBUDDY_API_KEY) {

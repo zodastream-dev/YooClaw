@@ -31,6 +31,9 @@ const ENV = {
   get privateKeyPem() { return loadPrivateKey(); },
 };
 
+// WeChat platform certificates cache (for callback verification)
+const platformCerts: Map<string, string> = new Map();
+
 function isConfigured(): boolean {
   return !!(ENV.appId && ENV.mchId && ENV.apiV3Key && ENV.privateKeyPem && ENV.certSerial);
 }
@@ -115,20 +118,86 @@ export async function createNativeOrder(
 }
 
 /**
- * Verify WeChat callback signature
+ * Fetch WeChat Pay platform certificates for callback verification
+ * Called at startup and periodically refreshed
+ */
+export async function fetchPlatformCertificates(): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const url = '/v3/certificates';
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const body = '';
+    const signature = sign('GET', url, body, timestamp, nonce);
+
+    const resp = await fetch('https://api.mch.weixin.qq.com' + url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `WECHATPAY2-SHA256-RSA2048 mchid="${ENV.mchId}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${ENV.certSerial}"`,
+      },
+    });
+
+    if (!resp.ok) {
+      console.error('[WechatPay] Failed to fetch platform certs:', resp.status);
+      return false;
+    }
+
+    const data = await resp.json() as { data: Array<{ serial_no: string; encrypt_certificate: { algorithm: string; nonce: string; associated_data: string; ciphertext: string } }> };
+    if (!data.data) return false;
+
+    for (const cert of data.data) {
+      // Decrypt the certificate
+      const certText = decryptResource(
+        cert.encrypt_certificate.associated_data || '',
+        cert.encrypt_certificate.nonce,
+        cert.encrypt_certificate.ciphertext
+      );
+      platformCerts.set(cert.serial_no, certText);
+    }
+
+    console.log('[WechatPay] Platform certs loaded:', platformCerts.size, 'certs');
+    return true;
+  } catch (err: any) {
+    console.error('[WechatPay] Platform certs fetch error:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Verify WeChat callback signature using platform certificate
  */
 export function verifyCallback(
   body: string,
   wechatTimestamp: string,
   wechatNonce: string,
-  wechatSignature: string
+  wechatSignature: string,
+  wechatSerial?: string
 ): boolean {
-  if (!isConfigured()) return false;
+  if (!wechatSignature || !wechatTimestamp || !wechatNonce) return false;
+
   const message = `${wechatTimestamp}\n${wechatNonce}\n${body}\n`;
-  const verifier = crypto.createVerify('RSA-SHA256');
-  verifier.update(message);
-  verifier.end();
-  return verifier.verify(ENV.privateKeyPem, wechatSignature, 'base64');
+
+  // Try the specified serial first, then fall back to all cached certs
+  if (wechatSerial && platformCerts.has(wechatSerial)) {
+    const cert = platformCerts.get(wechatSerial)!;
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(message);
+    verifier.end();
+    return verifier.verify(cert, wechatSignature, 'base64');
+  }
+
+  // Fallback: try all cached certs
+  for (const [serial, cert] of platformCerts) {
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(message);
+    verifier.end();
+    if (verifier.verify(cert, wechatSignature, 'base64')) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
