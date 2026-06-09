@@ -355,7 +355,7 @@ export async function initDatabase(): Promise<void> {
   // Orders
   await sql`
     CREATE TABLE IF NOT EXISTS orders (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      id TEXT PRIMARY KEY,
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       order_type VARCHAR(16) NOT NULL CHECK (order_type IN ('membership', 'credit_package')),
       product_id INTEGER NOT NULL,
@@ -431,6 +431,14 @@ export async function initDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_id ON credit_transactions(user_id)`;
 
   console.log('[DB] Payment tables initialized');
+
+  // Migration: orders.id TEXT (was UUID)
+  await sql`
+    DO $$ BEGIN
+      ALTER TABLE orders ALTER COLUMN id TYPE TEXT;
+    EXCEPTION WHEN others THEN null;
+    END $$;
+  `;
 
 // Add type column if not exists (migration for existing tables)
   await sql`
@@ -1079,6 +1087,19 @@ export async function getCreditTransactions(
 }
 
 // --- Orders ---
+let _orderSerial = 0;
+function generateOrderId(): string {
+  const now = new Date();
+  const y = String(now.getFullYear());
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  _orderSerial = (_orderSerial + 1) % 10000;
+  return `${y}${m}${d}${h}${min}${s}${String(_orderSerial).padStart(4, '0')}`;
+}
+
 export async function createOrder(
   userId: string,
   orderType: 'membership' | 'credit_package',
@@ -1086,9 +1107,10 @@ export async function createOrder(
   productName: string,
   amountYuan: number
 ): Promise<DbOrder> {
+  const orderId = generateOrderId();
   const rows = await sql`
-    INSERT INTO orders (user_id, order_type, product_id, product_name, amount_yuan, status)
-    VALUES (${userId}, ${orderType}, ${productId}, ${productName}, ${amountYuan}, 'pending')
+    INSERT INTO orders (id, user_id, order_type, product_id, product_name, amount_yuan, status)
+    VALUES (${orderId}, ${userId}, ${orderType}, ${productId}, ${productName}, ${amountYuan}, 'pending')
     RETURNING *
   `;
   return rows[0] as unknown as DbOrder;

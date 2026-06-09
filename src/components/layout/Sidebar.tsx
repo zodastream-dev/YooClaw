@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSessionStore, useSidebarStore, useChatStore, useThemeStore, useAuthStore } from '@/lib/store'
-import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession, getSessionMessages } from '@/lib/api'
+import { getUserSessions, deleteUserSession as apiDelete, renameUserSession as apiRename, createUserSession, getSessionMessages, getUserMembership } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
 import { Plus, Search, Trash2, Pencil, Check, X, Sparkles, Sun, Moon, LogOut, Shield, HardDrive, Loader2, Globe, Gamepad2, Clapperboard, Wand2, Rss, Crown } from 'lucide-react'
 import { DEFAULT_SESSION_NAME, formatBytes } from '@/lib/constants'
@@ -28,6 +28,7 @@ export function Sidebar() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null)
+  const [userTier, setUserTier] = useState<string>('free')
 
   useEffect(() => {
     loadSessions()
@@ -36,6 +37,10 @@ export function Sidebar() {
     if (!user || !user.username) {
       fetchUserInfo()
     }
+    // Load membership tier
+    getUserMembership().then(r => {
+      if (r.data?.tier) setUserTier(r.data.tier)
+    }).catch(() => {})
   }, [])
 
   const loadSessions = async () => {
@@ -436,34 +441,48 @@ export function Sidebar() {
 
         {/* Bottom: User info + Storage + Theme + Logout */}
         <div className="border-t border-border px-3 py-2 flex-shrink-0 space-y-1">
-          {/* Pricing / Upgrade CTA */}
-          <button
-            onClick={() => {
-              closeMobile()
-              navigate('/pricing')
-            }}
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-amber-500/10 transition-colors text-amber-600 dark:text-amber-400"
-          >
-            <Crown size={16} />
-            升级会员
-          </button>
-
-          {/* User info */}
+          {/* User info with tier */}
           {user && (
-            <button
-              onClick={() => {
-                closeMobile()
-                navigate('/profile')
-              }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground rounded-lg hover:bg-muted transition-colors"
-            >
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium">
-                {(user.username || 'U')[0].toUpperCase()}
-              </div>
-              <span className="truncate font-medium">{user.username}</span>
-              {user.role === 'admin' && (
-                <Shield size={12} className="text-yellow-500 flex-shrink-0" />
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { closeMobile(); navigate('/profile') }}
+                className="flex-1 flex items-center gap-2 px-3 py-1.5 text-sm text-foreground rounded-lg hover:bg-muted transition-colors min-w-0"
+              >
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-medium shrink-0">
+                  {(user.username || 'U')[0].toUpperCase()}
+                </div>
+                <div className="truncate min-w-0">
+                  <span className="truncate font-medium">{user.username}</span>
+                  {userTier !== 'free' && (
+                    <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full ${
+                      userTier === 'premium' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                    }`}>
+                      {userTier === 'premium' ? '高级' : '基础'}
+                    </span>
+                  )}
+                </div>
+                {user.role === 'admin' && <Shield size={12} className="text-yellow-500 shrink-0" />}
+              </button>
+              {userTier !== 'premium' && (
+                <button
+                  onClick={() => { closeMobile(); navigate('/pricing') }}
+                  className="shrink-0 px-2 py-1 text-[10px] font-medium rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                  title="升级会员"
+                >
+                  升级
+                </button>
               )}
+            </div>
+          )}
+
+          {/* Pricing / Upgrade CTA - only for free tier */}
+          {userTier === 'free' && (
+            <button
+              onClick={() => { closeMobile(); navigate('/pricing') }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-amber-500/10 transition-colors text-amber-600 dark:text-amber-400"
+            >
+              <Crown size={16} />
+              升级会员
             </button>
           )}
 
