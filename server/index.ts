@@ -3784,10 +3784,12 @@ app.post('/api/portal-intel', async (req, res) => {
       }
     };
 
-    // Process all sources in parallel (with individual catch for robustness)
-    const allPromises = sources.map((src: any, idx: number) => processSource(src, idx));
-    const allResults = await Promise.all(allPromises);
-    results.push(...allResults);
+    // V2.5: Process sources sequentially to avoid DeepSeek rate limiting
+    // Parallel processing causes all 4 sources + 9 objects to compete for API, causing mass timeouts
+    for (let idx = 0; idx < sources.length; idx++) {
+      const r = await processSource(sources[idx], idx);
+      results.push(r);
+    }
 
     res.json({ success: true, results });
   } catch (err: any) {
