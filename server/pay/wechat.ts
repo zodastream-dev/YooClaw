@@ -13,6 +13,7 @@
 
 import crypto from 'crypto';
 import fs from 'fs';
+import https from 'https';
 
 function loadPrivateKey(): string {
   const path = process.env.WECHAT_PAY_PRIVATE_KEY_PATH;
@@ -131,23 +132,29 @@ export async function fetchPlatformCertificates(): Promise<boolean> {
     const body = '';
     const signature = sign('GET', url, body, timestamp, nonce);
 
-    const resp = await fetch('https://api.mch.weixin.qq.com' + url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-Language': '*',
-        'User-Agent': 'YooClaw/1.0',
-        'Authorization': `WECHATPAY2-SHA256-RSA2048 mchid="${ENV.mchId}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${ENV.certSerial}"`,
-      },
+    const respData = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const req = https.request('https://api.mch.weixin.qq.com' + url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'YooClaw/1.0',
+          'Authorization': `WECHATPAY2-SHA256-RSA2048 mchid="${ENV.mchId}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${ENV.certSerial}"`,
+        },
+      }, (res) => {
+        let b = '';
+        res.on('data', (chunk: string) => b += chunk);
+        res.on('end', () => resolve({ status: res.statusCode || 0, body: b }));
+      });
+      req.on('error', reject);
+      req.end();
     });
 
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => '');
-      console.error('[WechatPay] Failed to fetch platform certs:', resp.status, errText.substring(0, 200));
+    if (respData.status !== 200) {
+      console.error('[WechatPay] Failed to fetch platform certs:', respData.status, respData.body.substring(0, 200));
       return false;
     }
 
-    const data = await resp.json() as { data: Array<{ serial_no: string; encrypt_certificate: { algorithm: string; nonce: string; associated_data: string; ciphertext: string } }> };
+    const data = JSON.parse(respData.body) as { data: Array<{ serial_no: string; encrypt_certificate: { algorithm: string; nonce: string; associated_data: string; ciphertext: string } }> };
     if (!data.data) return false;
 
     for (const cert of data.data) {
