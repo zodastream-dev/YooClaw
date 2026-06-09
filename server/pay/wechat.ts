@@ -189,13 +189,21 @@ export function verifyCallback(
 
   const message = `${wechatTimestamp}\n${wechatNonce}\n${body}\n`;
 
+  // Debug: log serial info
+  const cachedSerials = Array.from(platformCerts.keys());
+  if (!wechatSerial || !platformCerts.has(wechatSerial)) {
+    console.warn('[WechatPay] Callback serial mismatch: got=', wechatSerial, 'cached=', cachedSerials.join(','));
+  }
+
   // Try the specified serial first, then fall back to all cached certs
   if (wechatSerial && platformCerts.has(wechatSerial)) {
     const cert = platformCerts.get(wechatSerial)!;
     const verifier = crypto.createVerify('RSA-SHA256');
     verifier.update(message);
     verifier.end();
-    return verifier.verify(cert, wechatSignature, 'base64');
+    const ok = verifier.verify(cert, wechatSignature, 'base64');
+    if (!ok) console.warn('[WechatPay] Signature verify FAILED for serial:', wechatSerial, 'body-len:', body.length);
+    return ok;
   }
 
   // Fallback: try all cached certs
@@ -208,6 +216,7 @@ export function verifyCallback(
     }
   }
 
+  console.warn('[WechatPay] All cert verify FAILED. body-len:', body.length, 'ts:', wechatTimestamp, 'serials:', cachedSerials.join(','));
   return false;
 }
 
