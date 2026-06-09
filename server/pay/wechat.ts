@@ -134,12 +134,14 @@ export async function fetchPlatformCertificates(): Promise<boolean> {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
+        'User-Agent': 'YooClaw/1.0',
         'Authorization': `WECHATPAY2-SHA256-RSA2048 mchid="${ENV.mchId}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${ENV.certSerial}"`,
       },
     });
 
     if (!resp.ok) {
-      console.error('[WechatPay] Failed to fetch platform certs:', resp.status);
+      const errText = await resp.text().catch(() => '');
+      console.error('[WechatPay] Failed to fetch platform certs:', resp.status, errText.substring(0, 200));
       return false;
     }
 
