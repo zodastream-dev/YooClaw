@@ -232,11 +232,7 @@ export function decryptResource(
       );
       decipher.setAuthTag(authTag);
       if (associatedData) {
-        try {
-          decipher.setAAD(Buffer.from(associatedData, 'base64'));
-        } catch {
-          decipher.setAAD(Buffer.from(associatedData));
-        }
+        decipher.setAAD(Buffer.from(associatedData));
       }
       const decrypted = Buffer.concat([
         decipher.update(encrypted),
