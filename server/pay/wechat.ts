@@ -219,34 +219,24 @@ export function decryptResource(
   nonce: string,
   ciphertext: string
 ): string {
-  // Try current key first, then fallback keys
+  // Docs: https://pay.weixin.qq.com/docs/merchant/development/interface-rules/certificate-callback-decryption.html
+  // nonce, associated_data are base64-encoded in JSON. Auth tag is last 16 bytes of ciphertext.
   const keys = [ENV.apiV3Key, '7e9b32a51c84300c2aac5db939dbab0b'];
   const rawBytes = Buffer.from(ciphertext, 'base64');
-  // WeChat may put auth tag at beginning or end — try both
-  const layouts = [
-    { tag: rawBytes.slice(-16), data: rawBytes.slice(0, -16) },    // tag at end
-    { tag: rawBytes.slice(0, 16), data: rawBytes.slice(16) },       // tag at beginning
-  ];
+  const authTag = rawBytes.slice(-16);
+  const encrypted = rawBytes.slice(0, -16);
+  const nonceBytes = Buffer.from(nonce, 'base64');
+  const aad = associatedData ? Buffer.from(associatedData, 'base64') : null;
+
   for (const key of keys) {
-    for (const { tag: authTag, data: encrypted } of layouts) {
-      try {
-        const decipher = crypto.createDecipheriv(
-          'aes-256-gcm',
-          Buffer.from(key),
-          Buffer.from(nonce, 'base64')
-        );
-        decipher.setAuthTag(authTag);
-        if (associatedData) {
-          decipher.setAAD(Buffer.from(associatedData));
-        }
-        const decrypted = Buffer.concat([
-          decipher.update(encrypted),
-          decipher.final(),
-        ]);
-        return decrypted.toString('utf-8');
-      } catch (e) {
-        // try next layout
-      }
+    try {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(key), nonceBytes);
+      decipher.setAuthTag(authTag);
+      if (aad && aad.length > 0) decipher.setAAD(aad);
+      const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+      return decrypted.toString('utf-8');
+    } catch (e) {
+      // try next key
     }
   }
   throw new Error('Decryption failed with all keys');
