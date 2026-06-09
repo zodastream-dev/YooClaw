@@ -2,23 +2,33 @@
  * WeChat Pay v3 Native Payment (QR Code)
  *
  * Env vars required:
- *   WECHAT_PAY_APP_ID       - 公众号/小程序 AppID
- *   WECHAT_PAY_MCH_ID       - 商户号
- *   WECHAT_PAY_API_V3_KEY   - APIv3 密钥 (32 chars)
- *   WECHAT_PAY_PRIVATE_KEY  - 商户私钥 PEM 内容 (base64)
- *   WECHAT_PAY_CERT_SERIAL  - 证书序列号
- *   WECHAT_PAY_NOTIFY_URL   - 回调地址
+ *   WECHAT_PAY_APP_ID          - 公众号/小程序 AppID
+ *   WECHAT_PAY_MCH_ID          - 商户号
+ *   WECHAT_PAY_API_V3_KEY      - APIv3 密钥 (32 chars)
+ *   WECHAT_PAY_PRIVATE_KEY     - 商户私钥 PEM 内容 (or set WECHAT_PAY_PRIVATE_KEY_PATH)
+ *   WECHAT_PAY_PRIVATE_KEY_PATH - 商户私钥文件路径 (优先于 WECHAT_PAY_PRIVATE_KEY)
+ *   WECHAT_PAY_CERT_SERIAL     - 证书序列号
+ *   WECHAT_PAY_NOTIFY_URL      - 回调地址
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+
+function loadPrivateKey(): string {
+  const path = process.env.WECHAT_PAY_PRIVATE_KEY_PATH;
+  if (path && fs.existsSync(path)) {
+    return fs.readFileSync(path, 'utf-8');
+  }
+  return process.env.WECHAT_PAY_PRIVATE_KEY || '';
+}
 
 const ENV = {
   appId: process.env.WECHAT_PAY_APP_ID || '',
   mchId: process.env.WECHAT_PAY_MCH_ID || '',
   apiV3Key: process.env.WECHAT_PAY_API_V3_KEY || '',
-  privateKeyPem: process.env.WECHAT_PAY_PRIVATE_KEY || '',
   certSerial: process.env.WECHAT_PAY_CERT_SERIAL || '',
   notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || '',
+  get privateKeyPem() { return loadPrivateKey(); },
 };
 
 function isConfigured(): boolean {
