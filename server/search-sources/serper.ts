@@ -16,12 +16,14 @@ const serperModule: SearchModule = {
   name: 'serper',
   label: 'Serper搜索',
   async search(query: string, apiKey: string): Promise<RawSearchItem[]> {
+    // V2.5: Strip site: filters — free Serper accounts don't support them
+    const cleaned = query.replace(/site:\S+/gi, '').replace(/\s+OR\s+OR/g, ' OR').replace(/^\s*OR\s+|\s+OR\s*$/g, '').trim() || query;
     let resp: Response;
     try {
-      resp = await fetchSerper(query, apiKey, 25000);
+      resp = await fetchSerper(cleaned, apiKey, 25000);
     } catch (e: any) {
       console.warn('[Serper] First attempt failed: ' + e.message + ', retrying...');
-      resp = await fetchSerper(query, apiKey, 40000);
+      resp = await fetchSerper(cleaned, apiKey, 40000);
     }
     if (!resp.ok) {
       const errText = await resp.text();
