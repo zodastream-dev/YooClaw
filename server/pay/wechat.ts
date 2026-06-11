@@ -220,31 +220,34 @@ export function decryptResource(
   ciphertext: string
 ): string {
   // Docs: https://pay.weixin.qq.com/docs/merchant/development/interface-rules/certificate-callback-decryption.html
-  // nonce in JSON is a hex string (e.g. "c06703bf46de" for 6-byte or 24-char for 12-byte).
-  // associated_data is plain UTF-8 (e.g. "transaction", "certificate").
+  // WeChat uses DIFFERENT nonce formats for different callbacks:
+  //   - Payment callback: UTF-8 string (e.g. "GoiPLVcZrQm5" → 12 bytes)
+  //   - Certificate download: hex string (e.g. "7e71361c8aeb" → 6 bytes)
+  // associated_data is always plain UTF-8 (e.g. "transaction", "certificate").
   // Auth tag is last 16 bytes of ciphertext (which IS base64-encoded).
   const keys = [ENV.apiV3Key];
-
-  console.log('[Payment] decryptResource: nonce=', nonce, 'nonce_hex_len=', nonce.length, 'aad=', associatedData, 'ct_len=', ciphertext.length);
 
   const rawBytes = Buffer.from(ciphertext, 'base64');
   const authTag = rawBytes.slice(-16);
   const encrypted = rawBytes.slice(0, -16);
-  const nonceBytes = Buffer.from(nonce, 'hex');
   const aad = associatedData ? Buffer.from(associatedData, 'utf-8') : null;
 
-  console.log('[Payment] decryptResource: nonce_bytes_len=', nonceBytes.length, 'aad_len=', aad?.length ?? 0);
+  // Try multiple nonce encodings: utf-8 first (payment callback), then hex (cert download)
+  const nonceEncodings: BufferEncoding[] = ['utf-8', 'hex'];
 
   for (const key of keys) {
-    try {
-      const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(key), nonceBytes);
-      decipher.setAuthTag(authTag);
-      if (aad && aad.length > 0) decipher.setAAD(aad);
-      const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-      console.log('[Payment] decryptResource: SUCCESS');
-      return decrypted.toString('utf-8');
-    } catch (e: any) {
-      console.error('[Payment] decryptResource: FAIL', e.message, 'nonce_hex_len=', nonce.length, 'nonce_bytes_len=', nonceBytes.length);
+    for (const enc of nonceEncodings) {
+      try {
+        const nonceBytes = Buffer.from(nonce, enc);
+        if (nonceBytes.length === 0) continue; // skip invalid encodings
+        const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(key), nonceBytes);
+        decipher.setAuthTag(authTag);
+        if (aad && aad.length > 0) decipher.setAAD(aad);
+        const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+        return decrypted.toString('utf-8');
+      } catch (e) {
+        // try next encoding
+      }
     }
   }
   throw new Error('Decryption failed with all keys');
