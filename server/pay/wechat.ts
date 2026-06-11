@@ -220,22 +220,15 @@ export function decryptResource(
   ciphertext: string
 ): string {
   // Docs: https://pay.weixin.qq.com/docs/merchant/development/interface-rules/certificate-callback-decryption.html
-  // nonce, associated_data are base64-encoded in JSON. Auth tag is last 16 bytes of ciphertext.
+  // Despite the docs saying "Base64编码", nonce and associated_data in JSON are actually plain UTF-8 strings.
+  // Auth tag is last 16 bytes of ciphertext (which IS base64-encoded).
   const keys = [ENV.apiV3Key];
-
-  // Diagnostic: log raw input values
-  console.log('[Payment] decryptResource: associated_data raw:', associatedData);
-  console.log('[Payment] decryptResource: nonce raw:', nonce);
-  console.log('[Payment] decryptResource: ciphertext preview:', ciphertext.substring(0, 60));
-  console.log('[Payment] decryptResource: key first 4 chars:', keys[0] ? keys[0].substring(0, 4) : 'NO_KEY');
 
   const rawBytes = Buffer.from(ciphertext, 'base64');
   const authTag = rawBytes.slice(-16);
   const encrypted = rawBytes.slice(0, -16);
-  const nonceBytes = Buffer.from(nonce, 'base64');
-  const aad = associatedData ? Buffer.from(associatedData, 'base64') : null;
-
-  console.log('[Payment] decryptResource: rawBytes len:', rawBytes.length, 'nonceBytes len:', nonceBytes.length, 'aad len:', aad?.length ?? 0, 'aad str:', aad?.toString('utf-8'));
+  const nonceBytes = Buffer.from(nonce, 'utf-8');
+  const aad = associatedData ? Buffer.from(associatedData, 'utf-8') : null;
 
   for (const key of keys) {
     try {
@@ -243,10 +236,9 @@ export function decryptResource(
       decipher.setAuthTag(authTag);
       if (aad && aad.length > 0) decipher.setAAD(aad);
       const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-      console.log('[Payment] decryptResource: decryption SUCCESS with key starting', key.substring(0, 4));
       return decrypted.toString('utf-8');
-    } catch (e: any) {
-      console.error('[Payment] decryptResource: attempt failed:', e.message, 'key first 4:', key.substring(0, 4));
+    } catch (e) {
+      // try next key
     }
   }
   throw new Error('Decryption failed with all keys');
