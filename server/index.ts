@@ -485,7 +485,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '行业信号',
-          aiProvider: 'all+cn-news',
+          aiProvider: 'serper',
           aiModel: 'deepseek-v4-flash',
           apiKey: '',
           keywords: [
@@ -494,7 +494,7 @@ function getBankingWidgets(): any[] {
             '银行业净息差 趋势', '资本新规 落地', 'LPR报价 最新',
             '数字人民币试点 扩容', '金融科技监管沙盒'
           ],
-          objects: [],
+          objects: [{ name: '商业银行', keywords: ['银行业','对公','零售转型','净息差','资产管理'] }],
           updateFrequency: 'daily',
           customPrompt: '你是银行业趋势研究分析师，为商业银行高管提供行业信号监测。重点关注：监管政策（金监总局/央行新规、资本充足率）、利率/利差（LPR调整、净息差走势）、数字金融（数字人民币试点、金融科技监管沙盒）、信贷结构（房地产贷款集中度、绿色信贷占比）、地方政府基建规划。注意：优先宏观政策变化和行业结构趋势，拒绝零售产品、App更新等低价值内容。'
         }]
@@ -506,7 +506,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '目标客户情报',
-          aiProvider: 'all+cn-news',
+          aiProvider: 'serper',
           aiModel: 'deepseek-v4-pro',
           apiKey: '',
           keywords: ['央企融资需求', '国企改革', '城投平台 债务展期'],
@@ -527,7 +527,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '竞争对手情报',
-          aiProvider: 'all+cn-news',
+          aiProvider: 'serper',
           aiModel: 'deepseek-v4-pro',
           apiKey: '',
           keywords: ['分行行长 战略合作协议', '银团贷款 牵头行', '对公贷款 竞争'],
@@ -549,7 +549,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '自身舆情监控',
-          aiProvider: 'all+cn-news',
+          aiProvider: 'serper',
           aiModel: 'deepseek-v4-pro',
           apiKey: '',
           keywords: [
@@ -559,7 +559,7 @@ function getBankingWidgets(): any[] {
             '银行 数据泄露', '银行 反洗钱 处罚',
             '银行 违规 资金挪用', '银行 员工 违法 案件'
           ],
-          objects: [],
+          objects: [{ name: '招商银行', keywords: ['零售银行','财富管理','对公业务','声誉风险','监管合规'] }],
           updateFrequency: 'daily',
           customPrompt: '你是银行风险与舆情监控分析师，为省分行/总行高管提供红线预警。重点关注六大风险维度：1.监管处罚：金监局/央行/外管局的千万级以上罚单、机构准入限制、高管任职资格撤销 2.合规风险：反洗钱违规、数据安全事件、内控失效、违规资金挪用 3.资产质量：重大不良贷款暴露（单笔>5亿）、拨备覆盖率骤降、关注类贷款迁徙率异常上升 4.高管与治理：总行/分行高管被调查、股东变动、内部举报事件 5.声誉风险：大规模客户投诉、理财产品兑付危机、网点突发事件、涉及地域性群体事件苗头 6.市场传闻：评级下调传闻、流动性危机谣言、被并购/重组传闻。每条舆情标注：风险等级（CRITICAL/WARNING/NORMAL）、影响范围、建议响应时间。'
         }]
