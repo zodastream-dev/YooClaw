@@ -102,7 +102,7 @@ function ConcatModal({ videos, orderedIds, onConfirm, onClose }: {
 }
 
 // --- Main export ---
-export function VideoHistory() {
+export function VideoHistory({ onSelectVideo }: { onSelectVideo?: (video: VideoData) => void }) {
   const [videos, setVideos] = useState<VideoData[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<string[]>([])
@@ -251,7 +251,7 @@ export function VideoHistory() {
                 <Square size={15} className="text-muted-foreground/50 group-hover:text-muted-foreground" />
               )}
             </button>
-            <div className="cursor-pointer flex items-center gap-3 flex-1 min-w-0" onClick={() => window.open(v.videoUrl, '_blank')}>
+            <div className="cursor-pointer flex items-center gap-3 flex-1 min-w-0" onClick={() => onSelectVideo?.(v)}>
               <VideoThumbnail url={v.videoUrl} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate">{v.title || v.prompt?.slice(0, 30) || '未命名视频'}</p>

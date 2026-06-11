@@ -10,6 +10,7 @@ import { generateVideoPayload } from '@/data/promptBuilder'
 import { videoTemplates, templateCategories, getTemplatesByCategory } from '@/data/videoTemplates'
 import type { VideoTemplate } from '@/data/videoTemplates'
 import { VideoHistory } from '@/components/VideoHistory'
+import type { VideoData } from '@/lib/types'
 import { PromptEditorModal } from '@/components/PromptEditorModal'
 interface GeneratedVideo {
   id: string
@@ -280,6 +281,7 @@ export function VideoCreatePage() {
   const [estimatedMaxMinutes, setEstimatedMaxMinutes] = useState(0)
   const [maxPolls, setMaxPolls] = useState(300)
   const [result, setResult] = useState<GeneratedVideo | null>(null)
+  const [selectedVideo, setSelectedVideo] = useState<VideoData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [multiClipProgress, setMultiClipProgress] = useState<{ completedClips: number; totalClips: number } | null>(null)
@@ -768,10 +770,38 @@ export function VideoCreatePage() {
     setPollCount(0); setElapsedMinutes(0); setError(null); setCopied(false); setMultiClipProgress(null)
     setPrompt(''); setSelectedTemplate(null); clearAllImages()
     setShowMentions(false); setMentionClipId(null)
+    setSelectedVideo(null)
     if (TASK_KEY) localStorage.removeItem(TASK_KEY)
     // Also clear legacy shared key to fix existing cross-user pollution
     localStorage.removeItem('yooclaw_active_video_task')
   }
+
+  // ---- History video selection & re-edit ----
+  const handleSelectVideo = (video: VideoData) => {
+    setSelectedVideo(video)
+    // Scroll to player area
+    setTimeout(() => {
+      const el = document.getElementById('history-video-player')
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 100)
+  }
+
+  const handleReEdit = (video: VideoData) => {
+    // Populate work area with video's original parameters
+    setPrompt(video.prompt || '')
+    setRatio(video.ratio as any || '16:9')
+    setDuration(video.duration || '5')
+    setGenType((video.inputType as GenType) || 'text2video')
+    setMode('single')
+    setSelectedVideo(null)
+    // Scroll to prompt area
+    setTimeout(() => {
+      const el = document.querySelector('textarea')
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      textareaRef.current?.focus()
+    }, 100)
+  }
+  const clearSelectedVideo = () => { setSelectedVideo(null) }
 
   // Reset genType when provider changes to avoid incompatible type
   useEffect(() => {
@@ -1498,6 +1528,48 @@ export function VideoCreatePage() {
               </div>
             )}
 
+            {/* ===== History Video Player (selected from "我的视频") ===== */}
+            {selectedVideo && (
+              <div id="history-video-player" className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm p-4 sm:p-5 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Play size={16} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{selectedVideo.title || selectedVideo.prompt?.slice(0, 40) || '未命名视频'}</p>
+                      <p className="text-[11px] text-muted-foreground">{selectedVideo.duration}s · {selectedVideo.resolution} · {selectedVideo.ratio}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedVideo.inputType !== 'upload' && (
+                      <button
+                        onClick={() => handleReEdit(selectedVideo)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition-all"
+                      >
+                        <Wand2 size={13} />
+                        重新编辑
+                      </button>
+                    )}
+                    <button onClick={clearSelectedVideo} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                      <X size={16} className="text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+                <div className="relative rounded-xl overflow-hidden border border-border/30 bg-black">
+                  <video
+                    src={selectedVideo.videoUrl}
+                    controls
+                    playsInline
+                    className="w-full aspect-video object-contain"
+                    autoPlay
+                  >
+                    您的浏览器不支持视频播放
+                  </video>
+                </div>
+              </div>
+            )}
+
           {/* Multi-Clip Panel */}
           <div className={mode === 'single' ? 'hidden' : ''}>
             <div className="px-4 sm:px-6 py-4 sm:py-6 max-w-3xl mx-auto">
@@ -1944,7 +2016,7 @@ export function VideoCreatePage() {
             <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
               <Play size={15} className="text-primary" />我的视频
             </h3>
-            <VideoHistory />
+            <VideoHistory onSelectVideo={handleSelectVideo} />
           </div>
         )}
         </main>
@@ -1958,7 +2030,7 @@ export function VideoCreatePage() {
               </h3>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <VideoHistory />
+              <VideoHistory onSelectVideo={handleSelectVideo} />
             </div>
           </aside>
         )}
