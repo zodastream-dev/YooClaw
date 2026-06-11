@@ -613,6 +613,26 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
           if (raw?._searchProvider) { r._provider = raw._searchProvider; recoveredProviders++; }
         }
       }
+      // V2.5: Recover empty/missing source field from URL hostname
+      if (!r.source || r.source === '' || (typeof r.source === 'string' && r.source.startsWith('http'))) {
+        if (r.link || r.url) {
+          try {
+            const host = new URL((r.link || r.url || '')).hostname;
+            const nameMap: Record<string,string> = {
+              'people.com.cn': '人民网', 'finance.people.com.cn': '人民网财经',
+              'xinhuanet.com': '新华网', 'caixin.com': '财新',
+              '21jingji.com': '21世纪经济报道', 'yicai.com': '第一财经',
+              'cls.cn': '财联社', 'finance.sina.com.cn': '新浪财经',
+              'cbirc.gov.cn': '金监总局', 'pbc.gov.cn': '央行',
+              'gov.cn': '中国政府网', 'ce.cn': '中国经济网',
+              'stcn.com': '证券时报', 'cnstock.com': '上海证券报',
+              'cs.com.cn': '中国证券报', 'china.com.cn': '中国网',
+            };
+            const clean = host.replace(/^www\./, '');
+            r.source = nameMap[clean] || nameMap[host] || clean;
+          } catch {}
+        }
+      }
       // Try exact URL match first (most reliable)
       if (!r.date && r.link) {
         const raw = rawByUrl.get(r.link.toLowerCase().trim());
