@@ -592,7 +592,7 @@ export function PortalBuilderPage() {
         {/* ========== Top Bar ========== */}
         <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-border bg-card z-10">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/sites')} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => navigate('/')} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft size={14} /> 返回
             </button>
             <div className="w-px h-4 bg-border" />

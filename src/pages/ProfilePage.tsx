@@ -28,6 +28,7 @@ export function ProfilePage() {
   const [tier, setTier] = useState('free')
   const [credits, setCredits] = useState(0)
   const [transactions, setTransactions] = useState<CreditTransaction[]>([])
+  const [txExpanded, setTxExpanded] = useState(false)
 
   const loadPortals = async () => {
     setAssetsLoading(true)
@@ -192,24 +193,34 @@ export function ProfilePage() {
             </div>
           </div>
 
-          {/* Recent transactions */}
+          {/* Recent transactions — collapsed by default */}
           {transactions.length > 0 && (
             <div>
-              <div className="text-xs font-medium text-muted-foreground mb-2">最近积分记录</div>
-              <div className="space-y-1.5">
-                {transactions.slice(0, 5).map((txn) => (
-                  <div key={txn.id} className="flex items-center justify-between text-xs py-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">{txn.description}</span>
-                    </div>
-                    <span className={`font-medium ${
-                      txn.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'
-                    }`}>
-                      {txn.amount > 0 ? '+' : ''}{txn.amount}
-                    </span>
-                  </div>
-                ))}
+              <div
+                className="text-xs font-medium text-muted-foreground mb-2 cursor-pointer hover:text-foreground transition-colors select-none flex items-center gap-1"
+                onClick={() => setTxExpanded(!txExpanded)}
+              >
+                <span className="text-[10px]">{txExpanded ? '▼' : '▶'}</span> 最近积分记录 ({transactions.length}条)
               </div>
+              {txExpanded && (
+                <div className="space-y-0.5 max-h-56 overflow-y-auto">
+                  {transactions.map((txn) => (
+                    <div key={txn.id} className="flex items-center justify-between text-xs py-1 border-b border-border/30 last:border-0">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <span className="text-muted-foreground truncate block">{txn.description}</span>
+                        <span className="text-[10px] text-muted-foreground/50">
+                          {new Date(txn.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <span className={`font-medium flex-shrink-0 ${
+                        txn.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+                      }`}>
+                        {txn.amount > 0 ? '+' : ''}{txn.amount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
