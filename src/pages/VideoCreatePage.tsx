@@ -286,6 +286,8 @@ export function VideoCreatePage() {
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number>(0)
+  const unknownCountRef = useRef<number>(0)
+  const UNKNOWN_MAX = 10 // Max consecutive unknown status before giving up (~5 min at 30s interval)
 
   const needsImage = provider === 'kling'
     ? ['image2video', 'multi_image2video'].includes(genType)
@@ -411,6 +413,20 @@ export function VideoCreatePage() {
             setIsPolling(false)
             if (TASK_KEY) localStorage.removeItem(TASK_KEY)
             setError(res.data.errorMessage || '生成失败，请稍后重试')
+          } else if (res.data.status === 'unknown') {
+            // Task lost from memory (server restart/crash). Server returns polls=0, so we track locally.
+            unknownCountRef.current++
+            const pollingTimeMs = Date.now() - startTimeRef.current
+            // Give up after UNKNOWN_MAX consecutive unknowns OR 8 minutes of no progress
+            if (unknownCountRef.current >= UNKNOWN_MAX || pollingTimeMs > 8 * 60 * 1000) {
+              setIsPolling(false)
+              if (TASK_KEY) localStorage.removeItem(TASK_KEY)
+              setError('服务器连接中断，任务进度丢失。视频可能已在即梦平台生成完毕，请前往即梦后台查看')
+            }
+          } else {
+            // Reset unknown counter when we get a real response (status = 'processing')
+            unknownCountRef.current = 0
+            startTimeRef.current = Date.now()
           }
         }
       } catch (e: any) { console.warn('Poll error:', e.message) }
@@ -629,6 +645,7 @@ export function VideoCreatePage() {
     }
     setIsSubmitting(true); setError(null); setResult(null)
     setQueueMessage(''); setPollCount(0); setElapsedMinutes(0)
+    unknownCountRef.current = 0; startTimeRef.current = Date.now()
     try {
       const base64Images = await Promise.all(imageFiles.map(f => fileToBase64(f)))
       const params: any = {
@@ -1742,6 +1759,7 @@ export function VideoCreatePage() {
                       }
                       setIsPolling(false)
                       setSubmitId(null)
+                      unknownCountRef.current = 0
                       if (TASK_KEY) localStorage.removeItem(TASK_KEY)
                       setShowMentions(false)
                       setMentionClipId(null)
