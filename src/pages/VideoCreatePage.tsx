@@ -786,7 +786,7 @@ export function VideoCreatePage() {
     }, 100)
   }
 
-  const handleReEdit = (video: VideoData) => {
+  const handleReEdit = async (video: VideoData) => {
     // Populate work area with video's original parameters
     setPrompt(video.prompt || '')
     setRatio(video.ratio as any || '16:9')
@@ -794,6 +794,34 @@ export function VideoCreatePage() {
     setGenType((video.inputType as GenType) || 'text2video')
     setMode('single')
     setSelectedVideo(null)
+
+    // Restore reference images if available
+    if (video.referenceImages && video.referenceImages.length > 0) {
+      setImageFiles([])
+      setImagePreviews([])
+      const files: File[] = []
+      const previews: string[] = []
+      for (let i = 0; i < video.referenceImages.length; i++) {
+        try {
+          const res = await fetch(video.referenceImages[i])
+          if (!res.ok) continue
+          const blob = await res.blob()
+          const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
+          const file = new File([blob], `ref-${i}.${ext}`, { type: blob.type })
+          files.push(file)
+          previews.push(URL.createObjectURL(file))
+        } catch (e) {
+          console.warn('Failed to restore ref image:', video.referenceImages[i], e)
+        }
+      }
+      if (files.length > 0) {
+        setImageFiles(files)
+        setImagePreviews(previews)
+      }
+    } else {
+      clearAllImages()
+    }
+
     // Scroll to prompt area
     setTimeout(() => {
       const el = document.querySelector('textarea')

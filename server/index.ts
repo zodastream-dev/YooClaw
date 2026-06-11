@@ -4204,6 +4204,7 @@ interface VideoTask {
   ratio: string;
   modelVersion: string;
   tempImagePaths: string[]; // for cleanup (single or multi)
+  referenceImages?: string[]; // persisted image URLs for re-editing
   queueInfo: any;
   errorMessage?: string;
 }
@@ -4960,6 +4961,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
           queueInfo: null,
           videoUrl: null,
           tempImagePaths: [],
+          referenceImages: imageList.length > 0 ? urls : [],
         };
         videoTasks.set(parentId, klingTask);
 
@@ -4995,6 +4997,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
                 videoUrl: klingTask.videoUrl,
                 videoPath: outputPath,
                 submitId: parentId,
+                referenceImages: klingTask.referenceImages || [],
               });
               console.log('[Kling:Single] Video saved to DB:', outputFn);
             } catch (dbErr: any) { console.error('[Kling:Single] DB save failed:', dbErr.message); }
@@ -5177,6 +5180,24 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
             console.log(`[VideoGen] Completed: ${t.videoUrl?.slice(0, 80)}`);
 
             try {
+              // Persist reference images for re-editing
+              const refImageUrls: string[] = [];
+              const REFS_DIR = path.join(__dirname, '..', 'public', 'videos', 'refs', submitId);
+              for (let ri = 0; ri < t.tempImagePaths.length; ri++) {
+                try {
+                  const src = t.tempImagePaths[ri];
+                  if (fs.existsSync(src)) {
+                    const ext = path.extname(src) || '.png';
+                    const destFn = `img-${ri}${ext}`;
+                    fs.mkdirSync(REFS_DIR, { recursive: true });
+                    fs.copyFileSync(src, path.join(REFS_DIR, destFn));
+                    refImageUrls.push(`${FRONTEND_URL}/videos/refs/${submitId}/${destFn}`);
+                  }
+                } catch (refErr: any) {
+                  console.error(`[VideoGen] Failed to persist ref image ${ri}:`, refErr.message);
+                }
+              }
+
               await saveVideo({
                 userId: t.userId,
                 title: t.prompt?.slice(0, 60) || (gt === 'image_upscale' ? '图片放大' : '视频'),
@@ -5188,6 +5209,7 @@ app.post('/api/v1/videos/generate', authMiddleware, async (req, res) => {
                 videoUrl: t.videoUrl || '',
                 videoPath: '',
                 submitId,
+                referenceImages: refImageUrls,
               });
             } catch (dbErr: any) { console.error('[VideoGen] DB save failed:', dbErr.message); }
 
@@ -5918,6 +5940,7 @@ app.get('/api/v1/videos', authMiddleware, async (req: any, res) => {
       videoPath: v.video_path,
       submitId: v.submit_id,
       createdAt: v.created_at,
+      referenceImages: v.reference_images || [],
     }));
     res.json({ data: { items } });
   } catch (err: any) {

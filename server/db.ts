@@ -895,10 +895,12 @@ export async function saveVideo(video: {
   videoUrl: string;
   videoPath: string;
   submitId: string;
+  referenceImages?: string[];
 }): Promise<DbVideo> {
+  const refs = video.referenceImages?.length ? JSON.stringify(video.referenceImages) : '[]';
   const rows = await sql`
-    INSERT INTO videos (user_id, title, prompt, duration, resolution, ratio, input_type, video_url, video_path, submit_id)
-    VALUES (${video.userId}, ${video.title}, ${video.prompt}, ${video.duration}, ${video.resolution}, ${video.ratio}, ${video.inputType}, ${video.videoUrl}, ${video.videoPath}, ${video.submitId})
+    INSERT INTO videos (user_id, title, prompt, duration, resolution, ratio, input_type, video_url, video_path, submit_id, reference_images)
+    VALUES (${video.userId}, ${video.title}, ${video.prompt}, ${video.duration}, ${video.resolution}, ${video.ratio}, ${video.inputType}, ${video.videoUrl}, ${video.videoPath}, ${video.submitId}, ${refs}::jsonb)
     RETURNING *
   `;
   return rows[0] as unknown as DbVideo;

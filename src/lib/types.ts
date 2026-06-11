@@ -154,6 +154,7 @@ export interface VideoData {
   videoPath: string
   submitId: string
   createdAt: string
+  referenceImages?: string[]
 }
 
 // ========== Payment Types ==========
