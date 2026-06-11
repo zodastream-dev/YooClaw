@@ -225,11 +225,15 @@ export function decryptResource(
   // Auth tag is last 16 bytes of ciphertext (which IS base64-encoded).
   const keys = [ENV.apiV3Key];
 
+  console.log('[Payment] decryptResource: nonce=', nonce, 'nonce_hex_len=', nonce.length, 'aad=', associatedData, 'ct_len=', ciphertext.length);
+
   const rawBytes = Buffer.from(ciphertext, 'base64');
   const authTag = rawBytes.slice(-16);
   const encrypted = rawBytes.slice(0, -16);
   const nonceBytes = Buffer.from(nonce, 'hex');
   const aad = associatedData ? Buffer.from(associatedData, 'utf-8') : null;
+
+  console.log('[Payment] decryptResource: nonce_bytes_len=', nonceBytes.length, 'aad_len=', aad?.length ?? 0);
 
   for (const key of keys) {
     try {
@@ -237,9 +241,10 @@ export function decryptResource(
       decipher.setAuthTag(authTag);
       if (aad && aad.length > 0) decipher.setAAD(aad);
       const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+      console.log('[Payment] decryptResource: SUCCESS');
       return decrypted.toString('utf-8');
-    } catch (e) {
-      // try next key
+    } catch (e: any) {
+      console.error('[Payment] decryptResource: FAIL', e.message, 'nonce_hex_len=', nonce.length, 'nonce_bytes_len=', nonceBytes.length);
     }
   }
   throw new Error('Decryption failed with all keys');
