@@ -627,6 +627,21 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
               'gov.cn': '中国政府网', 'ce.cn': '中国经济网',
               'stcn.com': '证券时报', 'cnstock.com': '上海证券报',
               'cs.com.cn': '中国证券报', 'china.com.cn': '中国网',
+              // Bank domains
+              'icbc.com.cn': '工商银行', 'v.icbc.com.cn': '工商银行',
+              'ccb.com': '建设银行', 'abchina.com': '农业银行',
+              'boc.cn': '中国银行', 'bankofchina.com': '中国银行',
+              'cmbchina.com': '招商银行', 'spdb.com.cn': '浦发银行',
+              'bankcomm.com': '交通银行', 'citicbank.com': '中信银行',
+              'cebbank.com': '光大银行', 'hxb.com.cn': '华夏银行',
+              // Enterprise domains
+              'crec.cn': '中国中铁', 'crcc.cn': '中国铁建',
+              'cccc.cn': '中国交建', 'cscec.com': '中国建筑',
+              'sgcc.com.cn': '国家电网', 'csgc.com.cn': '中国船舶',
+              // Regulator domains
+              'jrj.sh.gov.cn': '上海金融监管局',
+              'shanghai.gov.cn': '上海市政府',
+              'beijing.gov.cn': '北京市政府',
             };
             const clean = host.replace(/^www\./, '');
             r.source = nameMap[clean] || nameMap[host] || clean;
