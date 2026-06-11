@@ -220,14 +220,15 @@ export function decryptResource(
   ciphertext: string
 ): string {
   // Docs: https://pay.weixin.qq.com/docs/merchant/development/interface-rules/certificate-callback-decryption.html
-  // Despite the docs saying "Base64编码", nonce and associated_data in JSON are actually plain UTF-8 strings.
+  // nonce in JSON is a hex string (e.g. "c06703bf46de" for 6-byte or 24-char for 12-byte).
+  // associated_data is plain UTF-8 (e.g. "transaction", "certificate").
   // Auth tag is last 16 bytes of ciphertext (which IS base64-encoded).
   const keys = [ENV.apiV3Key];
 
   const rawBytes = Buffer.from(ciphertext, 'base64');
   const authTag = rawBytes.slice(-16);
   const encrypted = rawBytes.slice(0, -16);
-  const nonceBytes = Buffer.from(nonce, 'utf-8');
+  const nonceBytes = Buffer.from(nonce, 'hex');
   const aad = associatedData ? Buffer.from(associatedData, 'utf-8') : null;
 
   for (const key of keys) {
