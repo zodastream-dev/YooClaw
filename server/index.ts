@@ -6174,21 +6174,25 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       const wechatSerial = req.headers['wechatpay-serial'] as string || '';
 
       // TODO: re-enable signature verification once platform cert matching is fixed
-      console.log('[Payment] WeChat callback received, serial:', wechatSerial);
+      console.log('[Payment] WeChat callback received, serial:', wechatSerial, 'event_type:', callback.event_type);
 
       if (callback.event_type !== 'TRANSACTION.SUCCESS') {
+        console.log('[Payment] WeChat callback: ignoring non-success event:', callback.event_type);
         res.json({ code: 'SUCCESS' });
         return;
       }
 
       // Decrypt resource
+      console.log('[Payment] WeChat callback: decrypting resource...');
       const resource = callback.resource;
       const decryptedStr = decryptResource(
         resource.associated_data || '',
         resource.nonce,
         resource.ciphertext
       );
+      console.log('[Payment] WeChat callback: decryption successful, decrypted string:', decryptedStr.substring(0, 200));
       const decrypted = JSON.parse(decryptedStr);
+      console.log('[Payment] WeChat callback: decrypted data:', { out_trade_no: decrypted.out_trade_no, transaction_id: decrypted.transaction_id });
 
       const orderId = decrypted.out_trade_no;
       const transactionId = decrypted.transaction_id;
