@@ -801,6 +801,11 @@ function renderSourceForm(wi,si){
   s+='</div>';
   s+='</form>';
   $('modalBody').innerHTML=s;
+  // Nuke Chrome autofill — browser injects username into any text field
+  setTimeout(function(){
+    var ki=$('kwInput_'+wi+'_'+si); if(ki){ ki.value=''; ki.dispatchEvent(new Event('input',{bubbles:true})); }
+    var oi=$('objInput_'+wi+'_'+si); if(oi){ oi.value=''; oi.dispatchEvent(new Event('input',{bubbles:true})); }
+  }, 50);
   $('modalBody').scrollTop=0;
 }
 
