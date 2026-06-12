@@ -795,17 +795,12 @@ function renderSourceForm(wi,si){
   s+='<input class="mb-input" id="srcModel_'+wi+'_'+si+'" value="'+escHtml(src.aiModel||'')+'" placeholder="例如: deepseek-v4-flash" autocomplete="off">';
   s+='</div></div>';
   s+='<div class="mb-group"><label class="mb-label">API Key</label>';
-  s+='<input class="mb-input" type="password" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选" autocomplete="off">';
+  s+='<input class="mb-input" type="text" id="srcApiKey_'+wi+'_'+si+'" value="'+escHtml(src.apiKey||'')+'" placeholder="可选" autocomplete="off">';
   s+='</div>';
   s+='</div></div>';
   s+='</div>';
   s+='</form>';
   $('modalBody').innerHTML=s;
-  // Wipe Chrome autofill — browser may inject username at any time after DOM insert
-  function clearAutofill(){ var el=$('kwInput_'+wi+'_'+si); if(el&&el.value==='test3')el.value=''; el=$('objInput_'+wi+'_'+si); if(el&&el.value==='test3')el.value=''; }
-  setTimeout(clearAutofill, 100);
-  setTimeout(clearAutofill, 500);
-  setInterval(clearAutofill, 2000);
   $('modalBody').scrollTop=0;
 }
 
