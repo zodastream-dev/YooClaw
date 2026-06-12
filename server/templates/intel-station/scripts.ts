@@ -729,7 +729,7 @@ function renderSourceForm(wi,si){
   var kws=src.keywords||[];
   var objects=src.objects||[];
   var INTEL_CATS=['行业信号','目标客户情报','竞争对手情报','自身舆情监控'];
-  var s='';
+  var s='<form autocomplete="off" onsubmit="event.preventDefault();return false" style="display:contents">';
   s+='<div class="src-mini">';
   // Category dropdown
   s+='<div class="mb-group"><label class="mb-label">情报属性</label>';
@@ -799,6 +799,7 @@ function renderSourceForm(wi,si){
   s+='</div>';
   s+='</div></div>';
   s+='</div>';
+  s+='</form>';
   $('modalBody').innerHTML=s;
   $('modalBody').scrollTop=0;
 }
