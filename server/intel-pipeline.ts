@@ -249,6 +249,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // "query too long" errors (Tavily 400 char limit) and improve recall precision.
   const queries: string[] = [];
   const thisMonth = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
+  // V2.5: Add freshness filter — only show results from last 7 days
+  const oneWeekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
 
   // Build enriched object context from object's keywords (industry/business type hints)
   const targetObj = objectName
@@ -323,6 +325,11 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // V2.5.1: Cap total queries at 8 (banking mode drops zhihu/xhs, so we can afford more queries)
   if (queries.length > 8) queries.length = 8;
+
+  // V2.5: Append date filter to all queries — only fetch last 7 days
+  for (let i = 0; i < queries.length; i++) {
+    queries[i] = queries[i] + ' after:' + oneWeekAgo;
+  }
 
   // Append recency query as a separate search for latest coverage
   if (objectName) {
