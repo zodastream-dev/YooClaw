@@ -267,7 +267,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .kw-x{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:0 2px;transition:color .2s}
 .kw-x:hover{color:#ef4444}
 .kw-add-row{display:flex;gap:6px}
-.kw-add-input{flex:1;padding:6px 10px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;font-family:inherit;transition:border .2s}
+.kw-add-input{flex:1;padding:6px 10px;background:rgba(2,6,23,0.5);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:13px;outline:none;font-family:inherit;transition:border .2s}.kw-add-input::-webkit-search-cancel-button,.kw-add-input::-webkit-search-decoration{-webkit-appearance:none;display:none}
 .kw-add-input:focus{border-color:var(--cyan)}
 .kw-add-btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:rgba(0,212,255,0.05);color:var(--cyan);cursor:pointer;font-size:14px;font-weight:700;transition:all .2s}
 .kw-add-btn:hover{background:rgba(0,212,255,0.15);border-color:rgba(0,212,255,0.3)}
