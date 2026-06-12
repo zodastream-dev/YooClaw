@@ -1,6 +1,6 @@
 import type { RawSearchItem, SearchModule } from './types';
 
-// V2.1: 切换为搜索接口（10点/次），替代问答接口（18点/次）
+// V2.1: 搜索接口（1点/次）
 async function fetchMetaso(query: string, apiKey: string, timeoutMs = 25000): Promise<Response> {
   return await fetch('https://metaso.cn/api/v1/search', {
     method: 'POST',

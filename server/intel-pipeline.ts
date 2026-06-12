@@ -248,8 +248,6 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // Build search queries: batch keywords (max 3 per query) to avoid
   // "query too long" errors (Tavily 400 char limit) and improve recall precision.
   const queries: string[] = [];
-  const thisMonth = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
-  // V2.5: Add freshness filter — only show results from last 7 days
   const oneWeekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
 
   // Build enriched object context from object's keywords (industry/business type hints)
@@ -329,12 +327,6 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // V2.5: Append date filter to all queries — only fetch last 7 days
   for (let i = 0; i < queries.length; i++) {
     queries[i] = queries[i] + ' after:' + oneWeekAgo;
-  }
-
-  // Append recency query as a separate search for latest coverage
-  if (objectName) {
-    const recencyPrefix = objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName;
-    queries.push(`${recencyPrefix} 最新动态 ${thisMonth}`);
   }
 
   // 1. Search — run ALL queries in parallel across all engines
