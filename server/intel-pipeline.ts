@@ -301,6 +301,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   }
 
   // --- V2.5: Domain whitelist for authority source filtering ---
+  // V2.6: No longer constructs `site:` queries (non-functional for metaso/tianapi).
+  // Instead, raw search results will be filtered by domain after collection.
   // Detect banking/finance sources based on actual monitoring content (not just source name)
   const bankingCheck = (Array.isArray(src.keywords) ? src.keywords.join(' ') : '') + ' '
     + (src.objects || []).map((o: any) => (o.name || '') + ' ' + ((o.keywords || []).join(' '))).join(' ');
@@ -312,18 +314,6 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     'yicai.com', 'cls.cn', 'finance.sina.com.cn', 'cbirc.gov.cn', 'pbc.gov.cn',
   ];
   const domainWhitelist: string[] = isBanking ? BANKING_WHITELIST : [];
-
-  // Generate whitelist-augmented queries for banking sources
-  // These run alongside regular queries; whitelist results get _credibility: HIGH
-  if (domainWhitelist.length > 0) {
-    const siteFilter = domainWhitelist.map(d => `site:${d}`).join(' OR ');
-    const whitelistPrefix = objectName 
-      ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
-      : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
-    queries.push(`${whitelistPrefix} ${siteFilter}`);
-    // V2.5.1: Only 1 whitelist query per source (avoid query explosion × cost)
-    console.log('[Intel:V2.5] Added 1 whitelist query for banking source (keeping 1 to control cost)');
-  }
 
   // V2.5.1: Cap total queries at 8 (banking mode drops zhihu/xhs, so we can afford more queries)
   if (queries.length > 8) queries.length = 8;
@@ -407,6 +397,64 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     return [];
   }
 
+  // --- V2.6: Domain whitelist filtering — separate whitelist results from general results ---
+  // Instead of using `site:` syntax (which doesn't work with metaso/tianapi),
+  // we filter by domain AFTER collecting raw search results.
+  // Whitelist results get priority when building DeepSeek context.
+  let wlRawItems: any[] = [];    // Results from whitelist domains
+  let otherRawItems: any[] = []; // Results from non-whitelist domains
+  
+  if (domainWhitelist.length > 0) {
+    for (const item of rawItems) {
+      let isWhitelisted = false;
+      if (item.url) {
+        try {
+          const host = new URL(item.url).hostname.replace(/^www\./, '');
+          isWhitelisted = domainWhitelist.some(d => host.includes(d) || host === d);
+        } catch {}
+      }
+      if (isWhitelisted) wlRawItems.push(item);
+      else otherRawItems.push(item);
+    }
+    console.log('[Intel:V2.6] Whitelist domains: ' + wlRawItems.length + ' items, Others: ' + otherRawItems.length + ' items');
+  } else {
+    // No whitelist — all results are "other" (but we still pass them through)
+    wlRawItems = [];
+    otherRawItems = rawItems;
+  }
+
+  // Pre-verify whitelist items: discard those whose title+snippet don't mention the monitored object
+  const prefilteredWl = (objectName && wlRawItems.length > 0)
+    ? wlRawItems.filter((item: any) => {
+        const escapeR = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = objectName.split(/[,，]\s*/).filter(Boolean).map(escapeR).join('|');
+        if (!pattern) return true;
+        const text = (item.title || '') + ' ' + (item.snippet || item.content || '');
+        return new RegExp('(' + pattern + ')', 'i').test(text);
+      })
+    : wlRawItems;
+
+  if (wlRawItems.length > 0 && prefilteredWl.length < wlRawItems.length) {
+    console.log('[Intel:V2.6] Pre-filtered ' + (wlRawItems.length - prefilteredWl.length) + ' non-matching whitelist items');
+  }
+
+  // Build prioritized search context: whitelist items first, then supplement with others
+  let searchContextItems: any[];
+  const MIN_WL_COUNT = 15;
+  if (prefilteredWl.length >= MIN_WL_COUNT) {
+    searchContextItems = prefilteredWl;
+    console.log('[Intel:V2.6] Using ' + prefilteredWl.length + ' whitelist-only results for DeepSeek');
+  } else if (prefilteredWl.length > 0) {
+    // Supplement with non-whitelist items
+    const otherLimit = (MIN_WL_COUNT - prefilteredWl.length) * 3;
+    searchContextItems = [...prefilteredWl, ...otherRawItems.slice(0, otherLimit)];
+    console.log('[Intel:V2.6] Using ' + prefilteredWl.length + ' whitelist + ' + (searchContextItems.length - prefilteredWl.length) + ' other results for DeepSeek');
+  } else {
+    // No whitelist results at all — use non-whitelist results
+    searchContextItems = otherRawItems;
+    console.log('[Intel:V2.6] No whitelist results, using ' + otherRawItems.length + ' general results');
+  }
+
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。所有标题和摘要必须使用中文。每条摘要约100字。非中文来源的内容必须翻译成中文。';
@@ -415,7 +463,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // Multi-object sources: use larger context window (100 items / 15k chars) to avoid crowding out objects
   const contextItems = objectName ? 100 : 50;
   const contextChars = objectName ? 15000 : 8000;
-  const searchContext = hasSearch ? safeJsonTruncate(rawItems.slice(0, contextItems), contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
+  const searchContext = hasSearch ? safeJsonTruncate(searchContextItems.slice(0, contextItems), contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
   if (objectName) {
     // Detect source type for specialized instructions
     const catCheck = (src.name || '').toLowerCase();
@@ -423,9 +471,10 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const isComp = catCheck.includes('竞争') || catCheck.includes('对手');
     const isReputation = catCheck.includes('舆情') || catCheck.includes('声誉') || catCheck.includes('自身');
 
-    up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
-      '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
-      '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过20%），但将其 _object 字段留空以区分。\n' +
+    up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取最多30条情报。\n' +
+      '注意：只提取与【' + objectName + '】直接相关的情报。如果某条搜索结果与【' + objectName + '】完全无关（如天气预警、商品价格、无关地区新闻、非本行业内容等），必须直接丢弃，不要输出。\n' +
+      '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过10%），但将其 _object 字段留空以区分。\n' +
+      '注意：原始搜索结果按可信度排序——【权威来源】（来自权威媒体/监管官网，如人民网、新华网、财新、央行等）排在最前面，【其他来源】排在后面。优先从权威来源中提取情报，其可信度和价值更高。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
       '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50,"_riskLevel":"NORMAL","_noiseType":"对公业务"}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
@@ -442,6 +491,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
       '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
       '  评分只看商业价值不看情感倾向，重复信息降10-20分\n' +
+      '  注意：与监控对象完全无关的内容（如天气、商品价格、无关地区新闻）即使出现在搜索结果中，也必须丢弃，不得输出。\n' +
       (isTarget
         ? '  目标客户专项：客户评级下调/债务违约/重大亏损 → 90+; 客户战略调整/融资需求 → 75-89; 客户日常经营新闻 → ≤50\n'
         : '') +
@@ -764,25 +814,41 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       return strictRegex.test(text);
     });
     if (results.length < before) console.log('[Intel] EHR filtered ' + (before - results.length) + ' items for "' + objectName + '"');
-    // Safety net: if EHR was too aggressive (< 10 results), relax to partial token match
-    if (results.length < 10) {
-      const relaxedTokens = names.map(n => {
-        const tokens = n.match(/[\u4e00-\u9fff]+|[a-zA-Z0-9]+/g) || [n];
-        return tokens.sort((a: string, b: string) => b.length - a.length)[0];
-      }).filter((t: string | undefined): t is string => !!t && t.length >= 2).map(escapeRegExp).join('|');
-      if (relaxedTokens && relaxedTokens !== strictPattern) {
-        const relaxedRegex = new RegExp('(' + relaxedTokens + ')', 'i');
-        results = beforeResults.filter((r: any) => {
+
+    // Safety net: if EHR was too aggressive (< 5 results), relax to partial token match.
+    // For Chinese names, we try 2-character substrings as relaxed tokens.
+    // But we NEVER fall back to keeping all original results — quality over quantity.
+    if (results.length < 5 && beforeResults.length > 0) {
+      const relaxedTokens = names.flatMap(n => {
+        const tokens: string[] = [];
+        if (n.length >= 4) {
+          // Extract 2-char CJK substrings for relaxed matching
+          for (let i = 0; i <= n.length - 2; i++) {
+            const sub = n.substring(i, i + 2);
+            if (sub.match(/^[\u4e00-\u9fff]{2}$/)) tokens.push(sub);
+          }
+        }
+        return tokens;
+      }).filter((t, i, arr) => t.length >= 2 && arr.indexOf(t) === i);
+
+      if (relaxedTokens.length > 0 && relaxedTokens.join('|') !== strictPattern) {
+        const relaxedPattern = relaxedTokens.map(escapeRegExp).join('|');
+        const relaxedRegex = new RegExp('(' + relaxedPattern + ')', 'i');
+        const relaxedResults = beforeResults.filter((r: any) => {
           const text = (r.title || '') + ' ' + (r.summary || '');
-          return relaxedRegex.test(text);
+          return strictRegex.test(text) || relaxedRegex.test(text);
         });
-        console.log('[Intel] EHR relaxed to tokens: ' + relaxedTokens + ' → ' + results.length + ' results for "' + objectName + '"');
+        if (relaxedResults.length > results.length) {
+          console.log('[Intel] EHR relaxed to 2-char tokens: ' + relaxedTokens.join(',') + ' → ' + relaxedResults.length + ' results for "' + objectName + '"');
+          results = relaxedResults;
+        }
       }
-      // If still too few, keep all original results
-      if (results.length < 10) {
-        console.log('[Intel] EHR keeping all ' + before + ' results for "' + objectName + '" (too few after strict+relaxed filter)');
-        results = beforeResults.slice(0, 15);
-      }
+    }
+
+    // CRITICAL FIX: Never fall back to all original results.
+    // If still too few after strict + relaxed filtering, accept what we have (宁缺毋滥).
+    if (results.length < 3) {
+      console.warn('[Intel] EHR: only ' + results.length + ' results remain for "' + objectName + '" after filtering. Accepting as-is (宁缺毋滥).');
     }
   }
   // URL noise filter: cut e-commerce, product-catalog, auto/media pollution
