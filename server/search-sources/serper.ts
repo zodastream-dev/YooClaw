@@ -7,7 +7,7 @@ async function fetchSerper(query: string, apiKey: string, timeoutMs = 25000): Pr
       'Content-Type': 'application/json',
       'X-API-KEY': apiKey,
     },
-    body: JSON.stringify({ q: query, num: 20, gl: 'cn', hl: 'zh-cn' }),
+    body: JSON.stringify({ q: query, num: 20, gl: 'cn', hl: 'zh-cn', tbs: 'qdr:w' }),
     signal: AbortSignal.timeout(timeoutMs),
   });
 }

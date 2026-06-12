@@ -253,7 +253,6 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // Build search queries: batch keywords (max 3 per query) to avoid
   // "query too long" errors (Tavily 400 char limit) and improve recall precision.
   const queries: string[] = [];
-  const oneWeekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
 
   // Build enriched object context from object's keywords (industry/business type hints)
   const targetObj = objectName
@@ -328,11 +327,6 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // V2.5.1: Cap total queries at 8 (banking mode drops zhihu/xhs, so we can afford more queries)
   if (queries.length > 8) queries.length = 8;
-
-  // V2.5: Append date filter to all queries — only fetch last 7 days
-  for (let i = 0; i < queries.length; i++) {
-    queries[i] = queries[i] + ' after:' + oneWeekAgo;
-  }
 
   // 1. Search — run ALL queries in parallel across all engines
   let rawItems: any[] = [];
