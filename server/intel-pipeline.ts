@@ -350,9 +350,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       modules = getAllModules();
       const generalNews = getSearchModule('tianapi-generalnews');
       if (generalNews) modules.push(generalNews);
-      // V2.5: Banking sources — drop zhihu/xiaohongshu (low signal for executive intel)
+      // V2.5: Banking sources — only metaso + tianapi (highest signal for Chinese financial/regulatory intel)
       if (isBanking) {
-        modules = modules.filter(m => m.name !== 'zhihu' && m.name !== 'xiaohongshu' && m.name !== 'weibo');
+        modules = modules.filter(m => m.name === 'metaso' || m.name === 'tianapi-generalnews');
         tavilyStatus = 'excluded, metaso+tianapi only (banking mode)';
       } else {
         tavilyStatus = 'excluded, metaso+weibo+zhihu+xhs+tianapi active';

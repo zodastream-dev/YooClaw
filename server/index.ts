@@ -485,7 +485,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '行业信号',
-          aiProvider: 'serper',
+          aiProvider: 'all+cn-news',
           aiModel: 'deepseek-v4-flash',
           apiKey: '',
           keywords: [
@@ -506,7 +506,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '目标客户情报',
-          aiProvider: 'serper',
+          aiProvider: 'all+cn-news',
           aiModel: 'deepseek-v4-pro',
           apiKey: '',
           keywords: ['央企融资需求', '国企改革', '城投平台 债务展期'],
@@ -527,7 +527,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '竞争对手情报',
-          aiProvider: 'serper',
+          aiProvider: 'all+cn-news',
           aiModel: 'deepseek-v4-pro',
           apiKey: '',
           keywords: ['分行行长 战略合作协议', '银团贷款 牵头行', '对公贷款 竞争'],
@@ -549,7 +549,7 @@ function getBankingWidgets(): any[] {
       config: {
         sources: [{
           name: '自身舆情监控',
-          aiProvider: 'serper',
+          aiProvider: 'all+cn-news',
           aiModel: 'deepseek-v4-pro',
           apiKey: '',
           keywords: [
