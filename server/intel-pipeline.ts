@@ -99,13 +99,16 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
   const objCtx = objectName ? '监控对象：' + objectName : '';
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
-  // Split: 行业信号 → macro trend keywords; target clients → corporate risk/opportunity keywords; competitors → product/event keywords
+  // Split: 行业信号 → macro trend keywords; target clients → corporate risk/opportunity keywords; competitors → product/event keywords; reputation → risk/incident keywords
   const isIndustrySignal = (category.includes('行业') || category.includes('信号')) && !category.includes('竞') && !category.includes('对手') && !category.includes('舆情');
   const isTargetClient = (category.includes('客户') || category.includes('目标')) && !category.includes('竞');
+  const isReputation = category.includes('舆情') || category.includes('声誉') || category.includes('自身');
   const sp = isIndustrySignal
     ? '你是搜索关键词优化专家，专注于宏观行业趋势。今天是' + today + '。根据情报监控配置，生成6-10个宏观行业搜索关键词。要求：1.优先产业链变化、技术路线图、市场格局、政策法规、商业模式创新 2.禁止具体产品评测、单品价格、参数配置、产品促销 3.形式如"手机出货量2026Q2趋势""智能手机芯片供应链变化"等趋势性短语 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]'
     : isTargetClient
       ? '你是企业客户情报分析专家，为银行对公业务监控核心客户动态。今天是' + today + '。根据监控对象，生成6-10个搜索关键词。要求：1.聚焦客户经营风险（财报/评级/债务/违约）、融资需求（发债/增发/招标）、银行关系（战略合作/授信变动）、战略调整（并购/重组/业务转型）2.禁止客户日常经营新闻、品牌营销活动、社会责任报告 3.形式如"中国中铁2026年Q2财报业绩""国家电网评级调整最新"等 4.关键词不限长度，精准优于简短 5.仅输出JSON数组'
+    : isReputation
+      ? '你是声誉风险与舆情监控专家。今天是' + today + '。根据监控对象，生成6-10个舆情监控搜索关键词。要求：1.聚焦监管处罚（罚单/整改/约谈）、合规风险（反洗钱/数据泄露/内控失效）、高管负面（被查/违纪/离职）、声誉事件（投诉/挤兑/违约/群体事件）、市场传闻（评级下调/并购重组/流动性危机）2.禁止常规营销软文、品牌合作新闻、ESG报告 3.形式如"招商银行千万罚单2026年6月""银行高管被查违纪最新"等 4.关键词不限长度，精准优于简短 5.仅输出JSON数组'
     : '你是搜索关键词优化专家。今天是' + today + '。根据情报监控配置，生成6-10个高价值中文搜索关键词用于多渠道搜索引擎查询。要求：1.优先具体产品名/技术术语/事件名称（如"韬芯片""鸿蒙NEXT""Mate80"）2.必须包含时效性关键词（如"最新""本月""2026年"）3.覆盖6个维度：产品发布、技术突破、财报业绩、人事变动、竞争动态、政策监管 4.关键词不限长度，精准优于简短 5.仅输出JSON数组，如：["关键词1","关键词2"]';
 
   // Build global context for zero-cost industry inference (Gemini's proposed optimization)
@@ -133,7 +136,9 @@ async function doGenerateKeywords(src: any, objectName: string | undefined, fp: 
     '配置描述：' + (prompt || '（无）') + '\n\n' +
     (isIndustrySignal
       ? '请优先生成宏观趋势、产业链变化、市场格局类关键词。仅输出JSON数组，不要任何解释。'
-      : '请优先生成包含具体产品名、技术名词、事件名称的时效性关键词。仅输出JSON数组，不要任何解释。');
+      : isReputation
+        ? '请优先生成监管处罚、合规风险、高管负面、声誉事件、市场传闻类关键词。仅输出JSON数组，不要任何解释。'
+        : '请优先生成包含具体产品名、技术名词、事件名称的时效性关键词。仅输出JSON数组，不要任何解释。');
 
   try {
     const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -422,6 +427,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const catCheck = (src.name || '').toLowerCase();
     const isTarget = catCheck.includes('客户') || catCheck.includes('目标');
     const isComp = catCheck.includes('竞争') || catCheck.includes('对手');
+    const isReputation = catCheck.includes('舆情') || catCheck.includes('声誉') || catCheck.includes('自身');
 
     up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取30条情报。\n' +
       '注意：优先提取与【' + objectName + '】直接相关的情报。\n' +
@@ -448,6 +454,10 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       (isComp
         ? '  竞争对手专项：竞对与核心客户签战略协议/银团牵头权变动 → 90+; 竞对新产品/机构调整 → 75-89; 竞对一般性营销 → ≤50\n'
         : '') +
+      (isReputation
+        ? '  自身舆情专项：千万级以上监管罚单/高管被查/数据泄露重大事件/挤兑传闻 → 90+; 负面舆情扩散/理财产品投诉增多/评级展望负面 → 75-89; 常规监管通告/一般性投诉 → ≤70\n' +
+          '    注意：自身负面舆情优先提取并高分标注，不因情感负面而降分；正面或中性舆情正常评价\n'
+        : '') +
       '12. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
       '  四维判定框架：\n' +
       '  a) 高管动态：核心高管离职/空降/被调查/监管约谈 → CRITICAL; 高管重要场合战略表态 → WARNING\n' +
@@ -459,6 +469,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '  NORMAL: 常规情报，作为背景信息储备\n' +
       '13.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
+    const catCheck2 = (src.name || '').toLowerCase();
+    const isReputation2 = catCheck2.includes('舆情') || catCheck2.includes('声誉') || catCheck2.includes('自身');
     up = '请搜索整理【' + kwText + '】的最新资讯30条。\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url\n2.非中文标题和摘要必须翻译成中文\n3.按重要性排序，摘要禁止留空\n' +
       '4.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_provider":"","_sentiment":"","_reliability":"","_valueScore":50,"_riskLevel":"NORMAL"}]\n' +
@@ -467,16 +479,30 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '7. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道至少提供 2 条（如果该渠道有结果的话）\n' +
       '8. 优先提供不同渠道的独有信息，避免同一信息由多个渠道重复提供\n' +
       '9. 无url留空\n' +
-      '10. _valueScore 商业价值判分标准（0-100整数，必填，严禁留空或填0）：\n' +
-      '  【90-100 战略级】影响投资决策或战略方向：官方财报/重大并购/核心高管变更/监管政策突变/行业龙头份额变化>5%/颠覆性技术突破\n' +
-      '  【75-89 战术级】需业务部门响应：竞品新品发布/关键供应链变动/大客户中标或流失/技术标准更新/重要合作伙伴动态\n' +
-      '  【60-74 关注级】值得了解的动态：行业趋势报告/市场数据更新/一般性产品迭代/专利申报/渠道政策调整\n' +
-      '  【40-59 参考级】背景信息：常规营销/一般性媒体报道/非核心市场动态/行业科普\n' +
-      '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
-      '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
-      '  评分只看商业价值不看情感倾向，重复信息降10-20分\n' +
-      '11. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：CRITICAL=核心高管变动/监管处罚/重大违约/份额骤降; WARNING=竞品新产品/战略调整/评级展望变化; NORMAL=一般动态\n' +
-      '12.仅JSON\n\n参考：\n' + (hasSearch ? JSON.stringify(rawItems.slice(0, 30)).substring(0, 6000) : '(无搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)');
+      (isReputation2
+        ? '10. _valueScore 商业价值判分标准（0-100整数）：\n' +
+          '  自身舆情专项：千万级以上监管罚单/高管被查/数据泄露重大事件/挤兑传闻 → 90+; 负面舆情扩散/理财产品投诉增多/评级展望负面 → 75-89; 常规监管通告/一般性投诉 → ≤70\n' +
+          '  注意：自身负面舆情优先提取并高分标注，不因情感负面而降分\n'
+        : '10. _valueScore 商业价值判分标准（0-100整数，必填，严禁留空或填0）：\n' +
+          '  【90-100 战略级】影响投资决策或战略方向：官方财报/重大并购/核心高管变更/监管政策突变/行业龙头份额变化>5%/颠覆性技术突破\n' +
+          '  【75-89 战术级】需业务部门响应：竞品新品发布/关键供应链变动/大客户中标或流失/技术标准更新/重要合作伙伴动态\n' +
+          '  【60-74 关注级】值得了解的动态：行业趋势报告/市场数据更新/一般性产品迭代/专利申报/渠道政策调整\n' +
+          '  【40-59 参考级】背景信息：常规营销/一般性媒体报道/非核心市场动态/行业科普\n' +
+          '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
+          '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
+          '  评分只看商业价值不看情感倾向，重复信息降10-20分\n') +
+      (isReputation2
+        ? '11. _riskLevel 风险预警等级（必填）：\n' +
+          '  声誉风险六维框架：\n' +
+          '  a) 监管处罚：千万级以上罚单/机构准入限制/高管任职资格撤销 → CRITICAL\n' +
+          '  b) 合规风险：反洗钱违规/数据安全事件/内控失效/资金挪用 → CRITICAL\n' +
+          '  c) 高管与治理：高管被调查/股东变动/内部举报 → CRITICAL; 高管离职/组织调整 → WARNING\n' +
+          '  d) 声誉事件：大规模投诉/理财产品兑付危机/网点突发事件/群体事件 → CRITICAL\n' +
+          '  e) 市场传闻：评级下调/流动性危机/被并购重组 → WARNING\n' +
+          '  f) 资产质量：重大不良暴露(>5亿)/拨备骤降/关注类贷款异常 → CRITICAL\n' +
+          '12.仅JSON\n\n原始搜索结果：\n' + searchContext
+        : '11. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
+          '12.仅JSON\n\n原始搜索结果：\n' + searchContext);
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
