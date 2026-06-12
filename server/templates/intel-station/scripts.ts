@@ -729,7 +729,7 @@ function renderSourceForm(wi,si){
   var kws=src.keywords||[];
   var objects=src.objects||[];
   var INTEL_CATS=['行业信号','目标客户情报','竞争对手情报','自身舆情监控'];
-  var s='<form autocomplete="off" onsubmit="event.preventDefault();return false" style="display:contents">';
+  var s='';
   s+='<div class="src-mini">';
   // Category dropdown
   s+='<div class="mb-group"><label class="mb-label">情报属性</label>';
@@ -761,7 +761,7 @@ function renderSourceForm(wi,si){
     s+='<span class="obj-t">'+escHtml(o.name)+'<button class="obj-x" onclick="removeObject('+wi+','+si+',\\''+escHtml(o.name)+'\\',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
-  s+='<div class="kw-add-row"><input type="search" class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}" autocomplete="off" name="obj'+wi+'_'+si+'">';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="objInput_'+wi+'_'+si+'" placeholder="输入对象名称后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addObject('+wi+','+si+')}" autocomplete="off">';
   s+='<button class="kw-add-btn" onclick="addObject('+wi+','+si+')">+</button></div>';
   s+='</div>';
   // Keywords
@@ -771,7 +771,7 @@ function renderSourceForm(wi,si){
     s+='<span class="kw-t">'+escHtml(k)+'<button class="kw-x" onclick="removeKeyword('+wi+','+si+',this.parentElement)" title="移除">&times;</button></span>';
   });
   s+='</div>';
-  s+='<div class="kw-add-row"><input type="search" class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}" autocomplete="off" name="kw'+wi+'_'+si+'">';
+  s+='<div class="kw-add-row"><input class="kw-add-input" id="kwInput_'+wi+'_'+si+'" placeholder="输入关键词后回车添加..." onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();addKeyword('+wi+','+si+')}" autocomplete="off">';
   s+='<button class="kw-add-btn" onclick="addKeyword('+wi+','+si+')">+</button></div>';
   s+='</div>';
   // Custom prompt
@@ -799,7 +799,6 @@ function renderSourceForm(wi,si){
   s+='</div>';
   s+='</div></div>';
   s+='</div>';
-  s+='</form>';
   $('modalBody').innerHTML=s;
   $('modalBody').scrollTop=0;
 }
