@@ -2,27 +2,35 @@
  * Alipay Page Payment (电脑网站支付)
  *
  * Env vars required:
- *   ALIPAY_APP_ID        - 支付宝应用ID
- *   ALIPAY_PRIVATE_KEY   - 商户私钥 PEM
- *   ALIPAY_PUBLIC_KEY    - 支付宝公钥 PEM
- *   ALIPAY_NOTIFY_URL    - 异步通知地址
- *   ALIPAY_RETURN_URL    - 同步跳转地址（支付完成后返回）
+ *   ALIPAY_APP_ID             - 支付宝应用ID
+ *   ALIPAY_PRIVATE_KEY_PATH   - 商户私钥 PEM 文件路径
+ *   ALIPAY_PUBLIC_KEY_PATH    - 支付宝公钥 PEM 文件路径
+ *   ALIPAY_NOTIFY_URL         - 异步通知地址
+ *   ALIPAY_RETURN_URL         - 同步跳转地址（支付完成后返回）
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const ENV = {
   appId: process.env.ALIPAY_APP_ID || '',
-  privateKey: process.env.ALIPAY_PRIVATE_KEY || '',
-  publicKey: process.env.ALIPAY_PUBLIC_KEY || '',
+  privateKeyPath: process.env.ALIPAY_PRIVATE_KEY_PATH || '/etc/yooclaw/certs/alipay_private_key.pem',
+  publicKeyPath: process.env.ALIPAY_PUBLIC_KEY_PATH || '/etc/yooclaw/certs/alipay_public_key.pem',
   notifyUrl: process.env.ALIPAY_NOTIFY_URL || '',
   returnUrl: process.env.ALIPAY_RETURN_URL || '',
 };
 
-const ALIPAY_GATEWAY = 'https://openapi.alipay.com/gateway.do';
+function getPrivateKey(): string {
+  return fs.readFileSync(ENV.privateKeyPath, 'utf-8');
+}
+
+function getPublicKey(): string {
+  return fs.readFileSync(ENV.publicKeyPath, 'utf-8');
+}
 
 function isConfigured(): boolean {
-  return !!(ENV.appId && ENV.privateKey && ENV.publicKey);
+  return !!(ENV.appId && fs.existsSync(ENV.privateKeyPath) && fs.existsSync(ENV.publicKeyPath));
 }
 
 interface BizContent {
@@ -52,7 +60,7 @@ function sign(params: Record<string, string>): string {
   const signer = crypto.createSign('RSA-SHA256');
   signer.update(content);
   signer.end();
-  return signer.sign(ENV.privateKey, 'base64');
+  return signer.sign(getPrivateKey(), 'base64');
 }
 
 /**
@@ -67,8 +75,10 @@ export function verifyCallback(params: Record<string, string>): boolean {
   const verifier = crypto.createVerify('RSA-SHA256');
   verifier.update(content);
   verifier.end();
-  return verifier.verify(ENV.publicKey, sign, 'base64');
+  return verifier.verify(getPublicKey(), sign, 'base64');
 }
+
+const ALIPAY_GATEWAY = 'https://openapi.alipay.com/gateway.do';
 
 /**
  * Create page payment (returns Alipay redirect URL)
