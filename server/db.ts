@@ -1097,9 +1097,8 @@ function generateOrderId(): string {
   const d = String(now.getDate()).padStart(2, '0');
   const h = String(now.getHours()).padStart(2, '0');
   const min = String(now.getMinutes()).padStart(2, '0');
-  const s = String(now.getSeconds()).padStart(2, '0');
   _orderSerial = (_orderSerial + 1) % 10000;
-  return `${y}${m}${d}${h}${min}${s}${String(_orderSerial).padStart(4, '0')}`;
+  return `${y}${m}${d}${h}${min}${String(_orderSerial).padStart(4, '0')}`;
 }
 
 export async function createOrder(
