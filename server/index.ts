@@ -108,7 +108,6 @@ import {
   type KlingVideoParams,
 } from './kling.js';
 import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource, fetchPlatformCertificates } from './pay/wechat.js';
-import { createPagePayment, verifyCallback as verifyAlipayCallback } from './pay/alipay.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -6092,10 +6091,10 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
     try {
       const userId = (req as any).user.userId;
       const { id } = req.params;
-      const { method } = req.body; // 'wechat' | 'alipay'
+      const { method } = req.body; // 'wechat'
 
-      if (!['wechat', 'alipay'].includes(method)) {
-        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'method must be wechat or alipay' } });
+      if (method !== 'wechat') {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'method must be wechat' } });
         return;
       }
 
@@ -6116,25 +6115,16 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       let paymentUrl = '';
       let qrCode = '';
 
-      if (method === 'wechat') {
-        const result = await createNativeOrder(order.id, order.product_name, order.amount_yuan);
-        if (!result.success) {
-          res.status(500).json({ error: { code: 'PAY_ERROR', message: result.error || 'WeChat payment failed' } });
-          return;
-        }
-        qrCode = result.codeUrl || '';
-        paymentUrl = qrCode;
-      } else {
-        const result = createPagePayment(order.id, order.product_name, order.amount_yuan);
-        if (!result.success) {
-          res.status(500).json({ error: { code: 'PAY_ERROR', message: result.error || 'Alipay payment failed' } });
-          return;
-        }
-        paymentUrl = result.paymentUrl || '';
+      const result = await createNativeOrder(order.id, order.product_name, order.amount_yuan);
+      if (!result.success) {
+        res.status(500).json({ error: { code: 'PAY_ERROR', message: result.error || 'WeChat payment failed' } });
+        return;
       }
+      qrCode = result.codeUrl || '';
+      paymentUrl = qrCode;
 
-      await updateOrderPaymentUrl(order.id, paymentUrl, method);
-      res.json({ data: { paymentUrl, qrCode: method === 'wechat' ? qrCode : undefined, method } });
+      await updateOrderPaymentUrl(order.id, paymentUrl, 'wechat');
+      res.json({ data: { paymentUrl, qrCode, method: 'wechat' } });
     } catch (err: any) {
       console.error('[Payment] Pay error:', err.message);
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
@@ -6255,48 +6245,6 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
     } catch (err: any) {
       console.error('[Payment] WeChat callback error:', err.message);
       res.status(500).json({ code: 'FAIL', message: err.message });
-    }
-  });
-
-  // POST /api/v1/pay/notify/alipay - Alipay payment callback
-  app.post('/api/v1/pay/notify/alipay', express.urlencoded({ extended: false }), async (req, res) => {
-    try {
-      const params = req.body as Record<string, string>;
-
-      // Verify signature
-      if (!verifyAlipayCallback(params)) {
-        console.error('[Payment] Alipay callback signature verification failed');
-        res.send('fail');
-        return;
-      }
-
-      const tradeStatus = params.trade_status;
-      if (tradeStatus !== 'TRADE_SUCCESS') {
-        res.send('success');
-        return;
-      }
-
-      const orderId = params.out_trade_no;
-      const transactionId = params.trade_no;
-      const amountYuan = parseFloat(params.total_amount || '0');
-
-      const order = await getOrderById(orderId);
-      if (!order) {
-        console.error('[Payment] Alipay callback: order not found', orderId);
-        res.send('fail');
-        return;
-      }
-
-      const paidOrder = await markOrderPaid(orderId, order.user_id, 'alipay', transactionId, Math.round(amountYuan), JSON.stringify(params));
-
-      if (paidOrder && paidOrder.status === 'paid') {
-        await handlePaymentSuccess(order.user_id, order);
-      }
-
-      res.send('success');
-    } catch (err: any) {
-      console.error('[Payment] Alipay callback error:', err.message);
-      res.send('fail');
     }
   });
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Copy, CheckCircle, XCircle, Loader2, QrCode, Smartphone } from 'lucide-react'
+import { ArrowLeft, Copy, CheckCircle, XCircle, Loader2, QrCode } from 'lucide-react'
 import { getPayOrder, initiatePayment } from '@/lib/api'
 import type { Order } from '@/lib/types'
 
@@ -10,8 +10,7 @@ export function PayPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [paymentUrl, setPaymentUrl] = useState('')
   const [qrCode, setQrCode] = useState('')
-  const [method, setMethod] = useState<'wechat' | 'alipay'>('wechat')
-  const [status, setStatus] = useState<'loading' | 'choosing' | 'paying' | 'paid' | 'expired' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'paying' | 'paid' | 'expired' | 'error'>('loading')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval>>()
@@ -45,32 +44,24 @@ export function PayPage() {
         return
       }
 
-      setStatus('choosing')
+      // Auto-initiate WeChat payment
+      setStatus('paying')
+      initiateWeChatPayment()
     } catch (err: any) {
       setError(err.message || '加载订单失败')
       setStatus('error')
     }
   }
 
-  const handlePay = async (selectedMethod: 'wechat' | 'alipay') => {
-    setMethod(selectedMethod)
-    setStatus('paying')
-
+  const initiateWeChatPayment = async () => {
     try {
-      const res = await initiatePayment(id!, selectedMethod)
+      const res = await initiatePayment(id!, 'wechat')
       const data = res.data
       if (!data) throw new Error('支付初始化失败')
 
       setPaymentUrl(data.paymentUrl)
       if (data.qrCode) setQrCode(data.qrCode)
 
-      if (selectedMethod === 'alipay') {
-        // Redirect to Alipay
-        window.location.href = data.paymentUrl
-        return
-      }
-
-      // For WeChat QR code: start polling
       startPolling()
     } catch (err: any) {
       setError(err.message || '支付初始化失败')
@@ -201,46 +192,7 @@ export function PayPage() {
           </div>
         )}
 
-        {status === 'choosing' && (
-          <div>
-            {order && (
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 text-center">
-                <p className="text-sm text-muted-foreground mb-1">支付金额</p>
-                <p className="text-3xl font-bold text-primary">¥{order.amount_yuan || order.amountYuan}</p>
-                <p className="text-xs text-muted-foreground mt-1">{order.product_name || order.productName}</p>
-              </div>
-            )}
-            <h3 className="text-lg font-semibold mb-4">选择支付方式</h3>
-            <div className="space-y-3">
-              <button
-                onClick={() => handlePay('wechat')}
-                className="w-full flex items-center gap-4 p-4 border-2 border-border rounded-xl hover:border-green-500 transition-colors bg-card"
-              >
-                <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                  <QrCode size={20} className="text-green-600" />
-                </div>
-                <div className="text-left">
-                  <div className="font-medium">微信支付</div>
-                  <div className="text-xs text-muted-foreground">扫码支付，安全快捷</div>
-                </div>
-              </button>
-              <button
-                onClick={() => handlePay('alipay')}
-                className="w-full flex items-center gap-4 p-4 border-2 border-border rounded-xl hover:border-blue-500 transition-colors bg-card"
-              >
-                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                  <Smartphone size={20} className="text-blue-600" />
-                </div>
-                <div className="text-left">
-                  <div className="font-medium">支付宝</div>
-                  <div className="text-xs text-muted-foreground">网页跳转支付</div>
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {status === 'paying' && method === 'wechat' && (
+        {status === 'paying' && (
           <div className="text-center">
             <h3 className="text-lg font-semibold mb-2">微信扫码支付</h3>
             <p className="text-sm text-muted-foreground mb-6">请使用微信扫描下方二维码完成支付</p>
@@ -263,13 +215,6 @@ export function PayPage() {
               <Loader2 size={12} className="inline animate-spin mr-1" />
               等待支付完成...
             </p>
-          </div>
-        )}
-
-        {status === 'paying' && method === 'alipay' && (
-          <div className="text-center">
-            <Loader2 size={32} className="animate-spin mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground text-sm">正在跳转到支付宝...</p>
           </div>
         )}
       </div>

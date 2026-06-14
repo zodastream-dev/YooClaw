@@ -196,7 +196,7 @@ export interface Order {
   productName: string
   amountYuan: number
   status: 'pending' | 'paid' | 'expired' | 'refunded'
-  paymentMethod: 'wechat' | 'alipay' | null
+  paymentMethod: 'wechat' | null
   paymentUrl: string
   paidAt: string | null
   createdAt: string
@@ -217,5 +217,5 @@ export interface CreditTransaction {
 export interface PayInitiateResult {
   paymentUrl: string
   qrCode?: string
-  method: 'wechat' | 'alipay'
+  method: 'wechat'
 }

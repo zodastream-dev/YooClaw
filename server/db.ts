@@ -122,7 +122,7 @@ export interface DbOrder {
   product_name: string;
   amount_yuan: number;
   status: 'pending' | 'paid' | 'expired' | 'refunded';
-  payment_method: 'wechat' | 'alipay' | null;
+  payment_method: 'wechat' | null;
   payment_url: string;
   paid_at: string | null;
   created_at: string;
@@ -133,7 +133,7 @@ export interface DbPaymentRecord {
   id: number;
   order_id: string;
   user_id: string;
-  method: 'wechat' | 'alipay';
+  method: 'wechat';
   transaction_id: string;
   amount_yuan: number;
   raw_callback: string;
@@ -362,7 +362,7 @@ export async function initDatabase(): Promise<void> {
       product_name VARCHAR(128) NOT NULL,
       amount_yuan INTEGER NOT NULL,
       status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'expired', 'refunded')),
-      payment_method VARCHAR(16) CHECK (payment_method IN ('wechat', 'alipay')),
+      payment_method VARCHAR(16) CHECK (payment_method IN ('wechat'))),
       payment_url TEXT DEFAULT '',
       paid_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT now(),
@@ -376,7 +376,7 @@ export async function initDatabase(): Promise<void> {
       id SERIAL PRIMARY KEY,
       order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      method VARCHAR(16) NOT NULL CHECK (method IN ('wechat', 'alipay')),
+      method VARCHAR(16) NOT NULL CHECK (method IN ('wechat')),
       transaction_id VARCHAR(128) NOT NULL,
       amount_yuan INTEGER NOT NULL,
       raw_callback TEXT DEFAULT '',

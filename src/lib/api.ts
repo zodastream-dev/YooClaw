@@ -562,7 +562,7 @@ export async function createPayOrder(type: 'membership' | 'credit_package', prod
   return apiRequest<{ order: import('./types').Order; needPay: boolean }>('POST', '/api/v1/pay/orders', { type, productId })
 }
 
-export async function initiatePayment(orderId: string, method: 'wechat' | 'alipay') {
+export async function initiatePayment(orderId: string, method: 'wechat' = 'wechat') {
   return apiRequest<import('./types').PayInitiateResult>('POST', `/api/v1/pay/orders/${orderId}/pay`, { method })
 }
 
