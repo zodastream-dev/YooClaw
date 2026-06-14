@@ -43,6 +43,7 @@ function sign(method: string, url: string, body: string, timestamp: string, nonc
 }
 
 const BASE = '/v3/new-tax-control-fapiao/fapiao-applications';
+const ISSUE_URL = BASE + '/issue-general'; // 服务商模式开票端点
 
 async function fapiaoRequest(method: string, url: string, body?: object): Promise<{ ok: boolean; status: number; data: any }> {
   if (!isFapiaoConfigured()) return { ok: false, status: 0, data: { message: 'Invoice service not configured' } };
@@ -102,6 +103,7 @@ export async function issueInvoice(params: FapiaoIssueParams): Promise<{ ok: boo
 
   const body = {
     scene: 'WITH_WECHATPAY',
+    sub_mchid: ENV.mchId,
     fapiao_apply_id: params.fapiaoApplyId,
     buyer_information: {
       type: isEnterprise ? 'ORGANIZATION' : 'INDIVIDUAL',
@@ -122,7 +124,7 @@ export async function issueInvoice(params: FapiaoIssueParams): Promise<{ ok: boo
     }],
   };
 
-  const r = await fapiaoRequest('POST', BASE, body);
+  const r = await fapiaoRequest('POST', ISSUE_URL, body);
 
   if (!r.ok) {
     return { ok: false, error: r.data?.message || `HTTP ${r.status}` };
