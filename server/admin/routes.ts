@@ -216,7 +216,7 @@ router.get('/portals', async (req: Request, res: Response) => {
 
     const rows = await sql`
       SELECT r.id, r.user_id, u.username, r.title, r.slug, r.is_published, r.view_count,
-        r.created_at, r.url
+        r.created_at
       FROM report_sites r
       LEFT JOIN users u ON u.id = r.user_id
       WHERE r.type = 'portal'

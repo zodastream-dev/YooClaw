@@ -34,7 +34,7 @@ export default function Portals() {
                   <td>{p.view_count}</td>
                   <td style={{ fontSize: 11 }}>{(p.size_bytes / 1024 / 1024).toFixed(1)}MB</td>
                   <td style={{ fontSize: 11 }}>{new Date(p.created_at).toLocaleDateString('zh-CN')}</td>
-                  <td><a href={`https://yooclaw.yookeer.com${p.url}`} target="_blank"><ExternalLink size={14} /></a></td>
+                  <td><a href={`https://yooclaw.yookeer.com/portal/${p.slug}`} target="_blank"><ExternalLink size={14} /></a></td>
                 </tr>
               ))}
             </tbody>
