@@ -61,13 +61,13 @@ router.get('/users', async (req: Request, res: Response) => {
 
     // Allowlist sort columns
     const sortCols: Record<string, string> = {
-      created_at: 'u.created_at', credits: 'credits', portal_count: 'portal_count', tier: 'tier'
+      created_at: 'created_at', credits: 'credits', portal_count: 'portal_count', tier: 'tier'
     };
-    const orderCol = sortCols[sortBy] || 'u.created_at';
+    const orderCol = sortCols[sortBy] || 'created_at';
 
     let where = '';
     const conditions: string[] = [];
-    if (search) conditions.push(`u.username ILIKE '%${search.replace(/'/g, "''")}%'`);
+    if (search) conditions.push(`username ILIKE '%${search.replace(/'/g, "''")}%'`);
     if (tier) conditions.push(`tier = '${tier.replace(/'/g, "''")}'`);
     if (conditions.length) where = ' WHERE ' + conditions.join(' AND ');
 
