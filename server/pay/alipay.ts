@@ -99,12 +99,17 @@ export function createPagePayment(
     product_code: 'FAST_INSTANT_TRADE_PAY',
   };
 
+  // Alipay requires format: yyyy-MM-dd HH:mm:ss (local time, space-separated)
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const alipayTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
   const params: Record<string, string> = {
     app_id: ENV.appId,
     method: 'alipay.trade.page.pay',
     charset: 'utf-8',
     sign_type: 'RSA2',
-    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, '+08:00'),
+    timestamp: alipayTimestamp,
     version: '1.0',
     notify_url: ENV.notifyUrl,
     return_url: ENV.returnUrl,
