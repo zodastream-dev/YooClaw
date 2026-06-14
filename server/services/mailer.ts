@@ -119,3 +119,23 @@ export function buildInvoiceEmailHtml(params: {
   <p style="font-size:12px;color:#aaa;margin:8px 0 0">YooClaw 团队</p>
 </div></div>`;
 }
+
+/** Build password reset email HTML */
+export function buildResetEmailHtml(params: { username: string; token: string }): string {
+  const resetUrl = `https://yooclaw.yookeer.com/reset-password?token=${params.token}`;
+  return `<div style="background:#f8f9fb;padding:40px 0"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+  <div style="background:#4f46e5;padding:20px;text-align:center">
+    <h1 style="color:#fff;font-size:18px;margin:0">YooClaw 密码重置</h1>
+  </div>
+  <div style="padding:24px">
+    <p style="font-size:14px;color:#333;margin:0 0 12px">您好 <b>${params.username}</b>，</p>
+    <p style="font-size:14px;color:#555;margin:0 0 16px;line-height:1.6">您正在重置 YooClaw 账号密码。点击下方按钮完成重置（24小时内有效）：</p>
+    <div style="text-align:center;margin:20px 0">
+      <a href="${resetUrl}" style="display:inline-block;background:#4f46e5;color:#fff;padding:10px 32px;border-radius:6px;text-decoration:none;font-size:14px">重置密码</a>
+    </div>
+    <p style="font-size:12px;color:#888;margin:16px 0 0;line-height:1.5">如果按钮无法点击，请复制以下链接到浏览器打开：<br><a href="${resetUrl}" style="color:#4f46e5">${resetUrl}</a></p>
+    <hr style="border:none;border-top:1px solid #e8e8e8;margin:20px 0">
+    <p style="font-size:12px;color:#aaa;margin:0">如非本人操作，请忽略此邮件。</p>
+  </div>
+</div></div>`;
+}

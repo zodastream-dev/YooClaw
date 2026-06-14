@@ -218,6 +218,11 @@ export async function initDatabase(): Promise<void> {
     )
   `;
 
+  // Add new columns for password reset (idempotent)
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_expires TIMESTAMPTZ`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS user_sessions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -607,6 +612,43 @@ export async function updateUserStorage(id: string, bytes: number): Promise<void
   await sql`
     UPDATE users SET storage_used = ${bytes}, updated_at = now() WHERE id = ${id}
   `;
+}
+
+// ========== Password Reset Operations ==========
+
+export async function getUserByResetToken(token: string): Promise<DbUser | undefined> {
+  const rows = await sql`
+    SELECT * FROM users WHERE reset_token = ${token} AND reset_expires > now() LIMIT 1
+  `;
+  return rows[0] as DbUser | undefined;
+}
+
+export async function setResetToken(userId: string, token: string): Promise<void> {
+  await sql`
+    UPDATE users SET reset_token = ${token}, reset_expires = now() + interval '24 hours', updated_at = now()
+    WHERE id = ${userId}
+  `;
+}
+
+export async function clearResetToken(userId: string): Promise<void> {
+  await sql`
+    UPDATE users SET reset_token = NULL, reset_expires = NULL WHERE id = ${userId}
+  `;
+}
+
+export async function updateUserEmail(userId: string, email: string | null): Promise<void> {
+  await sql`
+    UPDATE users SET email = ${email}, updated_at = now() WHERE id = ${userId}
+  `;
+}
+
+// Password strength validation
+export function validatePassword(password: string): string | null {
+  if (password.length < 8) return '密码至少需要 8 个字符';
+  if (!/[a-zA-Z]/.test(password)) return '密码必须包含至少一个字母';
+  if (!/[0-9]/.test(password)) return '密码必须包含至少一个数字';
+  if (new Set(password).size === 1) return '密码不能全为同一字符';
+  return null; // valid
 }
 
 // ========== Session Operations ==========

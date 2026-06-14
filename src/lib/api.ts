@@ -42,8 +42,8 @@ async function apiRequest<T = unknown>(
 
 // ========== Auth ==========
 
-export async function register(username: string, password: string) {
-  const res = await apiRequest<{ token: string; user: User }>('POST', '/api/v1/auth/register', { username, password })
+export async function register(username: string, password: string, email?: string) {
+  const res = await apiRequest<{ token: string; user: User }>('POST', '/api/v1/auth/register', { username, password, email: email || undefined })
   if (res.data?.token) {
     localStorage.setItem(TOKEN_KEY, res.data.token)
     return res.data
@@ -70,6 +70,20 @@ export async function getAuthStatus() {
 
 export function logout() {
   localStorage.removeItem(TOKEN_KEY)
+}
+
+export async function forgotPassword(username: string) {
+  const res = await apiRequest<{ ok: boolean }>('POST', '/api/v1/auth/forgot-password', { username })
+  return res.data
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  const res = await apiRequest<{ ok: boolean }>('POST', '/api/v1/auth/reset-password', { token, newPassword })
+  return res.data
+}
+
+export async function updateEmail(email: string) {
+  return apiRequest<{ ok: boolean }>('POST', '/api/v1/user/email', { email })
 }
 
 // ========== Health ==========

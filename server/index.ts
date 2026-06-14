@@ -79,6 +79,12 @@ import {
   getFapiaoRecordByOrder,
   getUserFapiaoRecords,
   getUserAlreadyInvoicedOrderIds,
+  // Password Reset
+  getUserByResetToken,
+  setResetToken,
+  clearResetToken,
+  updateUserEmail,
+  validatePassword,
 } from './db.js';
 
 import { callIntel } from "./intel-pipeline.js";
@@ -116,7 +122,7 @@ import {
 } from './kling.js';
 import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource, fetchPlatformCertificates } from './pay/wechat.js';
 import { issueInvoice, isFapiaoConfigured } from './fapiao/wechat.js';
-import { sendEmail, buildInvoiceEmailHtml } from './services/mailer.js';
+import { sendEmail, buildInvoiceEmailHtml, buildResetEmailHtml } from './services/mailer.js';
 import adminRoutes from './admin/routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1919,24 +1925,26 @@ app.use((req, res, next) => {
 
 app.post('/api/v1/auth/register', async (req, res) => {
   try {
-    const { username, password } = req.body || {};
+    const { username, password, email } = req.body || {};
     if (!username || !password) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Username and password are required' } });
     }
     if (username.length < 3 || username.length > 32) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Username must be 3-32 characters' } });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Password must be at least 6 characters' } });
-    }
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Username can only contain letters, numbers, and underscores' } });
+    }
+    const pwdErr = validatePassword(password);
+    if (pwdErr) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: pwdErr } });
     }
 
     const user = await createUser(username, password);
     if (!user) {
       return res.status(409).json({ error: { code: 'CONFLICT', message: 'Username already taken' } });
     }
+    if (email) await updateUserEmail(user.id, email);
 
     const token = createToken({ userId: user.id, username: user.username, role: user.role });
     res.status(201).json({
@@ -1981,6 +1989,71 @@ app.post('/api/v1/auth/login', async (req, res) => {
   } catch (err: any) {
     console.error('[Login Error]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Login failed' } });
+  }
+});
+
+// ========== Password Reset ==========
+
+app.post('/api/v1/auth/forgot-password', async (req, res) => {
+  try {
+    const { username } = req.body || {};
+    if (!username) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '请输入用户名' } });
+    }
+    const user = await getUserByUsername(username);
+    if (!user || !user.email) {
+      // Don't reveal whether user exists (prevent enumeration)
+      return res.json({ data: { ok: true } });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    await setResetToken(user.id, token);
+    const html = buildResetEmailHtml({ username: user.username, token });
+    await sendEmail(user.email, 'YooClaw 密码重置', html);
+    res.json({ data: { ok: true } });
+  } catch (err: any) {
+    console.error('[ForgotPassword Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '操作失败' } });
+  }
+});
+
+app.post('/api/v1/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '参数不完整' } });
+    }
+    const pwdErr = validatePassword(newPassword);
+    if (pwdErr) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: pwdErr } });
+    }
+    const user = await getUserByResetToken(token);
+    if (!user) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '重置链接已失效，请重新申请' } });
+    }
+    const newHash = hashPassword(newPassword);
+    await updateUserPassword(user.id, newHash);
+    await clearResetToken(user.id);
+    res.json({ data: { ok: true } });
+  } catch (err: any) {
+    console.error('[ResetPassword Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '重置失败' } });
+  }
+});
+
+// ========== User Email ==========
+
+app.post('/api/v1/user/email', authMiddleware, async (req, res) => {
+  try {
+    const payload = (req as any).user as JwtPayload;
+    const { email } = req.body || {};
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '邮箱格式不正确' } });
+    }
+    await updateUserEmail(payload.userId, email || null);
+    res.json({ data: { ok: true } });
+  } catch (err: any) {
+    console.error('[UserEmail Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '操作失败' } });
   }
 });
 
@@ -2177,8 +2250,9 @@ app.post('/api/v1/user/change-password', authMiddleware, async (req, res) => {
     if (!oldPassword || !newPassword) {
       return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '旧密码和新密码都是必填的' } });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: '新密码至少需要 6 个字符' } });
+    const pwdErr = validatePassword(newPassword);
+    if (pwdErr) {
+      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: pwdErr } });
     }
 
     // Verify old password

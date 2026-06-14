@@ -8,6 +8,8 @@ import { PortalCreatePage } from '@/pages/PortalCreatePage'
 import { PortalBuilderPage } from '@/pages/PortalBuilderPage'
 import { GameCreatePage } from '@/pages/GameCreatePage'
 import { VideoCreatePage } from '@/pages/VideoCreatePage'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { MpSubscriptionPage } from '@/pages/MpSubscriptionPage'
 import { PricingPage } from '@/pages/PricingPage'
@@ -49,6 +51,8 @@ export default function App() {
                 </PublicRoute>
               }
             />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/chat"
               element={

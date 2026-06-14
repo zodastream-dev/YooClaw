@@ -12,6 +12,7 @@ export function HomePage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [email, setEmail] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -59,7 +60,7 @@ export function HomePage() {
     setIsLoading(true)
     try {
       if (mode === 'register') {
-        const data = await apiRegister(username.trim(), password)
+        const data = await apiRegister(username.trim(), password, email.trim() || undefined)
         setToken(data.token, data.user)
       } else {
         const data = await apiLogin(username.trim(), password)
@@ -169,19 +170,34 @@ export function HomePage() {
             </div>
 
             {mode === 'register' && (
-              <div className="space-y-2">
-                <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
-                  确认密码
-                </label>
-                <input
-                  id="confirmPassword"
-                  type={showPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); setError('') }}
-                  placeholder="再次输入密码"
-                  className="w-full px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
+                    邮箱（选填，用于密码找回）
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError('') }}
+                    placeholder="your@email.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+                    确认密码
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => { setConfirmPassword(e.target.value); setError('') }}
+                    placeholder="再次输入密码"
+                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                  />
+                </div>
+              </>
             )}
 
             {error && (
@@ -206,6 +222,14 @@ export function HomePage() {
 
           {/* Switch mode link */}
           <div className="text-center text-sm text-muted-foreground">
+            {mode === 'login' && (
+              <div className="text-center">
+                <a href="#/forgot-password" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  忘记密码？
+                </a>
+              </div>
+            )}
+
             {mode === 'login' ? (
               <>
                 还没有账户？{' '}
