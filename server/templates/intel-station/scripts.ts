@@ -92,9 +92,11 @@ async function loadIntelData(forceRefresh){
     if(!result.ok)throw new Error('API error: '+result.status);
     var data=await result.json();
     allIntelData=[];
+    var hasRefreshing=false;
     (data.results||[]).forEach(function(r){
       var srcConfig=sources[r.sourceIdx];
       var sourceName=(srcConfig?(srcConfig.name||'未命名'):'未知来源').trim();
+      if(r.refreshing) hasRefreshing=true;
       (r.data||[]).forEach(function(item){
         item._sourceName=sourceName;
         allIntelData.push(item);
@@ -116,10 +118,25 @@ async function loadIntelData(forceRefresh){
     }
     updateDashboard(allIntelData);
     renderSentimentStats(allIntelData);
-    $('feedStatus').textContent='已加载 '+allIntelData.length+' 条情报';
+    $('feedStatus').textContent=hasRefreshing ? '情报更新中...' : '已加载 '+allIntelData.length+' 条情报';
     $("updateInfo").textContent="上次更新: "+new Date().toLocaleTimeString("zh-CN");
     $("updateInfo").style.display="";
     $('intelLoading').style.display='none';
+
+    // Force refresh polling: if data is empty and backend is refreshing, poll every 5s
+    if(forceRefresh && allIntelData.length===0 && hasRefreshing){
+      console.log('[loadIntelData] Force refresh: starting poll (data empty, backend refreshing)');
+      $('feedStatus').textContent='情报更新中...';
+      var pollCount=0;
+      var maxPolls=24; // 2 minutes max
+      var pollTimer=setInterval(function(){
+        pollCount++;
+        console.log('[loadIntelData] Poll #'+pollCount+' for force refresh');
+        loadIntelData().then(function(){
+          if(allIntelData.length>0 || pollCount>=maxPolls) clearInterval(pollTimer);
+        });
+      }, 5000);
+    }
   } catch(e) {
     if(!cachedData){
       $('intelLoading').innerHTML='<p style="color:#ef4444">加载失败: '+e.message+'</p>';
@@ -321,7 +338,7 @@ function parseDate(d){
 }
 function renderIntelFeed(data){
   console.log('[renderIntelFeed] called with data.length=', data.length, 'first _sourceName=', data.length>0?data[0]._sourceName:'N/A');
-  if(data.length===0){$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据</div>';return}
+  if(data.length===0){$('intelFeed').innerHTML='<div class="intel-loading">情报更新中，请稍候...</div>';return}
   // Sort by _valueScore descending (商业价值优先)
   data.sort(function(a,b){
     var sa=parseInt(a._valueScore)||0,sb=parseInt(b._valueScore)||0;

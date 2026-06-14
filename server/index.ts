@@ -3799,32 +3799,33 @@ app.post('/api/portal-intel', async (req, res) => {
 
     const processSource = async (src: any, idx: number) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
-      // Bypass cache when force refresh is requested
-      if (force) {
-        portalIntelCache.delete(cacheKey);
-        console.log(`[PortalIntel] Force refresh: cleared cache for "${src.name}"`);
-      }
       const cached = portalIntelCache.get(cacheKey);
-      if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
-        return { sourceIdx: idx, data: cached.data, fromCache: true };
-      }
-      // V2.5: Never process inline — returns empty and relies on CacheWarmer to fill cache
-      // Inline DeepSeek calls block event loop and cause 504 timeouts
-      if (!force) {
-        console.log(`[PortalIntel] Cache miss for "${src.name}" — returning empty, CacheWarmer will fill`);
+
+      // Force refresh: return stale cache (if exists) + schedule background refresh
+      if (force) {
+        console.log(`[PortalIntel] Force refresh: scheduling background update for "${src.name}"`);
+        // Schedule background refresh (don't clear cache first)
+        setTimeout(async () => {
+          try {
+            const intelData = await fetchIntelForSource(src, sources);
+            const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+            portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
+            setTimeout(() => savePortalIntelCache(), 100);
+            console.log(`[PortalIntel] Background refresh complete for "${src.name}": ${intelData.length} items`);
+          } catch (err: any) {
+            console.error('[PortalIntel] Background refresh failed:', err.message);
+          }
+        }, 100);
+
+        if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
+          return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
+        }
         return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
       }
-      // Force refresh: schedule background warm, return stale/empty immediately
-      setTimeout(async () => {
-        try {
-          const intelData = await fetchIntelForSource(src, sources);
-          const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
-          portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
-          setTimeout(() => savePortalIntelCache(), 100);
-          console.log(`[PortalIntel] Background refresh complete for "${src.name}": ${intelData.length} items`);
-        } catch (err: any) {
-          console.error('[PortalIntel] Background refresh failed:', err.message);
-        }
+
+      // Non-force: return cached or empty
+      if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
+        return { sourceIdx: idx, data: cached.data, fromCache: true };
       }, 100);
       if (cached && cached.data?.length > 0) {
         return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
