@@ -589,16 +589,16 @@ export async function getCreditTransactions() {
 // ========== Invoice (fapiao) ==========
 
 export async function applyInvoice(params: {
-  orderId: string
+  orderIds: string[]
   buyerTitle: string
   buyerTaxId?: string
   buyerEmail?: string
 }) {
-  return apiRequest<{ fpqqlsh: string; status: string; emailSent: boolean; message: string }>('POST', '/api/v1/fapiao/apply', params)
+  return apiRequest<{ fpqqlsh: string; status: string; emailSent: boolean; merged: boolean; message: string }>('POST', '/api/v1/fapiao/apply', params)
 }
 
 export async function getInvoices() {
-  return apiRequest<{ invoices: import('./types').Invoice[] }>('GET', '/api/v1/fapiao/list')
+  return apiRequest<{ invoices: import('./types').Invoice[]; invoicedOrderIds: string[] }>('GET', '/api/v1/fapiao/list')
 }
 
 export async function getInvoiceByOrder(orderId: string) {

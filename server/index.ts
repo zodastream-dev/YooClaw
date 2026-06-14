@@ -78,6 +78,7 @@ import {
   getFapiaoRecord,
   getFapiaoRecordByOrder,
   getUserFapiaoRecords,
+  getUserAlreadyInvoicedOrderIds,
 } from './db.js';
 
 import { callIntel } from "./intel-pipeline.js";
@@ -6290,39 +6291,47 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
 
   // ========== Invoice (fapiao) Routes ==========
 
-  // POST /api/v1/fapiao/apply - Apply for electronic invoice
+  // POST /api/v1/fapiao/apply - Apply for electronic invoice (single or merged)
   app.post('/api/v1/fapiao/apply', authMiddleware, async (req, res) => {
     try {
       const userId = (req as any).user.userId;
-      const { orderId, buyerTitle, buyerTaxId, buyerEmail } = req.body as {
-        orderId: string; buyerTitle: string; buyerTaxId?: string; buyerEmail?: string;
+      const body = req.body as {
+        orderIds: string[]; buyerTitle: string; buyerTaxId?: string; buyerEmail?: string;
       };
+      const orderIds = body.orderIds || [];
+      const { buyerTitle, buyerTaxId, buyerEmail } = body;
 
-      if (!orderId || !buyerTitle) {
-        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'orderId and buyerTitle are required' } });
-        return;
-      }
-
-      // Verify order belongs to user and is paid
-      const order = await getOrderById(orderId);
-      if (!order) {
-        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
-        return;
-      }
-      if (order.user_id !== userId) {
-        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not your order' } });
-        return;
-      }
-      if (order.status !== 'paid') {
-        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Order is not paid yet' } });
+      if (!orderIds.length || !buyerTitle) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'orderIds and buyerTitle are required' } });
         return;
       }
 
-      // Check if already applied
-      const existing = await getFapiaoRecordByOrder(orderId);
-      if (existing) {
-        res.status(409).json({ error: { code: 'DUPLICATE', message: 'Invoice already applied for this order' } });
-        return;
+      // Verify all orders belong to user and are paid
+      const orders: any[] = [];
+      for (const oid of orderIds) {
+        const order = await getOrderById(oid);
+        if (!order) {
+          res.status(404).json({ error: { code: 'NOT_FOUND', message: `Order ${oid} not found` } });
+          return;
+        }
+        if (order.user_id !== userId) {
+          res.status(403).json({ error: { code: 'FORBIDDEN', message: `Order ${oid} not yours` } });
+          return;
+        }
+        if (order.status !== 'paid') {
+          res.status(400).json({ error: { code: 'BAD_REQUEST', message: `Order ${oid} not paid` } });
+          return;
+        }
+        orders.push(order);
+      }
+
+      // Check none already invoiced
+      const alreadyInvoiced = await getUserAlreadyInvoicedOrderIds(userId);
+      for (const oid of orderIds) {
+        if (alreadyInvoiced.has(oid)) {
+          res.status(409).json({ error: { code: 'DUPLICATE', message: `Order ${oid} already has an invoice` } });
+          return;
+        }
       }
 
       if (!isFapiaoConfigured()) {
@@ -6330,36 +6339,45 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
         return;
       }
 
-      const fpqqlsh = orderId;
-      const amountYuan = order.amount_yuan;
+      // Generate fpqqlsh: primary order ID for single, or new merged ID
+      const isMerged = orderIds.length > 1;
+      const fpqqlsh = isMerged
+        ? `MG${orders[0].id.slice(0, 10)}${Date.now().toString(36).toUpperCase()}`
+        : orders[0].id;
+      const primaryOrderId = orders[0].id;
 
-      // Calculate tax (simplified: 6% VAT for services)
+      // Sum amounts
+      const totalYuan = orders.reduce((s, o) => s + o.amount_yuan, 0);
       const taxRate = 0.06;
-      const taxAmount = Math.round(amountYuan * taxRate * 100) / 100;
+      const taxAmount = Math.round(totalYuan * taxRate * 100) / 100;
 
-      // Try to issue invoice via WeChat blockchain
+      // Build invoice items from all orders
+      const items = orders.map(o => ({
+        tax_code: '3040202000000000000',
+        goods_name: o.product_name || 'YooClaw 积分服务',
+        quantity: 1,
+        total_amount: o.amount_yuan,
+      }));
+
+      // Try to issue via WeChat
       const result = await issueInvoice({
         fpqqlsh,
         buyer_title: buyerTitle,
         buyer_tax_id: buyerTaxId || '',
         buyer_email: buyerEmail || '',
-        total_amount: amountYuan,
+        total_amount: totalYuan,
         tax_amount: taxAmount,
-        items: [{
-          tax_code: '3040202000000000000',
-          goods_name: order.product_name || 'YooClaw 积分服务',
-          quantity: 1,
-          total_amount: amountYuan,
-        }],
-        remark: `订单${orderId}`,
+        items,
+        remark: isMerged ? `合并开票：${orderIds.join(', ')}` : `订单${primaryOrderId}`,
       });
 
       // Record in DB
       await createFapiaoRecord(
-        userId, orderId, fpqqlsh, buyerTitle,
+        userId, primaryOrderId, fpqqlsh, buyerTitle,
         buyerTaxId || '', buyerEmail || '',
-        Math.round(amountYuan * 100), Math.round(taxAmount * 100),
-        `订单${orderId}`,
+        Math.round(totalYuan * 100), Math.round(taxAmount * 100),
+        isMerged ? `合并开票：${orderIds.join(', ')}` : `订单${primaryOrderId}`,
+        isMerged ? orderIds.slice(1) : undefined, // related_order_ids excludes primary
       );
 
       if (!result.ok) {
@@ -6374,19 +6392,17 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       // Send email if buyer provided email
       let emailSent = false;
       if (buyerEmail) {
-        // Fetch user's username for the email
         const user = await getUserById(userId);
         const userName = user?.username || '用户';
-
         const today = new Date().toLocaleDateString('zh-CN');
         const emailHtml = buildInvoiceEmailHtml({
           userName,
-          orderId,
-          productName: order.product_name,
-          amountYuan,
+          orderId: fpqqlsh,
+          productName: isMerged ? `合并开票(${orderIds.length}笔)` : orders[0].product_name,
+          amountYuan: totalYuan,
           invoiceDate: today,
         });
-        emailSent = await sendEmail(buyerEmail, `电子发票 - ${order.product_name}`, emailHtml);
+        emailSent = await sendEmail(buyerEmail, `电子发票 - ${isMerged ? '合并开票' : orders[0].product_name}`, emailHtml);
       }
 
       res.json({
@@ -6394,6 +6410,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
           fpqqlsh,
           status: 'issued',
           emailSent,
+          merged: isMerged,
           message: emailSent
             ? '电子发票已开具，请查收邮件。您也可在微信卡包中查看。'
             : '电子发票已开具，您可在微信卡包中查看。',
@@ -6405,11 +6422,14 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
     }
   });
 
-  // GET /api/v1/fapiao/list - Get user invoice history
+  // GET /api/v1/fapiao/list - Get user invoice history + invoiced order IDs
   app.get('/api/v1/fapiao/list', authMiddleware, async (req, res) => {
     try {
       const userId = (req as any).user.userId;
-      const records = await getUserFapiaoRecords(userId, 50);
+      const [records, invoicedOrderIds] = await Promise.all([
+        getUserFapiaoRecords(userId, 50),
+        getUserAlreadyInvoicedOrderIds(userId),
+      ]);
       // Map snake_case to camelCase
       const invoices = records.map((row: any) => ({
         id: row.id,
@@ -6423,10 +6443,11 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
         taxAmount: row.tax_amount,
         status: row.status,
         remark: row.remark,
+        relatedOrderIds: row.related_order_ids,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
-      res.json({ data: { invoices } });
+      res.json({ data: { invoices, invoicedOrderIds: [...invoicedOrderIds] } });
     } catch (err: any) {
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
     }

@@ -451,6 +451,14 @@ export async function initDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_fapiao_records_user_id ON fapiao_records(user_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_fapiao_records_order_id ON fapiao_records(order_id)`;
 
+  // Migration: add related_order_ids for merged invoices
+  await sql`
+    DO $$ BEGIN
+      ALTER TABLE fapiao_records ADD COLUMN IF NOT EXISTS related_order_ids TEXT[];
+    EXCEPTION WHEN OTHERS THEN null;
+    END $$;
+  `;
+
   console.log('[DB] Payment tables initialized');
 
   // Migration: orders.id TEXT (was UUID)
@@ -1214,6 +1222,7 @@ export interface DbFapiaoRecord {
   tax_amount: number;
   status: 'pending' | 'issued' | 'reversed' | 'failed';
   remark: string;
+  related_order_ids: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -1228,10 +1237,11 @@ export async function createFapiaoRecord(
   totalAmount: number,
   taxAmount: number,
   remark: string,
+  relatedOrderIds?: string[],
 ): Promise<DbFapiaoRecord> {
   const rows = await sql`
-    INSERT INTO fapiao_records (user_id, order_id, fpqqlsh, buyer_title, buyer_tax_id, buyer_email, total_amount, tax_amount, status, remark)
-    VALUES (${userId}, ${orderId}, ${fpqqlsh}, ${buyerTitle}, ${buyerTaxId}, ${buyerEmail}, ${totalAmount}, ${taxAmount}, 'pending', ${remark})
+    INSERT INTO fapiao_records (user_id, order_id, fpqqlsh, buyer_title, buyer_tax_id, buyer_email, total_amount, tax_amount, status, remark, related_order_ids)
+    VALUES (${userId}, ${orderId}, ${fpqqlsh}, ${buyerTitle}, ${buyerTaxId}, ${buyerEmail}, ${totalAmount}, ${taxAmount}, 'pending', ${remark}, ${relatedOrderIds || null})
     RETURNING *
   `;
   return rows[0] as unknown as DbFapiaoRecord;
@@ -1253,7 +1263,11 @@ export async function getFapiaoRecord(fpqqlsh: string): Promise<DbFapiaoRecord |
 }
 
 export async function getFapiaoRecordByOrder(orderId: string): Promise<DbFapiaoRecord | undefined> {
-  const rows = await sql`SELECT * FROM fapiao_records WHERE order_id = ${orderId} ORDER BY created_at DESC LIMIT 1`;
+  const rows = await sql`
+    SELECT * FROM fapiao_records
+    WHERE order_id = ${orderId} OR ${orderId} = ANY(COALESCE(related_order_ids, ARRAY[]::TEXT[]))
+    ORDER BY created_at DESC LIMIT 1
+  `;
   return rows[0] as unknown as DbFapiaoRecord | undefined;
 }
 
@@ -1263,4 +1277,20 @@ export async function getUserFapiaoRecords(userId: string, limit = 20): Promise<
     ORDER BY created_at DESC LIMIT ${limit}
   `;
   return rows as unknown as DbFapiaoRecord[];
+}
+
+/** Return set of order IDs that already have invoices (including merged) */
+export async function getUserAlreadyInvoicedOrderIds(userId: string): Promise<Set<string>> {
+  const rows = await sql`
+    SELECT order_id, related_order_ids FROM fapiao_records
+    WHERE user_id = ${userId} AND status IN ('issued', 'pending')
+  `;
+  const ids = new Set<string>();
+  for (const row of rows) {
+    ids.add(row.order_id);
+    if (row.related_order_ids) {
+      for (const id of row.related_order_ids) ids.add(id);
+    }
+  }
+  return ids;
 }

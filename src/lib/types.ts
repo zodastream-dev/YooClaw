@@ -232,6 +232,7 @@ export interface Invoice {
   taxAmount: number
   status: 'pending' | 'issued' | 'reversed' | 'failed'
   remark: string
+  relatedOrderIds: string[] | null
   createdAt: string
   updatedAt: string
 }
