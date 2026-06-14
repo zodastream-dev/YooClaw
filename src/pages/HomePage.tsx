@@ -156,7 +156,7 @@ export function HomePage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError('') }}
-                  placeholder={mode === 'register' ? '至少6位密码' : '请输入密码'}
+                  placeholder={mode === 'register' ? '8位以上，含字母和数字' : '请输入密码'}
                   className="w-full px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all pr-10"
                 />
                 <button
@@ -172,19 +172,6 @@ export function HomePage() {
             {mode === 'register' && (
               <>
                 <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-foreground">
-                    邮箱（选填，用于密码找回）
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError('') }}
-                    placeholder="your@email.com"
-                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
-                  />
-                </div>
-                <div className="space-y-2">
                   <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
                     确认密码
                   </label>
@@ -197,6 +184,20 @@ export function HomePage() {
                     className="w-full px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
                   />
                 </div>
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
+                    邮箱（选填，用于密码找回）
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError('') }}
+                    placeholder="your@email.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-border bg-card text-foreground text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">密码需 8 位以上，包含字母和数字</p>
               </>
             )}
 
@@ -224,26 +225,20 @@ export function HomePage() {
           <div className="text-center text-sm text-muted-foreground">
             {mode === 'login' && (
               <div className="text-center">
-                <a href="#/forgot-password" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <a href="#/forgot-password" className="text-sm text-primary hover:underline">
                   忘记密码？
                 </a>
               </div>
             )}
 
-            {mode === 'login' ? (
-              <>
-                还没有账户？{' '}
-                <button onClick={switchMode} className="text-primary hover:underline">
-                  立即注册
-                </button>
-              </>
-            ) : (
-              <>
+            {/* Switch mode link — only show in register mode */}
+            {mode === 'register' && (
+              <div className="text-center text-sm text-muted-foreground">
                 已有账户？{' '}
                 <button onClick={switchMode} className="text-primary hover:underline">
                   去登录
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>

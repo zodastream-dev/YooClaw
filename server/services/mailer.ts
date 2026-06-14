@@ -122,7 +122,7 @@ export function buildInvoiceEmailHtml(params: {
 
 /** Build password reset email HTML */
 export function buildResetEmailHtml(params: { username: string; token: string }): string {
-  const resetUrl = `https://yooclaw.yookeer.com/reset-password?token=${params.token}`;
+  const resetUrl = `https://yooclaw.yookeer.com/#/reset-password?token=${params.token}`;
   return `<div style="background:#f8f9fb;padding:40px 0"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
   <div style="background:#4f46e5;padding:20px;text-align:center">
     <h1 style="color:#fff;font-size:18px;margin:0">YooClaw 密码重置</h1>
