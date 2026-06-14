@@ -73,7 +73,7 @@ router.get('/users', async (req: Request, res: Response) => {
 
     // Use subquery so we can filter/sort on computed columns
     const subquery = `
-      SELECT u.id, u.username, u.role, u.status, u.created_at,
+      SELECT u.id, u.username, u.email, u.role, u.status, u.created_at,
         COALESCE(um.tier, 'free') as tier,
         COALESCE(um.expires_at, NULL) as member_expires,
         COALESCE((SELECT balance_after FROM credit_transactions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1), 0) as credits,

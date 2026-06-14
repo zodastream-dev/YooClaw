@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore, useChatStore } from '@/lib/store'
-import { changePassword, getUserReportSites, deleteReportSite, getUserMembership, getUserCredits, getCreditTransactions } from '@/lib/api'
+import { changePassword, getUserReportSites, deleteReportSite, getUserMembership, getUserCredits, getCreditTransactions, updateEmail, getMe } from '@/lib/api'
 import type { ReportSite, UserMembership, CreditTransaction } from '@/lib/types'
 import { LayoutDashboard, User, HardDrive, Shield, KeyRound, Loader2, Check, X, LogOut, Globe, Clock, Trash2, ExternalLink, AlertTriangle, FolderOpen, Crown, Zap, FileText } from 'lucide-react'
 import { formatBytes } from '@/lib/constants'
@@ -16,6 +16,8 @@ export function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isChanging, setIsChanging] = useState(false)
   const [pwMessage, setPwMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [email, setEmail] = useState('')
+  const [emailMsg, setEmailMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // 我的资产
   const [portals, setPortals] = useState<ReportSite[]>([])
@@ -58,7 +60,24 @@ export function ProfilePage() {
     }
   }
 
-  useEffect(() => { loadPortals(); loadMembershipInfo() }, [])
+  useEffect(() => { loadPortals(); loadMembershipInfo(); loadEmail() }, [])
+
+  const loadEmail = async () => {
+    try {
+      const res = await getMe()
+      if (res.data?.user) setEmail(res.data.user.email || '')
+    } catch (e) { /* ignore */ }
+  }
+
+  const handleSaveEmail = async () => {
+    setEmailMsg(null)
+    try {
+      await updateEmail(email)
+      setEmailMsg({ type: 'success', text: '邮箱已更新' })
+    } catch (e: any) {
+      setEmailMsg({ type: 'error', text: e.message || '更新失败' })
+    }
+  }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -391,6 +410,26 @@ export function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* Email card */}
+        <div className="border border-border rounded-xl p-5 bg-card mb-4">
+          <h2 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <KeyRound size={16} className="text-muted-foreground" />
+            邮箱绑定
+          </h2>
+          <div className="flex gap-2">
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="your@email.com（用于密码找回）"
+              className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
+            <button onClick={handleSaveEmail}
+              className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-all">
+              保存
+            </button>
+          </div>
+          {emailMsg && (
+            <p className={`text-xs mt-2 ${emailMsg.type === 'success' ? 'text-green-500' : 'text-destructive'}`}>{emailMsg.text}</p>
+          )}
+        </div>
 
         {/* Change password card */}
         <div className="border border-border rounded-xl p-5 bg-card mb-4">

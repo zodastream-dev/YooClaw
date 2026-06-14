@@ -61,6 +61,7 @@ export interface SessionData {
 export interface User {
   id: string
   username: string
+  email?: string | null
   role: 'admin' | 'user'
   storageUsed: number
   storageLimit: number

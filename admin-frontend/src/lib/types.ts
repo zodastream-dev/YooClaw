@@ -9,7 +9,7 @@ export interface DashboardData {
 }
 
 export interface AdminUser {
-  id: string; username: string; role: string; status: string; created_at: string
+  id: string; username: string; email?: string; role: string; status: string; created_at: string
   tier: string; member_expires: string | null; credits: number
   portal_count: number; storage_used: number
 }

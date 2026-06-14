@@ -140,6 +140,7 @@ function formatUser(user: any) {
   return {
     id: user.id,
     username: user.username,
+    email: user.email || null,
     role: user.role,
     storageUsed: toNumber(user.storage_used),
     storageLimit: toNumber(user.storage_limit),
@@ -2008,7 +2009,9 @@ app.post('/api/v1/auth/forgot-password', async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     await setResetToken(user.id, token);
     const html = buildResetEmailHtml({ username: user.username, token });
-    await sendEmail(user.email, 'YooClaw 密码重置', html);
+    console.log(`[ForgotPassword] Sending reset email to ${user.email} for ${username}`);
+    const sent = await sendEmail(user.email, 'YooClaw 密码重置', html);
+    console.log(`[ForgotPassword] Reset email to ${user.email}: ${sent ? 'OK' : 'FAILED'}`);
     res.json({ data: { ok: true } });
   } catch (err: any) {
     console.error('[ForgotPassword Error]', err.message);

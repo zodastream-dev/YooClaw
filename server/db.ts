@@ -12,6 +12,9 @@ export interface DbUser {
   status: 'active' | 'disabled';
   created_at: string;
   updated_at: string;
+  email?: string;
+  reset_token?: string;
+  reset_expires?: string;
 }
 
 export interface DbUserSession {

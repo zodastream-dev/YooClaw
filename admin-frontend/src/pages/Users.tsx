@@ -96,6 +96,7 @@ export default function Users() {
           <table>
             <thead><tr>
               <SortHeader label="用户名" field="created_at" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
+              <th>邮箱</th>
               <th>角色</th>
               <SortHeader label="会员" field="tier" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
               <SortHeader label="积分" field="credits" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
@@ -107,6 +108,7 @@ export default function Users() {
               {users.map(u => (
                 <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(u.id)}>
                   <td style={{ fontWeight: 500 }}>{u.username}</td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email || '-'}</td>
                   <td><span className="badge badge-gray">{u.role}</span></td>
                   <td><span className={`badge ${u.tier === 'free' ? 'badge-gray' : u.tier === 'basic' ? 'badge-amber' : 'badge-green'}`}>{u.tier === 'free' ? '免费' : u.tier === 'basic' ? '基础' : '高级'}</span></td>
                   <td>{u.credits}</td>
