@@ -219,3 +219,19 @@ export interface PayInitiateResult {
   qrCode?: string
   method: 'wechat'
 }
+
+export interface Invoice {
+  id: number
+  userId: string
+  orderId: string
+  fpqqlsh: string
+  buyerTitle: string
+  buyerTaxId: string
+  buyerEmail: string
+  totalAmount: number
+  taxAmount: number
+  status: 'pending' | 'issued' | 'reversed' | 'failed'
+  remark: string
+  createdAt: string
+  updatedAt: string
+}

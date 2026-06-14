@@ -585,3 +585,22 @@ export async function getUserCredits() {
 export async function getCreditTransactions() {
   return apiRequest<{ transactions: import('./types').CreditTransaction[] }>('GET', '/api/v1/pay/user/transactions')
 }
+
+// ========== Invoice (fapiao) ==========
+
+export async function applyInvoice(params: {
+  orderId: string
+  buyerTitle: string
+  buyerTaxId?: string
+  buyerEmail?: string
+}) {
+  return apiRequest<{ fpqqlsh: string; status: string; emailSent: boolean; message: string }>('POST', '/api/v1/fapiao/apply', params)
+}
+
+export async function getInvoices() {
+  return apiRequest<{ invoices: import('./types').Invoice[] }>('GET', '/api/v1/fapiao/list')
+}
+
+export async function getInvoiceByOrder(orderId: string) {
+  return apiRequest<{ invoice: import('./types').Invoice }>('GET', `/api/v1/fapiao/${orderId}`)
+}

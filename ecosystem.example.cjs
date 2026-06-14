@@ -19,12 +19,11 @@ module.exports = {
       WECHAT_PAY_PRIVATE_KEY: '',
       WECHAT_PAY_CERT_SERIAL: '',
       WECHAT_PAY_NOTIFY_URL: 'https://yooclaw.yookeer.com/api/v1/pay/notify/wechat',
-      // Payment: Alipay
-      ALIPAY_APP_ID: '',
-      ALIPAY_PRIVATE_KEY: '',
-      ALIPAY_PUBLIC_KEY: '',
-      ALIPAY_NOTIFY_URL: 'https://yooclaw.yookeer.com/api/v1/pay/notify/alipay',
-      ALIPAY_RETURN_URL: 'https://yooclaw.yookeer.com/#/profile'
+      // SMTP for email delivery (invoice, briefing, etc.)
+      SMTP_HOST: 'smtp.mxhichina.com',
+      SMTP_PORT: '465',
+      SMTP_USER: 'your-email@example.com',
+      SMTP_PASS: 'your-smtp-password',
     }
   }]
 };

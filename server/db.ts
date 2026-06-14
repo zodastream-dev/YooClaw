@@ -430,6 +430,27 @@ export async function initDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_payment_records_order_id ON payment_records(order_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_id ON credit_transactions(user_id)`;
 
+  // Invoice records
+  await sql`
+    CREATE TABLE IF NOT EXISTS fapiao_records (
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      order_id TEXT NOT NULL REFERENCES orders(id),
+      fpqqlsh VARCHAR(128) NOT NULL UNIQUE,
+      buyer_title VARCHAR(256) NOT NULL,
+      buyer_tax_id VARCHAR(64) DEFAULT '',
+      buyer_email VARCHAR(256) DEFAULT '',
+      total_amount INTEGER NOT NULL,
+      tax_amount INTEGER DEFAULT 0,
+      status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'issued', 'reversed', 'failed')),
+      remark TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT now(),
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_fapiao_records_user_id ON fapiao_records(user_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_fapiao_records_order_id ON fapiao_records(order_id)`;
+
   console.log('[DB] Payment tables initialized');
 
   // Migration: orders.id TEXT (was UUID)
@@ -1178,3 +1199,68 @@ export async function expirePendingOrders(): Promise<void> {
 }
 
 // ======================== End Payment Operations ========================
+
+// ======================== Invoice Operations ========================
+
+export interface DbFapiaoRecord {
+  id: number;
+  user_id: string;
+  order_id: string;
+  fpqqlsh: string;
+  buyer_title: string;
+  buyer_tax_id: string;
+  buyer_email: string;
+  total_amount: number;
+  tax_amount: number;
+  status: 'pending' | 'issued' | 'reversed' | 'failed';
+  remark: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createFapiaoRecord(
+  userId: string,
+  orderId: string,
+  fpqqlsh: string,
+  buyerTitle: string,
+  buyerTaxId: string,
+  buyerEmail: string,
+  totalAmount: number,
+  taxAmount: number,
+  remark: string,
+): Promise<DbFapiaoRecord> {
+  const rows = await sql`
+    INSERT INTO fapiao_records (user_id, order_id, fpqqlsh, buyer_title, buyer_tax_id, buyer_email, total_amount, tax_amount, status, remark)
+    VALUES (${userId}, ${orderId}, ${fpqqlsh}, ${buyerTitle}, ${buyerTaxId}, ${buyerEmail}, ${totalAmount}, ${taxAmount}, 'pending', ${remark})
+    RETURNING *
+  `;
+  return rows[0] as unknown as DbFapiaoRecord;
+}
+
+export async function updateFapiaoStatus(
+  fpqqlsh: string,
+  status: 'issued' | 'reversed' | 'failed',
+): Promise<void> {
+  await sql`
+    UPDATE fapiao_records SET status = ${status}, updated_at = now()
+    WHERE fpqqlsh = ${fpqqlsh}
+  `;
+}
+
+export async function getFapiaoRecord(fpqqlsh: string): Promise<DbFapiaoRecord | undefined> {
+  const rows = await sql`SELECT * FROM fapiao_records WHERE fpqqlsh = ${fpqqlsh}`;
+  return rows[0] as unknown as DbFapiaoRecord | undefined;
+}
+
+export async function getFapiaoRecordByOrder(orderId: string): Promise<DbFapiaoRecord | undefined> {
+  const rows = await sql`SELECT * FROM fapiao_records WHERE order_id = ${orderId} ORDER BY created_at DESC LIMIT 1`;
+  return rows[0] as unknown as DbFapiaoRecord | undefined;
+}
+
+export async function getUserFapiaoRecords(userId: string, limit = 20): Promise<DbFapiaoRecord[]> {
+  const rows = await sql`
+    SELECT * FROM fapiao_records WHERE user_id = ${userId}
+    ORDER BY created_at DESC LIMIT ${limit}
+  `;
+  return rows as unknown as DbFapiaoRecord[];
+}

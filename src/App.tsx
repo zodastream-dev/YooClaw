@@ -12,6 +12,7 @@ import { ProfilePage } from '@/pages/ProfilePage'
 import { MpSubscriptionPage } from '@/pages/MpSubscriptionPage'
 import { PricingPage } from '@/pages/PricingPage'
 import { PayPage } from '@/pages/PayPage'
+import { FapiaoPage } from '@/pages/FapiaoPage'
 import { useAuthStore } from '@/lib/store'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -137,6 +138,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <PayPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/fapiao"
+              element={
+                <ProtectedRoute>
+                  <FapiaoPage />
                 </ProtectedRoute>
               }
             />

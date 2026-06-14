@@ -72,6 +72,12 @@ import {
   updateOrderPaymentUrl,
   markOrderPaid,
   expirePendingOrders,
+  // Invoice
+  createFapiaoRecord,
+  updateFapiaoStatus,
+  getFapiaoRecord,
+  getFapiaoRecordByOrder,
+  getUserFapiaoRecords,
 } from './db.js';
 
 import { callIntel } from "./intel-pipeline.js";
@@ -108,6 +114,8 @@ import {
   type KlingVideoParams,
 } from './kling.js';
 import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource, fetchPlatformCertificates } from './pay/wechat.js';
+import { issueInvoice, queryInvoice, downloadInvoicePdf, getInvoiceDownloadInfo, isFapiaoConfigured } from './fapiao/wechat.js';
+import { sendEmail, buildInvoiceEmailHtml } from './services/mailer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -6279,6 +6287,182 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       console.error('[Payment] Fulfillment error:', err.message);
     }
   }
+
+  // ========== Invoice (fapiao) Routes ==========
+
+  // POST /api/v1/fapiao/apply - Apply for electronic invoice
+  app.post('/api/v1/fapiao/apply', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).user.userId;
+      const { orderId, buyerTitle, buyerTaxId, buyerEmail } = req.body as {
+        orderId: string; buyerTitle: string; buyerTaxId?: string; buyerEmail?: string;
+      };
+
+      if (!orderId || !buyerTitle) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'orderId and buyerTitle are required' } });
+        return;
+      }
+
+      // Verify order belongs to user and is paid
+      const order = await getOrderById(orderId);
+      if (!order) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Order not found' } });
+        return;
+      }
+      if (order.user_id !== userId) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not your order' } });
+        return;
+      }
+      if (order.status !== 'paid') {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Order is not paid yet' } });
+        return;
+      }
+
+      // Check if already applied
+      const existing = await getFapiaoRecordByOrder(orderId);
+      if (existing) {
+        res.status(409).json({ error: { code: 'DUPLICATE', message: 'Invoice already applied for this order' } });
+        return;
+      }
+
+      if (!isFapiaoConfigured()) {
+        res.status(503).json({ error: { code: 'NOT_CONFIGURED', message: 'Invoice service not configured yet' } });
+        return;
+      }
+
+      const fpqqlsh = orderId;
+      const amountYuan = order.amount_yuan;
+
+      // Calculate tax (simplified: 6% VAT for services)
+      const taxRate = 0.06;
+      const taxAmount = Math.round(amountYuan * taxRate * 100) / 100;
+
+      // Try to issue invoice via WeChat blockchain
+      const result = await issueInvoice({
+        fpqqlsh,
+        buyer_title: buyerTitle,
+        buyer_tax_id: buyerTaxId || '',
+        buyer_email: buyerEmail || '',
+        total_amount: amountYuan,
+        tax_amount: taxAmount,
+        items: [{
+          tax_code: '3040202000000000000',
+          goods_name: order.product_name || 'YooClaw 积分服务',
+          quantity: 1,
+          total_amount: amountYuan,
+        }],
+        remark: `订单${orderId}`,
+      });
+
+      // Record in DB
+      await createFapiaoRecord(
+        userId, orderId, fpqqlsh, buyerTitle,
+        buyerTaxId || '', buyerEmail || '',
+        Math.round(amountYuan * 100), Math.round(taxAmount * 100),
+        `订单${orderId}`,
+      );
+
+      if (!result.ok) {
+        await updateFapiaoStatus(fpqqlsh, 'failed');
+        console.error('[Fapiao] Issue failed:', result.error);
+        res.status(502).json({ error: { code: 'ISSUE_FAILED', message: result.error || 'Invoice issue failed' } });
+        return;
+      }
+
+      await updateFapiaoStatus(fpqqlsh, 'issued');
+
+      // Send email if buyer provided email
+      let emailSent = false;
+      if (buyerEmail) {
+        // Fetch user's username for the email
+        const user = await getUserById(userId);
+        const userName = user?.username || '用户';
+
+        const today = new Date().toLocaleDateString('zh-CN');
+        const emailHtml = buildInvoiceEmailHtml({
+          userName,
+          orderId,
+          productName: order.product_name,
+          amountYuan,
+          invoiceDate: today,
+        });
+        emailSent = await sendEmail(buyerEmail, `电子发票 - ${order.product_name}`, emailHtml);
+      }
+
+      res.json({
+        data: {
+          fpqqlsh,
+          status: 'issued',
+          emailSent,
+          message: emailSent
+            ? '电子发票已开具，请查收邮件。您也可在微信卡包中查看。'
+            : '电子发票已开具，您可在微信卡包中查看。',
+        },
+      });
+    } catch (err: any) {
+      console.error('[Fapiao] Apply error:', err.message);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/fapiao/list - Get user invoice history
+  app.get('/api/v1/fapiao/list', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).user.userId;
+      const records = await getUserFapiaoRecords(userId, 50);
+      // Map snake_case to camelCase
+      const invoices = records.map((row: any) => ({
+        id: row.id,
+        userId: row.user_id,
+        orderId: row.order_id,
+        fpqqlsh: row.fpqqlsh,
+        buyerTitle: row.buyer_title,
+        buyerTaxId: row.buyer_tax_id,
+        buyerEmail: row.buyer_email,
+        totalAmount: row.total_amount,
+        taxAmount: row.tax_amount,
+        status: row.status,
+        remark: row.remark,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+      res.json({ data: { invoices } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // GET /api/v1/fapiao/:orderId - Get invoice status for an order
+  app.get('/api/v1/fapiao/:orderId', authMiddleware, async (req, res) => {
+    try {
+      const userId = (req as any).user.userId;
+      const record = await getFapiaoRecordByOrder(req.params.orderId);
+      if (!record) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'No invoice record for this order' } });
+        return;
+      }
+      if (record.user_id !== userId) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not your invoice' } });
+        return;
+      }
+      res.json({ data: { invoice: record } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    }
+  });
+
+  // POST /api/v1/fapiao/callback - WeChat invoice title submit callback
+  app.post('/api/v1/fapiao/callback', async (req, res) => {
+    try {
+      console.log('[Fapiao] WeChat callback received:', JSON.stringify(req.body).substring(0, 500));
+      // WeChat callbacks for invoice title submission are handled via the reply interface
+      // The actual invoice issue happens in the /apply endpoint when user fills in info on YooClaw
+      res.json({ code: 'SUCCESS' });
+    } catch (err: any) {
+      console.error('[Fapiao] Callback error:', err.message);
+      res.json({ code: 'FAIL', message: err.message });
+    }
+  });
 
     app.get('*', (req, res) => {
       if (!req.path.startsWith('/api')) {
