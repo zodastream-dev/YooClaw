@@ -3826,10 +3826,8 @@ app.post('/api/portal-intel', async (req, res) => {
       // Non-force: return cached or empty
       if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
         return { sourceIdx: idx, data: cached.data, fromCache: true };
-      }, 100);
-      if (cached && cached.data?.length > 0) {
-        return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
       }
+      // Cache miss or expired: return empty for now, CacheWarmer will fill
       return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
     };
 
