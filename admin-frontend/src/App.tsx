@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -61,10 +61,15 @@ function LoginScreen() {
 }
 
 export default function App() {
-  // Check token on mount
   const saved = localStorage.getItem('admin_token')
   if (saved) setToken(saved)
   const [authed] = useState(!!saved)
+
+  // Restore theme on load
+  useEffect(() => {
+    const t = localStorage.getItem('admin_theme')
+    if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+  }, [])
 
   if (!authed) return <LoginScreen />
 
