@@ -69,9 +69,13 @@ router.get('/users', async (req: Request, res: Response) => {
         COALESCE(um.tier, 'free') as tier,
         COALESCE(um.expires_at, NULL) as member_expires,
         COALESCE((SELECT balance_after FROM credit_transactions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1), 0) as credits,
-        (SELECT COUNT(*) FROM report_sites WHERE user_id = u.id) as portal_count
+        (SELECT COUNT(*)::int FROM report_sites WHERE user_id = u.id) as portal_count
       FROM users u
-      LEFT JOIN user_memberships um ON um.user_id = u.id AND um.expires_at > now()
+      LEFT JOIN LATERAL (
+        SELECT tier, expires_at FROM user_memberships
+        WHERE user_id = u.id AND expires_at > now()
+        ORDER BY created_at DESC LIMIT 1
+      ) um ON true
       ${where}
       ORDER BY u.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
