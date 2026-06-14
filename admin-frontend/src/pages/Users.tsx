@@ -1,7 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import type { AdminUser, UserDetail } from '../lib/types'
-import { Loader2, Search, ChevronLeft, ChevronRight, X, Trash2, AlertTriangle } from 'lucide-react'
+import { Loader2, Search, ChevronLeft, ChevronRight, X, Trash2, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react'
+
+function SortHeader({ label, field, sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page }: any) {
+  const active = sortBy === field
+  const toggle = () => {
+    const nextOrder = active && sortOrder === 'desc' ? 'asc' : 'desc'
+    setSortBy(field); setSortOrder(nextOrder)
+    load(1, search, tierFilter, field, nextOrder)
+  }
+  return <th style={{ cursor: 'pointer' }} onClick={toggle}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{label}
+      {active ? (sortOrder === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : null}
+    </span>
+  </th>
+}
 
 export default function Users() {
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -14,11 +28,14 @@ export default function Users() {
   const [creditDesc, setCreditDesc] = useState('管理员充值')
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [tierFilter, setTierFilter] = useState('')
+  const [sortBy, setSortBy] = useState('created_at')
+  const [sortOrder, setSortOrder] = useState('desc')
 
-  const load = async (p = page, s = search) => {
+  const load = async (p = page, s = search, t = tierFilter, sb = sortBy, so = sortOrder) => {
     setLoading(true)
     try {
-      const d = await api.users({ page: p, limit: 20, search: s })
+      const d = await api.users({ page: p, limit: 20, search: s, tier: t, sortBy: sb, order: so })
       setUsers(d.users); setTotal(d.total); setPage(p)
     } catch (e) { console.error(e) }
     setLoading(false)
@@ -64,22 +81,36 @@ export default function Users() {
             placeholder="搜索用户名..." style={{ border: 'none', outline: 'none', flex: 1, padding: '8px 0', background: 'transparent' }}
           />
         </div>
+        <select value={tierFilter} onChange={e => { setTierFilter(e.target.value); load(1, search, e.target.value, sortBy, sortOrder) }}
+          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 12 }}>
+          <option value="">全部会员</option>
+          <option value="free">免费</option>
+          <option value="basic">基础</option>
+          <option value="premium">高级</option>
+        </select>
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>共 {total} 用户</span>
       </div>
 
       {loading ? <div style={{ textAlign: 'center', padding: 40 }}><Loader2 size={20} className="spinner" /></div> : (
         <div className="card" style={{ padding: 0, overflow: 'auto' }}>
           <table>
-            <thead><tr><th>用户名</th><th>角色</th><th>会员</th><th>积分</th><th>门户</th><th>存储</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
+            <thead><tr>
+              <SortHeader label="用户名" field="created_at" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
+              <th>角色</th>
+              <SortHeader label="会员" field="tier" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
+              <SortHeader label="积分" field="credits" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
+              <SortHeader label="门户" field="portal_count" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
+              <th>状态</th>
+              <SortHeader label="注册时间" field="created_at" {...{sortBy, sortOrder, setSortBy, setSortOrder, load, search, tierFilter, page}} />
+              <th>操作</th></tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(u.id)}>
                   <td style={{ fontWeight: 500 }}>{u.username}</td>
                   <td><span className="badge badge-gray">{u.role}</span></td>
-                  <td><span className="badge badge-amber">{u.tier}</span></td>
+                  <td><span className={`badge ${u.tier === 'free' ? 'badge-gray' : u.tier === 'basic' ? 'badge-amber' : 'badge-green'}`}>{u.tier === 'free' ? '免费' : u.tier === 'basic' ? '基础' : '高级'}</span></td>
                   <td>{u.credits}</td>
                   <td>{u.portal_count}</td>
-                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{u.storage_used > 0 ? (u.storage_used / 1024 / 1024).toFixed(1) + 'MB' : '-'}</td>
                   <td><span className={`badge ${u.status === 'active' ? 'badge-green' : 'badge-red'}`}>{u.status === 'active' ? '正常' : '禁用'}</span></td>
                   <td style={{ fontSize: 11 }}>{new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
                   <td onClick={e => e.stopPropagation()}>

@@ -54,17 +54,25 @@ router.get('/users', async (req: Request, res: Response) => {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const search = (req.query.search as string) || '';
+    const tier = (req.query.tier as string) || '';
+    const sortBy = (req.query.sortBy as string) || 'created_at';
+    const order = (req.query.order as string) === 'asc' ? 'ASC' : 'DESC';
     const offset = (page - 1) * limit;
 
+    // Allowlist sort columns
+    const sortCols: Record<string, string> = {
+      created_at: 'u.created_at', credits: 'credits', portal_count: 'portal_count', tier: 'tier'
+    };
+    const orderCol = sortCols[sortBy] || 'u.created_at';
+
     let where = '';
-    if (search) {
-      where = ` WHERE u.username ILIKE '%${search.replace(/'/g, "''")}%'`;
-    }
+    const conditions: string[] = [];
+    if (search) conditions.push(`u.username ILIKE '%${search.replace(/'/g, "''")}%'`);
+    if (tier) conditions.push(`tier = '${tier.replace(/'/g, "''")}'`);
+    if (conditions.length) where = ' WHERE ' + conditions.join(' AND ');
 
-    const countRow = await sql.unsafe(`SELECT COUNT(*)::int as cnt FROM users u${where}`);
-    const total = countRow[0].cnt;
-
-    const rows = await sql.unsafe(`
+    // Use subquery so we can filter/sort on computed columns
+    const subquery = `
       SELECT u.id, u.username, u.role, u.status, u.created_at,
         COALESCE(um.tier, 'free') as tier,
         COALESCE(um.expires_at, NULL) as member_expires,
@@ -76,8 +84,15 @@ router.get('/users', async (req: Request, res: Response) => {
         WHERE user_id = u.id AND expires_at > now()
         ORDER BY created_at DESC LIMIT 1
       ) um ON true
+    `;
+
+    const countRow = await sql.unsafe(`SELECT COUNT(*)::int as cnt FROM (${subquery}) sub${where}`);
+    const total = countRow[0].cnt;
+
+    const rows = await sql.unsafe(`
+      SELECT * FROM (${subquery}) sub
       ${where}
-      ORDER BY u.created_at DESC
+      ORDER BY ${orderCol} ${order}
       LIMIT ${limit} OFFSET ${offset}
     `);
 
@@ -94,7 +109,7 @@ router.get('/users/:id', async (req: Request, res: Response) => {
       sql`SELECT id, username, role, status, created_at FROM users WHERE id = ${userId}`.then(r => r[0]),
       sql`SELECT tier, expires_at, created_at FROM user_memberships WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 1`.then(r => r[0]),
       sql`SELECT balance_after as credits FROM credit_transactions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 1`.then(r => r[0]?.credits || 0),
-      sql`SELECT id, title, slug, type, is_published, view_count, size_bytes, created_at FROM report_sites WHERE user_id = ${userId} ORDER BY created_at DESC`.then(r => r),
+      sql`SELECT id, title, slug, type, is_published, view_count, created_at FROM report_sites WHERE user_id = ${userId} ORDER BY created_at DESC`.then(r => r),
       sql`SELECT id, title, duration, created_at FROM videos WHERE user_id = ${userId} ORDER BY created_at DESC`.then(r => r),
       sql`SELECT id, order_type, product_name, amount_yuan, status, payment_method, paid_at, created_at FROM orders WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`.then(r => r),
       sql`SELECT id, type, amount, description, related_id, created_at FROM credit_transactions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`.then(r => r),
@@ -201,7 +216,7 @@ router.get('/portals', async (req: Request, res: Response) => {
 
     const rows = await sql`
       SELECT r.id, r.user_id, u.username, r.title, r.slug, r.is_published, r.view_count,
-        r.size_bytes, r.created_at, r.url
+        r.created_at, r.url
       FROM report_sites r
       LEFT JOIN users u ON u.id = r.user_id
       WHERE r.type = 'portal'

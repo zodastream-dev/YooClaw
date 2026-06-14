@@ -19,11 +19,14 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   dashboard: () => req<DashboardData>('/dashboard'),
 
-  users: (params: { page?: number; limit?: number; search?: string }) => {
+  users: (params: { page?: number; limit?: number; search?: string; tier?: string; sortBy?: string; order?: string }) => {
     const q = new URLSearchParams()
     if (params.page) q.set('page', String(params.page))
     if (params.limit) q.set('limit', String(params.limit))
     if (params.search) q.set('search', params.search)
+    if (params.tier) q.set('tier', params.tier)
+    if (params.sortBy) q.set('sortBy', params.sortBy)
+    if (params.order) q.set('order', params.order)
     return req<{ users: AdminUser[]; total: number; page: number; limit: number }>('/users?' + q)
   },
 
