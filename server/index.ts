@@ -115,7 +115,7 @@ import {
   type KlingVideoParams,
 } from './kling.js';
 import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource, fetchPlatformCertificates } from './pay/wechat.js';
-import { issueInvoice, queryInvoice, downloadInvoicePdf, getInvoiceDownloadInfo, isFapiaoConfigured } from './fapiao/wechat.js';
+import { issueInvoice, isFapiaoConfigured } from './fapiao/wechat.js';
 import { sendEmail, buildInvoiceEmailHtml } from './services/mailer.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -6352,21 +6352,20 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       const taxAmount = Math.round(totalYuan * taxRate * 100) / 100;
 
       // Build invoice items from all orders
+      const totalAmountFen = Math.round(totalYuan * 100);
       const items = orders.map(o => ({
-        tax_code: '3040202000000000000',
-        goods_name: o.product_name || 'YooClaw 积分服务',
+        taxCode: '3040202000000000000',
+        goodsName: o.product_name || 'YooClaw 积分服务',
         quantity: 1,
-        total_amount: o.amount_yuan,
+        totalAmountFen: Math.round(o.amount_yuan * 100),
       }));
 
       // Try to issue via WeChat
       const result = await issueInvoice({
-        fpqqlsh,
-        buyer_title: buyerTitle,
-        buyer_tax_id: buyerTaxId || '',
-        buyer_email: buyerEmail || '',
-        total_amount: totalYuan,
-        tax_amount: taxAmount,
+        fapiaoApplyId: fpqqlsh,
+        buyerTitle,
+        buyerTaxId: buyerTaxId || '',
+        totalAmountFen,
         items,
         remark: isMerged ? `合并开票：${orderIds.join(', ')}` : `订单${primaryOrderId}`,
       });
