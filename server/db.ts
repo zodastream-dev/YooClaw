@@ -452,12 +452,15 @@ export async function initDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_fapiao_records_order_id ON fapiao_records(order_id)`;
 
   // Migration: add related_order_ids for merged invoices
-  await sql`
-    DO $$ BEGIN
-      ALTER TABLE fapiao_records ADD COLUMN IF NOT EXISTS related_order_ids TEXT[];
-    EXCEPTION WHEN OTHERS THEN null;
-    END $$;
-  `;
+  try {
+    await sql`
+      ALTER TABLE fapiao_records ADD COLUMN related_order_ids TEXT[];
+    `;
+  } catch (e: any) {
+    if (!e.message?.includes('already exists')) {
+      console.warn('[DB] related_order_ids migration:', e.message);
+    }
+  }
 
   console.log('[DB] Payment tables initialized');
 

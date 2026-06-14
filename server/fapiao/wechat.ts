@@ -25,7 +25,8 @@ const ENV = {
 };
 
 export function isFapiaoConfigured(): boolean {
-  return !!(ENV.appId && ENV.mchId && ENV.apiV3Key && ENV.privateKeyPem && ENV.certSerial);
+  return process.env.FAPAIO_ENABLED === 'true'
+    && !!(ENV.appId && ENV.mchId && ENV.apiV3Key && ENV.privateKeyPem && ENV.certSerial);
 }
 
 function sign(method: string, url: string, body: string, timestamp: string, nonce: string): string {
@@ -55,8 +56,13 @@ async function fapiaoRequest(method: string, url: string, body?: object): Promis
       },
       body: bodyStr || undefined,
     });
-    const data = await resp.json();
-    return { ok: resp.ok, status: resp.status, data };
+    const text = await resp.text();
+    try {
+      const data = JSON.parse(text);
+      return { ok: resp.ok, status: resp.status, data };
+    } catch {
+      return { ok: false, status: resp.status, data: { message: `WeChat returned non-JSON: ${text.substring(0, 200)}` } };
+    }
   } catch (err: any) {
     return { ok: false, status: 0, data: { message: err.message } };
   }
