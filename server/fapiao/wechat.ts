@@ -89,6 +89,7 @@ export async function issueInvoice(params: FapiaoIssueParams): Promise<{ ok: boo
 
   const body: any = {
     scene: 'WITH_WECHATPAY',
+    sub_mchid: ENV.mchId,
     fapiao_apply_id: params.fapiaoApplyId,
     buyer_information: {
       type: isEnterprise ? 'ORGANIZATION' : 'INDIVIDUAL',
