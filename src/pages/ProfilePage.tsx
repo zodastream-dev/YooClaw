@@ -208,8 +208,13 @@ export function ProfilePage() {
                     <div key={txn.id} className="flex items-center justify-between text-xs py-1 border-b border-border/30 last:border-0">
                       <div className="flex-1 min-w-0 pr-2">
                         <span className="text-muted-foreground truncate block">{txn.description}</span>
+                        {txn.relatedId && (
+                          <span className="text-[10px] text-muted-foreground/50 block">订单号：{txn.relatedId}</span>
+                        )}
                         <span className="text-[10px] text-muted-foreground/50">
-                          {new Date(txn.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          {txn.createdAt && !isNaN(new Date(txn.createdAt).getTime())
+                            ? new Date(txn.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                            : ''}
                         </span>
                       </div>
                       <span className={`font-medium flex-shrink-0 ${

@@ -6187,7 +6187,18 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   app.get('/api/v1/pay/user/transactions', authMiddleware, async (req, res) => {
     try {
       const userId = (req as any).user.userId;
-      const transactions = await getCreditTransactions(userId, 50);
+      const rows = await getCreditTransactions(userId, 50);
+      // Map snake_case (DB) to camelCase (frontend)
+      const transactions = rows.map((row: any) => ({
+        id: row.id,
+        userId: row.user_id,
+        type: row.type,
+        amount: row.amount,
+        balanceAfter: row.balance_after,
+        description: row.description,
+        relatedId: row.related_id,
+        createdAt: row.created_at,
+      }));
       res.json({ data: { transactions } });
     } catch (err: any) {
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
