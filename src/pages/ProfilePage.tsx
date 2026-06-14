@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore, useChatStore } from '@/lib/store'
 import { changePassword, getUserReportSites, deleteReportSite, getUserMembership, getUserCredits, getCreditTransactions } from '@/lib/api'
 import type { ReportSite, UserMembership, CreditTransaction } from '@/lib/types'
-import { LayoutDashboard, User, HardDrive, Shield, KeyRound, Loader2, Check, X, LogOut, Globe, Clock, Trash2, ExternalLink, AlertTriangle, FolderOpen, Crown, Zap } from 'lucide-react'
+import { LayoutDashboard, User, HardDrive, Shield, KeyRound, Loader2, Check, X, LogOut, Globe, Clock, Trash2, ExternalLink, AlertTriangle, FolderOpen, Crown, Zap, FileText } from 'lucide-react'
 import { formatBytes } from '@/lib/constants'
 
 export function ProfilePage() {
@@ -200,7 +200,7 @@ export function ProfilePage() {
                 className="text-xs font-medium text-muted-foreground mb-2 cursor-pointer hover:text-foreground transition-colors select-none flex items-center gap-1"
                 onClick={() => setTxExpanded(!txExpanded)}
               >
-                <span className="text-[10px]">{txExpanded ? '▼' : '▶'}</span> 最近积分记录 ({transactions.length}条)
+                <span className="text-[10px]">{txExpanded ? '▼' : '▶'}</span> 最新购买记录 ({transactions.length}条)
               </div>
               {txExpanded && (
                 <div className="space-y-0.5 max-h-56 overflow-y-auto">
@@ -217,11 +217,22 @@ export function ProfilePage() {
                             : ''}
                         </span>
                       </div>
-                      <span className={`font-medium flex-shrink-0 ${
-                        txn.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'
-                      }`}>
-                        {txn.amount > 0 ? '+' : ''}{txn.amount}
-                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {txn.type === 'charge' && txn.relatedId && (
+                          <button
+                            onClick={() => navigate('/fapiao')}
+                            className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded transition-colors"
+                          >
+                            <FileText size={10} />
+                            开发票
+                          </button>
+                        )}
+                        <span className={`font-medium ${
+                          txn.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+                        }`}>
+                          {txn.amount > 0 ? '+' : ''}{txn.amount}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
