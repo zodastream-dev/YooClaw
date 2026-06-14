@@ -98,12 +98,8 @@ export interface FapiaoIssueParams {
 /** Issue electronic invoice */
 export async function issueInvoice(params: FapiaoIssueParams): Promise<{ ok: boolean; fapiaoApplyId?: string; error?: string }> {
   const isEnterprise = !!(params.buyerTaxId && params.buyerTaxId.trim().length > 0);
-  const billingPersonId = process.env.FAPAIO_BILLING_PERSON_ID || '';
+  const billingPersonId = process.env.FAPAIO_BILLING_PERSON_ID || '0';
   const billingPerson = process.env.FAPAIO_BILLING_PERSON || '管理员';
-
-  if (!billingPersonId) {
-    return { ok: false, error: 'FAPAIO_BILLING_PERSON_ID not configured (开票人ID)' };
-  }
 
   const fapiaoId = params.fapiaoApplyId;
 
