@@ -239,6 +239,14 @@ export async function initDatabase(): Promise<void> {
     )
   `;
 
+  // Seed default admin user (username: admin, password: admin0000)
+  const adminExists = await sql`SELECT 1 FROM users WHERE username = 'admin' LIMIT 1`;
+  if (adminExists.length === 0) {
+    const adminHash = hashPassword('admin0000');
+    await sql`INSERT INTO users (username, password_hash, role, status) VALUES ('admin', ${adminHash}, 'admin', 'active')`;
+    console.log('[DB] Default admin user seeded (admin / admin0000)');
+  }
+
   await sql`
     CREATE TABLE IF NOT EXISTS report_sites (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

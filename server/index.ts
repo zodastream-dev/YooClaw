@@ -6486,6 +6486,29 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
   });
 
   // ========== Admin Routes ==========
+  // Login endpoint (no auth required)
+  app.post('/api/v1/admin/login', async (req, res) => {
+    try {
+      const { username, password } = req.body as any;
+      if (!username || !password) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'username and password required' } });
+        return;
+      }
+      const rows = await sql`SELECT id, username, password_hash, role FROM users WHERE username = ${username} AND role = 'admin'`;
+      const user = rows[0] as any;
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid credentials' } });
+        return;
+      }
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+      const payload = Buffer.from(JSON.stringify({ userId: user.id, role: user.role, iat: Math.floor(Date.now() / 1000) })).toString('base64url');
+      const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
+      res.json({ data: { token: `${header}.${payload}.${sig}`, username: user.username } });
+    } catch (err: any) {
+      res.status(500).json({ error: { code: 'INTERNAL', message: err.message } });
+    }
+  });
+  // Protected admin routes
   app.use('/api/v1/admin', authMiddleware, adminMiddleware, adminRoutes);
 
     app.get('*', (req, res) => {

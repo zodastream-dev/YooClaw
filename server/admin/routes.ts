@@ -1,6 +1,7 @@
 /**
  * Admin API Routes — YooClaw 管理后台
- * All routes are protected by adminAuth middleware (applied in index.ts)
+ * All routes are protected by authMiddleware + adminMiddleware (applied in index.ts)
+ * Login is handled directly in index.ts (no auth required)
  */
 import { Router, Request, Response } from 'express';
 import { sql } from '../db.js';
