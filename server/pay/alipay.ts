@@ -45,7 +45,7 @@ interface BizContent {
  */
 function buildParamsToSign(params: Record<string, string>): string {
   const sorted = Object.keys(params)
-    .filter((k) => k !== 'sign' && k !== 'sign_type' && params[k] !== '' && params[k] !== undefined)
+    .filter((k) => k !== 'sign' && params[k] !== '' && params[k] !== undefined)
     .sort()
     .map((k) => `${k}=${params[k]}`)
     .join('&');
