@@ -1,15 +1,6 @@
 /**
- * WeChat Pay v3 Electronic Invoice API (新税控 - v3/new-tax-control-fapiao)
- *
- * API endpoints (from official docs):
- *   POST /v3/new-tax-control-fapiao/fapiao-applications          — Issue invoice
- *   GET  /v3/new-tax-control-fapiao/fapiao-applications/{applyId} — Query status
- *   GET  /v3/new-tax-control-fapiao/fapiao-applications/{applyId}/fapiao-files — Get download URL
- *
- * Env vars required:
- *   WECHAT_PAY_APP_ID, WECHAT_PAY_MCH_ID, WECHAT_PAY_API_V3_KEY,
- *   WECHAT_PAY_PRIVATE_KEY_PATH, WECHAT_PAY_CERT_SERIAL,
- *   FAPAIO_ENABLED=true
+ * WeChat Pay v3 Electronic Invoice API (普通商户)
+ * POST /v3/new-tax-control-fapiao/fapiao-applications
  */
 
 import crypto from 'crypto';
@@ -43,7 +34,6 @@ function sign(method: string, url: string, body: string, timestamp: string, nonc
 }
 
 const BASE = '/v3/new-tax-control-fapiao/fapiao-applications';
-const ISSUE_URL = BASE + '/issue-general'; // 服务商模式开票端点
 
 async function fapiaoRequest(method: string, url: string, body?: object): Promise<{ ok: boolean; status: number; data: any }> {
   if (!isFapiaoConfigured()) return { ok: false, status: 0, data: { message: 'Invoice service not configured' } };
@@ -79,86 +69,67 @@ async function fapiaoRequest(method: string, url: string, body?: object): Promis
 // --- Public Types ---
 
 export interface FapiaoIssueParams {
-  fapiaoApplyId: string;   // 发票申请单号（可用订单ID）
-  buyerTitle: string;      // 购买方名称
-  buyerTaxId?: string;     // 企业税号
-  buyerEmail?: string;     // 购买方邮箱（存储用，不传微信API）
-  totalAmountFen: number;  // 价税合计（分）
-  items: {                 // 商品行
-    taxCode: string;       // 税收分类编码
-    goodsName: string;     // 货物/服务名称
-    quantity: number;      // 数量（普通整数，内部自动转 10^-8 单位）
-    totalAmountFen: number;// 行金额（分）
+  fapiaoApplyId: string;
+  buyerTitle: string;
+  buyerTaxId?: string;
+  totalAmountFen: number;
+  items: {
+    taxCode: string;
+    goodsName: string;
+    quantity: number;       // 普通整数，内部转 10^-8
+    totalAmountFen: number; // 行金额（分）
   }[];
   remark?: string;
 }
 
 // --- API Functions ---
 
-/** Issue electronic invoice */
 export async function issueInvoice(params: FapiaoIssueParams): Promise<{ ok: boolean; fapiaoApplyId?: string; error?: string }> {
   const isEnterprise = !!(params.buyerTaxId && params.buyerTaxId.trim().length > 0);
-  const billingPersonId = process.env.FAPAIO_BILLING_PERSON_ID || '0';
-  const billingPerson = process.env.FAPAIO_BILLING_PERSON || '管理员';
 
-  const fapiaoId = params.fapiaoApplyId;
-
-  const body = {
+  const body: any = {
     scene: 'WITH_WECHATPAY',
-    sub_mchid: ENV.mchId,
     fapiao_apply_id: params.fapiaoApplyId,
     buyer_information: {
       type: isEnterprise ? 'ORGANIZATION' : 'INDIVIDUAL',
       name: params.buyerTitle,
-      ...(isEnterprise && params.buyerTaxId ? { taxpayer_id: params.buyerTaxId } : {}),
     },
-    fapiao_information: {
-      fapiao_id: fapiaoId,
+    fapiao_information: [{
+      fapiao_id: params.fapiaoApplyId,
       total_amount: params.totalAmountFen,
-      billing_person_id: billingPersonId,
-      billing_person: billingPerson,
-      fapiao_bill_type: 'COMM_FAPIAO',
-      export_business_policy_code: 1,
-      vat_refund_levy_code: 1,
       remark: params.remark || '',
       items: params.items.map(item => ({
         tax_code: item.taxCode,
         goods_name: item.goodsName,
         quantity: item.quantity * 100000000,
         total_amount: item.totalAmountFen,
-        tax_rate: 1300, // 13% VAT
         discount: false,
       })),
-      transaction_information: [{
-        pay_channel: 'WECHAT_PAY',
-        out_trade_no: params.fapiaoApplyId,
-        amount: params.totalAmountFen,
-      }],
-    },
+    }],
   };
 
-  const r = await fapiaoRequest('POST', ISSUE_URL, body);
+  if (isEnterprise && params.buyerTaxId) {
+    body.buyer_information.taxpayer_id = params.buyerTaxId;
+  }
+
+  const r = await fapiaoRequest('POST', BASE, body);
 
   if (!r.ok) {
     return { ok: false, error: r.data?.message || `HTTP ${r.status}` };
   }
-  // API returns 202 Accepted with no body
   return { ok: true, fapiaoApplyId: params.fapiaoApplyId };
 }
 
-/** Query invoice status */
 export async function queryInvoice(fapiaoApplyId: string): Promise<{ ok: boolean; status?: string; error?: string }> {
   const r = await fapiaoRequest('GET', `${BASE}/${fapiaoApplyId}`);
   if (!r.ok) {
     if (r.status === 404) return { ok: true, status: 'NOT_FOUND' };
     return { ok: false, error: r.data?.message || `HTTP ${r.status}` };
   }
-  // Response: { fapiao_apply_id, fapiao_state, fapiao_information: [{ fapiao_state, ... }] }
   const state = r.data?.fapiao_information?.[0]?.fapiao_state || r.data?.fapiao_state;
   return { ok: true, status: state };
 }
 
-/** Get invoice download URL */
 export async function getInvoiceDownloadInfo(fapiaoApplyId: string, fapiaoId?: string): Promise<{ ok: boolean; url?: string; error?: string }> {
   let url = `${BASE}/${fapiaoApplyId}/fapiao-files`;
   if (fapiaoId) url += `?fapiao_id=${fapiaoId}`;
@@ -168,7 +139,6 @@ export async function getInvoiceDownloadInfo(fapiaoApplyId: string, fapiaoId?: s
   return { ok: true, url: file?.download_url };
 }
 
-/** Download invoice PDF file as Buffer */
 export async function downloadInvoicePdf(invoiceUrl: string): Promise<Buffer | null> {
   try {
     const resp = await fetch(invoiceUrl);
