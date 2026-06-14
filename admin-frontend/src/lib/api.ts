@@ -1,6 +1,6 @@
 import type { DashboardData, AdminUser, AdminPayment, AdminPortal, AdminVideo, UserDetail, MembershipPlan, CreditPackage } from './types'
 
-const API = 'https://yooclaw.yookeer.com/api/v1/admin'
+const API = 'http://localhost:3001/api/v1/admin'
 let TOKEN = ''
 
 export function setToken(t: string) { TOKEN = t }
@@ -30,6 +30,7 @@ export const api = {
   userDetail: (id: string) => req<UserDetail>('/users/' + id),
   setUserStatus: (id: string, status: 'active' | 'disabled') => req('/users/' + id + '/status', { method: 'POST', body: JSON.stringify({ status }) }),
   addCredits: (id: string, amount: number, description: string) => req('/users/' + id + '/credits', { method: 'POST', body: JSON.stringify({ amount, description }) }),
+  deleteUser: (id: string) => req('/users/' + id, { method: 'DELETE' }),
 
   payments: (params: { page?: number; limit?: number; status?: string }) => {
     const q = new URLSearchParams()

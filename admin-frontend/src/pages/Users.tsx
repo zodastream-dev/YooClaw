@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import type { AdminUser, UserDetail } from '../lib/types'
-import { Loader2, Search, ChevronLeft, ChevronRight, X, Zap } from 'lucide-react'
+import { Loader2, Search, ChevronLeft, ChevronRight, X, Trash2, AlertTriangle } from 'lucide-react'
 
 export default function Users() {
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -12,6 +12,8 @@ export default function Users() {
   const [detail, setDetail] = useState<UserDetail | null>(null)
   const [creditAmount, setCreditAmount] = useState(0)
   const [creditDesc, setCreditDesc] = useState('管理员充值')
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = async (p = page, s = search) => {
     setLoading(true)
@@ -32,6 +34,14 @@ export default function Users() {
     const newStatus = current === 'active' ? 'disabled' : 'active'
     await api.setUserStatus(id, newStatus)
     load()
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try { await api.deleteUser(deleteTarget.id); setDeleteTarget(null); load() }
+    catch (e: any) { alert(e.message) }
+    finally { setDeleting(false) }
   }
 
   const addCredits = async (id: string) => {
@@ -73,9 +83,15 @@ export default function Users() {
                   <td><span className={`badge ${u.status === 'active' ? 'badge-green' : 'badge-red'}`}>{u.status === 'active' ? '正常' : '禁用'}</span></td>
                   <td style={{ fontSize: 11 }}>{new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
                   <td onClick={e => e.stopPropagation()}>
-                    <button className="btn" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => toggleStatus(u.id, u.status)}>
-                      {u.status === 'active' ? '禁用' : '启用'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => toggleStatus(u.id, u.status)}>
+                        {u.status === 'active' ? '禁用' : '启用'}
+                      </button>
+                      <button className="btn btn-danger" style={{ fontSize: 11, padding: '3px 8px' }}
+                        onClick={() => setDeleteTarget({ id: u.id, name: u.username })}>
+                        删除
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -138,6 +154,29 @@ export default function Users() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="modal-overlay" onClick={() => setDeleteTarget(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400, textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 24, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle size={24} color="var(--red)" />
+              </div>
+            </div>
+            <h3 style={{ marginBottom: 8 }}>确认删除</h3>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+              确定要删除用户 <strong style={{ color: 'var(--red)' }}>{deleteTarget.name}</strong> 吗？<br />
+              此操作将删除该用户的所有数据（门户、视频、订单、积分记录等），不可恢复。
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button className="btn" onClick={() => setDeleteTarget(null)}>取消</button>
+              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+                {deleting ? '删除中...' : '确认删除'}
+              </button>
+            </div>
           </div>
         </div>
       )}

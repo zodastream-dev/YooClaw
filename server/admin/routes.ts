@@ -6,6 +6,8 @@
 import { Router, Request, Response } from 'express';
 import { sql } from '../db.js';
 
+console.log('[Admin] Routes module loaded');
+
 const router = Router();
 
 // ==================== Dashboard ====================
@@ -17,17 +19,16 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
     const monthStart = now.toISOString().slice(0, 7) + '-01';
 
     const [totalUsers, todayUsers, monthUsers, paidOrders, monthOrders,
-      memberships, creditsTotal, portals, videos, storageTotal] = await Promise.all([
+      memberships, creditsTotal, portals, videos] = await Promise.all([
       sql`SELECT COUNT(*)::int as cnt FROM users`.then(r => r[0].cnt),
       sql`SELECT COUNT(*)::int as cnt FROM users WHERE created_at::date = ${today}`.then(r => r[0].cnt),
       sql`SELECT COUNT(*)::int as cnt FROM users WHERE created_at >= ${monthStart}`.then(r => r[0].cnt),
       sql`SELECT COUNT(*)::int as cnt, COALESCE(SUM(amount_yuan), 0)::int as total FROM orders WHERE status = 'paid'`.then(r => r[0]),
       sql`SELECT COALESCE(SUM(amount_yuan), 0)::int as total FROM orders WHERE status = 'paid' AND created_at >= ${monthStart}`.then(r => r[0].total),
-      sql`SELECT tier, COUNT(*)::int as cnt FROM user_memberships WHERE status = 'active' GROUP BY tier`.then(r => r),
+      sql`SELECT tier, COUNT(*)::int as cnt FROM user_memberships WHERE expires_at > now() GROUP BY tier`.then(r => r),
       sql`SELECT COALESCE(SUM(balance_after), 0)::int as total FROM (SELECT DISTINCT ON (user_id) balance_after FROM credit_transactions ORDER BY user_id, created_at DESC) t`.then(r => r[0].total),
       sql`SELECT COUNT(*)::int as cnt FROM report_sites WHERE type = 'portal'`.then(r => r[0].cnt),
       sql`SELECT COUNT(*)::int as cnt FROM videos`.then(r => r[0].cnt),
-      sql`SELECT COALESCE(SUM(size_bytes), 0)::bigint as total FROM report_sites`.then(r => Number(r[0].total)),
     ]);
 
     const memberDist: Record<string, number> = {};
@@ -40,7 +41,6 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
       creditsTotal,
       portals,
       videos,
-      storageTotal,
     }});
   } catch (err: any) {
     res.status(500).json({ error: { code: 'INTERNAL', message: err.message } });
@@ -68,11 +68,10 @@ router.get('/users', async (req: Request, res: Response) => {
       SELECT u.id, u.username, u.role, u.status, u.created_at,
         COALESCE(um.tier, 'free') as tier,
         COALESCE(um.expires_at, NULL) as member_expires,
-        (SELECT COALESCE(balance_after, 0) FROM credit_transactions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as credits,
-        (SELECT COUNT(*) FROM report_sites WHERE user_id = u.id) as portal_count,
-        (SELECT COALESCE(SUM(size_bytes), 0) FROM report_sites WHERE user_id = u.id) as storage_used
+        COALESCE((SELECT balance_after FROM credit_transactions WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1), 0) as credits,
+        (SELECT COUNT(*) FROM report_sites WHERE user_id = u.id) as portal_count
       FROM users u
-      LEFT JOIN user_memberships um ON um.user_id = u.id AND um.status = 'active'
+      LEFT JOIN user_memberships um ON um.user_id = u.id AND um.expires_at > now()
       ${where}
       ORDER BY u.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -89,7 +88,7 @@ router.get('/users/:id', async (req: Request, res: Response) => {
     const userId = req.params.id;
     const [user, membership, credits, portals, videos, orders, transactions] = await Promise.all([
       sql`SELECT id, username, role, status, created_at FROM users WHERE id = ${userId}`.then(r => r[0]),
-      sql`SELECT tier, status, expires_at, created_at FROM user_memberships WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 1`.then(r => r[0]),
+      sql`SELECT tier, expires_at, created_at FROM user_memberships WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 1`.then(r => r[0]),
       sql`SELECT balance_after as credits FROM credit_transactions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 1`.then(r => r[0]?.credits || 0),
       sql`SELECT id, title, slug, type, is_published, view_count, size_bytes, created_at FROM report_sites WHERE user_id = ${userId} ORDER BY created_at DESC`.then(r => r),
       sql`SELECT id, title, duration, created_at FROM videos WHERE user_id = ${userId} ORDER BY created_at DESC`.then(r => r),
@@ -137,6 +136,16 @@ router.post('/users/:id/credits', async (req: Request, res: Response) => {
       VALUES (${userId}, ${amount > 0 ? 'charge' : 'consume'}, ${amount}, ${newBalance}, ${description || '管理员操作'})
     `;
     res.json({ data: { ok: true, balance: newBalance } });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'INTERNAL', message: err.message } });
+  }
+});
+
+router.delete('/users/:id', async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+    await sql`DELETE FROM users WHERE id = ${userId}`;
+    res.json({ data: { ok: true } });
   } catch (err: any) {
     res.status(500).json({ error: { code: 'INTERNAL', message: err.message } });
   }

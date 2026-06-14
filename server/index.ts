@@ -2203,72 +2203,7 @@ app.post('/api/v1/user/change-password', authMiddleware, async (req, res) => {
 
 // ========== Admin Routes ==========
 
-app.get('/api/v1/admin/users', authMiddleware, adminMiddleware, async (_req, res) => {
-  try {
-    const users = await getAllUsers();
-    res.json({
-      data: users.map(u => ({
-        id: u.id,
-        username: u.username,
-        role: u.role,
-        storageUsed: toNumber(u.storage_used),
-        storageLimit: toNumber(u.storage_limit),
-        status: u.status,
-        createdAt: u.created_at,
-      })),
-    });
-  } catch (err: any) {
-    console.error('[Admin Get Users Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch users' } });
-  }
-});
-
-app.patch('/api/v1/admin/users/:userId', authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { status } = req.body || {};
-    if (status && !['active', 'disabled'].includes(status)) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Invalid status' } });
-    }
-    const adminUser = (req as any).user as JwtPayload;
-    if (userId === adminUser.userId) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Cannot modify your own account' } });
-    }
-    if (status) await updateUserStatus(userId, status);
-    const user = await getUserById(userId);
-    res.json({
-      data: user ? { id: user.id, username: user.username, role: user.role, status: user.status } : null,
-    });
-  } catch (err: any) {
-    console.error('[Admin Update User Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update user' } });
-  }
-});
-
-app.delete('/api/v1/admin/users/:userId', authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const adminUser = (req as any).user as JwtPayload;
-    if (userId === adminUser.userId) {
-      return res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Cannot delete your own account' } });
-    }
-    await deleteUser(userId);
-    res.json({ data: { deleted: true } });
-  } catch (err: any) {
-    console.error('[Admin Delete User Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete user' } });
-  }
-});
-
-app.get('/api/v1/admin/stats', authMiddleware, adminMiddleware, async (_req, res) => {
-  try {
-    const stats = await getAdminStats();
-    res.json({ data: stats });
-  } catch (err: any) {
-    console.error('[Admin Stats Error]', err.message);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch stats' } });
-  }
-});
+// Admin routes are registered below (see "Admin Routes" section)
 
 // ========== Report Site Routes ==========
 
