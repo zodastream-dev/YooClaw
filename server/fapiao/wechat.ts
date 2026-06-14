@@ -98,6 +98,12 @@ export interface FapiaoIssueParams {
 /** Issue electronic invoice */
 export async function issueInvoice(params: FapiaoIssueParams): Promise<{ ok: boolean; fapiaoApplyId?: string; error?: string }> {
   const isEnterprise = !!(params.buyerTaxId && params.buyerTaxId.trim().length > 0);
+  const billingPersonId = process.env.FAPAIO_BILLING_PERSON_ID || '';
+  const billingPerson = process.env.FAPAIO_BILLING_PERSON || '管理员';
+
+  if (!billingPersonId) {
+    return { ok: false, error: 'FAPAIO_BILLING_PERSON_ID not configured (开票人ID)' };
+  }
 
   const fapiaoId = params.fapiaoApplyId;
 
@@ -108,20 +114,31 @@ export async function issueInvoice(params: FapiaoIssueParams): Promise<{ ok: boo
     buyer_information: {
       type: isEnterprise ? 'ORGANIZATION' : 'INDIVIDUAL',
       name: params.buyerTitle,
-      taxpayer_id: isEnterprise ? params.buyerTaxId : undefined,
+      ...(isEnterprise && params.buyerTaxId ? { taxpayer_id: params.buyerTaxId } : {}),
     },
-    fapiao_information: [{
+    fapiao_information: {
       fapiao_id: fapiaoId,
       total_amount: params.totalAmountFen,
+      billing_person_id: billingPersonId,
+      billing_person: billingPerson,
+      fapiao_bill_type: 'COMM_FAPIAO',
+      export_business_policy_code: 1,
+      vat_refund_levy_code: 1,
       remark: params.remark || '',
       items: params.items.map(item => ({
         tax_code: item.taxCode,
         goods_name: item.goodsName,
-        quantity: item.quantity * 100000000, // convert to 10^-8 unit
+        quantity: item.quantity * 100000000,
         total_amount: item.totalAmountFen,
+        tax_rate: 1300, // 13% VAT
         discount: false,
       })),
-    }],
+      transaction_information: [{
+        pay_channel: 'WECHAT_PAY',
+        out_trade_no: params.fapiaoApplyId,
+        amount: params.totalAmountFen,
+      }],
+    },
   };
 
   const r = await fapiaoRequest('POST', ISSUE_URL, body);
