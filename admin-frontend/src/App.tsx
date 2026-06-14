@@ -18,7 +18,7 @@ function LoginScreen() {
   const login = async () => {
     setErr(''); setLoading(true)
     try {
-      const r = await fetch('http://localhost:3001/api/v1/admin/login', {
+      const r = await fetch('https://yooclaw.yookeer.com/api/v1/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })

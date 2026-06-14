@@ -1,6 +1,6 @@
 import type { DashboardData, AdminUser, AdminPayment, AdminPortal, AdminVideo, UserDetail, MembershipPlan, CreditPackage } from './types'
 
-const API = 'http://localhost:3001/api/v1/admin'
+const API = 'https://yooclaw.yookeer.com/api/v1/admin'
 let TOKEN = ''
 
 export function setToken(t: string) { TOKEN = t }
