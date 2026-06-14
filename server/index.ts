@@ -117,6 +117,7 @@ import {
 import { createNativeOrder, verifyCallback as verifyWechatCallback, decryptResource, fetchPlatformCertificates } from './pay/wechat.js';
 import { issueInvoice, isFapiaoConfigured } from './fapiao/wechat.js';
 import { sendEmail, buildInvoiceEmailHtml } from './services/mailer.js';
+import adminRoutes from './admin/routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -6483,6 +6484,9 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       res.json({ code: 'FAIL', message: err.message });
     }
   });
+
+  // ========== Admin Routes ==========
+  app.use('/api/v1/admin', authMiddleware, adminMiddleware, adminRoutes);
 
     app.get('*', (req, res) => {
       if (!req.path.startsWith('/api')) {
