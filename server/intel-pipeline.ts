@@ -455,14 +455,16 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   }
 
   // --- V3.0: 定点轰炸 — Serper site: 分组查询黄金信源池 ---
-  // T1(央媒)和T2(监管+政府)都用对象名搜索。政府域名内容低频，合并不影响。
+  // T1(央媒)用对象名+行业词+角度词搜索（日发千篇，需要收窄）
+  // T2+(政府域名)只用裸对象名搜索（低频发布，加了修饰词就搜不到了）
   let serperWlItems: any[] = [];
   if (wlTiers.length > 0) {
-    const prefix = objectName
-      ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
-      : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
-    
     const cat = (src.name || '').toLowerCase();
+    const rawName = objectName || (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
+    const fullPrefix = objectName
+      ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
+      : rawName;
+    
     const angles = [
       { label: '通用', kw: '' },
       { label: '监管', kw: ' 处罚 公告 风险', cond: cat.includes('舆情') || cat.includes('声誉') || cat.includes('自身') },
@@ -476,9 +478,16 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         for (let ti = 0; ti < wlTiers.length; ti++) {
           const tier = wlTiers[ti];
           const siteFilter = tier.map(d => `site:${d}`).join(' OR ');
+          // T1: 用行业关键词+角度词；T2+: 只用裸对象名
+          const base = ti === 0 ? fullPrefix : rawName;
           for (let ai = 0; ai < angles.length; ai++) {
             if (angles[ai].cond !== undefined && !angles[ai].cond!) continue;
-            const wlQuery = `${prefix}${angles[ai].kw} ${siteFilter}`.trim();
+            // T2+ 角度也只用裸名（政府站加了修饰词也搜不到）
+            const wlQuery = ti === 0 
+              ? `${base}${angles[ai].kw} ${siteFilter}`.trim()
+              : `${rawName} ${siteFilter}`.trim();
+            // For T2+, only run the first angle (通用), skip redundant angles
+            if (ti > 0 && ai > 0) continue;
             try {
               const items = await serperMod.search(wlQuery, serperKey);
               let added = 0;
