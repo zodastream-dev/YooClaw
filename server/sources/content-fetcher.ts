@@ -1,180 +1,168 @@
 /**
  * V3.0: 全量拉取引擎 — RSS 聚合 + 政府站点爬虫
  *
- * 与 Serper site: 关键词搜索不同，本模块对指定权威信源做"全量采样"：
- * - RSS feeds: 拉取当日全部文章
- * - 政府站点: 抓取列表页所有链接标题
- *
- * 不做任何关键词过滤，所有原始内容直接喂给 DeepSeek 意图解码器。
+ * 对指定权威信源做全量采样，不做关键词过滤。
+ * 捕获不含监控对象名的弱信号（项目公告、人事任命、监管文书等）。
  */
 
 import { RawSearchItem } from '../search-sources/types.js';
 
-// RSS feed 源配置
+// Today's date string for item freshness
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+// RSS feed 源（仅保留已验证可用的)
 const RSS_FEEDS: { name: string; url: string; label: string }[] = [
-  { name: 'pbc', url: 'http://www.pbc.gov.cn/goutongjiaoliu/113456/113469/11040/index1.html', label: '央行沟通交流' },
-  { name: 'ndrc', url: 'https://www.ndrc.gov.cn/fzggw/jgsj/fgs/sjdt/index.xml', label: '发改委政策动态' },
-  { name: 'mof', url: 'https://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/index.xml', label: '财政部新闻' },
-  { name: 'people-finance', url: 'http://finance.people.com.cn/rss/finance.xml', label: '人民网财经' },
-  { name: 'xinhua-fortune', url: 'http://www.news.cn/fortune/rss.xml', label: '新华网财经' },
+  { name: 'ndrc', url: 'https://www.ndrc.gov.cn/fzggw/jgsj/fgs/sjdt/', label: '发改委政策' },
+  { name: 'ndrc-news', url: 'https://www.ndrc.gov.cn/xwdt/xwfb/', label: '发改委新闻发布' },
+  { name: 'mof', url: 'https://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/', label: '财政部新闻' },
 ];
 
-// 政府站点列表页 — 抓取当日发布的所有链接
-const GOV_PAGES: { name: string; url: string; label: string; selector: string }[] = [
-  {
-    name: 'cbirc-license',
-    url: 'https://www.cbirc.gov.cn/branch/beijing/view/pages/common/ItemList.html?itemPId=1184',
-    label: '金监总局行政许可',
-    selector: '.list-group a, .list-con a, .list-unstyled a',
-  },
-  {
-    name: 'cbirc-penalty',
-    url: 'https://www.cbirc.gov.cn/branch/beijing/view/pages/common/ItemList.html?itemPId=1185',
-    label: '金监总局行政处罚',
-    selector: '.list-group a, .list-con a, .list-unstyled a',
-  },
+// 政府站点列表页（仅保留可访问的）
+const GOV_PAGES: { name: string; url: string; label: string }[] = [
   {
     name: 'mee-eia',
     url: 'https://www.mee.gov.cn/ywgz/hjyxpj/jsxmhjyxpj/',
     label: '生态环境部环评',
-    selector: '.list_main a, #main_body a, .main a',
   },
   {
-    name: 'fgw-beijing',
-    url: 'https://fgw.beijing.gov.cn/fzggzl/xmsqxx/pzjg/',
-    label: '北京发改委项目审批',
-    selector: '.listContent a, .list_table a, .main a',
+    name: 'ndrc-projects',
+    url: 'https://www.ndrc.gov.cn/fzggw/jgsj/fgs/sjdt/',
+    label: '发改委政策动态',
+  },
+  {
+    name: 'cbirc-notices',
+    url: 'https://www.cbirc.gov.cn/cn/view/pages/ItemList.html?itemPId=915',
+    label: '金监总局公告',
   },
 ];
 
 /**
- * Fetch a single RSS feed and return all items.
+ * Try fetching a URL that looks like it might be an RSS feed or HTML page.
+ * Returns parsed items with today's date.
  */
-async function fetchRSS(feed: typeof RSS_FEEDS[0]): Promise<RawSearchItem[]> {
+async function fetchPage(url: string, label: string): Promise<RawSearchItem[]> {
   try {
-    const resp = await fetch(feed.url, {
-      headers: { 'User-Agent': 'YooClaw/3.0 RSS Reader' },
-      signal: AbortSignal.timeout(15000),
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YooClaw/3.0)' },
+      signal: AbortSignal.timeout(20000),
+      redirect: 'follow',
     });
     if (!resp.ok) {
-      console.warn(`[RSS] ${feed.label}: HTTP ${resp.status}`);
+      console.warn(`[Fetcher] ${label}: HTTP ${resp.status} for ${url}`);
       return [];
     }
-    const xml = await resp.text();
 
-    // Simple RSS 2.0 XML parser (avoids extra dependency)
-    const items: RawSearchItem[] = [];
-    const itemBlocks = xml.split('<item>').slice(1);
-    for (const block of itemBlocks) {
-      const titleMatch = block.match(/<title>(?:<!\[CDATA\[)?(.+?)(?:\]\]>)?<\/title>/s);
-      const linkMatch = block.match(/<link>(.+?)<\/link>/);
-      const descMatch = block.match(/<description>(?:<!\[CDATA\[)?(.+?)(?:\]\]>)?<\/description>/s);
-      const dateMatch = block.match(/<pubDate>(.+?)<\/pubDate>/);
+    const text = await resp.text();
+    const date = todayStr();
 
-      if (!titleMatch) continue;
-      const title = titleMatch[1].trim().replace(/<[^>]+>/g, '');
-      if (!title || title.length < 3) continue;
-
-      let date = '';
-      if (dateMatch) {
-        const d = new Date(dateMatch[1]);
-        if (!isNaN(d.getTime())) date = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
-      }
-
-      items.push({
-        title,
-        url: linkMatch?.[1]?.trim() || '',
-        snippet: descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '').substring(0, 200) : '',
-        date,
-      });
+    // Try RSS XML parsing first (look for <item> tags)
+    if (text.includes('<item>') || text.includes('<entry>')) {
+      return parseRSS(text, date);
     }
-    return items;
+
+    // Otherwise parse as HTML — extract all links with visible text
+    return parseHTML(text, url, date);
   } catch (e: any) {
-    console.warn(`[RSS] ${feed.label}: ${e.message}`);
+    console.warn(`[Fetcher] ${label}: ${e.message}`);
     return [];
   }
 }
 
 /**
- * Fetch a government page and extract article links.
+ * Parse RSS 2.0 / Atom XML and extract items.
  */
-async function fetchGovPage(page: typeof GOV_PAGES[0]): Promise<RawSearchItem[]> {
-  try {
-    const resp = await fetch(page.url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YooClaw/3.0)' },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!resp.ok) {
-      console.warn(`[GovPage] ${page.label}: HTTP ${resp.status}`);
-      return [];
+function parseRSS(xml: string, date: string): RawSearchItem[] {
+  const items: RawSearchItem[] = [];
+  // Try <item> (RSS 2.0) first, then <entry> (Atom)
+  const blocks = xml.split(/<item[^>]*>/i).slice(1);
+  if (blocks.length === 0) return [];
+
+  for (const block of blocks) {
+    const titleM = block.match(/<title>(?:<!\[CDATA\[)?(.+?)(?:\]\]>)?<\/title>/is);
+    const linkM = block.match(/<link[^>]*>(?:<!\[CDATA\[)?(.+?)(?:\]\]>)?<\/link>/i) ||
+                  block.match(/<link[^>]*href\s*=\s*["']([^"']+)["']/i);
+    const descM = block.match(/<description>(?:<!\[CDATA\[)?(.+?)(?:\]\]>)?<\/description>/is);
+
+    if (!titleM) continue;
+    const title = titleM[1].trim().replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+    if (!title || title.length < 4) continue;
+
+    let snippet = '';
+    if (descM) {
+      snippet = descM[1].trim().replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').substring(0, 200);
     }
-    const html = await resp.text();
 
-    // Extract links with titles using regex (avoids cheerio dependency for server)
-    // Pattern: <a href="...">title</a>
-    const linkPattern = /<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-    const items: RawSearchItem[] = [];
-    const seen = new Set<string>();
-    let match;
-    while ((match = linkPattern.exec(html)) !== null) {
-      let href = match[1];
-      let text = match[2].replace(/<[^>]+>/g, '').trim();
-      if (!text || text.length < 5) continue;
-
-      // Resolve relative URLs
-      if (href.startsWith('/')) {
-        const base = new URL(page.url);
-        href = `${base.protocol}//${base.host}${href}`;
-      } else if (!href.startsWith('http')) {
-        const base = page.url.substring(0, page.url.lastIndexOf('/') + 1);
-        href = base + href;
-      }
-
-      // Deduplicate by URL
-      if (seen.has(href)) continue;
-      seen.add(href);
-
-      items.push({ title: text, url: href, snippet: '', date: '' });
-      if (items.length >= 30) break; // Cap per page
-    }
-    return items;
-  } catch (e: any) {
-    console.warn(`[GovPage] ${page.label}: ${e.message}`);
-    return [];
+    items.push({ title, url: linkM?.[1]?.trim() || '', snippet, date });
+    if (items.length >= 20) break;
   }
+  return items;
+}
+
+/**
+ * Parse HTML page and extract article links.
+ */
+function parseHTML(html: string, baseUrl: string, date: string): RawSearchItem[] {
+  const items: RawSearchItem[] = [];
+  const seen = new Set<string>();
+
+  // Extract all links with text content > 5 chars
+  const linkPattern = /<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = linkPattern.exec(html)) !== null) {
+    let href = match[1];
+    let text = match[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (!text || text.length < 4) continue;
+
+    // Filter out navigation links (short text, likely menu items)
+    const navWords = ['首页', '上一页', '下一页', '返回', '登录', '注册', '关于', 'English', '首页', '网站地图'];
+    if (navWords.includes(text)) continue;
+
+    // Resolve relative URLs
+    try {
+      href = new URL(href, baseUrl).href;
+    } catch {
+      continue;
+    }
+
+    if (seen.has(href)) continue;
+    seen.add(href);
+
+    items.push({ title: text, url: href, snippet: '', date });
+    if (items.length >= 20) break;
+  }
+  return items;
 }
 
 /**
  * Fetch all authoritative content (RSS + government pages).
- * Returns RawSearchItem[] suitable for merging into the intel pipeline.
+ * All items get today's date — they're from the latest published content.
  */
 export async function fetchAllAuthoritativeContent(): Promise<RawSearchItem[]> {
   const allItems: RawSearchItem[] = [];
 
-  // Fetch RSS feeds in parallel
-  const rssResults = await Promise.allSettled(RSS_FEEDS.map(f => fetchRSS(f)));
-  for (let i = 0; i < rssResults.length; i++) {
-    const r = rssResults[i];
-    if (r.status === 'fulfilled' && r.value.length > 0) {
-      for (const item of r.value) {
-        item._searchProvider = `rss-${RSS_FEEDS[i].name}` as any;
-      }
-      allItems.push(...r.value);
-      console.log(`[ContentFetcher] RSS ${RSS_FEEDS[i].label}: ${r.value.length} items`);
-    }
-  }
+  const allSources = [
+    ...RSS_FEEDS.map(f => ({ ...f, type: 'rss' })),
+    ...GOV_PAGES.map(p => ({ ...p, type: 'gov' })),
+  ];
 
-  // Fetch government pages in parallel
-  const govResults = await Promise.allSettled(GOV_PAGES.map(p => fetchGovPage(p)));
-  for (let i = 0; i < govResults.length; i++) {
-    const r = govResults[i];
-    if (r.status === 'fulfilled' && r.value.length > 0) {
-      for (const item of r.value) {
-        item._searchProvider = `gov-${GOV_PAGES[i].name}` as any;
-      }
-      allItems.push(...r.value);
-      console.log(`[ContentFetcher] Gov ${GOV_PAGES[i].label}: ${r.value.length} items`);
+  // Fetch all in parallel
+  const results = await Promise.allSettled(
+    allSources.map(s => fetchPage(s.url, s.label).then(items => ({ ...s, items })))
+  );
+
+  for (const r of results) {
+    if (r.status !== 'fulfilled') continue;
+    const { name, type, label, items } = r.value;
+    if (items.length === 0) continue;
+
+    for (const item of items) {
+      (item as any)._searchProvider = `${type}-${name}`;
     }
+    allItems.push(...items);
+    console.log(`[ContentFetcher] ${type} ${label}: ${items.length} items`);
   }
 
   return allItems;
