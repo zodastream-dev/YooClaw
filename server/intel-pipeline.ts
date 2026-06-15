@@ -888,6 +888,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const before = results.length;
     const beforeResults = [...results]; // Save copy for safety net
     results = results.filter((r: any) => {
+      // V2.7: Skip EHR for Serper-sourced items — already domain-verified via site: query.
+      // DeepSeek may write summaries like "该行" instead of "建设银行", which EHR would reject.
+      if (r._provider === 'serper') return true;
       const text = (r.title || '') + ' ' + (r.summary || '');
       return strictRegex.test(text);
     });
