@@ -483,7 +483,6 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
             console.log('[Intel:V3.0] DEBUG query: ' + wlQuery.substring(0, 150));
             try {
               const items = await serperMod.search(wlQuery, serperKey);
-              console.log('[Intel:V3.0] DEBUG response items: ' + items.length);
               let added = 0;
               for (const item of items) {
                 const key = (item.url || item.title || '').toLowerCase().trim();
