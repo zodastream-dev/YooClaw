@@ -391,7 +391,40 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
   }
 
-  const hasSearch = rawItems.length > 0;
+  // --- V2.7: Whitelist queries via Serper (Google supports site: natively!) ---
+  // Regular metaso/tianapi don't support site:, so whitelist domain search is done
+  // separately via Serper which respects the site: operator.
+  let serperWlItems: any[] = [];
+  if (domainWhitelist.length > 0) {
+    const siteFilter = domainWhitelist.map(d => `site:${d}`).join(' OR ');
+    const wlQueryPrefix = objectName
+      ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
+      : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
+    const wlQuery = `${wlQueryPrefix} ${siteFilter}`;
+    const serperMod = getSearchModule('serper');
+    if (serperMod) {
+      try {
+        const serperKey = getProviderKey('serper');
+        if (serperKey) {
+          const items = await serperMod.search(wlQuery, serperKey);
+          let added = 0;
+          for (const item of items) {
+            const key = (item.url || item.title || '').toLowerCase().trim();
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              serperWlItems.push({ ...item, _searchProvider: 'serper' });
+              added++;
+            }
+          }
+          console.log('[Intel:V2.7] Serper whitelist: ' + added + '/' + items.length + ' new results for ' + wlQuery.substring(0, 120));
+        }
+      } catch (e: any) {
+        console.warn('[Intel:V2.7] Serper whitelist search failed:', e.message);
+      }
+    }
+  }
+
+  const hasSearch = rawItems.length > 0 || serperWlItems.length > 0;
   if (!hasSearch) {
     console.log('[Intel] No search results — returning empty (宁缺毋滥)');
     return [];
@@ -417,6 +450,11 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       else otherRawItems.push(item);
     }
     console.log('[Intel:V2.6] Whitelist domains: ' + wlRawItems.length + ' items, Others: ' + otherRawItems.length + ' items');
+    // V2.7: Add Serper whitelist results (from site: queries) to the whitelist pool
+    if (serperWlItems.length > 0) {
+      wlRawItems = [...serperWlItems, ...wlRawItems];
+      console.log('[Intel:V2.7] Added ' + serperWlItems.length + ' Serper whitelist results → total whitelist: ' + wlRawItems.length);
+    }
   } else {
     // No whitelist — all results are "other" (but we still pass them through)
     wlRawItems = [];
@@ -502,7 +540,14 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         ? '  自身舆情专项：千万级以上监管罚单/高管被查/数据泄露重大事件/挤兑传闻 → 90+; 负面舆情扩散/理财产品投诉增多/评级展望负面 → 75-89; 常规监管通告/一般性投诉 → ≤70\n' +
           '    注意：自身负面舆情优先提取并高分标注，不因情感负面而降分；正面或中性舆情正常评价\n'
         : '') +
-      '12. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
+      '12. 日期规范（极其重要，严格遵守）：\n' +
+      '  - date 字段必须从搜索结果的 date/published_date 元数据中精确复制\n' +
+      '  - 严禁根据文章正文内容推测或编造日期\n' +
+      '  - 如果原始搜索结果没有明确标注完整日期（年月日），date 字段留空字符串 ""\n' +
+      '  - 特别禁止：把只有月日（如"1月23日"）的日期自动补全为当前年份（2026年）——这些很可能是旧文章\n' +
+      '  - 特别禁止：把原始日期从"2019年"篡改为"2026年"\n' +
+      '  - 日期格式统一为"YYYY年MM月DD日"，例如"2025年12月05日"\n' +
+      '13. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
       '  四维判定框架：\n' +
       '  a) 高管动态：核心高管离职/空降/被调查/监管约谈 → CRITICAL; 高管重要场合战略表态 → WARNING\n' +
       '  b) 战略布局：新业务线/新部门成立/海外扩张/重大收购 → WARNING; 常规业务调整 → NORMAL\n' +
@@ -511,7 +556,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '  CRITICAL: 直接影响核心竞争力或资产安全，需24h内响应\n' +
       '  WARNING: 需要业务部门关注，本周内制定应对策略\n' +
       '  NORMAL: 常规情报，作为背景信息储备\n' +
-      '13.仅JSON\n\n原始搜索结果：\n' + searchContext;
+      '14.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     const catCheck2 = (src.name || '').toLowerCase();
     const isReputation2 = catCheck2.includes('舆情') || catCheck2.includes('声誉') || catCheck2.includes('自身');
@@ -535,8 +580,12 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
           '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
           '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
           '  评分只看商业价值不看情感倾向，重复信息降10-20分\n') +
+      '11. 日期规范（极其重要，严格遵守）：\n' +
+      '  - date 字段必须从搜索结果的 date/published_date 元数据中精确复制\n' +
+      '  - 严禁根据文章正文内容推测或编造日期，日期未知就留空\n' +
+      '  - 特别禁止：把只有月日的日期自动补全为当前年份\n' +
       (isReputation2
-        ? '11. _riskLevel 风险预警等级（必填）：\n' +
+        ? '12. _riskLevel 风险预警等级（必填）：\n' +
           '  声誉风险六维框架：\n' +
           '  a) 监管处罚：千万级以上罚单/机构准入限制/高管任职资格撤销 → CRITICAL\n' +
           '  b) 合规风险：反洗钱违规/数据安全事件/内控失效/资金挪用 → CRITICAL\n' +
@@ -544,9 +593,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
           '  d) 声誉事件：大规模投诉/理财产品兑付危机/网点突发事件/群体事件 → CRITICAL\n' +
           '  e) 市场传闻：评级下调/流动性危机/被并购重组 → WARNING\n' +
           '  f) 资产质量：重大不良暴露(>5亿)/拨备骤降/关注类贷款异常 → CRITICAL\n' +
-          '12.仅JSON\n\n原始搜索结果：\n' + searchContext
-        : '11. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
-          '12.仅JSON\n\n原始搜索结果：\n' + searchContext);
+          '13.仅JSON\n\n原始搜索结果：\n' + searchContext
+        : '12. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
+          '13.仅JSON\n\n原始搜索结果：\n' + searchContext);
   }
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
@@ -790,6 +839,29 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     return true;
   });
   if (filteredCount > 0) console.log('[Intel] Filtered ' + filteredCount + ' items older than 365 days');
+  // V2.7: Date sanity check — reject future dates (AI hallucination)
+  let futureRejected = 0;
+  const nowTs = Date.now();
+  const oneDay = 86400000;
+  results = results.filter((r: any) => {
+    if (!r.date || !r.date.trim()) return true;
+    const cnMatch = r.date.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    let ts = 0;
+    if (cnMatch) {
+      ts = new Date(parseInt(cnMatch[1]), parseInt(cnMatch[2]) - 1, parseInt(cnMatch[3])).getTime();
+    } else {
+      ts = new Date(r.date).getTime();
+    }
+    if (isNaN(ts)) return true;
+    // Reject dates more than 1 day in the future
+    if (ts > nowTs + oneDay) {
+      console.log('[Intel:V2.7] Rejected future date: "' + r.date + '" for title: ' + (r.title || '').substring(0, 60));
+      futureRejected++;
+      return false;
+    }
+    return true;
+  });
+  if (futureRejected > 0) console.log('[Intel:V2.7] Rejected ' + futureRejected + ' items with future dates (hallucination)');
   // Cap empty-date items at 5 to prevent stale data dominating results
   const reliabilityOrder: Record<string, number> = { '已确认': 3, '待核实': 2, '传闻': 1 };
   const emptyItems = results
