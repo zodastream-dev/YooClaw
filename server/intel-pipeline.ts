@@ -459,20 +459,31 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   }
 
   // --- V3.0: 定点轰炸 — 分组 Serper site: 查询黄金信源池 ---
-  // 每组独立查询避免单一高频域垄断。央媒/监管/政府三类分开查。
+  // T1(央媒)+T2(监管)用对象名搜索；T3+(政府域名)用内容类型关键词搜索
+  // 因为政府网站发布的是项目公告/环评/人事等专业内容，极少直接提及银行名
   let serperWlItems: any[] = [];
   if (wlTiers.length > 0) {
     const prefix = objectName
       ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
       : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
     
-    // 角度关键词
     const cat = (src.name || '').toLowerCase();
+    // 政府域名的搜索用语（基于情报源类型）
+    const govKw = cat.includes('舆情') || cat.includes('声誉') || cat.includes('自身')
+      ? '处罚 公告 诉讼 逾期 违约 不良'
+      : cat.includes('客户') || cat.includes('目标')
+        ? '项目 招标 融资 合同 审批'
+        : cat.includes('竞争') || cat.includes('对手')
+          ? '合作 签约 协议 授信 银团'
+          : '重大项目 审批 规划 环评 公示 干部 任免';
+    
+    // 角度: T1+T2用对象名, T3+用内容类型关键词
     const angles = [
-      { label: '通用', kw: '', always: true },
-      { label: '监管', kw: ' 监管 处罚 公告 风险', cond: cat.includes('舆情') || cat.includes('声誉') || cat.includes('自身') },
-      { label: '项目', kw: ' 项目 审批 招标 合作', cond: !cat.includes('舆情') },
-    ].filter(a => a.always || a.cond);
+      { label: '通用', kw: '', cond: (ti: number) => ti < 2 },
+      { label: '监管', kw: ' 监管 处罚 公告 风险', cond: (ti: number) => ti < 2 && (cat.includes('舆情') || cat.includes('声誉') || cat.includes('自身')) },
+      { label: '项目', kw: ' 项目 审批 招标 合作', cond: (ti: number) => ti < 2 && !cat.includes('舆情') },
+      { label: 'gov信号', kw: ` ${govKw}`, cond: (ti: number) => ti >= 2 },
+    ].filter(a => a.cond(-1) || a.label === '通用');
 
     const serperMod = getSearchModule('serper');
     if (serperMod) {
@@ -481,8 +492,11 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         for (let ti = 0; ti < wlTiers.length; ti++) {
           const tier = wlTiers[ti];
           const siteFilter = tier.map(d => `site:${d}`).join(' OR ');
+          // T1+T2: use object name; T3+: use gov keywords (no object name needed)
+          const basePrefix = ti < 2 ? prefix : '';
           for (let ai = 0; ai < angles.length; ai++) {
-            const wlQuery = `${prefix}${angles[ai].kw} ${siteFilter}`;
+            if (!angles[ai].cond(ti)) continue;
+            const wlQuery = `${basePrefix}${angles[ai].kw} ${siteFilter}`.trim();
             try {
               const items = await serperMod.search(wlQuery, serperKey);
               let added = 0;
