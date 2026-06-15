@@ -133,7 +133,14 @@ async function loadIntelData(forceRefresh){
         pollCount++;
         console.log('[loadIntelData] Poll #'+pollCount+' for force refresh');
         loadIntelData().then(function(){
-          if(allIntelData.length>0 || pollCount>=maxPolls) clearInterval(pollTimer);
+          if(allIntelData.length>0){
+            clearInterval(pollTimer);
+          } else if(pollCount>=maxPolls){
+            clearInterval(pollTimer);
+            $('feedStatus').textContent='暂无情报数据（后台更新中，请稍后刷新）';
+            $('intelFeed').innerHTML='<div class=\"intel-loading\">暂无情报数据，情报源正在后台更新，请稍后刷新页面或点击"更新情报"按钮。</div>';
+            $('intelLoading').style.display='none';
+          }
         });
       }, 5000);
     }

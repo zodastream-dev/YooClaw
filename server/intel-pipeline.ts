@@ -391,16 +391,17 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
   }
 
-  // --- V2.7: Whitelist queries via Serper (Google supports site: natively!) ---
-  // Regular metaso/tianapi don't support site:, so whitelist domain search is done
-  // separately via Serper which respects the site: operator.
+  // --- V2.7: Whitelist augmentation via Serper ---
+  // Free Serper doesn't support site:, so we search for objectName+industry keywords.
+  // Google's ranking algorithm naturally favors authority domains (people.com.cn,
+  // xinhuanet.com, caixin.com), so results are more likely to be from whitelist domains
+  // than metaso/tianapi results. We then filter by domain after receiving.
   let serperWlItems: any[] = [];
   if (domainWhitelist.length > 0) {
-    const siteFilter = domainWhitelist.map(d => `site:${d}`).join(' OR ');
     const wlQueryPrefix = objectName
       ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
       : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
-    const wlQuery = `${wlQueryPrefix} ${siteFilter}`;
+    const wlQuery = wlQueryPrefix + ' 银行 金融';
     const serperMod = getSearchModule('serper');
     if (serperMod) {
       try {
@@ -416,10 +417,10 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
               added++;
             }
           }
-          console.log('[Intel:V2.7] Serper whitelist: ' + added + '/' + items.length + ' new results for ' + wlQuery.substring(0, 120));
+          console.log('[Intel:V2.7] Serper augmentation: ' + added + '/' + items.length + ' results for ' + wlQuery.substring(0, 100));
         }
       } catch (e: any) {
-        console.warn('[Intel:V2.7] Serper whitelist search failed:', e.message);
+        console.warn('[Intel:V2.7] Serper augmentation failed:', e.message);
       }
     }
   }
