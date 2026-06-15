@@ -16,9 +16,9 @@ const serperModule: SearchModule = {
   name: 'serper',
   label: 'Serper搜索',
   async search(query: string, apiKey: string): Promise<RawSearchItem[]> {
-    // V2.7: Free Serper accounts don't support site: operator.
-    // Strip to prevent 400 errors. Google ranking still favors authority domains.
-    const cleaned = query.replace(/site:\S+/gi, '').replace(/\s+OR\s+OR/g, ' OR').replace(/^\s*OR\s+|\s+OR\s*$/g, '').trim() || query;
+    // V2.7: Paid Serper accounts support site: operator natively.
+    // Only clean up malformed OR chains, preserve site: for domain filtering.
+    const cleaned = query.replace(/\s+OR\s+OR/g, ' OR').replace(/^\s*OR\s+|\s+OR\s*$/g, '').trim() || query;
     let resp: Response;
     try {
       resp = await fetchSerper(cleaned, apiKey, 25000);
