@@ -1,6 +1,7 @@
 // Intel pipeline: search + DeepSeek analysis
 import { getSearchModule, getAllModules, getAllModulesIntl, getAllModulesTianapi } from './search-sources/index.js';
 import type { SearchModule } from './search-sources/types.js';
+import { fetchAllAuthoritativeContent } from './sources/content-fetcher.js';
 import crypto from 'crypto';
 
 // -- V3: AI-generated search keywords cache --
@@ -454,6 +455,28 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
   }
 
+  // --- V3.0: 全量拉取 — RSS + 政府站点原始内容 ---
+  // 不依赖关键词，对所有权威信源做全量采样。
+  // 目的：捕获不含监控对象名的弱信号（项目公告、人事任命、监管文书等）
+  let fullContentItems: any[] = [];
+  if (isBanking) {
+    try {
+      fullContentItems = await fetchAllAuthoritativeContent();
+      // Deduplicate against existing results
+      let fcAdded = 0;
+      for (const item of fullContentItems) {
+        const key = (item.url || item.title || '').toLowerCase().trim();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          fcAdded++;
+        }
+      }
+      console.log('[Intel:V3.0] Full-content fetch: ' + fcAdded + ' unique items from RSS + gov pages');
+    } catch (e: any) {
+      console.warn('[Intel:V3.0] Full-content fetch failed:', e.message);
+    }
+  }
+
   // --- V3.0: 定点轰炸 — Serper site: 分组查询黄金信源池 ---
   // T1(央媒)用对象名+行业词+角度词搜索（日发千篇，需要收窄）
   // T2+(政府域名)只用裸对象名搜索（低频发布，加了修饰词就搜不到了）
@@ -540,6 +563,13 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       wlRawItems = [...serperWlItems, ...wlRawItems];
       console.log('[Intel:V2.7] Added ' + serperWlItems.length + ' Serper whitelist results → total whitelist: ' + wlRawItems.length);
     }
+    // V3.0: Add full-content fetch results (RSS + gov scrapers) — bypasses keyword filter
+    // These are raw authoritative documents that may not mention the object name.
+    // DeepSeek's intent decoder will determine relevance.
+    if (fullContentItems.length > 0) {
+      wlRawItems = [...fullContentItems, ...wlRawItems];
+      console.log('[Intel:V3.0] Added ' + fullContentItems.length + ' full-content items → total whitelist: ' + wlRawItems.length);
+    }
   } else {
     // No whitelist — all results are "other" (but we still pass them through)
     wlRawItems = [];
@@ -554,6 +584,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     ? wlRawItems.filter((item: any) => {
         // V2.7: Skip pre-filter for Serper site: results (already domain-verified)
         if (item._searchProvider === 'serper') return true;
+        // V3.0: Skip pre-filter for RSS/gov full-content (authoritative source, may not mention object)
+        if (typeof item._searchProvider === 'string' && (item._searchProvider.startsWith('rss-') || item._searchProvider.startsWith('gov-'))) return true;
         const escapeR = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const pattern = objectName.split(/[,，]\s*/).filter(Boolean).map(escapeR).join('|');
         if (!pattern) return true;
@@ -985,8 +1017,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const beforeResults = [...results]; // Save copy for safety net
     results = results.filter((r: any) => {
       // V2.7: Skip EHR for Serper-sourced items — already domain-verified via site: query.
-      // DeepSeek may write summaries like "该行" instead of "建设银行", which EHR would reject.
+      // V3.0: Skip EHR for RSS/gov full-content — authoritative source, may not name object.
       if (r._provider === 'serper') return true;
+      if (typeof r._provider === 'string' && (r._provider.startsWith('rss-') || r._provider.startsWith('gov-'))) return true;
       const text = (r.title || '') + ' ' + (r.summary || '');
       return strictRegex.test(text);
     });
