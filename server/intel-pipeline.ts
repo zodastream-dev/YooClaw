@@ -309,11 +309,67 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   const bankingTerms = ['金监总局', '央行', '银团', '城投', '存贷款', '银行', '金融', '对公',
     'LPR', '利率', '信贷', '不良贷款', '拨备', '评级', '发债', '反洗钱', '监管处罚'];
   const isBanking = bankingTerms.some(t => bankingCheck.includes(t));
+  // V3.0: 黄金信源池 — 五大维度30+权威域名
+  // 1. 宏观/政策源：央媒、监管
+  // 2. 人事/博弈源：金融人事、交易所公告
+  // 3. 对公/客户源：发改委、环评、城投发债
+  // 4. 风控/资产质量：上票所、法院、司法拍卖
+  // 5. 地方金融：各省金融局、银协
   const BANKING_WHITELIST = [
-    'people.com.cn', 'xinhuanet.com', 'caixin.com', '21jingji.com',
-    'yicai.com', 'cls.cn', 'finance.sina.com.cn', 'cbirc.gov.cn', 'pbc.gov.cn',
+    // === 维度1: 宏观/政策源 ===
+    'people.com.cn',           // 人民网
+    'xinhuanet.com',           // 新华网
+    'caixin.com',              // 财新
+    '21jingji.com',            // 21世纪经济报道
+    'yicai.com',               // 第一财经
+    'cls.cn',                  // 财联社
+    'finance.sina.com.cn',     // 新浪财经
+    'cbirc.gov.cn',            // 金监总局
+    'pbc.gov.cn',              // 央行
+    'safe.gov.cn',             // 外管局
+    'mof.gov.cn',              // 财政部
+    'nafmii.org.cn',           // 交易商协会（债券/非金融企业）
+    'shcpe.com.cn',            // 上海票交所（商票逾期）
+    'chinamoney.com.cn',       // 中国货币网
+    'chinabond.com.cn',        // 中国债券信息网
+    // === 维度2: 发改/项目 ===
+    'ndrc.gov.cn',             // 国家发改委
+    'fgw.beijing.gov.cn',      // 北京发改委
+    'fgw.sh.gov.cn',           // 上海发改委
+    'drc.gd.gov.cn',           // 广东发改委
+    'fzggw.zj.gov.cn',         // 浙江发改委
+    'fzggw.jiangsu.gov.cn',    // 江苏发改委
+    // === 维度3: 生态/环评 ===
+    'mee.gov.cn',              // 生态环境部
+    'sthjj.beijing.gov.cn',    // 北京生态环境局
+    'sthj.sh.gov.cn',          // 上海生态环境局
+    'gdee.gd.gov.cn',          // 广东生态环境厅
+    'sthjt.zj.gov.cn',         // 浙江生态环境厅
+    // === 维度4: 人事/组织 ===
+    'scpc.gov.cn',             // 中组部
+    'zzb.beijing.gov.cn',      // 北京市委组织部
+    'zzb.sh.gov.cn',           // 上海市委组织部
+    'zzb.gd.gov.cn',           // 广东省委组织部
+    // === 维度5: 地方金融 ===
+    'jrj.beijing.gov.cn',      // 北京金融局
+    'jrj.sh.gov.cn',           // 上海金融局
+    'gdjr.gd.gov.cn',          // 广东金融局
+    'jrb.zj.gov.cn',           // 浙江金融局
+    'jsjrb.jiangsu.gov.cn',    // 江苏金融局
+    // === 维度6: 司法/风控 ===
+    'court.gov.cn',            // 最高法
+    'bjcourt.gov.cn',          // 北京法院
+    'gzcourt.gov.cn',          // 广东法院
   ];
-  const domainWhitelist: string[] = isBanking ? BANKING_WHITELIST : [];
+  // V3.0: 门户监控对象动态加入信源池
+  // 用户的监控对象（如建设银行、中国中铁等）的官网也是重要信源
+  const portalObjects: string[] = [];
+  if (src.objects && Array.isArray(src.objects)) {
+    for (const o of src.objects) {
+      if (o.website) portalObjects.push(o.website.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/^www\./, ''));
+    }
+  }
+  const domainWhitelist: string[] = isBanking ? [...BANKING_WHITELIST, ...portalObjects] : portalObjects;
 
   // V2.5.1: Cap total queries at 8 (banking mode drops zhihu/xhs, so we can afford more queries)
   if (queries.length > 8) queries.length = 8;
@@ -391,36 +447,51 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
   }
 
-  // --- V2.7: Whitelist queries via Serper (paid account supports site:) ---
-  // serperMod strips idents, not site:, so keep path separators and anchor chars.
-  // Use Google's site: operator to restrict results to whitelist domains only.
-  // This gives high-precision authoritative results that metaso/tianapi can't provide.
+  // --- V3.0: 定点轰炸 — 多角度 Serper site: 查询黄金信源池 ---
+  // 不再依赖 AI 生成关键词漫搜。直接用 Serper site: 操作符
+  // 从30+权威域名中精准拉取。每个对象发2-3个角度查询。
   let serperWlItems: any[] = [];
   if (domainWhitelist.length > 0) {
     const siteFilter = domainWhitelist.map(d => `site:${d}`).join(' OR ');
-    const wlQueryPrefix = objectName
+    const prefix = objectName
       ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
       : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
-    const wlQuery = `${wlQueryPrefix} ${siteFilter}`;
+    
+    // 多角度查询：政策/项目/风险/合作
+    const wlQueries = [
+      `${prefix} ${siteFilter}`,                                    // 角度1: 通用
+      `${prefix} 监管 处罚 公告 风险 ${siteFilter}`,                 // 角度2: 监管风控
+      `${prefix} 战略合作 项目 审批 招标 ${siteFilter}`,             // 角度3: 项目机会
+    ].filter((q, i) => {
+      // 对自身舆情源，多搜监管角度；对目标客户源，多搜项目角度
+      const cat = (src.name || '').toLowerCase();
+      if (i === 1 && !cat.includes('舆情') && !cat.includes('声誉') && !cat.includes('自身')) return false;
+      if (i === 2 && cat.includes('舆情')) return false;
+      return true;
+    });
+
     const serperMod = getSearchModule('serper');
     if (serperMod) {
-      try {
-        const serperKey = getProviderKey('serper');
-        if (serperKey) {
-          const items = await serperMod.search(wlQuery, serperKey);
-          let added = 0;
-          for (const item of items) {
-            const key = (item.url || item.title || '').toLowerCase().trim();
-            if (key && !seen.has(key)) {
-              seen.add(key);
-              serperWlItems.push({ ...item, _searchProvider: 'serper' });
-              added++;
+      const serperKey = getProviderKey('serper');
+      if (serperKey) {
+        for (let qi = 0; qi < wlQueries.length; qi++) {
+          const wlQuery = wlQueries[qi];
+          try {
+            const items = await serperMod.search(wlQuery, serperKey);
+            let added = 0;
+            for (const item of items) {
+              const key = (item.url || item.title || '').toLowerCase().trim();
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                serperWlItems.push({ ...item, _searchProvider: 'serper' });
+                added++;
+              }
             }
+            console.log('[Intel:V3.0] Serper angle ' + (qi+1) + ': ' + added + '/' + items.length + ' results for ' + wlQuery.substring(0, 100));
+          } catch (e: any) {
+            console.warn('[Intel:V3.0] Serper angle ' + (qi+1) + ' failed:', e.message);
           }
-          console.log('[Intel:V2.7] Serper site: query: ' + added + '/' + items.length + ' results for ' + wlQuery.substring(0, 120));
         }
-      } catch (e: any) {
-        console.warn('[Intel:V2.7] Serper site: query failed:', e.message);
       }
     }
   }
@@ -501,7 +572,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const sp = (src.customPrompt || '你是专业情报分析助手。') + '\n当前日期：' + today + '。所有标题和摘要必须使用中文。每条摘要约100字。非中文来源的内容必须翻译成中文。';
+  const sp = (src.customPrompt || '你是总行首席政策研究员，为省分行/总行副行长以上高管提供战略情报解码。') + '\n当前日期：' + today + '。所有标题和摘要必须使用中文。每条摘要约100字。非中文来源的内容必须翻译成中文。\n\n你的核心能力不是提取新闻，而是解码意图：把政治词汇翻译成信贷动作，把同业拜访解读为竞争威胁，把环评公示转化为项目机会。';
   const kwText = mergedKwArr.join('、') || '相关';
   let up: string;
   // Multi-object sources: use larger context window (100 items / 15k chars) to avoid crowding out objects
@@ -515,53 +586,56 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const isComp = catCheck.includes('竞争') || catCheck.includes('对手');
     const isReputation = catCheck.includes('舆情') || catCheck.includes('声誉') || catCheck.includes('自身');
 
-    up = '以下是关于【' + objectName + '】在【' + kwText + '】方面的搜索结果。提取最多30条情报。\n' +
-      '注意：只提取与【' + objectName + '】直接相关的情报。如果某条搜索结果与【' + objectName + '】完全无关（如天气预警、商品价格、无关地区新闻、非本行业内容等），必须直接丢弃，不要输出。\n' +
-      '如果搜索结果中有同行业/同领域的泛相关信息，可适量保留（不超过10%），但将其 _object 字段留空以区分。\n' +
-      '注意：原始搜索结果按可信度排序——【权威来源】（来自权威媒体/监管官网，如人民网、新华网、财新、央行等）排在最前面，【其他来源】排在后面。优先从权威来源中提取情报，其可信度和价值更高。\n' +
-      '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空\n4.去重过滤无关\n' +
+    up = '你是总行首席政策研究员。以下是来自权威信源（人民网、新华网、央行、发改委、环评网等）关于【' + objectName + '】的搜索结果。提取最多30条情报。\n\n' +
+      '你的核心任务：\n' +
+      '1. 政���词汇→信贷动作翻译：例如"新质生产力"→制造业专贷绿灯；"地方隐性债务"→城投非标授信红灯\n' +
+      '2. 竞争意图洞察：分析同业高管拜访行踪、政府MOU签署，研判银团牵头权流失风险\n' +
+      '3. 弱信号捕捉：发现环评公示、干部任前公示、商票逾期名单中隐藏的重大项目机会或客户风险\n\n' +
+      '严格排除：零售产品促销/信用卡优惠/App更新/社区送温暖/理财推销/微小利率调整 → 标注 _valueScore<40 并丢弃\n\n' +
+      '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空，摘要中必须包含具体的行动建议或战略判断\n4.去重过滤无关\n' +
       '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50,"_riskLevel":"NORMAL","_noiseType":"对公业务"}]\n' +
-      '6. _sentiment: 正面/负面/中性; _reliability: 已确认/传闻/待核实; _intent: 竞对意图分析（可空）\n' +
-      '6.1 _noiseType（必填，取"对公业务"/"零售噪音"/"营销通稿"）：判断本条情报是否属于对公/战略/风险管理内容。零售产品（信用卡/消费贷/App更新/社区活动/理财推销）必须标注为"零售噪音"或"营销通稿"\n' +
-      '7. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制，用于渠道溯源\n' +
-      '8. 重要：必须均衡使用各个来源渠道的结果，每个 _searchProvider 渠道的结果至少提供 2 条（如果该渠道有结果的话）\n' +
-      '9. 优先提供不同渠道的独有信息，避免同一信息由多个渠道重复提供\n' +
+      '6. _sentiment: 正面/负面/中性; _reliability: 已确认/高概率/传闻/待核实\n' +
+      '7. _intent（意图解码，必填）：用一句话解码信息背后的战略意图或业务影响。例如："通过党建共建切入高层公关，意图争夺银团牵头权" 或 "政策信号预示制造业专项贷额度增加"\n' +
+      '8. _noiseType（必填）："对公业务"/"零售噪音"/"营销通稿"/"监管合规"/"人事变动"/"项目信号"/"风控预警"\n' +
+      '9. 每条记录的 _provider 必须从搜索结果的 _searchProvider 字段原样复制\n' +
       '10.无url留空\n' +
-      '11. _valueScore 商业价值判分标准（0-100整数，必填，严禁留空或填0）：\n' +
-      '  【90-100 战略级】影响投资决策或战略方向：官方财报/重大并购/核心高管变更/监管政策突变/行业龙头份额变化>5%/颠覆性技术突破\n' +
-      '  【75-89 战术级】需业务部门响应：竞品新品发布/关键供应链变动/大客户中标或流失/技术标准更新/重要合作伙伴动态\n' +
-      '  【60-74 关注级】值得了解的动态：行业趋势报告/市场数据更新/一般性产品迭代/专利申报/渠道政策调整\n' +
-      '  【40-59 参考级】背景信息：常规营销/一般性媒体报道/非核心市场动态/行业科普\n' +
-      '  【<40 噪声级】低价值信息：纯软文通稿/SEO内容/过时资讯/弱相关内容\n' +
-      '  分布约束：90+条目不超过10%，70+条目不超过30%，大部分落在50-70区间\n' +
-      '  评分只看商业价值不看情感倾向，重复信息降10-20分\n' +
-      '  注意：与监控对象完全无关的内容（如天气、商品价格、无关地区新闻）即使出现在搜索结果中，也必须丢弃，不得输出。\n' +
+      '11. _valueScore 行长级战略价值判分（0-100整数，必填）：\n' +
+      '  【90-100 🚨 战略级】可决定百亿对公战役输赢：核心高管变动/发改委重大项目审批/银团牵头权变动/城投化债方案/千万级监管罚单\n' +
+      '  【75-89 ⚔️ 战术级】需分行班子讨论：竞品签战略协议/客户评级下调/重要人事任命/环评公示通过/商票逾期新增\n' +
+      '  【60-74 💡 关注级】值得列入周会：行业趋势报告/政策细则/一般性项目通知/干部公示\n' +
+      '  【40-59 📋 参考级】背景信息：常规媒体报道/行业分析/市场评论\n' +
+      '  【<40 🗑️ 噪声级】低价值：纯软文通稿/零售产品/社区活动 → 必须丢弃\n' +
+      '  分布约束：90+条目不超过15%，70+条目不超过35%\n' +
+      '  评分只看战略商业价值不看情感倾向，重复信息降15-20分\n\n' +
       (isTarget
-        ? '  目标客户专项：客户评级下调/债务违约/重大亏损 → 90+; 客户战略调整/融资需求 → 75-89; 客户日常经营新闻 → ≤50\n'
+        ? '  ⚠️ 目标客户专项：\n' +
+          '  - 客户评级下调/债务违约/重大亏损 → 90+\n' +
+          '  - 客户发债/增发/招标/战略调整/融资需求 → 75-89\n' +
+          '  - 客户日常经营新闻 → ≤50\n' +
+          '  - 特别关注：发改委重大项目库中涉及该客户的条目、环评公示中该客户的项目\n\n'
         : '') +
       (isComp
-        ? '  竞争对手专项：竞对与核心客户签战略协议/银团牵头权变动 → 90+; 竞对新产品/机构调整 → 75-89; 竞对一般性营销 → ≤50\n'
+        ? '  ⚠️ 竞争对手专项：\n' +
+          '  - 竞对与核心客户签战略协议/获银团牵头权/获重大项目授信 → 90+\n' +
+          '  - 竞对新业务线/机构调整/高管拜访地方政府 → 75-89\n' +
+          '  - 竞对一般性营销/党建活动（解读为公关意图）→ ≤70\n' +
+          '  - 特别关注：竞对省分行公众号/官网中的"党建共建/战略合作/行长调研"等动作\n\n'
         : '') +
       (isReputation
-        ? '  自身舆情专项：千万级以上监管罚单/高管被查/数据泄露重大事件/挤兑传闻 → 90+; 负面舆情扩散/理财产品投诉增多/评级展望负面 → 75-89; 常规监管通告/一般性投诉 → ≤70\n' +
-          '    注意：自身负面舆情优先提取并高分标注，不因情感负面而降分；正面或中性舆情正常评价\n'
+        ? '  ⚠️ 自身舆情专项：\n' +
+          '  - 千万级以上监管罚单/高管被查/数据泄露/挤兑传闻 → 90+\n' +
+          '  - 负面舆情扩散/投诉增多/评级展望负面 → 75-89\n' +
+          '  - 常规监管通告/一般性投诉 → ≤70\n' +
+          '  - 注意：负面舆情必须高分标注，不因情感降分\n\n'
         : '') +
-      '12. 日期规范（极其重要，严格遵守）：\n' +
-      '  - date 字段必须从搜索结果的 date/published_date 元数据中精确复制\n' +
-      '  - 严禁根据文章正文内容推测或编造日期\n' +
-      '  - 如果原始搜索结果没有明确标注完整日期（年月日），date 字段留空字符串 ""\n' +
-      '  - 特别禁止：把只有月日（如"1月23日"）的日期自动补全为当前年份（2026年）——这些很可能是旧文章\n' +
-      '  - 特别禁止：把原始日期从"2019年"篡改为"2026年"\n' +
-      '  - 日期格式统一为"YYYY年MM月DD日"，例如"2025年12月05日"\n' +
-      '13. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
-      '  四维判定框架：\n' +
-      '  a) 高管动态：核心高管离职/空降/被调查/监管约谈 → CRITICAL; 高管重要场合战略表态 → WARNING\n' +
-      '  b) 战略布局：新业务线/新部门成立/海外扩张/重大收购 → WARNING; 常规业务调整 → NORMAL\n' +
-      '  c) 资金成本：信用评级上调/下调、发债利差变化>50bp、千万级以上监管罚单 → CRITICAL; 评级展望调整 → WARNING\n' +
-      '  d) 项目动态：重大银团牵头权被对手夺走/核心客户主办行变更 → CRITICAL; 与地方政府/海外机构新签MOU → WARNING\n' +
-      '  CRITICAL: 直接影响核心竞争力或资产安全，需24h内响应\n' +
-      '  WARNING: 需要业务部门关注，本周内制定应对策略\n' +
-      '  NORMAL: 常规情报，作为背景信息储备\n' +
+      '12. 日期规范（严格执行）：\n' +
+      '  - date 必须从搜索结果的元数据中精确复制\n' +
+      '  - 严禁推测或编造日期，不完整日期留空\n' +
+      '  - 格式统一为"YYYY年MM月DD日"\n\n' +
+      '13. _riskLevel 风险预警（必填，CRITICAL/WARNING/NORMAL）：\n' +
+      '  CRITICAL：直接影响核心竞争力或资产安全，需24h内响应\n' +
+      '  WARNING：需业务部门关注，本周内制定应对\n' +
+      '  NORMAL：常规背景信息\n\n' +
       '14.仅JSON\n\n原始搜索结果：\n' + searchContext;
   } else {
     const catCheck2 = (src.name || '').toLowerCase();

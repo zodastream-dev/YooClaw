@@ -3903,6 +3903,94 @@ app.post('/api/portal/instant-push', async (req, res) => {
   res.json({ success: true, message: '推送已触发，稍后查看结果' });
 });
 
+// ========== V3.0 Cross-Quadrant MapReduce Analysis ==========
+// POST /api/portal-analysis
+// Takes 4-quadrant intel results and runs a synthesis pass to connect weak signals
+// across quadrants into strategic insights.
+app.post('/api/portal-analysis', async (req, res) => {
+  try {
+    const { sources } = req.body || {};
+    if (!Array.isArray(sources) || sources.length === 0) {
+      return res.status(400).json({ error: 'sources array required' });
+    }
+
+    // Collect all intel items from all sources, tagged with source name
+    const allItems: any[] = [];
+    for (const src of sources) {
+      const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
+      const cached = portalIntelCache.get(cacheKey);
+      if (cached && cached.expiry > Date.now() && Array.isArray(cached.data)) {
+        for (const item of cached.data) {
+          allItems.push({ ...item, _sourceQuadrant: src.name, _objectLabel: item._object || '' });
+        }
+      }
+    }
+
+    if (allItems.length === 0) {
+      return res.json({ success: true, analysis: '暂无跨象限分析数据。请等待各情报源完成数据采集后再试。', itemCount: 0 });
+    }
+
+    // Build synthesis prompt
+    const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+    const itemsJson = JSON.stringify(allItems.slice(0, 80)); // Limit to avoid token overflow
+    const sysPrompt = `你是总行首席战略官，为省分行/总行副行长以上高管提供跨象限战略推演。
+
+你的核心能力是将来自不同情报象限的碎片化弱信号串联成战略风暴预警。
+
+本次分析覆盖四个象限：
+1. 行业信号（政治风向标与监管穿透）
+2. 目标客户情报（对公大户与城投非标风险）
+3. 竞争对手情报（区域份额蚕食与银团权争夺）
+4. 自身舆情监控（合规红线与系统性风险预警）
+
+推演方法：
+- 寻找跨象限关联：例如 环评公示(象限1) + 竞对党建拜访(象限3) + 干部调任(象限1) = 银团牵头权流失风险
+- 识别弱信号共振：如果两个以上象限同时出现同一地区/同一客户/同一行业的相关信号，就是高优先级预警
+- 预判战略风暴：提前12-18个月发现竞争态势变化的早期征兆
+
+输出格式（Markdown）：
+## 🚨 高危战略预警
+（如果有跨象限信号共振，输出具体的预警内容、关联逻辑、建议行动）
+## 💰 重大业务机遇
+## ⚔️ 竞争态势研判  
+## 📋 本周建议议程
+（分行班子本周应重点讨论的3-5个议题）
+
+当前日期：${today}`;
+
+    const userPrompt = `以下是四个情报象限的今日数据（共${allItems.length}条）：\n\n${itemsJson}\n\n请进行跨象限战略推演。标注每条推演的置信度（已确认/高概率/有待观察）。`;
+
+    const resp = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || '') },
+      body: JSON.stringify({
+        model: 'deepseek-v4-pro',
+        max_tokens: 16384,
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: sysPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+      signal: AbortSignal.timeout(180000),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error('DeepSeek analysis error: ' + resp.status + ' ' + errText.substring(0, 200));
+    }
+
+    const data = await resp.json();
+    const analysis = data.choices[0].message.content;
+
+    console.log(`[PortalAnalysis] Cross-quadrant analysis complete: ${allItems.length} items → ${analysis.length} chars`);
+    res.json({ success: true, analysis, itemCount: allItems.length });
+  } catch (err: any) {
+    console.error('[PortalAnalysis Error]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ========== Background Cache Warmer ==========
 // Collects all unique intel sources across all portal sites and pre-warms the cache.
 // Runs every 20 minutes, but only re-warms sources whose updateFrequency has elapsed.
