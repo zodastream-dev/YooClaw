@@ -462,9 +462,14 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     otherRawItems = rawItems;
   }
 
-  // Pre-verify whitelist items: discard those whose title+snippet don't mention the monitored object
+  // Pre-verify whitelist items: discard those whose title+snippet don't mention the monitored object.
+  // EXCEPTION: Serper site: results are already domain-verified by Google and are inherently relevant.
+  // Applying the same strict title-matching to them would discard authoritative articles that
+  // cover relevant topics without literally naming the object in the title (e.g., "银行数字化转型").
   const prefilteredWl = (objectName && wlRawItems.length > 0)
     ? wlRawItems.filter((item: any) => {
+        // V2.7: Skip pre-filter for Serper site: results (already domain-verified)
+        if (item._searchProvider === 'serper') return true;
         const escapeR = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const pattern = objectName.split(/[,，]\s*/).filter(Boolean).map(escapeR).join('|');
         if (!pattern) return true;
