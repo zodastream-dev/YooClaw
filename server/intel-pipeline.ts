@@ -309,67 +309,78 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   const bankingTerms = ['金监总局', '央行', '银团', '城投', '存贷款', '银行', '金融', '对公',
     'LPR', '利率', '信贷', '不良贷款', '拨备', '评级', '发债', '反洗钱', '监管处罚'];
   const isBanking = bankingTerms.some(t => bankingCheck.includes(t));
-  // V3.0: 黄金信源池 — 五大维度30+权威域名
-  // 1. 宏观/政策源：央媒、监管
-  // 2. 人事/博弈源：金融人事、交易所公告
-  // 3. 对公/客户源：发改委、环评、城投发债
-  // 4. 风控/资产质量：上票所、法院、司法拍卖
-  // 5. 地方金融：各省金融局、银协
+  // V3.0: 黄金信源池 — 五大维度，移除新浪财经（聚合器），分批查询防垄断
+  // 新浪财经虽是高权威财经源但本质是新闻聚合器，单域产出占70%+会淹没官媒和监管源
+  // 新浪财经内容仍通过 metaso/tianapi 进入管线，但不在 Serper site: 白名单中
   const BANKING_WHITELIST = [
-    // === 维度1: 宏观/政策源 ===
+    // === 央媒/财经头牌（高权威，中频更新）===
     'people.com.cn',           // 人民网
     'xinhuanet.com',           // 新华网
     'caixin.com',              // 财新
     '21jingji.com',            // 21世纪经济报道
     'yicai.com',               // 第一财经
     'cls.cn',                  // 财联社
-    'finance.sina.com.cn',     // 新浪财经
+    // === 监管/政策（高权威，低频更新）===
     'cbirc.gov.cn',            // 金监总局
     'pbc.gov.cn',              // 央行
     'safe.gov.cn',             // 外管局
     'mof.gov.cn',              // 财政部
-    'nafmii.org.cn',           // 交易商协会（债券/非金融企业）
-    'shcpe.com.cn',            // 上海票交所（商票逾期）
+    'nafmii.org.cn',           // 交易商协会
+    'shcpe.com.cn',            // 上海票交所
     'chinamoney.com.cn',       // 中国货币网
     'chinabond.com.cn',        // 中国债券信息网
-    // === 维度2: 发改/项目 ===
+    // === 发改/项目 ===
     'ndrc.gov.cn',             // 国家发改委
     'fgw.beijing.gov.cn',      // 北京发改委
     'fgw.sh.gov.cn',           // 上海发改委
     'drc.gd.gov.cn',           // 广东发改委
     'fzggw.zj.gov.cn',         // 浙江发改委
     'fzggw.jiangsu.gov.cn',    // 江苏发改委
-    // === 维度3: 生态/环评 ===
+    // === 生态/环评 ===
     'mee.gov.cn',              // 生态环境部
     'sthjj.beijing.gov.cn',    // 北京生态环境局
     'sthj.sh.gov.cn',          // 上海生态环境局
     'gdee.gd.gov.cn',          // 广东生态环境厅
     'sthjt.zj.gov.cn',         // 浙江生态环境厅
-    // === 维度4: 人事/组织 ===
+    // === 人事/组织 ===
     'scpc.gov.cn',             // 中组部
     'zzb.beijing.gov.cn',      // 北京市委组织部
     'zzb.sh.gov.cn',           // 上海市委组织部
     'zzb.gd.gov.cn',           // 广东省委组织部
-    // === 维度5: 地方金融 ===
+    // === 地方金融 ===
     'jrj.beijing.gov.cn',      // 北京金融局
     'jrj.sh.gov.cn',           // 上海金融局
     'gdjr.gd.gov.cn',          // 广东金融局
     'jrb.zj.gov.cn',           // 浙江金融局
     'jsjrb.jiangsu.gov.cn',    // 江苏金融局
-    // === 维度6: 司法/风控 ===
+    // === 司法/风控 ===
     'court.gov.cn',            // 最高法
     'bjcourt.gov.cn',          // 北京法院
     'gzcourt.gov.cn',          // 广东法院
   ];
-  // V3.0: 门户监控对象动态加入信源池
-  // 用户的监控对象（如建设银行、中国中铁等）的官网也是重要信源
+  // V3.0: 分组查询 — 每组独立发 Serper site: 查询
+  // 避免单一高频域垄断所有结果（之前新浪财经占71%）
+  const WL_TIER1_MEDIA = ['people.com.cn', 'xinhuanet.com', 'caixin.com', '21jingji.com', 'yicai.com', 'cls.cn'];
+  const WL_TIER2_REGULATOR = ['cbirc.gov.cn', 'pbc.gov.cn', 'safe.gov.cn', 'mof.gov.cn', 'nafmii.org.cn', 'shcpe.com.cn', 'chinamoney.com.cn', 'chinabond.com.cn'];
+  const WL_TIER3_GOVERNMENT = BANKING_WHITELIST.filter(d =>
+    !WL_TIER1_MEDIA.includes(d) && !WL_TIER2_REGULATOR.includes(d)
+  );
+  const wlTiers: string[][] = [];
+  if (isBanking) {
+    wlTiers.push(WL_TIER1_MEDIA);
+    wlTiers.push(WL_TIER2_REGULATOR);
+    for (let i = 0; i < WL_TIER3_GOVERNMENT.length; i += 10) {
+      wlTiers.push(WL_TIER3_GOVERNMENT.slice(i, i + 10));
+    }
+  }
   const portalObjects: string[] = [];
   if (src.objects && Array.isArray(src.objects)) {
     for (const o of src.objects) {
       if (o.website) portalObjects.push(o.website.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/^www\./, ''));
     }
   }
-  const domainWhitelist: string[] = isBanking ? [...BANKING_WHITELIST, ...portalObjects] : portalObjects;
+  if (portalObjects.length > 0) wlTiers.push(portalObjects);
+  const domainWhitelist: string[] = isBanking ? BANKING_WHITELIST : [];
 
   // V2.5.1: Cap total queries at 8 (banking mode drops zhihu/xhs, so we can afford more queries)
   if (queries.length > 8) queries.length = 8;
@@ -447,49 +458,46 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
   }
 
-  // --- V3.0: 定点轰炸 — 多角度 Serper site: 查询黄金信源池 ---
-  // 不再依赖 AI 生成关键词漫搜。直接用 Serper site: 操作符
-  // 从30+权威域名中精准拉取。每个对象发2-3个角度查询。
+  // --- V3.0: 定点轰炸 — 分组 Serper site: 查询黄金信源池 ---
+  // 每组独立查询避免单一高频域垄断。央媒/监管/政府三类分开查。
   let serperWlItems: any[] = [];
-  if (domainWhitelist.length > 0) {
-    const siteFilter = domainWhitelist.map(d => `site:${d}`).join(' OR ');
+  if (wlTiers.length > 0) {
     const prefix = objectName
       ? (objIndustryKw ? `${objectName} ${objIndustryKw}` : objectName)
       : (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
     
-    // 多角度查询：政策/项目/风险/合作
-    const wlQueries = [
-      `${prefix} ${siteFilter}`,                                    // 角度1: 通用
-      `${prefix} 监管 处罚 公告 风险 ${siteFilter}`,                 // 角度2: 监管风控
-      `${prefix} 战略合作 项目 审批 招标 ${siteFilter}`,             // 角度3: 项目机会
-    ].filter((q, i) => {
-      // 对自身舆情源，多搜监管角度；对目标客户源，多搜项目角度
-      const cat = (src.name || '').toLowerCase();
-      if (i === 1 && !cat.includes('舆情') && !cat.includes('声誉') && !cat.includes('自身')) return false;
-      if (i === 2 && cat.includes('舆情')) return false;
-      return true;
-    });
+    // 角度关键词
+    const cat = (src.name || '').toLowerCase();
+    const angles = [
+      { label: '通用', kw: '', always: true },
+      { label: '监管', kw: ' 监管 处罚 公告 风险', cond: cat.includes('舆情') || cat.includes('声誉') || cat.includes('自身') },
+      { label: '项目', kw: ' 项目 审批 招标 合作', cond: !cat.includes('舆情') },
+    ].filter(a => a.always || a.cond);
 
     const serperMod = getSearchModule('serper');
     if (serperMod) {
       const serperKey = getProviderKey('serper');
       if (serperKey) {
-        for (let qi = 0; qi < wlQueries.length; qi++) {
-          const wlQuery = wlQueries[qi];
-          try {
-            const items = await serperMod.search(wlQuery, serperKey);
-            let added = 0;
-            for (const item of items) {
-              const key = (item.url || item.title || '').toLowerCase().trim();
-              if (key && !seen.has(key)) {
-                seen.add(key);
-                serperWlItems.push({ ...item, _searchProvider: 'serper' });
-                added++;
+        for (let ti = 0; ti < wlTiers.length; ti++) {
+          const tier = wlTiers[ti];
+          const siteFilter = tier.map(d => `site:${d}`).join(' OR ');
+          for (let ai = 0; ai < angles.length; ai++) {
+            const wlQuery = `${prefix}${angles[ai].kw} ${siteFilter}`;
+            try {
+              const items = await serperMod.search(wlQuery, serperKey);
+              let added = 0;
+              for (const item of items) {
+                const key = (item.url || item.title || '').toLowerCase().trim();
+                if (key && !seen.has(key)) {
+                  seen.add(key);
+                  serperWlItems.push({ ...item, _searchProvider: 'serper' });
+                  added++;
+                }
               }
+              console.log(`[Intel:V3.0] Serper T${ti+1} angle"${angles[ai].label}": ${added}/${items.length} results`);
+            } catch (e: any) {
+              console.warn(`[Intel:V3.0] Serper T${ti+1} angle"${angles[ai].label}" failed:`, e.message);
             }
-            console.log('[Intel:V3.0] Serper angle ' + (qi+1) + ': ' + added + '/' + items.length + ' results for ' + wlQuery.substring(0, 100));
-          } catch (e: any) {
-            console.warn('[Intel:V3.0] Serper angle ' + (qi+1) + ' failed:', e.message);
           }
         }
       }
