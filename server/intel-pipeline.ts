@@ -472,6 +472,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const serperMod = getSearchModule('serper');
     if (serperMod) {
       const serperKey = getProviderKey('serper');
+      console.log('[Intel:V3.0] Serper module found, key length: ' + (serperKey ? serperKey.length : 0) + ', tiers: ' + wlTiers.length);
       if (serperKey) {
         for (let ti = 0; ti < wlTiers.length; ti++) {
           const tier = wlTiers[ti];
@@ -479,6 +480,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
           for (let ai = 0; ai < angles.length; ai++) {
             if (angles[ai].cond !== undefined && !angles[ai].cond!) continue;
             const wlQuery = `${prefix}${angles[ai].kw} ${siteFilter}`.trim();
+            console.log('[Intel:V3.0] DEBUG query: ' + wlQuery.substring(0, 150));
             try {
               const items = await serperMod.search(wlQuery, serperKey);
               let added = 0;
