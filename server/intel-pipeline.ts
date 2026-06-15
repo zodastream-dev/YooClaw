@@ -483,7 +483,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       { label: '监管', kw: ' 监管 处罚 公告 风险', cond: (ti: number) => ti < 2 && (cat.includes('舆情') || cat.includes('声誉') || cat.includes('自身')) },
       { label: '项目', kw: ' 项目 审批 招标 合作', cond: (ti: number) => ti < 2 && !cat.includes('舆情') },
       { label: 'gov信号', kw: ` ${govKw}`, cond: (ti: number) => ti >= 2 },
-    ].filter(a => a.cond(-1) || a.label === '通用');
+    ];
 
     const serperMod = getSearchModule('serper');
     if (serperMod) {
