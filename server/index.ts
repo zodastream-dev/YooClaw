@@ -3679,6 +3679,7 @@ const PROVIDER_CN: Record<string, string> = {
   'rss-financialnews': '金融时报', 'rss-jfdaily': '解放日报',
   'rss-gmw': '光明日报', 'rss-cnr': '央广网', 'rss-stcn': '证券时报',
   'rss-jjckb': '经济参考报',
+  'rss-shanghaijrb': '上海金融监管局',
   'gov-mee-eia': '环保部', 'gov-ndrc-projects': '发改委项目',
   'gov-cbirc-notices': '金监总局',
 };
