@@ -212,7 +212,8 @@ export async function fetchAllAuthoritativeContent(): Promise<RawSearchItem[]> {
       (item as any)._searchProvider = `${type}-${name}`;
     }
     allItems.push(...items);
-    console.log(`[ContentFetcher] ${type} ${label}: ${items.length} items`);
+    const sample = items.slice(0, 2).map(i => i.title).join(' | ');
+    console.log(`[ContentFetcher] ${type} ${label}: ${items.length} items` + (sample ? ` — ${sample}` : ''));
   }
 
   return allItems;
