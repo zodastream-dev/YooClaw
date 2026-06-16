@@ -3295,6 +3295,26 @@ app.get('/p/:slug', async (req, res) => {
       /var PROVIDER_NAMES=\{metaso[^}]*\};/,
       'var PROVIDER_NAMES=window._PROVIDER_NAMES={metaso:"秘塔",serper:"Serper",newsbank:"Serper新闻库",xiaohongshu:"小红书",zhihu:"知乎",weibo:"微博",wechat:"微信","multi-engine":"多引擎",tavily:"Tavily","tianapi-generalnews":"天聚综合","tianapi-keji":"天聚科技","tianapi-ai":"天聚AI","tianapi-guonei":"天聚国内","tianapi-world":"天聚国际","tianapi-social":"天聚社会","tianapi-caijing":"天聚财经","tianapi-internet":"天聚互联网","rss-ndrc":"发改委","rss-ndrc-news":"发改委新闻","rss-mof":"财政部","rss-people":"人民网","rss-xinhua":"新华网","rss-ce":"经济日报","rss-financialnews":"金融时报","rss-jfdaily":"解放日报","rss-gmw":"光明日报","rss-cnr":"央广网","rss-stcn":"证券时报","rss-jjckb":"经济参考报","gov-mee-eia":"环保部","gov-ndrc-projects":"发改委项目","gov-cbirc-notices":"金监总局"};'
     );
+    // Patch 1: _sourceName assignment — map through PROVIDER_NAMES for filter match
+    html = html.replace(
+      'item._sourceName=sourceName;',
+      'sourceName=window._PROVIDER_NAMES[sourceName]||sourceName;item._sourceName=sourceName;'
+    );
+    // Patch 2: source label on cards — use PROVIDER_NAMES lookup
+    html = html.replace(
+      "return p||'未知来源'})(item.source,item._provider)",
+      "return window._PROVIDER_NAMES[p]||p||'未知来源'})(item.source,item._provider)"
+    );
+    // Patch 3: filter button names — use PROVIDER_NAMES
+    html = html.replace(
+      "var name=(src.name||'未命名').trim();",
+      "var name=window._PROVIDER_NAMES[src.name]||(src.name||'未命名').trim();"
+    );
+    // Patch 4: sidebar source list names — use PROVIDER_NAMES for display
+    html = html.replace(
+      "html+='<div class=\"sc-name\">'+escHtml(src.name||'未命名')+'</div>';",
+      "html+='<div class=\"sc-name\">'+escHtml(window._PROVIDER_NAMES[src.name]||src.name||'未命名')+'</div>';"
+    );
     res.send(html);
   } catch (err: any) {
     console.error('[Portal Serve Error]', err.message);
