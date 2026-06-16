@@ -12,7 +12,7 @@ var allIntelData=[];
 var currentFilter='all';
 var aiChatHistory=[];
 var currentCenterTab='intel';
-var PROVIDER_NAMES={metaso:'秘塔',serper:'Serper',newsbank:'Serper新闻库',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网','rss-ndrc':'发改委','rss-ndrc-news':'发改委新闻','rss-mof':'财政部','rss-people':'人民网','rss-xinhua':'新华网','rss-ce':'经济日报','rss-financialnews':'金融时报','rss-jfdaily':'解放日报','rss-gmw':'光明日报','rss-cnr':'央广网','rss-stcn':'证券时报','rss-jjckb':'经济参考报','gov-mee-eia':'环保部','gov-ndrc-projects':'发改委项目','gov-cbirc-notices':'金监总局'};
+var PROVIDER_NAMES=window._PROVIDER_NAMES={metaso:'秘塔',serper:'Serper',newsbank:'Serper新闻库',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网','rss-ndrc':'发改委','rss-ndrc-news':'发改委新闻','rss-mof':'财政部','rss-people':'人民网','rss-xinhua':'新华网','rss-ce':'经济日报','rss-financialnews':'金融时报','rss-jfdaily':'解放日报','rss-gmw':'光明日报','rss-cnr':'央广网','rss-stcn':'证券时报','rss-jjckb':'经济参考报','gov-mee-eia':'环保部','gov-ndrc-projects':'发改委项目','gov-cbirc-notices':'金监总局'};
 
 var INTEL_PROMPTS={
   '行业信号':'你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\\n\\n重点关注的信号类型：\\n- 技术突破：新技术、新标准、研发进展\\n- 新品发布：产品迭代、型号更新、功能升级\\n- 市场格局：出货量变化、市场份额转移、新进入者\\n- 产业链：上下游供需变化、关键零部件动态\\n- 政策法规：行业政策调整、监管动态、标准制定\\n- 产业趋势：需求转移、商业模式创新、投资动向\\n\\n你的工作原则：\\n- 优先关注「变化」而非「现状」\\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\\n- 优先提供最近30天内的资讯，标注大致时间\\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
@@ -96,6 +96,7 @@ async function loadIntelData(forceRefresh){
     (data.results||[]).forEach(function(r){
       var srcConfig=sources[r.sourceIdx];
       var sourceName=(srcConfig?(srcConfig.name||'未命名'):'未知来源').trim();
+      sourceName=window._PROVIDER_NAMES[sourceName]||sourceName;
       if(r.refreshing) hasRefreshing=true;
       (r.data||[]).forEach(function(item){
         item._sourceName=sourceName;
@@ -186,8 +187,9 @@ function renderSourceFilters(monitors){
     var src=ws.source;
     var objects=src.objects||[];
     var hasObj=objects.length>0;
-    var expanded=!!expandedSources[src.name];
-    var isSourceActive=currentSourceFilters.length>0&&currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf(src.name)>=0;
+    var cnSrcName=window._PROVIDER_NAMES[src.name]||src.name;
+    var expanded=!!expandedSources[cnSrcName];
+    var isSourceActive=currentSourceFilters.length>0&&currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf(cnSrcName)>=0;
     var providerDisplayNames={'all':'全渠道','all+cn-news':'全渠道','all+en':'全渠道+英文','deepseek':'DeepSeek','metaso':'秘塔','tavily':'Tavily','multi-engine':'多引擎','wechat':'微信','weibo':'微博','zhihu':'知乎','xiaohongshu':'小红书'};
     var providerLabel=providerDisplayNames[src.aiProvider]||src.aiProvider||'DeepSeek';
     var kws=(src.keywords||[]);
@@ -195,11 +197,11 @@ function renderSourceFilters(monitors){
     html+='<div class="source-card'+(isSourceActive?' source-active':'')+'">';
     // Card body click → filter to this source
     // Template literal: \\' outputs \' (needed for JS string concat in generated code)
-    var srcNameEsc=src.name.replace(/'/g,"\\\\'");
+    var srcNameEsc=cnSrcName.replace(/'/g,"\\\\'");
     html+='<div class="sc-clickable" onclick="selectSourceFilter(\\''+srcNameEsc+'\\','+ws.widgetIndex+','+ws.sourceIndex+')">';
     html+='<div class="sc-icon">&#x1F6F0;</div>';
     html+='<div class="sc-body">';
-    html+='<div class="sc-name">'+escHtml(src.name||'未命名')+'</div>';
+    html+='<div class="sc-name">'+escHtml(cnSrcName)+'</div>';
     html+='<div class="sc-meta">';
     html+='<span class="sc-provider'+(providerLabel==='metaso'?' metaso':'')+'">'+escHtml(providerLabel)+'</span>';
     html+='<span class="sc-kwcount">'+kws.length+' 关键词</span>';
@@ -410,7 +412,7 @@ function renderIntelFeed(data){
     } else {
       html+='<span class="intel-card-title" style="cursor:default">'+(item.title||'无标题')+'</span>';
     }
-    var sourceLabel=(function(s,p){if(s&&s.length>0&&s.indexOf('http://')!==0&&s.indexOf('https://')!==0)return s;return p||'未知来源'})(item.source,item._provider);
+    var sourceLabel=(function(s,p){if(s&&s.length>0&&s.indexOf('http://')!==0&&s.indexOf('https://')!==0)return s;return window._PROVIDER_NAMES[p]||p||'未知来源'})(item.source,item._provider);
     html+='<div class="intel-card-source">'+escHtml(sourceLabel)+'</div>';
     html+='</div>';
     if(item.summary)html+='<div class="intel-card-summary">'+(item.summary||'')+'</div>';
@@ -438,7 +440,8 @@ function buildIntelSubFilters(monitors){
   var sourceNames=['全部'];
   monitors.forEach(function(mw){
     (mw.sources||(mw.config&&mw.config.sources)||[]).forEach(function(src){
-      var name=(src.name||'未命名').trim();
+      var rawName=(src.name||'未命名').trim();
+      var name=window._PROVIDER_NAMES[rawName]||rawName;
       if(sourceNames.indexOf(name)===-1)sourceNames.push(name);
     });
   });
