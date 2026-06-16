@@ -12,7 +12,7 @@ var allIntelData=[];
 var currentFilter='all';
 var aiChatHistory=[];
 var currentCenterTab='intel';
-var PROVIDER_NAMES={metaso:'秘塔',serper:'Serper',newsbank:'Serper新闻库',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网','rss-ndrc':'发改委政策','rss-ndrc-news':'发改委新闻','rss-mof':'财政部','rss-people':'人民网','rss-xinhua':'新华网','gov-mee-eia':'环保部环评','gov-ndrc-projects':'发改委项目','gov-cbirc-notices':'金监总局'};
+var PROVIDER_NAMES={metaso:'秘塔',serper:'Serper',newsbank:'Serper新闻库',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网','rss-ndrc':'发改委','rss-ndrc-news':'发改委新闻','rss-mof':'财政部','rss-people':'人民网','rss-xinhua':'新华网','rss-ce':'经济日报','rss-financialnews':'金融时报','rss-jfdaily':'解放日报','rss-gmw':'光明日报','rss-cnr':'央广网','rss-stcn':'证券时报','rss-jjckb':'经济参考报','gov-mee-eia':'环保部','gov-ndrc-projects':'发改委项目','gov-cbirc-notices':'金监总局'};
 
 var INTEL_PROMPTS={
   '行业信号':'你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\\n\\n重点关注的信号类型：\\n- 技术突破：新技术、新标准、研发进展\\n- 新品发布：产品迭代、型号更新、功能升级\\n- 市场格局：出货量变化、市场份额转移、新进入者\\n- 产业链：上下游供需变化、关键零部件动态\\n- 政策法规：行业政策调整、监管动态、标准制定\\n- 产业趋势：需求转移、商业模式创新、投资动向\\n\\n你的工作原则：\\n- 优先关注「变化」而非「现状」\\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\\n- 优先提供最近30天内的资讯，标注大致时间\\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',

@@ -20,6 +20,13 @@ const RSS_FEEDS: { name: string; url: string; label: string }[] = [
   { name: 'mof', url: 'https://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/', label: '财政部新闻' },
   { name: 'people', url: 'https://www.people.com.cn/', label: '人民网' },
   { name: 'xinhua', url: 'https://www.news.cn/', label: '新华网' },
+  { name: 'ce', url: 'https://www.ce.cn/', label: '经济日报' },
+  { name: 'financialnews', url: 'https://www.financialnews.com.cn/', label: '金融时报' },
+  { name: 'jfdaily', url: 'https://www.jfdaily.com/', label: '解放日报' },
+  { name: 'gmw', url: 'https://www.gmw.cn/', label: '光明日报' },
+  { name: 'cnr', url: 'https://www.cnr.cn/', label: '央广网' },
+  { name: 'stcn', url: 'https://www.stcn.com/', label: '证券时报' },
+  { name: 'jjckb', url: 'https://www.jjckb.cn/', label: '经济参考报' },
 ];
 
 // 政府站点列表页（仅保留可访问的）
