@@ -429,10 +429,12 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       modules = getAllModules();
       const generalNews = getSearchModule('tianapi-generalnews');
       if (generalNews) modules.push(generalNews);
-      // V2.5: Banking sources — only metaso + tianapi (highest signal for Chinese financial/regulatory intel)
+      // V3.2: Banking mode → policy signal pipeline
+      // Skip metaso + serper (name-based search, tactical level).
+      // Keep tianapi as fallback for breaking policy news outside RSS/gov coverage.
       if (isBanking) {
-        modules = modules.filter(m => m.name === 'metaso' || m.name === 'tianapi-generalnews');
-        tavilyStatus = 'excluded, metaso+tianapi only (banking mode)';
+        modules = modules.filter(m => m.name === 'tianapi-generalnews');
+        tavilyStatus = 'excluded, tianapi only (policy signal mode)';
       } else {
         tavilyStatus = 'excluded, metaso+weibo+zhihu+xhs+tianapi active';
       }
@@ -503,23 +505,19 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         }
       }
       console.log('[Intel:V3.0] Full-content fetch: ' + fcAdded + ' unique items from RSS + gov pages');
-      // V3.1: 主题预筛 — 只保留标题含银行业务关键词的条目
-      const beforeFilter = fullContentItems.length;
-      fullContentItems = fullContentItems.filter((item: any) => {
-        const text = (item.title || '') + ' ' + (item.snippet || '');
-        return BANKING_TOPIC_REGEX.test(text);
-      });
-      console.log('[Intel:V3.1] Topic filter: ' + beforeFilter + ' → ' + fullContentItems.length + ' banking-relevant items');
+      // V3.2: No topic pre-filter — send all items to DeepSeek for VP-level judgment.
+      // VP needs to see political signals, industrial policy, SOE personnel changes, etc.
+      // that don't match any banking-specific keywords.
     } catch (e: any) {
       console.warn('[Intel:V3.0] Full-content fetch failed:', e.message);
     }
   }
 
   // --- V3.0: 定点轰炸 — Serper site: 分组查询黄金信源池 ---
-  // T1(央媒)用对象名+行业词+角度词搜索（日发千篇，需要收窄）
-  // T2+(政府域名)只用裸对象名搜索（低频发布，加了修饰词就搜不到了）
+  // V3.2: Skip in banking mode — Serper queries are object-name-based (tactical level).
+  // Policy signal pipeline relies on RSS/gov full-content + tianapi only.
   let serperWlItems: any[] = [];
-  if (wlTiers.length > 0) {
+  if (wlTiers.length > 0 && !isBanking) {
     const cat = (src.name || '').toLowerCase();
     const rawName = objectName || (mergedKwArr.length > 0 ? mergedKwArr.slice(0, 3).join(' OR ') : '银行业');
     const fullPrefix = objectName
@@ -655,19 +653,58 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const sp = (src.customPrompt || '你是总行首席政策研究员，为省分行/总行副行长以上高管提供战略情报解码。') + '\n当前日期：' + today + '。所有标题和摘要必须使用中文。每条摘要约100字。非中文来源的内容必须翻译成中文。\n\n你的核心能力不是提取新闻，而是解码意图：把政治词汇翻译成信贷动作，把同业拜访解读为竞争威胁，把环评公示转化为项目机会。';
-  const kwText = mergedKwArr.join('、') || '相关';
-  let up: string;
-  // Multi-object sources: use larger context window (100 items / 15k chars) to avoid crowding out objects
-  const contextItems = objectName ? 100 : 50;
-  const contextChars = objectName ? 15000 : 8000;
-  const searchContext = hasSearch ? safeJsonTruncate(searchContextItems.slice(0, contextItems), contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
-  if (objectName) {
-    // Detect source type for specialized instructions
-    const catCheck = (src.name || '').toLowerCase();
-    const isTarget = catCheck.includes('客户') || catCheck.includes('目标');
-    const isComp = catCheck.includes('竞争') || catCheck.includes('对手');
-    const isReputation = catCheck.includes('舆情') || catCheck.includes('声誉') || catCheck.includes('自身');
+
+  // ─── V3.2: 银行业态 → 政策信号管线 ───
+  // Full-content items are sent to DeepSeek WITHOUT banking keyword filter.
+  // DeepSeek itself judges structural impact — not keyword matching.
+  if (isBanking) {
+    const policyContext = hasSearch
+      ? fullContentItems.concat(rawItems.filter((r: any) => (r.url || '').indexOf('tianapi') > -1 || r._searchProvider === 'tianapi-generalnews'))
+      : fullContentItems;
+    const policyJson = safeJsonTruncate(policyContext, 30000);
+    const policyPrompt = `你是省分行副行长级别的战略情报分析助理。当前日期：${today}。
+
+以下是今天来自人民网、新华网、央行、发改委、财政部等权威源的资讯（约${fullContentItems.length}条RSS原文 + 天聚搜索补充）。
+
+你不只需要关注银行直接相关的信息——凡是可能对中国金融/经济体系、重点产业格局、央国企人事、监管政策方向产生结构性影响的事件，都应该纳入考虑。
+
+对每条值得关注的资讯，输出一个JSON对象：
+{
+  "title": "原标题",
+  "insight": "一句话——为什么重要、对金融/经济体系意味着什么",
+  "category": "政策信号|人事变动|产业格局|金融监管|宏观数据|国际环境|科技前沿",
+  "score": 60-100（战略影响程度: 90+=可能改变行业格局, 75-89=影响业务决策, 60-74=值得关注）,
+  "source": "来源",
+  "url": "原文链接"
+}
+
+排除：纯礼仪性报道（外宾接见/节日慰问）、纯体育娱乐、纯地方琐事、已停更的旧闻、产品广告/促销信息。
+如果某条资讯涉及银行高管人事变动、央国企一把手调整，score 应不低于80。
+不硬凑条数——如果值得关注的资讯少，返回实际数量。
+
+按 category 字段分组输出，每组内部按 score 降序排列。
+
+格式：仅返回JSON数组。\n\n原始资讯：\n` + policyJson;
+
+    const sp = '你是省分行/总行副行长级别的战略情报助手。你擅长从权威信源的日常报道中识别对中国金融经济体系有结构性影响的信号——不仅包括金融政策，还包括产业政策、央国企人事、科技监管、地缘经济、地方治理变动等。';
+    const up = policyPrompt;
+
+    // V3.2: Skip the complex object-name prompt path for banking — use policy prompt directly.
+    // The old EHR/isTarget/isComp/isReputation branches apply only to non-banking sources.
+  } else {
+    // ─── Non-banking: keep existing pipeline (unchanged from V3.0) ───
+    const kwText = mergedKwArr.join('、') || '相关';
+    const contextItems = objectName ? 100 : 50;
+    const contextChars = objectName ? 15000 : 8000;
+    const searchContext = hasSearch ? safeJsonTruncate(searchContextItems.slice(0, contextItems), contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
+    const sp = (src.customPrompt || '你是总行首席政策研究员，为省分行/总行副行长以上高管提供战略情报解码。') + '\n当前日期：' + today + '。所有标题和摘要必须使用中文。每条摘要约100字。非中文来源的内容必须翻译成中文。\n\n你的核心能力不是提取新闻，而是解码意图：把政治词汇翻译成信贷动作，把同业拜访解读为竞争威胁，把环评公示转化为项目机会。';
+    let up: string;
+    if (objectName) {
+      // Detect source type for specialized instructions
+      const catCheck = (src.name || '').toLowerCase();
+      const isTarget = catCheck.includes('客户') || catCheck.includes('目标');
+      const isComp = catCheck.includes('竞争') || catCheck.includes('对手');
+      const isReputation = catCheck.includes('舆情') || catCheck.includes('声誉') || catCheck.includes('自身');
 
     up = '你是总行首席政策研究员。以下是来自权威信源（人民网、新华网、央行、发改委、环评网等）关于【' + objectName + '】的搜索结果。提取最多30条情报。\n\n' +
       '你的核心任务：\n' +
@@ -769,6 +806,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         : '12. _riskLevel 风险预警等级（必填，取 "CRITICAL"/"WARNING"/"NORMAL"）：\n' +
           '13.仅JSON\n\n原始搜索结果：\n' + searchContext);
   }
+  } // End of non-banking else block
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -837,6 +875,32 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         _provider: item._searchProvider || '',
       }));
     }
+  }
+
+  // ─── V3.2: Post-processing for banking/policy signal pipeline ───
+  // DeepSeek returns simple fields: { title, insight, category, score, source, url }
+  // Map them to the standard intel item format with _signalType: "policy"
+  if (isBanking && results && results.length > 0) {
+    results = results.map((r: any) => ({
+      title: r.title || '',
+      summary: r.insight || r.summary || '',
+      source: r.source || '',
+      date: today,
+      link: r.url || '',
+      _provider: 'policy',
+      _sentiment: '中性',
+      _reliability: '待核实',
+      _valueScore: parseInt(r.score) || 60,
+      _riskLevel: 'NORMAL',
+      _object: '',
+      _signalType: 'policy',
+      _category: r.category || '政策信号',
+      _credibility: 'HIGH',
+    }));
+    console.log('[Intel:V3.2] Policy signal pipeline: ' + results.length + ' items, categories: ' +
+      [...new Set(results.map((r: any) => r._category))].join(', '));
+    // Skip heavy post-processing (URL validation, EHR, noise filter, fallback) for policy signals
+    return results.slice(0, 30);
   }
 
   // 构建原始 URL 白名单（从搜索结果中提取），用于过滤 AI 幻觉 URL

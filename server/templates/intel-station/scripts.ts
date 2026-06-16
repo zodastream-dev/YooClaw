@@ -105,6 +105,8 @@ async function loadIntelData(forceRefresh){
     });
     // Save to localStorage (30min TTL)
     try{localStorage.setItem(cacheKey,JSON.stringify({data:allIntelData,expiry:Date.now()+30*60*1000}));}catch(e){}
+    // V3.2: Render policy signals before source filters
+    renderPolicySignals(allIntelData);
     renderSourceFilters(monitors);
     buildIntelSubFilters(monitors);
     // 如果当前有过滤条件激活，重新应用过滤；否则渲染全部
@@ -344,6 +346,51 @@ function parseDate(d){
   var day=d.match(/(\d+)\s*天前/);
   if(day)return now-parseInt(day[1])*86400000;
   return 0;
+}
+// V3.2: Render policy signals section (authoritative source items with _signalType==='policy')
+function renderPolicySignals(data){
+  var policyItems=data.filter(function(item){return item._signalType==='policy';});
+  var container=$('policySignals');
+  if(!container)return;
+  if(policyItems.length===0){container.style.display='none';return}
+  container.style.display='block';
+  // Group by _category
+  var groups={};
+  policyItems.forEach(function(item){
+    var cat=item._category||'政策信号';
+    if(!groups[cat])groups[cat]=[];
+    groups[cat].push(item);
+  });
+  // Sort categories: 政策信号 > 人事变动 > 金融监管 > 宏观数据 > 产业格局 > 国际环境 > 科技前沿 > 其他
+  var order=['政策信号','人事变动','金融监管','宏观数据','产业格局','国际环境','科技前沿'];
+  var cats=Object.keys(groups).sort(function(a,b){
+    var ia=order.indexOf(a),ib=order.indexOf(b);
+    if(ia===-1)ia=99;if(ib===-1)ib=99;
+    return ia-ib;
+  });
+  var html='';
+  cats.forEach(function(cat){
+    var items=groups[cat];
+    items.sort(function(a,b){return(parseInt(b._valueScore)||0)-(parseInt(a._valueScore)||0);});
+    html+='<div class=\"policy-signal-section\">';
+    html+='<div class=\"policy-signal-section-header\"><span class=\"label\">'+escHtml(cat)+'</span><span class=\"count\">'+items.length+'条</span></div>';
+    items.forEach(function(item){
+      var score=parseInt(item._valueScore)||60;
+      var sc='s60';if(score>=90)sc='s90';else if(score>=75)sc='s75';
+      html+='<div class=\"policy-signal-card\">';
+      html+='<span class=\"ps-score '+sc+'\">'+score+'</span>';
+      if(item.link){
+        html+='<div class=\"ps-title\"><a href=\"'+escHtml(item.link)+'\" target=\"_blank\" rel=\"noopener\">'+escHtml(item.title)+'</a></div>';
+      }else{
+        html+='<div class=\"ps-title\">'+escHtml(item.title)+'</div>';
+      }
+      html+='<div class=\"ps-insight\">'+escHtml(item.summary||'')+'</div>';
+      html+='<div class=\"ps-meta\"><span class=\"source\">'+escHtml(item.source||'')+'</span></div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+  container.innerHTML=html;
 }
 function renderIntelFeed(data){
   console.log('[renderIntelFeed] called with data.length=', data.length, 'first _sourceName=', data.length>0?data[0]._sourceName:'N/A');
