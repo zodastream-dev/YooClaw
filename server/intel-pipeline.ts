@@ -1126,5 +1126,42 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     return !isNoise;
   });
   if (results.length < noiseBefore) console.log('[Intel] Noise filter removed ' + (noiseBefore - results.length) + ' items');
+  
+  // V3.1: 权威源保底 — 若 DeepSeek 未选取 RSS/gov 来源，从 full-content 中补充 2-3 条
+  const hasRssGov = results.some((r: any) => {
+    const p = r._provider || '';
+    return p.startsWith('rss-') || p.startsWith('gov-');
+  });
+  if (!hasRssGov && fullContentItems && fullContentItems.length > 0) {
+    const existingUrls = new Set(results.map((r: any) => (r.link || '').toLowerCase().trim()));
+    const fallbackItems = fullContentItems
+      .filter((item: any) => {
+        if (existingUrls.has((item.url || '').toLowerCase().trim())) return false;
+        const text = (item.title || '') + ' ' + (item.snippet || '');
+        return BANKING_TOPIC_REGEX.test(text);
+      })
+      .slice(0, 3)
+      .map((item: any) => ({
+        title: item.title || '',
+        summary: item.snippet || '',
+        source: '',
+        date: item.date || '',
+        link: item.url || '',
+        _provider: item._searchProvider || '',
+        _sentiment: '中性',
+        _reliability: '待核实',
+        _intent: '(权威源补充)',
+        _valueScore: 55,
+        _riskLevel: 'NORMAL',
+        _object: '',
+        _credibility: getCredibility(item.url || '', []),
+        _noiseType: '对公业务',
+      }));
+    if (fallbackItems.length > 0) {
+      console.log('[Intel:V3.1] RSS/gov fallback: adding ' + fallbackItems.length + ' authoritative items');
+      results = [...results, ...fallbackItems];
+    }
+  }
+
   return results.slice(0, 30);
 }
