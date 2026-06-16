@@ -902,6 +902,27 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     // Skip heavy post-processing (URL validation, EHR, noise filter, fallback) for policy signals
     return results.slice(0, 30);
   }
+  // V3.2 safety net: if banking but DeepSeek returned empty, use fullContentItems as-is
+  if (isBanking && fullContentItems.length > 0) {
+    console.warn('[Intel:V3.2] DeepSeek returned empty — using top 10 full-content items as fallback');
+    results = fullContentItems.slice(0, 10).map((item: any) => ({
+      title: item.title || '',
+      summary: (item.snippet || '').substring(0, 120),
+      source: item._searchProvider || '',
+      date: today,
+      link: item.url || '',
+      _provider: item._searchProvider || '',
+      _sentiment: '中性',
+      _reliability: '待核实',
+      _valueScore: 50,
+      _riskLevel: 'NORMAL',
+      _object: '',
+      _signalType: 'policy',
+      _category: '政策信号',
+      _credibility: 'HIGH',
+    }));
+    return results;
+  }
 
   // 构建原始 URL 白名单（从搜索结果中提取），用于过滤 AI 幻觉 URL
   const rawUrlSet = new Set<string>();
