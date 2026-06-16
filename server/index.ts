@@ -4119,28 +4119,25 @@ async function warmAllPortalCaches() {
 
     console.log(`[CacheWarmer] Warming ${toWarm.length} sources (${sourceMap.size - toWarm.length}/${sourceMap.size} already cached) from ${portalSites.length} portals`);
 
-    // Warm in chunks of 3
+    // V3.2: Process sources ONE AT A TIME to prevent DeepSeek timeout overload.
     let warmed = 0;
     let failed = 0;
-    for (let i = 0; i < toWarm.length; i += 3) {
-      const chunk = toWarm.slice(i, i + 3);
-      const chunkResults = await Promise.allSettled(
-        chunk.map(async ({ key, src, allSources }) => {
-          const intelData = await fetchIntelForSource(src, allSources);
-          const freqTtl = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
-          portalIntelCache.set(key, { data: intelData, expiry: Date.now() + freqTtl });
-          return { key, src, count: intelData.length };
-        })
-      );
-      chunkResults.forEach((r) => {
-        if (r.status === 'fulfilled') {
-          warmed++;
-          console.log(`[CacheWarmer] Warmed: ${r.value.src.name || 'unnamed'} (${r.value.count} items)`);
-        } else {
-          failed++;
-          console.warn(`[CacheWarmer] Failed: ${r.reason?.message || r.reason}`);
-        }
-      });
+    for (const { key, src, allSources } of toWarm) {
+      try {
+        // V3.2: 120s timeout wrapper to prevent CacheWarmer from hanging the process
+        const intelData = await Promise.race([
+          fetchIntelForSource(src, allSources),
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('CacheWarmer timeout (120s)')), 120000))
+        ]);
+        if (!Array.isArray(intelData)) throw new Error('Non-array result');
+        const freqTtl = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+        portalIntelCache.set(key, { data: intelData, expiry: Date.now() + freqTtl });
+        warmed++;
+        console.log(`[CacheWarmer] Warmed: ${src.name || 'unnamed'} (${intelData.length} items)`);
+      } catch (err: any) {
+        failed++;
+        console.warn(`[CacheWarmer] Failed: ${src.name} - ${err.message?.substring(0, 100)}`);
+      }
     }
 
     savePortalIntelCache();
