@@ -653,6 +653,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
   // 2. DeepSeek Analysis
   const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  let sp: string;
+  let up: string;
 
   // ─── V3.2: 银行业态 → 政策信号管线 ───
   // Full-content items are sent to DeepSeek WITHOUT banking keyword filter.
@@ -686,8 +688,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
 格式：仅返回JSON数组。\n\n原始资讯：\n` + policyJson;
 
-    const sp = '你是省分行/总行副行长级别的战略情报助手。你擅长从权威信源的日常报道中识别对中国金融经济体系有结构性影响的信号——不仅包括金融政策，还包括产业政策、央国企人事、科技监管、地缘经济、地方治理变动等。';
-    const up = policyPrompt;
+    sp = '你是省分行/总行副行长级别的战略情报助手。你擅长从权威信源的日常报道中识别对中国金融经济体系有结构性影响的信号——不仅包括金融政策，还包括产业政策、央国企人事、科技监管、地缘经济、地方治理变动等。';
+    up = policyPrompt;
 
     // V3.2: Skip the complex object-name prompt path for banking — use policy prompt directly.
     // The old EHR/isTarget/isComp/isReputation branches apply only to non-banking sources.
