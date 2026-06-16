@@ -3289,7 +3289,13 @@ app.get('/p/:slug', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.send(site.html_content);
+    // V3.1 hotfix: replace old PROVIDER_NAMES with full Chinese mappings inline
+    let html = site.html_content;
+    html = html.replace(
+      /var PROVIDER_NAMES=\{metaso[^}]*\};/,
+      'var PROVIDER_NAMES=window._PROVIDER_NAMES={metaso:"秘塔",serper:"Serper",newsbank:"Serper新闻库",xiaohongshu:"小红书",zhihu:"知乎",weibo:"微博",wechat:"微信","multi-engine":"多引擎",tavily:"Tavily","tianapi-generalnews":"天聚综合","tianapi-keji":"天聚科技","tianapi-ai":"天聚AI","tianapi-guonei":"天聚国内","tianapi-world":"天聚国际","tianapi-social":"天聚社会","tianapi-caijing":"天聚财经","tianapi-internet":"天聚互联网","rss-ndrc":"发改委","rss-ndrc-news":"发改委新闻","rss-mof":"财政部","rss-people":"人民网","rss-xinhua":"新华网","rss-ce":"经济日报","rss-financialnews":"金融时报","rss-jfdaily":"解放日报","rss-gmw":"光明日报","rss-cnr":"央广网","rss-stcn":"证券时报","rss-jjckb":"经济参考报","gov-mee-eia":"环保部","gov-ndrc-projects":"发改委项目","gov-cbirc-notices":"金监总局"};'
+    );
+    res.send(html);
   } catch (err: any) {
     console.error('[Portal Serve Error]', err.message);
     res.status(500).send('<html><body><h1>500 - 服务器错误</h1></body></html>');
