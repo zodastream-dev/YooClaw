@@ -3289,33 +3289,7 @@ app.get('/p/:slug', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    // V3.1 hotfix: replace old PROVIDER_NAMES with full Chinese mappings inline
-    let html = site.html_content;
-    html = html.replace(
-      /var PROVIDER_NAMES=\{metaso[^}]*\};/,
-      'var PROVIDER_NAMES=window._PROVIDER_NAMES={metaso:"秘塔",serper:"Serper",newsbank:"Serper新闻库",xiaohongshu:"小红书",zhihu:"知乎",weibo:"微博",wechat:"微信","multi-engine":"多引擎",tavily:"Tavily","tianapi-generalnews":"天聚综合","tianapi-keji":"天聚科技","tianapi-ai":"天聚AI","tianapi-guonei":"天聚国内","tianapi-world":"天聚国际","tianapi-social":"天聚社会","tianapi-caijing":"天聚财经","tianapi-internet":"天聚互联网","rss-ndrc":"发改委","rss-ndrc-news":"发改委新闻","rss-mof":"财政部","rss-people":"人民网","rss-xinhua":"新华网","rss-ce":"经济日报","rss-financialnews":"金融时报","rss-jfdaily":"解放日报","rss-gmw":"光明日报","rss-cnr":"央广网","rss-stcn":"证券时报","rss-jjckb":"经济参考报","gov-mee-eia":"环保部","gov-ndrc-projects":"发改委项目","gov-cbirc-notices":"金监总局"};'
-    );
-    // Patch 1: _sourceName assignment — map through PROVIDER_NAMES for filter match
-    html = html.replace(
-      'item._sourceName=sourceName;',
-      'sourceName=window._PROVIDER_NAMES[sourceName]||sourceName;item._sourceName=sourceName;'
-    );
-    // Patch 2: source label on cards — use PROVIDER_NAMES lookup
-    html = html.replace(
-      "return p||'未知来源'})(item.source,item._provider)",
-      "return window._PROVIDER_NAMES[p]||p||'未知来源'})(item.source,item._provider)"
-    );
-    // Patch 3: filter button names — use PROVIDER_NAMES
-    html = html.replace(
-      "var name=(src.name||'未命名').trim();",
-      "var name=window._PROVIDER_NAMES[src.name]||(src.name||'未命名').trim();"
-    );
-    // Patch 4: sidebar source list names — use PROVIDER_NAMES for display
-    html = html.replace(
-      "html+='<div class=\"sc-name\">'+escHtml(src.name||'未命名')+'</div>';",
-      "html+='<div class=\"sc-name\">'+escHtml(window._PROVIDER_NAMES[src.name]||src.name||'未命名')+'</div>';"
-    );
-    res.send(html);
+    res.send(site.html_content);
   } catch (err: any) {
     console.error('[Portal Serve Error]', err.message);
     res.status(500).send('<html><body><h1>500 - 服务器错误</h1></body></html>');
@@ -3691,6 +3665,31 @@ const PORTAL_INTEL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (was 5 min)
 const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-intel-cache.json');
 const pausedPortals = new Set<string>(); // Per-portal pause state (Set of paused portal slugs)
 
+// V3.1: Provider name translation map (internal ID → Chinese display name)
+const PROVIDER_CN: Record<string, string> = {
+  metaso: '秘塔搜索', serper: 'Serper', newsbank: 'Serper新闻库',
+  xiaohongshu: '小红书', zhihu: '知乎', weibo: '微博', wechat: '微信',
+  'multi-engine': '多引擎', tavily: 'Tavily',
+  'tianapi-generalnews': '天聚综合新闻', 'tianapi-keji': '天聚科技',
+  'tianapi-ai': '天聚AI', 'tianapi-guonei': '天聚国内',
+  'tianapi-world': '天聚国际', 'tianapi-social': '天聚社会',
+  'tianapi-caijing': '天聚财经', 'tianapi-internet': '天聚互联网',
+  'rss-ndrc': '发改委', 'rss-ndrc-news': '发改委新闻', 'rss-mof': '财政部',
+  'rss-people': '人民网', 'rss-xinhua': '新华网', 'rss-ce': '经济日报',
+  'rss-financialnews': '金融时报', 'rss-jfdaily': '解放日报',
+  'rss-gmw': '光明日报', 'rss-cnr': '央广网', 'rss-stcn': '证券时报',
+  'rss-jjckb': '经济参考报',
+  'gov-mee-eia': '环保部', 'gov-ndrc-projects': '发改委项目',
+  'gov-cbirc-notices': '金监总局',
+};
+function translateProviders(items: any[]): void {
+  for (const item of items) {
+    if (item._provider && PROVIDER_CN[item._provider]) {
+      item._provider = PROVIDER_CN[item._provider];
+    }
+  }
+}
+
 // Auto-clean invalid aiModel values on startup (self-healing)
 async function autoCleanAiModel() {
   try {
@@ -3867,6 +3866,11 @@ app.post('/api/portal-intel', async (req, res) => {
     const allPromises = sources.map((src: any, idx: number) => processSource(src, idx));
     const allResults = await Promise.all(allPromises);
     results.push(...allResults);
+
+    // V3.1: translate _provider to Chinese names before returning to client
+    for (const r of results) {
+      if (r.data) translateProviders(r.data);
+    }
 
     res.json({ success: true, results });
     // V2.5: After returning cache-miss response, trigger a quick CacheWarmer cycle
