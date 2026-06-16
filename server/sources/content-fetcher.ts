@@ -13,6 +13,25 @@ function todayStr(): string {
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
 }
 
+// Decode common HTML entities (used by Chinese media sites like ce.cn)
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&ndash;/g, '\u2013')
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&lsquo;/g, '\u2018')
+    .replace(/&rsquo;/g, '\u2019')
+    .replace(/&middot;/g, '\u00B7')
+    .replace(/&hellip;/g, '\u2026');
+}
+
 // RSS feed 源 / 频道列表页
 // 主流媒体大多为 JS 渲染，curl 只能抓取服务端 HTML。
 // 优先使用有实际文章标题的频道/列表页，避免首页导航链接。
@@ -66,7 +85,22 @@ async function fetchPage(url: string, label: string): Promise<RawSearchItem[]> {
       return [];
     }
 
-    const text = await resp.text();
+    const buf = await resp.arrayBuffer();
+    let text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+
+    // Chinese government / media sites often serve GBK/GB2312, not UTF-8.
+    // Detect garbled CJK: if we see the replacement character � many times,
+    // re-decode using GBK (which covers GB2312).
+    const garbledCount = (text.match(/\uFFFD/g) || []).length;
+    if (garbledCount > 30 && text.length > 500) {
+      try {
+        const gbkText = new TextDecoder('gbk', { fatal: false }).decode(buf);
+        if (gbkText.length > text.length * 0.8) {
+          text = gbkText;
+        }
+      } catch { /* keep UTF-8 attempt */ }
+    }
+
     const date = todayStr();
 
     // Try RSS XML parsing first (look for <item> tags)
@@ -126,7 +160,12 @@ function parseHTML(html: string, baseUrl: string, date: string): RawSearchItem[]
   const seen = new Set<string>();
 
   // ——— helper ———
+  const cleanText = (raw: string) => decodeHtmlEntities(
+    raw.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  );
   const addItem = (href: string, text: string) => {
+    text = cleanText(text);
+    if (text.length < 8) return;
     try { href = new URL(href, baseUrl).href; } catch { return; }
     if (seen.has(href)) return;
     seen.add(href);
@@ -138,14 +177,18 @@ function parseHTML(html: string, baseUrl: string, date: string): RawSearchItem[]
     '首页', '上一页', '下一页', '返回', '登录', '注册', '关于', 'English',
     '网站地图', '手机版', 'APP下载', '客户端', '了解更多', '查看更多',
     '详情', '更多', '更多>>', '查看详情', '立即查看', '阅读全文', '全文',
+    '栏目列表', '小标题', '在线投稿', '欢迎订阅', '电子报', '广告服务',
+    '上市公司服务专区', '证券市场信息披露平台', '金融时报电子报',
+    '金融时报APP', '金融管理', '金融科技', '新媒体矩阵',
   ]);
+  const navPattern = /^(关于我们|联系我们|网站声明|版权说明|友情链接|服务专区|信息披露|电子.?报|APP下载|客户端下载|浏览更多|更多精彩)$/;
 
   // ——— heading tags with inline links (highest quality) ———
   const headingLinkRe = /<h[1-3][^>]*>\s*<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>\s*<\/h[1-3]>/gi;
   let hm;
   while ((hm = headingLinkRe.exec(html)) !== null) {
-    const text = hm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-    if (!text || text.length < 8 || navSet.has(text)) continue;
+    const text = cleanText(hm[2]);
+    if (!text || text.length < 8 || navSet.has(text) || navPattern.test(text)) continue;
     addItem(hm[1], text);
     if (items.length >= 20) return items;
   }
@@ -158,8 +201,8 @@ function parseHTML(html: string, baseUrl: string, date: string): RawSearchItem[]
   for (const re of listPatterns) {
     let lm;
     while ((lm = re.exec(html)) !== null) {
-      const text = lm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      if (!text || text.length < 10 || navSet.has(text)) continue;
+      const text = cleanText(lm[2]);
+      if (!text || text.length < 10 || navSet.has(text) || navPattern.test(text)) continue;
       // skip if it looks like a date string
       if (/^\d{2,4}[-\/年月]/.test(text) && text.length < 14) continue;
       addItem(lm[1], text);
@@ -171,11 +214,11 @@ function parseHTML(html: string, baseUrl: string, date: string): RawSearchItem[]
   const linkRe = /<a\s(?:[^>]*\s)?href\s*=\s*["']([^"']+)["'][^>]*>(?:\s*<[^>]+>)*\s*([\s\S]*?)(?:\s*<[^>]+>)*\s*<\/a>/gi;
   let m;
   while ((m = linkRe.exec(html)) !== null) {
-    let text = m[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    const text = cleanText(m[2]);
     if (!text || text.length < 12) continue;
     // skip pure nav/meta text
-    if (navSet.has(text)) continue;
-    if (/^([\d]+\s*(条|篇|项|个|笔|次)|共\d+页|第\d+页|关于我们|联系我们)$/.test(text)) continue;
+    if (navSet.has(text) || navPattern.test(text)) continue;
+    if (/^([\d]+\s*(条|篇|项|个|笔|次)|共\d+页|第\d+页)$/.test(text)) continue;
     // skip URLs that look like media files
     if (/\.(jpg|jpeg|png|gif|mp4|webp|avif)(\?|$)/i.test(m[1])) continue;
 
