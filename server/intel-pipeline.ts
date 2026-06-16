@@ -11,25 +11,26 @@ const KW_FAIL_CACHE_TTL = 2 * 60 * 1000; // 2 min for failures (prevents repeate
 
 // V3.1: 银行业务域主题词 — 用于权威源内容预筛
 // 省分行副行长关注的话题：货币政策、风险监管、信贷市场、地方政府、行业基建、机构竞争
+// 注意：只保留概念词，不含机构名（机构名匹配范围过大，会导致非银行业务内容混入）
 const BANKING_TOPIC_TERMS = [
   // 货币政策
-  '央行', '准备金', 'LPR', 'MLF', 'SLF', '逆回购', '公开市场', '利率', '降息', '加息',
+  '准备金', 'LPR', 'MLF', 'SLF', '逆回购', '公开市场', '利率走廊', '降准', '降息', '加息',
   // 信贷市场
-  '社融', 'M2', '信贷', '贷款', '存贷', '净息差', '对公', '零售转型', '普惠',
+  '社融', '信贷投放', '存贷款', '净息差', '对公业务', '普惠金融',
   // 风险监管
-  '金监总局', '资本充足', '拨备', '不良贷款', '反洗钱', '监管', '罚单', '评级',
+  '资本充足', '拨备覆盖', '不良贷款', '反洗钱', '监管罚单', '监管评级',
   // 地方政府
-  '地方债', '专项债', '城投', '化债', '平台公司', '隐性债', '财政',
+  '地方债', '专项债', '城投', '化债', '隐性债',
   // 行业基建
-  '房地产', '基建', '重大工程', '新能源', '绿色金融', '碳',
-  // 机构竞争
-  '工商银行', '农业银行', '中国银行', '交通银行', '招商银行', '兴业银行',
-  '浦发银行', '中信银行', '邮储银行', '工行', '农行', '中行', '交行',
-  // 宏观经济
-  'GDP', 'CPI', 'PPI', 'PMI', '固定资产投资', '进出口', '外汇', '汇率',
-  '统计局', '发改委', '财政部', '商务部', '银保监', '证监',
+  '房地产贷款', '重大项目', '绿色金融', '碳排放',
+  // 宏观经济指标
+  'GDP', 'CPI', 'PPI', 'PMI', '固定资产投资', '进出口', '外汇储备', '人民币汇率',
+  '规模以上工业', '社会消费品', '经济数据', '国民经济',
   // 企业融资
-  'IPO', '发债', '增发', '债券', '融资', '信用债',
+  'IPO', '发债', '增发', '债券发行', '信用债', '融资需求',
+  // 银行竞争
+  '工商银行', '农业银行', '中国银行', '建设银行', '交通银行',
+  '招商银行', '兴业银行', '浦发银行', '中信银行', '邮储银行',
 ];
 const BANKING_TOPIC_REGEX = new RegExp(BANKING_TOPIC_TERMS.join('|'), 'i');
 const KW_GEN_TIMEOUT = 25000; // 25s (was 15s — DeepSeek often takes 10-20s)
@@ -1074,10 +1075,13 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     });
     if (results.length < before) console.log('[Intel] EHR filtered ' + (before - results.length) + ' items for "' + objectName + '"');
 
-    // Safety net: if EHR was too aggressive (< 5 results), relax to partial token match.
-    // For Chinese names, we try 2-character substrings as relaxed tokens.
-    // But we NEVER fall back to keeping all original results — quality over quantity.
-    if (results.length < 5 && beforeResults.length > 0) {
+    // Safety net: if EHR was too aggressive (< 10 results for generic sources, < 5 for specific entities),
+    // relax to partial token match.
+    // Generic objects (e.g. "商业银行", "银行业") need looser EHR because authoritative
+    // media content discusses them indirectly (macro policy, market data, etc.)
+    const isGenericObject = names.some(n => n === '商业银行' || n === '银行业' || n === '行业信号');
+    const minThreshold = isGenericObject ? 10 : 5;
+    if (results.length < minThreshold && beforeResults.length > 0) {
       const relaxedTokens = names.flatMap(n => {
         const tokens: string[] = [];
         if (n.length >= 4) {
@@ -1127,12 +1131,15 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   });
   if (results.length < noiseBefore) console.log('[Intel] Noise filter removed ' + (noiseBefore - results.length) + ' items');
   
-  // V3.1: 权威源保底 — 若 DeepSeek 未选取 RSS/gov 来源，从 full-content 中补充 2-3 条
-  const hasRssGov = results.some((r: any) => {
-    const p = r._provider || '';
-    return p.startsWith('rss-') || p.startsWith('gov-');
-  });
-  if (!hasRssGov && fullContentItems && fullContentItems.length > 0) {
+  // V3.1: 权威源保底 — 确保至少 5 条来自 RSS/gov 权威源
+  const existingRssUrls = new Set(
+    results.filter((r: any) => {
+      const p = r._provider || '';
+      return p.startsWith('rss-') || p.startsWith('gov-');
+    }).map((r: any) => (r.link || '').toLowerCase().trim())
+  );
+  const needMore = Math.max(0, 5 - existingRssUrls.size);
+  if (needMore > 0 && fullContentItems && fullContentItems.length > 0) {
     const existingUrls = new Set(results.map((r: any) => (r.link || '').toLowerCase().trim()));
     const fallbackItems = fullContentItems
       .filter((item: any) => {
@@ -1140,7 +1147,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         const text = (item.title || '') + ' ' + (item.snippet || '');
         return BANKING_TOPIC_REGEX.test(text);
       })
-      .slice(0, 3)
+      .slice(0, needMore)
       .map((item: any) => ({
         title: item.title || '',
         summary: item.snippet || '',
