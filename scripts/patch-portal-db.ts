@@ -1,6 +1,6 @@
 // patch-portal-db.ts — directly patch stored HTML in Supabase database
 // Run: npx tsx scripts/patch-portal-db.ts
-import { sql } from "../server/db.js";
+import { sql, initDatabase } from "../server/db.js";
 
 const SLUG = "site-cec6c0";
 
@@ -21,6 +21,7 @@ const replacements: [string, string][] = [
 ];
 
 async function main() {
+  await initDatabase();
   const r = await sql`SELECT html_content FROM report_sites WHERE slug = ${SLUG}`;
   if (!r || !r[0]) { console.log("NOT FOUND"); process.exit(1); }
   let html: string = r[0].html_content;
