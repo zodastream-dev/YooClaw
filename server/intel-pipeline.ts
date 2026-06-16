@@ -8,6 +8,30 @@ import crypto from 'crypto';
 const kwCache = new Map<string, { keywords: string[]; expiry: number }>();
 const KW_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours for successful generations
 const KW_FAIL_CACHE_TTL = 2 * 60 * 1000; // 2 min for failures (prevents repeated timeouts from parallel objects)
+
+// V3.1: 银行业务域主题词 — 用于权威源内容预筛
+// 省分行副行长关注的话题：货币政策、风险监管、信贷市场、地方政府、行业基建、机构竞争
+const BANKING_TOPIC_TERMS = [
+  // 货币政策
+  '央行', '准备金', 'LPR', 'MLF', 'SLF', '逆回购', '公开市场', '利率', '降息', '加息',
+  // 信贷市场
+  '社融', 'M2', '信贷', '贷款', '存贷', '净息差', '对公', '零售转型', '普惠',
+  // 风险监管
+  '金监总局', '资本充足', '拨备', '不良贷款', '反洗钱', '监管', '罚单', '评级',
+  // 地方政府
+  '地方债', '专项债', '城投', '化债', '平台公司', '隐性债', '财政',
+  // 行业基建
+  '房地产', '基建', '重大工程', '新能源', '绿色金融', '碳',
+  // 机构竞争
+  '工商银行', '农业银行', '中国银行', '交通银行', '招商银行', '兴业银行',
+  '浦发银行', '中信银行', '邮储银行', '工行', '农行', '中行', '交行',
+  // 宏观经济
+  'GDP', 'CPI', 'PPI', 'PMI', '固定资产投资', '进出口', '外汇', '汇率',
+  '统计局', '发改委', '财政部', '商务部', '银保监', '证监',
+  // 企业融资
+  'IPO', '发债', '增发', '债券', '融资', '信用债',
+];
+const BANKING_TOPIC_REGEX = new RegExp(BANKING_TOPIC_TERMS.join('|'), 'i');
 const KW_GEN_TIMEOUT = 25000; // 25s (was 15s — DeepSeek often takes 10-20s)
 
 // In-flight dedup: prevent parallel calls for the same fingerprint from all hitting the API
@@ -472,6 +496,13 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
         }
       }
       console.log('[Intel:V3.0] Full-content fetch: ' + fcAdded + ' unique items from RSS + gov pages');
+      // V3.1: 主题预筛 — 只保留标题含银行业务关键词的条目
+      const beforeFilter = fullContentItems.length;
+      fullContentItems = fullContentItems.filter((item: any) => {
+        const text = (item.title || '') + ' ' + (item.snippet || '');
+        return BANKING_TOPIC_REGEX.test(text);
+      });
+      console.log('[Intel:V3.1] Topic filter: ' + beforeFilter + ' → ' + fullContentItems.length + ' banking-relevant items');
     } catch (e: any) {
       console.warn('[Intel:V3.0] Full-content fetch failed:', e.message);
     }
@@ -637,6 +668,15 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '2. 竞争意图洞察：分析同业高管拜访行踪、政府MOU签署，研判银团牵头权流失风险\n' +
       '3. 弱信号捕捉：发现环评公示、干部任前公示、商票逾期名单中隐藏的重大项目机会或客户风险\n\n' +
       '严格排除：零售产品促销/信用卡优惠/App更新/社区送温暖/理财推销/微小利率调整 → 标注 _valueScore<40 并丢弃\n\n' +
+      '⚠️ 权威源专项指令（RSS/gov来源的原始内容）：\n' +
+      '  - 这些来自人民网/新华网/央行/发改委等权威源的原始内容可能不包含【' + objectName + '】\n' +
+      '  - 但它们是银行高管必须关注的宏观环境和政策信号\n' +
+      '  - 从省分行副行长视角解读：这条政策/数据/事件对贷款投放、风险定价、资产质量、对公业务有何影响？\n' +
+      '  - 场景翻译：\n' +
+      '    "央行降准0.5个百分点" → 释放流动性约X亿，利好对公信贷投放，竞行可能抢先抢夺优质客户\n' +
+      '    "某省发布重大项目清单" → 可挖掘项目融资机会，需评估客户是否在承包商名单内\n' +
+      '    "金监总局发布资本新规" → 影响银行资产配置，需调整业务结构\n' +
+      '  - 至少从RSS/gov来源中选取2-3条最有战略价值的条目，不可全部丢弃\n\n' +
       '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空，摘要中必须包含具体的行动建议或战略判断\n4.去重过滤无关\n' +
       '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50,"_riskLevel":"NORMAL","_noiseType":"对公业务"}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/高概率/传闻/待核实\n' +
