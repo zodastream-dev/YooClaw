@@ -684,9 +684,16 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 如果某条资讯涉及银行高管人事变动、央国企一把手调整，score 应不低于80。
 不硬凑条数——如果值得关注的资讯少，返回实际数量。
 
-按 category 字段分组输出，每组内部按 score 降序排列。
+直接返回扁平JSON数组，每条对象自带 category 字段，按 score 降序排列。
+严禁使用嵌套分组结构，严禁在外层包裹 category 容器对象。
 
-格式：仅返回JSON数组。\n\n原始资讯：\n` + policyJson;
+格式：仅返回JSON数组，例如：
+[
+  {"title":"...","insight":"...","category":"政策信号","score":85,"source":"来源","url":"..."},
+  {"title":"...","insight":"...","category":"金融监管","score":78,"source":"来源","url":"..."}
+]
+
+原始资讯：\n` + policyJson;
 
     sp = '你是省分行/总行副行长级别的战略情报助手。你擅长从权威信源的日常报道中识别对中国金融经济体系有结构性影响的信号——不仅包括金融政策，还包括产业政策、央国企人事、科技监管、地缘经济、地方治理变动等。';
     up = policyPrompt;
@@ -825,16 +832,53 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // 先尝试整体解析
   try { results = JSON.parse(content); }
   catch (e1) {
-    // 尝试提取 JSON 数组
-    let m = content.match(/\[\s*(?:\{[\s\S]*?\}\s*(?:,\s*\{[\s\S]*?\})*)?\s*\]/);
-    if (!m) m = content.match(/\[[\s\S]*\]/);
-    if (m) {
-      try { results = JSON.parse(m[0]); }
+    // 尝试用括号计数提取最外层 JSON 数组（正确处理嵌套结构）
+    let extracted: string | null = null;
+    const start = content.indexOf('[');
+    if (start !== -1) {
+      let depth = 0;
+      for (let i = start; i < content.length; i++) {
+        if (content[i] === '[') depth++;
+        else if (content[i] === ']') {
+          depth--;
+          if (depth === 0) { extracted = content.substring(start, i + 1); break; }
+        }
+      }
+    }
+    if (extracted) {
+      try { results = JSON.parse(extracted); }
       catch (e2) {
-        console.warn('[Intel] Regex match parse failed, using rawItems fallback. Content preview:', content.substring(0, 300));
+        console.warn('[Intel] Bracket-count parse failed. Content preview:', content.substring(0, 300));
         results = rawItems.length > 0 ? rawItems : [];
       }
-    } else { results = rawItems.length > 0 ? rawItems : []; }
+    } else {
+      // Last resort: greedy regex
+      const m = content.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (m) {
+        try { results = JSON.parse(m[0]); }
+        catch (e2) {
+          console.warn('[Intel] Greedy regex parse failed. Content preview:', content.substring(0, 300));
+          results = rawItems.length > 0 ? rawItems : [];
+        }
+      } else {
+        console.warn('[Intel] No JSON array found in content. Content preview:', content.substring(0, 300));
+        results = rawItems.length > 0 ? rawItems : [];
+      }
+    }
+  }
+  // V3.2: Flatten grouped output if DeepSeek returned category groups despite prompt instructions
+  if (results.length > 0 && results[0].items && Array.isArray(results[0].items)) {
+    console.log('[Intel:V3.2] Flattening grouped output from ' + results.length + ' groups');
+    const flat: any[] = [];
+    for (const group of results) {
+      if (group.items && Array.isArray(group.items)) {
+        for (const item of group.items) {
+          flat.push({ ...item, category: item.category || group.category || '' });
+        }
+      }
+    }
+    results = flat;
+    console.log('[Intel:V3.2] Flattened to ' + results.length + ' items');
   }
   // DeepSeek 可能返回空数组 []，此时降级重试或使用 rawItems
   if ((!results || results.length === 0) && rawItems.length > 0) {
