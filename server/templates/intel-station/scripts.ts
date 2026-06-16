@@ -58,6 +58,7 @@ async function loadIntelData(forceRefresh){
       cachedData=JSON.parse(cachedRaw);
       if(cachedData&&cachedData.expiry>Date.now()){
         allIntelData=cachedData.data||[];
+        renderPolicySignals(allIntelData);
         renderSourceFilters(monitors);
         buildIntelSubFilters(monitors);
         buildObjectFilters(monitors);
