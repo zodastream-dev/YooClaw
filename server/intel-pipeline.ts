@@ -801,6 +801,10 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   for (const item of serperWlItems) {
     if (item.url) rawUrlSet.add(item.url.toLowerCase().trim());
   }
+  // V3.0: Include RSS/gov full-content items in URL whitelist
+  for (const item of fullContentItems) {
+    if (item.url) rawUrlSet.add(item.url.toLowerCase().trim());
+  }
   const hallucinatedUrls: string[] = [];
 
   results = (results || []).map(function (r: any) {
@@ -847,6 +851,11 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     }
     // V2.7: Include Serper whitelist results in lookup maps for _provider recovery
     for (const raw of serperWlItems) {
+      if (raw.url) rawByUrl.set(raw.url.toLowerCase().trim(), raw);
+      if (raw.title) rawByTitle.set(raw.title.toLowerCase().trim(), raw);
+    }
+    // V3.0: Include RSS/gov full-content items
+    for (const raw of fullContentItems) {
       if (raw.url) rawByUrl.set(raw.url.toLowerCase().trim(), raw);
       if (raw.title) rawByTitle.set(raw.title.toLowerCase().trim(), raw);
     }

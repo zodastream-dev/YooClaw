@@ -18,6 +18,8 @@ const RSS_FEEDS: { name: string; url: string; label: string }[] = [
   { name: 'ndrc', url: 'https://www.ndrc.gov.cn/fzggw/jgsj/fgs/sjdt/', label: '发改委政策' },
   { name: 'ndrc-news', url: 'https://www.ndrc.gov.cn/xwdt/xwfb/', label: '发改委新闻发布' },
   { name: 'mof', url: 'https://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/', label: '财政部新闻' },
+  { name: 'people', url: 'https://www.people.com.cn/', label: '人民网' },
+  { name: 'xinhua', url: 'https://www.news.cn/', label: '新华网' },
 ];
 
 // 政府站点列表页（仅保留可访问的）
