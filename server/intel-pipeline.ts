@@ -659,12 +659,13 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // ─── V3.2: 银行业态 → 政策信号管线 ───
   // Full-content items are sent to DeepSeek WITHOUT banking keyword filter.
   // DeepSeek itself judges structural impact — not keyword matching.
+  // URL → _searchProvider lookup (function scope, used later in post-processing)
+  let urlToProvider: Record<string, string> = {};
   if (isBanking) {
     const policyContext = hasSearch
       ? fullContentItems.concat(rawItems.filter((r: any) => (r.url || '').indexOf('tianapi') > -1 || r._searchProvider === 'tianapi-generalnews'))
       : fullContentItems;
     // Build URL → _searchProvider lookup so we can restore real provider names after DeepSeek
-    const urlToProvider: Record<string, string> = {};
     for (const item of policyContext) {
       if (item.url && item._searchProvider) {
         urlToProvider[item.url] = item._searchProvider;
