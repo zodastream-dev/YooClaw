@@ -2897,8 +2897,11 @@ app.get('/web/:slug', async (req, res) => {
     incrementSiteViewCount(slug).catch(() => {});
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     // V3.4 hotfix: fix broken class= escaping in renderPolicyStatsBar
+    // DB HTML has literal \\\\" (2 backslashes + quote) which breaks JS parsing.
+    // Browser needs \\" (1 backslash + quote) for proper JS string escaping.
     let htmlContent = site.html_content;
-    htmlContent = htmlContent.replace(/class=\\\\"psb-/g, 'class=\\"psb-');
+    // Use string replacement to avoid regex escape madness
+    htmlContent = htmlContent.split(String.raw`class=\\"psb-`).join(String.raw`class=\"psb-`);
     res.send(htmlContent);
   } catch (err: any) {
     console.error('[Web Serve Error]', err.message);
