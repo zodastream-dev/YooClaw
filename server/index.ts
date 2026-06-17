@@ -6372,7 +6372,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       const user = await getUserById(userId);
       const userName = user?.username || '用户';
       const typeLabel = buyerTaxId ? `企业：${buyerTitle}（${buyerTaxId}）` : `个人：${buyerTitle}`;
-      const ordersSummary = orders.map(o => `${o.product_name || '积分服务'} ¥${o.amount_yuan}`).join('<br>');
+      const ordersSummary = orders.map(o => `${o.id} / ${o.product_name || '积分服务'} ¥${o.amount_yuan}`).join('<br>');
       const adminHtml = `<div style="font-family:sans-serif;max-width:480px;padding:16px">
 <h2 style="margin:0 0 12px;font-size:16px">开票申请</h2>
 <table style="border-collapse:collapse;width:100%;font-size:13px">
