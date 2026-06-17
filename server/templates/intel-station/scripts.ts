@@ -106,8 +106,8 @@ async function loadIntelData(forceRefresh){
     });
     // Save to localStorage (30min TTL)
     try{localStorage.setItem(cacheKey,JSON.stringify({data:allIntelData,expiry:Date.now()+30*60*1000}));}catch(e){}
-    // V3.2: Render policy signals before source filters
-    renderPolicySignals(allIntelData);
+    // V3.4: Render policy stats bar instead
+    renderPolicyStatsBar(allIntelData);
     renderSourceFilters(monitors);
     buildIntelSubFilters(monitors);
     // 如果当前有过滤条件激活，重新应用过滤；否则渲染全部
