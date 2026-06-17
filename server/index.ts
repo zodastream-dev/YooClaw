@@ -3800,11 +3800,29 @@ async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]>
         else console.error('[fetchIntelForSource] Object failed:', r.reason?.message);
       }
     }
+    // Dedup by title across all objects (same news matched by different monitored objects)
+    const seenTitles = new Set<string>();
+    allResults = allResults.filter((r: any) => {
+      if (!r.title) return true;
+      const key = r.title.trim().toLowerCase();
+      if (seenTitles.has(key)) return false;
+      seenTitles.add(key);
+      return true;
+    });
     return allResults;
   }
 
   // -- No objects: single call --
-  return callOnce(kwArr);
+  const results = await callOnce(kwArr);
+  // Dedup by title (within single callInt results)
+  const seen = new Set<string>();
+  return results.filter((r: any) => {
+    if (!r.title) return true;
+    const key = r.title.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // ========== POST /api/portal-intel ==========
