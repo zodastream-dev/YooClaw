@@ -12,7 +12,7 @@ var allIntelData=[];
 var currentFilter='all';
 var aiChatHistory=[];
 var currentCenterTab='intel';
-var PROVIDER_NAMES=window._PROVIDER_NAMES={metaso:'秘塔',serper:'Serper',newsbank:'Serper新闻库',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网','rss-ndrc':'发改委','rss-ndrc-news':'发改委新闻','rss-mof':'财政部','rss-people':'人民网','rss-xinhua':'新华网','rss-ce':'经济日报','rss-financialnews':'金融时报','rss-jfdaily':'解放日报','rss-gmw':'光明日报','rss-cnr':'央广网','rss-stcn':'证券时报','rss-jjckb':'经济参考报','gov-mee-eia':'环保部','gov-ndrc-projects':'发改委项目','gov-cbirc-notices':'金监总局','policy':'权威政策信号'};
+var PROVIDER_NAMES=window._PROVIDER_NAMES={metaso:'秘塔',serper:'Serper',newsbank:'Serper新闻库',xiaohongshu:'小红书',zhihu:'知乎',weibo:'微博',wechat:'微信','multi-engine':'多引擎',tavily:'Tavily','tianapi-generalnews':'天聚综合','tianapi-keji':'天聚科技','tianapi-ai':'天聚AI','tianapi-guonei':'天聚国内','tianapi-world':'天聚国际','tianapi-social':'天聚社会','tianapi-caijing':'天聚财经','tianapi-internet':'天聚互联网','rss-ndrc':'发改委','rss-ndrc-news':'发改委新闻','rss-mof':'财政部','rss-people':'人民网','rss-xinhua':'新华网','rss-ce':'经济日报','rss-financialnews':'金融时报','rss-jfdaily':'解放日报','rss-gmw':'光明日报','rss-cnr':'央广网','rss-stcn':'证券时报','rss-jjckb':'经济参考报','gov-mee-eia':'环保部','gov-ndrc-projects':'发改委项目','gov-cbirc-notices':'金监总局'};
 
 var INTEL_PROMPTS={
   '行业信号':'你是行业趋势研究分析师，专注于捕捉行业信号和宏观变化。\\n\\n重点关注的信号类型：\\n- 技术突破：新技术、新标准、研发进展\\n- 新品发布：产品迭代、型号更新、功能升级\\n- 市场格局：出货量变化、市场份额转移、新进入者\\n- 产业链：上下游供需变化、关键零部件动态\\n- 政策法规：行业政策调整、监管动态、标准制定\\n- 产业趋势：需求转移、商业模式创新、投资动向\\n\\n你的工作原则：\\n- 优先关注「变化」而非「现状」\\n- 每条信号需说明：变化是什么 → 影响哪些环节 → 时间窗口\\n- 优先提供最近30天内的资讯，标注大致时间\\n- 避免泛泛而谈，每条必须具体到可验证的事实或数据',
@@ -58,7 +58,7 @@ async function loadIntelData(forceRefresh){
       cachedData=JSON.parse(cachedRaw);
       if(cachedData&&cachedData.expiry>Date.now()){
         allIntelData=cachedData.data||[];
-        renderPolicySignals(allIntelData);
+        renderPolicyStatsBar(allIntelData);
         renderSourceFilters(monitors);
         buildIntelSubFilters(monitors);
         buildObjectFilters(monitors);
@@ -348,52 +348,55 @@ function parseDate(d){
   if(day)return now-parseInt(day[1])*86400000;
   return 0;
 }
-// V3.2: Render policy signals section (authoritative source items with _signalType==='policy')
-function renderPolicySignals(data){
+// V3.4: Policy stats summary bar — replaces old dual-area design
+function renderPolicyStatsBar(data){
   var policyItems=data.filter(function(item){return item._signalType==='policy';});
-  var container=$('policySignals');
+  var container=$('policyStatsBar');
   if(!container)return;
   if(policyItems.length===0){container.style.display='none';return}
-  container.style.display='block';
-  // Group by _category
-  var groups={};
+  container.style.display='flex';
+  // Count by category
+  var cats={};
   policyItems.forEach(function(item){
     var cat=item._category||'政策信号';
-    if(!groups[cat])groups[cat]=[];
-    groups[cat].push(item);
+    cats[cat]=(cats[cat]||0)+1;
   });
-  // Sort categories: 政策信号 > 人事变动 > 金融监管 > 宏观数据 > 产业格局 > 国际环境 > 科技前沿 > 其他
   var order=['政策信号','人事变动','金融监管','宏观数据','产业格局','国际环境','科技前沿'];
-  var cats=Object.keys(groups).sort(function(a,b){
+  var sorted=Object.keys(cats).sort(function(a,b){
     var ia=order.indexOf(a),ib=order.indexOf(b);
     if(ia===-1)ia=99;if(ib===-1)ib=99;
     return ia-ib;
   });
-  var html='';
-  cats.forEach(function(cat,i){
-    var items=groups[cat];
-    items.sort(function(a,b){return(parseInt(b._valueScore)||0)-(parseInt(a._valueScore)||0);});
-    var sectionId='ps-sec-'+i;
-    html+='<div class=\"policy-signal-section\">';
-    html+='<div class=\"policy-signal-section-header\" onclick=\"var el=document.getElementById(&#39;'+sectionId+'&#39;);if(el){el.style.display=el.style.display===&#39;none&#39;?&#39;&#39;:&#39;none&#39;}\"><span class=\"label\">'+escHtml(cat)+'</span><span class=\"count\">'+items.length+'条</span></div>';
-    html+='<div id=\"'+sectionId+'\">';
-    items.forEach(function(item){
-      var score=parseInt(item._valueScore)||60;
-      var sc='s60';if(score>=90)sc='s90';else if(score>=75)sc='s75';
-      html+='<div class=\"policy-signal-card\">';
-      html+='<span class=\"ps-score '+sc+'\">'+score+'</span>';
-      if(item.link){
-        html+='<div class=\"ps-title\"><a href=\"'+escHtml(item.link)+'\" target=\"_blank\" rel=\"noopener\">'+escHtml(item.title)+'</a></div>';
-      }else{
-        html+='<div class=\"ps-title\">'+escHtml(item.title)+'</div>';
-      }
-      html+='<div class=\"ps-insight\">'+escHtml(item.summary||'')+'</div>';
-      html+='<div class=\"ps-meta\"><span class=\"source\">'+escHtml(item.source||'')+'</span></div>';
-      html+='</div>';
-    });
-    html+='</div></div>';
+  var html='<span class=\"psb-label\">今日政策信号：'+policyItems.length+'条</span>';
+  html+='<span class=\"psb-cats\">';
+  sorted.forEach(function(cat){
+    html+='<span class=\"psb-cat\" onclick=\"filterByPolicyCategory(&#39;'+escHtml(cat)+'&#39;,this)\">'+escHtml(cat)+' '+cats[cat]+'</span>';
   });
+  html+='</span>';
   container.innerHTML=html;
+}
+// Called by policy stats bar category click
+function filterByPolicyCategory(cat,el){
+  var active=el.classList.contains('active');
+  // Toggle active
+  var allCats=document.querySelectorAll('.psb-cat');
+  allCats.forEach(function(c){c.classList.remove('active')});
+  if(!active)el.classList.add('active');
+  // Filter intel feed
+  var filtered=active?allIntelData:allIntelData.filter(function(item){
+    return item._signalType==='policy'&&(item._category||'')===cat;
+  });
+  if(active){
+    // Reset filter
+    renderIntelFeed(allIntelData);
+    return;
+  }
+  // Show only matching policy items
+  if(filtered.length===0){
+    renderIntelFeed([]);
+    return;
+  }
+  renderIntelFeed(filtered);
 }
 function renderIntelFeed(data){
   console.log('[renderIntelFeed] called with data.length=', data.length, 'first _sourceName=', data.length>0?data[0]._sourceName:'N/A');
@@ -414,6 +417,7 @@ function renderIntelFeed(data){
     var score=parseInt(item._valueScore)||0;
     var riskLevel=item._riskLevel||'NORMAL';
     var cardClass='intel-card';
+    if(item._signalType==='policy') cardClass+=' intel-card-policy';
     if(score>=75) cardClass+=' intel-card-high';
     if(riskLevel==='CRITICAL') cardClass+=' intel-card-critical';
     var keywords=(item.keywords||[]).slice(0,3);

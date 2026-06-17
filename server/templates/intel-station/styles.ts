@@ -113,22 +113,16 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .center-header h2{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 /* Intel Feed Cards */
 .intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
-/* V3.2: Policy signals section */
-.policy-signals{max-height:42vh;overflow-y:auto;padding:0 24px 4px;border-bottom:1px solid var(--border);margin-bottom:4px}
-.policy-signals.show{display:block!important}
-.policy-signal-section{margin-bottom:8px}
-.policy-signal-section-header{display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;border-bottom:1px solid rgba(var(--accent-rgb,0,212,255),0.15);margin-bottom:6px}
-.policy-signal-section-header .label{font-size:13px;font-weight:700;color:var(--accent,#00d4ff);text-transform:uppercase;letter-spacing:0.5px}
-.policy-signal-section-header .count{font-size:11px;color:var(--text-secondary);background:var(--bg-card);padding:1px 6px;border-radius:8px}
-.policy-signal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:6px;position:relative}
-.policy-signal-card .ps-title{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;line-height:1.4}
-.policy-signal-card .ps-title a{color:var(--accent,#00d4ff);text-decoration:none}
-.policy-signal-card .ps-title a:hover{text-decoration:underline}
-.policy-signal-card .ps-insight{font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:4px}
-.policy-signal-card .ps-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--text-tertiary)}
-.policy-signal-card .ps-meta .source{font-weight:500}
-.policy-signal-card .ps-score{position:absolute;top:8px;right:10px;font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px}
-.ps-score.s90{background:rgba(220,38,38,0.2);color:#ef4444}.ps-score.s75{background:rgba(245,158,11,0.2);color:#f59e0b}.ps-score.s60{background:rgba(34,197,94,0.2);color:#22c55e}
+/* V3.4: Policy stats summary bar */
+.policy-stats-bar{display:flex;align-items:center;gap:12px;padding:10px 24px;background:linear-gradient(135deg,rgba(0,212,255,0.06),rgba(168,85,247,0.04));border-bottom:1px solid var(--border);flex-wrap:wrap}
+.policy-stats-bar .psb-label{font-size:13px;font-weight:700;color:var(--accent,#00d4ff)}
+.policy-stats-bar .psb-cats{display:flex;gap:4px;flex-wrap:wrap}
+.policy-stats-bar .psb-cat{font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(0,212,255,0.1);color:var(--text-secondary);cursor:pointer;transition:all .2s;border:1px solid transparent}
+.policy-stats-bar .psb-cat:hover,.policy-stats-bar .psb-cat.active{background:rgba(0,212,255,0.2);color:var(--accent,#00d4ff);border-color:rgba(0,212,255,0.3)}
+/* Policy highlight in intel cards */
+.intel-card.intel-card-policy{border-left:3px solid var(--accent,#00d4ff);background:linear-gradient(135deg,rgba(0,212,255,0.03),transparent)}
+/* Score badges */
+.intel-score-badge{font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;border:1px solid}
 .intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
 .intel-card:hover{border-color:rgba(0,212,255,0.3);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,0.1),0 0 16px rgba(168,85,247,0.08),inset 0 1px 0 rgba(255,255,255,0.03)}
 .intel-card-header{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}

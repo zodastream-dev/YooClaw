@@ -48,7 +48,7 @@ export function intelStationBody(sn: string): string {
     <div class="intel-loading" id="intelLoading">
       <div class="spinner"></div>正在获取情报数据...
     </div>
-    <div class="policy-signals" id="policySignals" style="display:none"></div>
+    <div class="policy-stats-bar" id="policyStatsBar" style="display:none"></div>
     <div class="intel-feed" id="intelFeed"></div>
     <div class="report-feed" id="reportFeed" style="display:none">
       <div class="intel-loading" id="reportLoading">

@@ -663,6 +663,13 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const policyContext = hasSearch
       ? fullContentItems.concat(rawItems.filter((r: any) => (r.url || '').indexOf('tianapi') > -1 || r._searchProvider === 'tianapi-generalnews'))
       : fullContentItems;
+    // Build URL → _searchProvider lookup so we can restore real provider names after DeepSeek
+    const urlToProvider: Record<string, string> = {};
+    for (const item of policyContext) {
+      if (item.url && item._searchProvider) {
+        urlToProvider[item.url] = item._searchProvider;
+      }
+    }
     const policyJson = safeJsonTruncate(policyContext, 30000);
     const policyPrompt = `你是省分行副行长级别的战略情报分析助理。当前日期：${today}。
 
@@ -927,22 +934,26 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // DeepSeek returns simple fields: { title, insight, category, score, source, url }
   // Map them to the standard intel item format with _signalType: "policy"
   if (isBanking && results && results.length > 0) {
-    results = results.map((r: any) => ({
-      title: r.title || '',
-      summary: r.insight || r.summary || '',
-      source: r.source || '',
-      date: today,
-      link: r.url || '',
-      _provider: 'policy',
-      _sentiment: '中性',
-      _reliability: '待核实',
-      _valueScore: parseInt(r.score) || 60,
-      _riskLevel: 'NORMAL',
-      _object: '',
-      _signalType: 'policy',
-      _category: r.category || '政策信号',
-      _credibility: 'HIGH',
-    }));
+    results = results.map((r: any) => {
+      // Restore real provider from URL lookup, fallback to source name
+      const realProvider = (r.url && urlToProvider[r.url]) || r._searchProvider || r.source || '';
+      return {
+        title: r.title || '',
+        summary: r.insight || r.summary || '',
+        source: r.source || '',
+        date: today,
+        link: r.url || '',
+        _provider: realProvider,
+        _sentiment: '中性',
+        _reliability: '待核实',
+        _valueScore: parseInt(r.score) || 60,
+        _riskLevel: 'NORMAL',
+        _object: '',
+        _signalType: 'policy',
+        _category: r.category || '政策信号',
+        _credibility: 'HIGH',
+      };
+    });
     console.log('[Intel:V3.2] Policy signal pipeline: ' + results.length + ' items, categories: ' +
       [...new Set(results.map((r: any) => r._category))].join(', '));
     // Skip heavy post-processing (URL validation, EHR, noise filter, fallback) for policy signals
