@@ -1212,7 +1212,6 @@ function initDashboard(){
   renderKPITrend();
   updateBriefing();
 }
-}
 
 function updateDashboard(data){
   renderCategoryPanel(data);
@@ -1267,32 +1266,6 @@ function filterByCategoryFromPanel(cat){
     return item._signalType==='policy'&&(item._category||'')===cat;
   });
   renderIntelFeed(filtered.length>0?filtered:allIntelData);
-}
-
-// Legacy: replaced by renderCategoryPanel (V3.5)
-  var container=document.getElementById('sentimentStats');
-  if(!container)return;
-  if(!data||!data.length){container.style.display='none';return;}
-  container.style.display='';
-  var pos=0,neg=0,neu=0,confirmed=0,rumor=0,pending=0,hasIntent=0;
-  for(var i=0;i<data.length;i++){
-    var s=(data[i]._sentiment||'').trim();
-    if(s==='正面')pos++;else if(s==='负面')neg++;else neu++;
-    var r=(data[i]._reliability||'').trim();
-    if(r==='已确认')confirmed++;else if(r==='传闻')rumor++;else pending++;
-    if(data[i]._intent&&data[i]._intent.trim())hasIntent++;
-  }
-  var total=data.length,all=pos+neg+neu;
-  var pct=all>0?Math.round(pos*100/all)+'%':'-';
-  [
-    ['sstatTotal',total],['sstatIndex',pct],['sstatPos',pos],['sstatNeu',neu],
-    ['sstatNeg',neg],['sstatConfirmed',confirmed],['sstatRumor',rumor],['sstatIntent',hasIntent]
-  ].forEach(function(pair){
-    var el=document.getElementById(pair[0]);
-    if(!el)return;
-    var v=el.querySelector('.sstat-val');
-    if(v)v.textContent=pair[1];
-  });
 }
 
 function renderSentimentGauge(value){
