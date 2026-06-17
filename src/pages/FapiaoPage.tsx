@@ -285,6 +285,9 @@ export function FapiaoPage() {
             <FileText size={32} className="mx-auto mb-2 opacity-50" />
             <p className="text-sm">暂无发票记录</p>
             <p className="text-xs mt-1">已支付的订单可在此申请电子发票</p>
+            <button onClick={() => navigate('/')} className="mt-4 inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              <ArrowLeft size={14} /> 返回首页
+            </button>
           </div>
         ) : (
           <div>
@@ -331,6 +334,11 @@ export function FapiaoPage() {
                   </div>
                 )
               })}
+            </div>
+            <div className="text-center mt-6">
+              <button onClick={() => navigate('/')} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+                <ArrowLeft size={14} /> 返回首页
+              </button>
             </div>
           </div>
         )}
