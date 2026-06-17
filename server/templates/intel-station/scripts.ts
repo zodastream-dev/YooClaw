@@ -786,8 +786,8 @@ function renderBriefing(data){
       html+='<h3>'+sub+'</h3>';
       continue;
     }
-    // Bold
-    line=line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    // Bold (template string escaping: \\*\\* → \*\* in output JS)
+    line=line.replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>');
     // Blockquote
     if(line.match(/^> /)){
       if(!inQuote){html+='<blockquote>';inQuote=true;}
