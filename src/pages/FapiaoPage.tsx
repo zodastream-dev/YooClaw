@@ -240,12 +240,12 @@ export function FapiaoPage() {
 
               <div>
                 <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground mb-1">
-                  <Mail size={12} /> 电子邮箱
+                  <Mail size={12} /> 电子邮箱 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email" value={buyerEmail}
                   onChange={e => setBuyerEmail(e.target.value)}
-                  placeholder="选填，用于接收发票 PDF"
+                  placeholder="用于接收发票 PDF 和通知"
                   className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-background"
                 />
               </div>
@@ -266,7 +266,7 @@ export function FapiaoPage() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || selectedIds.size === 0 || !buyerTitle || (isEnterprise && !buyerTaxId)}
+                  disabled={submitting || selectedIds.size === 0 || !buyerTitle || !buyerEmail || (isEnterprise && !buyerTaxId)}
                   className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1"
                 >
                   {submitting ? <Loader2 size={14} className="animate-spin" /> : null}

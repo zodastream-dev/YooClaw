@@ -601,13 +601,7 @@ function generatePortalHtml(siteName: string, siteDesc: string, template: string
   }
 
   // All templates now use intel-station layout
-  let html = generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
-  // V3.1 hotfix: inject full Chinese PROVIDER_NAMES (bypass tsx template cache)
-  html = html.replace(
-    /var PROVIDER_NAMES=\{metaso[^}]*\};/,
-    'var PROVIDER_NAMES=window._PROVIDER_NAMES={metaso:"秘塔",serper:"Serper",newsbank:"Serper新闻库",xiaohongshu:"小红书",zhihu:"知乎",weibo:"微博",wechat:"微信","multi-engine":"多引擎",tavily:"Tavily","tianapi-generalnews":"天聚综合","tianapi-keji":"天聚科技","tianapi-ai":"天聚AI","tianapi-guonei":"天聚国内","tianapi-world":"天聚国际","tianapi-social":"天聚社会","tianapi-caijing":"天聚财经","tianapi-internet":"天聚互联网","rss-ndrc":"发改委","rss-ndrc-news":"发改委新闻","rss-mof":"财政部","rss-people":"人民网","rss-xinhua":"新华网","rss-ce":"经济日报","rss-financialnews":"金融时报","rss-jfdaily":"解放日报","rss-gmw":"光明日报","rss-cnr":"央广网","rss-stcn":"证券时报","rss-jjckb":"经济参考报","gov-mee-eia":"环保部","gov-ndrc-projects":"发改委项目","gov-cbirc-notices":"金监总局"};'
-  );
-  return html;
+  return generateIntelStationHtml(siteName, siteDesc, apiBase, slug, widgets, colorScheme);
   
   // Dead code below kept for reference - legacy templates no longer used
   
@@ -3665,33 +3659,6 @@ const PORTAL_INTEL_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (was 5 min)
 const PORTAL_INTEL_CACHE_FILE = path.join(__dirname, '..', 'cache', 'portal-intel-cache.json');
 const pausedPortals = new Set<string>(); // Per-portal pause state (Set of paused portal slugs)
 
-// V3.1: Provider name translation map (internal ID → Chinese display name)
-const PROVIDER_CN: Record<string, string> = {
-  metaso: '秘塔搜索', serper: 'Serper', newsbank: 'Serper新闻库',
-  xiaohongshu: '小红书', zhihu: '知乎', weibo: '微博', wechat: '微信',
-  'multi-engine': '多引擎', tavily: 'Tavily',
-  'tianapi-generalnews': '天聚综合新闻', 'tianapi-keji': '天聚科技',
-  'tianapi-ai': '天聚AI', 'tianapi-guonei': '天聚国内',
-  'tianapi-world': '天聚国际', 'tianapi-social': '天聚社会',
-  'tianapi-caijing': '天聚财经', 'tianapi-internet': '天聚互联网',
-  'rss-ndrc': '发改委', 'rss-ndrc-news': '发改委新闻', 'rss-mof': '财政部',
-  'rss-people': '人民网', 'rss-xinhua': '新华网', 'rss-ce': '经济日报',
-  'rss-financialnews': '金融时报', 'rss-jfdaily': '解放日报',
-  'rss-gmw': '光明日报', 'rss-cnr': '央广网', 'rss-stcn': '证券时报',
-  'rss-jjckb': '经济参考报',
-  'rss-shanghaijrb': '上海金融监管局',
-  'gov-mee-eia': '环保部', 'gov-ndrc-projects': '发改委项目',
-  'gov-cbirc-notices': '金监总局',
-  'policy': '权威政策信号',
-};
-function translateProviders(items: any[]): void {
-  for (const item of items) {
-    if (item._provider && PROVIDER_CN[item._provider]) {
-      item._provider = PROVIDER_CN[item._provider];
-    }
-  }
-}
-
 // Auto-clean invalid aiModel values on startup (self-healing)
 async function autoCleanAiModel() {
   try {
@@ -3869,11 +3836,6 @@ app.post('/api/portal-intel', async (req, res) => {
     const allResults = await Promise.all(allPromises);
     results.push(...allResults);
 
-    // V3.1: translate _provider to Chinese names before returning to client
-    for (const r of results) {
-      if (r.data) translateProviders(r.data);
-    }
-
     res.json({ success: true, results });
     // V2.5: After returning cache-miss response, trigger a quick CacheWarmer cycle
     // so the portal doesn't stay empty for up to 20 minutes
@@ -3939,94 +3901,6 @@ app.post('/api/portal/instant-push', async (req, res) => {
     console.error(`[InstantPush] ${slug}: error —`, e.message);
   });
   res.json({ success: true, message: '推送已触发，稍后查看结果' });
-});
-
-// ========== V3.0 Cross-Quadrant MapReduce Analysis ==========
-// POST /api/portal-analysis
-// Takes 4-quadrant intel results and runs a synthesis pass to connect weak signals
-// across quadrants into strategic insights.
-app.post('/api/portal-analysis', async (req, res) => {
-  try {
-    const { sources } = req.body || {};
-    if (!Array.isArray(sources) || sources.length === 0) {
-      return res.status(400).json({ error: 'sources array required' });
-    }
-
-    // Collect all intel items from all sources, tagged with source name
-    const allItems: any[] = [];
-    for (const src of sources) {
-      const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
-      const cached = portalIntelCache.get(cacheKey);
-      if (cached && cached.expiry > Date.now() && Array.isArray(cached.data)) {
-        for (const item of cached.data) {
-          allItems.push({ ...item, _sourceQuadrant: src.name, _objectLabel: item._object || '' });
-        }
-      }
-    }
-
-    if (allItems.length === 0) {
-      return res.json({ success: true, analysis: '暂无跨象限分析数据。请等待各情报源完成数据采集后再试。', itemCount: 0 });
-    }
-
-    // Build synthesis prompt
-    const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-    const itemsJson = JSON.stringify(allItems.slice(0, 80)); // Limit to avoid token overflow
-    const sysPrompt = `你是总行首席战略官，为省分行/总行副行长以上高管提供跨象限战略推演。
-
-你的核心能力是将来自不同情报象限的碎片化弱信号串联成战略风暴预警。
-
-本次分析覆盖四个象限：
-1. 行业信号（政治风向标与监管穿透）
-2. 目标客户情报（对公大户与城投非标风险）
-3. 竞争对手情报（区域份额蚕食与银团权争夺）
-4. 自身舆情监控（合规红线与系统性风险预警）
-
-推演方法：
-- 寻找跨象限关联：例如 环评公示(象限1) + 竞对党建拜访(象限3) + 干部调任(象限1) = 银团牵头权流失风险
-- 识别弱信号共振：如果两个以上象限同时出现同一地区/同一客户/同一行业的相关信号，就是高优先级预警
-- 预判战略风暴：提前12-18个月发现竞争态势变化的早期征兆
-
-输出格式（Markdown）：
-## 🚨 高危战略预警
-（如果有跨象限信号共振，输出具体的预警内容、关联逻辑、建议行动）
-## 💰 重大业务机遇
-## ⚔️ 竞争态势研判  
-## 📋 本周建议议程
-（分行班子本周应重点讨论的3-5个议题）
-
-当前日期：${today}`;
-
-    const userPrompt = `以下是四个情报象限的今日数据（共${allItems.length}条）：\n\n${itemsJson}\n\n请进行跨象限战略推演。标注每条推演的置信度（已确认/高概率/有待观察）。`;
-
-    const resp = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (process.env.DEEPSEEK_API_KEY || '') },
-      body: JSON.stringify({
-        model: 'deepseek-v4-pro',
-        max_tokens: 16384,
-        temperature: 0.2,
-        messages: [
-          { role: 'system', content: sysPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-      }),
-      signal: AbortSignal.timeout(180000),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text();
-      throw new Error('DeepSeek analysis error: ' + resp.status + ' ' + errText.substring(0, 200));
-    }
-
-    const data = await resp.json();
-    const analysis = data.choices[0].message.content;
-
-    console.log(`[PortalAnalysis] Cross-quadrant analysis complete: ${allItems.length} items → ${analysis.length} chars`);
-    res.json({ success: true, analysis, itemCount: allItems.length });
-  } catch (err: any) {
-    console.error('[PortalAnalysis Error]', err.message);
-    res.status(500).json({ error: err.message });
-  }
 });
 
 // ========== Background Cache Warmer ==========
@@ -4120,25 +3994,28 @@ async function warmAllPortalCaches() {
 
     console.log(`[CacheWarmer] Warming ${toWarm.length} sources (${sourceMap.size - toWarm.length}/${sourceMap.size} already cached) from ${portalSites.length} portals`);
 
-    // V3.2: Process sources ONE AT A TIME to prevent DeepSeek timeout overload.
+    // Warm in chunks of 3
     let warmed = 0;
     let failed = 0;
-    for (const { key, src, allSources } of toWarm) {
-      try {
-        // V3.2: 120s timeout wrapper to prevent CacheWarmer from hanging the process
-        const intelData = await Promise.race([
-          fetchIntelForSource(src, allSources),
-          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('CacheWarmer timeout (120s)')), 120000))
-        ]);
-        if (!Array.isArray(intelData)) throw new Error('Non-array result');
-        const freqTtl = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
-        portalIntelCache.set(key, { data: intelData, expiry: Date.now() + freqTtl });
-        warmed++;
-        console.log(`[CacheWarmer] Warmed: ${src.name || 'unnamed'} (${intelData.length} items)`);
-      } catch (err: any) {
-        failed++;
-        console.warn(`[CacheWarmer] Failed: ${src.name} - ${err.message?.substring(0, 100)}`);
-      }
+    for (let i = 0; i < toWarm.length; i += 3) {
+      const chunk = toWarm.slice(i, i + 3);
+      const chunkResults = await Promise.allSettled(
+        chunk.map(async ({ key, src, allSources }) => {
+          const intelData = await fetchIntelForSource(src, allSources);
+          const freqTtl = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+          portalIntelCache.set(key, { data: intelData, expiry: Date.now() + freqTtl });
+          return { key, src, count: intelData.length };
+        })
+      );
+      chunkResults.forEach((r) => {
+        if (r.status === 'fulfilled') {
+          warmed++;
+          console.log(`[CacheWarmer] Warmed: ${r.value.src.name || 'unnamed'} (${r.value.count} items)`);
+        } else {
+          failed++;
+          console.warn(`[CacheWarmer] Failed: ${r.reason?.message || r.reason}`);
+        }
+      });
     }
 
     savePortalIntelCache();
@@ -6431,13 +6308,13 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
     try {
       const userId = (req as any).user.userId;
       const body = req.body as {
-        orderIds: string[]; buyerTitle: string; buyerTaxId?: string; buyerEmail?: string;
+        orderIds: string[]; buyerTitle: string; buyerTaxId?: string; buyerEmail: string;
       };
       const orderIds = body.orderIds || [];
       const { buyerTitle, buyerTaxId, buyerEmail } = body;
 
-      if (!orderIds.length || !buyerTitle) {
-        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'orderIds and buyerTitle are required' } });
+      if (!orderIds.length || !buyerTitle || !buyerEmail) {
+        res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'orderIds, buyerTitle, and buyerEmail are required' } });
         return;
       }
 
@@ -6523,7 +6400,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
 
       await updateFapiaoStatus(fpqqlsh, 'issued');
 
-      // Send email if buyer provided email
+      // Send invoice email to buyer
       let emailSent = false;
       if (buyerEmail) {
         const user = await getUserById(userId);
@@ -6538,6 +6415,24 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
         });
         emailSent = await sendEmail(buyerEmail, `电子发票 - ${isMerged ? '合并开票' : orders[0].product_name}`, emailHtml);
       }
+
+      // Send admin notification to junlu@yookeer.com
+      const user = await getUserById(userId);
+      const userName = user?.username || '用户';
+      const typeLabel = buyerTaxId ? `企业：${buyerTitle}（${buyerTaxId}）` : `个人：${buyerTitle}`;
+      const ordersSummary = orders.map(o => `${o.product_name || '积分服务'} ¥${o.amount_yuan}`).join('<br>');
+      const adminHtml = `<div style="font-family:sans-serif;max-width:480px;padding:16px">
+<h2 style="margin:0 0 12px;font-size:16px">开票申请</h2>
+<table style="border-collapse:collapse;width:100%;font-size:13px">
+<tr><td style="padding:6px 8px;color:#666;width:80px">申请人</td><td style="padding:6px 8px">${userName}（${userId}）</td></tr>
+<tr><td style="padding:6px 8px;color:#666">类型</td><td style="padding:6px 8px">${typeLabel}</td></tr>
+<tr><td style="padding:6px 8px;color:#666">邮箱</td><td style="padding:6px 8px">${buyerEmail}</td></tr>
+<tr><td style="padding:6px 8px;color:#666">金额</td><td style="padding:6px 8px;font-weight:bold;color:#d97706">¥${totalYuan.toFixed(2)}</td></tr>
+<tr><td style="padding:6px 8px;color:#666">订单</td><td style="padding:6px 8px;font-size:12px">${ordersSummary}</td></tr>
+<tr><td style="padding:6px 8px;color:#666">发票号</td><td style="padding:6px 8px;font-size:12px">${fpqqlsh}</td></tr>
+</table>
+</div>`;
+      sendEmail('junlu@yookeer.com', '开票申请', adminHtml).catch(e => console.error('[Fapiao] Admin notification failed:', e.message));
 
       res.json({
         data: {
