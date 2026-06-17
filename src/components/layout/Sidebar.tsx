@@ -232,12 +232,8 @@ export function Sidebar() {
         </div>
 
         {/* Report Sites - Prominent CTA */}
+        {/* Deploy Portal CTA — hidden
         <div className="px-3 pb-3 flex-shrink-0">
-          {/* Section label */}
-          <div className="flex items-center gap-2 px-1 mb-1.5">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border/50 to-transparent" />
-          </div>
-
           <button
             onClick={() => {
               closeMobile()
@@ -249,30 +245,22 @@ export function Sidebar() {
               hover:shadow-xl hover:shadow-indigo-500/25 hover:scale-[1.02]
               active:scale-[0.97]"
           >
-            {/* Animated shimmer overlay */}
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
-            {/* Left glow accent */}
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-white/40 blur-[1px]" />
-
-            {/* Icon */}
             <div className="relative z-10 w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center backdrop-blur-[1px]">
               <Globe size={15} className="text-white" />
             </div>
-
-            {/* Text */}
             <div className="relative z-10 flex-1 text-left">
               <div className="text-[13px] font-semibold leading-tight">部署分析门户</div>
               <div className="text-[10px] font-normal text-white/70 leading-tight mt-0.5">一键部署行业分析网站</div>
             </div>
-
-            {/* Animated NEW badge */}
             <span className="relative z-10 text-[9px] font-bold px-1.5 py-1 rounded-md bg-white/20 text-white
               animate-pulse shadow-inner shadow-white/10">
               NEW
             </span>
           </button>
         </div>
+        */}
 
         {/* Create Intel Portal CTA */}
         <div className="px-3 pb-3 flex-shrink-0">
@@ -293,7 +281,7 @@ export function Sidebar() {
               <Wand2 size={15} className="text-white" />
             </div>
             <div className="relative z-10 flex-1 text-left">
-              <div className="text-[13px] font-semibold leading-tight">创建情报分析</div>
+              <div className="text-[13px] font-semibold leading-tight">创建情报分析网站</div>
               <div className="text-[10px] font-normal text-white/70 leading-tight mt-0.5">AI 定制情报监控门户</div>
             </div>
             <span className="relative z-10 text-[9px] font-bold px-1.5 py-1 rounded-md bg-white/20 text-white
@@ -303,7 +291,7 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Create Game CTA */}
+        {/* Create Game CTA — hidden
         <div className="px-3 pb-3 flex-shrink-0">
           <button
             onClick={() => {
@@ -331,8 +319,9 @@ export function Sidebar() {
             </span>
           </button>
         </div>
+        */}
 
-        {/* Create Video CTA */}
+        {/* Create Video CTA — hidden
         <div className="px-3 pb-3 flex-shrink-0">
           <button
             onClick={() => {
@@ -360,6 +349,7 @@ export function Sidebar() {
             </span>
           </button>
         </div>
+        */}
 
         {/* Session List */}
         <div className="flex-1 overflow-y-auto px-2 space-y-4 pb-4">
