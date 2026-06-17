@@ -695,6 +695,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 
 直接返回扁平JSON数组，每条对象自带 category 字段，按 score 降序排列。
 严禁使用嵌套分组结构，严禁在外层包裹 category 容器对象。
+严禁对同一篇文章生成多条记录——一条资讯只输出一次，即使它同时关联多个行业也只在最重要的category下输出一条。
 
 格式：仅返回JSON数组，例如：
 [
@@ -740,7 +741,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '    "某省发布重大项目清单" → 可挖掘项目融资机会，需评估客户是否在承包商名单内\n' +
       '    "金监总局发布资本新规" → 影响银行资产配置，需调整业务结构\n' +
       '  - 至少从RSS/gov来源中选取2-3条最有战略价值的条目，不可全部丢弃\n\n' +
-      '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空，摘要中必须包含具体的行动建议或战略判断\n4.去重过滤无关\n' +
+      '要求：1.标题+摘要(约100字)+来源+时间+url+情感倾向+可靠性\n2.非中文标题和摘要必须翻译成中文\n3.摘要充实禁止留空，摘要中必须包含具体的行动建议或战略判断\n4.严格去重：同一条新闻只保留一条记录，不得为不同对象生成相同内容的条目\n' +
       '5.JSON: [{"title":"","summary":"","source":"","date":"","url":"","_object":"' + objectName + '","_provider":"","_sentiment":"","_reliability":"","_intent":"","_valueScore":50,"_riskLevel":"NORMAL","_noiseType":"对公业务"}]\n' +
       '6. _sentiment: 正面/负面/中性; _reliability: 已确认/高概率/传闻/待核实\n' +
       '7. _intent（意图解码，必填）：用一句话解码信息背后的战略意图或业务影响。例如："通过党建共建切入高层公关，意图争夺银团牵头权" 或 "政策信号预示制造业专项贷额度增加"\n' +
@@ -1333,6 +1334,20 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   });
   if (results.length < beforeFilter) {
     console.log('[Intel:V3.7] Date filter removed ' + (beforeFilter - results.length) + ' items older than 30 days');
+  }
+
+  // V3.7: Dedup by title (same news analyzed for different objects produces near-identical entries)
+  const seenTitles = new Set<string>();
+  const beforeDedup = results.length;
+  results = results.filter((r: any) => {
+    if (!r.title) return true;
+    const key = r.title.trim().toLowerCase();
+    if (seenTitles.has(key)) return false;
+    seenTitles.add(key);
+    return true;
+  });
+  if (results.length < beforeDedup) {
+    console.log('[Intel:V3.7] Dedup removed ' + (beforeDedup - results.length) + ' duplicate entries');
   }
 
   return results.slice(0, 30);
