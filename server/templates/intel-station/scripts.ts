@@ -121,7 +121,6 @@ async function loadIntelData(forceRefresh){
       renderIntelFeed(filtered);
     }
     updateDashboard(allIntelData);
-    renderSentimentStats(allIntelData);
     $('feedStatus').textContent=hasRefreshing ? '情报更新中...' : '已加载 '+allIntelData.length+' 条情报';
     $("updateInfo").textContent="上次更新: "+new Date().toLocaleTimeString("zh-CN");
     $("updateInfo").style.display="";
@@ -367,12 +366,10 @@ function renderPolicyStatsBar(data){
     if(ia===-1)ia=99;if(ib===-1)ib=99;
     return ia-ib;
   });
-  var html='<span class=\"psb-label\">今日政策信号：'+policyItems.length+'条</span>';
-  html+='<span class=\"psb-cats\">';
+  var html='<span class=\"psb-label\">今日政策信号:</span>';
   sorted.forEach(function(cat){
-    html+='<span class=\"psb-cat\" onclick=\"filterByPolicyCategory(&#39;'+escHtml(cat)+'&#39;,this)\">'+escHtml(cat)+' '+cats[cat]+'</span>';
+    html+='<button class=\"psb-cat-btn\" onclick=\"filterByPolicyCategory(&#39;'+escHtml(cat)+'&#39;,this)\">'+escHtml(cat)+' <em>'+cats[cat]+'</em></button>';
   });
-  html+='</span>';
   container.innerHTML=html;
 }
 // Called by policy stats bar category click
@@ -573,7 +570,6 @@ function buildObjectFilters(monitors){
   monitors.forEach(function(mw){
     var srcs=mw.sources||(mw.config&&mw.config.sources)||[];
     srcs.forEach(function(src){
-      // Only include objects from currently selected source(s); show all when "全部" is selected
       if(currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf((src.name||'').trim())<0)return;
       var objects=src.objects||[];
       objects.forEach(function(obj){
@@ -584,13 +580,23 @@ function buildObjectFilters(monitors){
   var el=$('intelObjFilters');
   if(!el)return;
   if(objectNames.length<=1){el.style.display='none';return}
-  var html='';
+  var html='<button class=\"subfilter-btn active\" data-obj=\"全部\" onclick=\"filterByObjectFromBtn(this)\">全部</button>';
+  html+='<button class=\"obj-toggle-btn\" onclick=\"toggleObjFilters(this)\" title=\"展开监控对象\">+</button>';
+  html+='<span class=\"obj-list\" id=\"objList\" style=\"display:none\">';
   objectNames.forEach(function(name,i){
-    var active=name===currentObjectFilter?' active':'';
-    html+='<button class="subfilter-btn'+active+'" data-obj="'+escHtml(name)+'" onclick="filterByObjectFromBtn(this)">'+escHtml(name)+'</button>';
+    if(name==='全部')return;
+    html+='<button class=\"subfilter-btn\" data-obj=\"'+escHtml(name)+'\" onclick=\"filterByObjectFromBtn(this)\">'+escHtml(name)+'</button>';
   });
+  html+='</span>';
   el.innerHTML=html;
   el.style.display='';
+}
+function toggleObjFilters(btn){
+  var list=document.getElementById('objList');
+  if(!list)return;
+  var hidden=list.style.display==='none';
+  list.style.display=hidden?'':'none';
+  btn.textContent=hidden?'-':'+';
 }
 
 function filterByObjectFromBtn(btn){
@@ -1192,35 +1198,58 @@ function removeKeyword(wi,si,el){
 /* ===== UTILS ===== */
 function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function initDashboard(){
-  renderSentimentGauge(52);
   renderKPITrend();
   updateBriefing();
-  // 情绪仪表盘和趋势图在数据加载前渲染默认值；情报来源等数据加载后由 updateDashboard(data) 渲染
+}
 }
 
 function updateDashboard(data){
-  // Compute sentiment score from actual _sentiment fields (正面/负面/中性)
-  var sentiment=52;
-  if(data&&data.length>0){
-    var pos=0,neg=0,neu=0;
-    data.forEach(function(item){
-      var s=(item._sentiment||'').trim();
-      if(s==='正面')pos++;
-      else if(s==='负面')neg++;
-      else neu++;
-    });
-    var total=pos+neg+neu;
-    if(total>0){
-      // Map to 0-100: negative=0, neutral=50, positive=100, weighted average
-      sentiment=Math.round((pos*100+neu*50+neg*0)/total);
-    }
-  }
-  renderSentimentGauge(sentiment);
+  renderCategoryPanel(data);
   renderSourceChannels(data);
   updateBriefing(data);
 }
 
-function renderSentimentStats(data){
+// V3.5: Category panel replaces sentiment stats
+function renderCategoryPanel(data){
+  var container=document.getElementById('categoryPanel');
+  if(!container)return;
+  if(!data||!data.length){container.innerHTML='<div class="no-data-msg">暂无数据</div>';return}
+  // Count policy items by category
+  var cats={};
+  data.forEach(function(item){
+    if(item._signalType==='policy'){
+      var cat=item._category||'政策信号';
+      cats[cat]=(cats[cat]||0)+1;
+    }
+  });
+  var order=['政策信号','金融监管','产业格局','宏观数据','国际环境','科技前沿','人事变动'];
+  var sorted=Object.keys(cats).sort(function(a,b){
+    var ia=order.indexOf(a),ib=order.indexOf(b);
+    if(ia===-1)ia=99;if(ib===-1)ib=99;
+    return ia-ib;
+  });
+  var maxVal=Math.max(1,Math.max.apply(null,Object.values(cats)));
+  var html='';
+  sorted.forEach(function(cat){
+    var count=cats[cat];
+    var pct=Math.round(count/maxVal*100);
+    html+='<div class="cat-card" onclick="filterByCategoryFromPanel(&#39;'+escHtml(cat)+'&#39;)">';
+    html+='<div class="cat-card-bar"><div class="cat-card-fill" style="width:'+pct+'%"></div></div>';
+    html+='<div class="cat-card-info"><span class="cat-card-name">'+escHtml(cat)+'</span><span class="cat-card-count">'+count+'条</span></div>';
+    html+='</div>';
+  });
+  container.innerHTML=html;
+}
+function filterByCategoryFromPanel(cat){
+  var btns=document.querySelectorAll('.psb-cat-btn');
+  btns.forEach(function(b){b.classList.remove('active')});
+  var filtered=allIntelData.filter(function(item){
+    return item._signalType==='policy'&&(item._category||'')===cat;
+  });
+  renderIntelFeed(filtered.length>0?filtered:allIntelData);
+}
+
+// Legacy: replaced by renderCategoryPanel (V3.5)
   var container=document.getElementById('sentimentStats');
   if(!container)return;
   if(!data||!data.length){container.style.display='none';return;}
@@ -1274,13 +1303,6 @@ function renderSentimentGauge(value){
 function renderSourceChannels(data){
   var container=$('sourceChannels');
   if(!container)return;
-  var providerLabels={
-    metaso:'秘塔搜索',tavily:'Tavily','multi-engine':'多引擎',wechat:'微信公众号',
-    weibo:'微博',zhihu:'知乎',xiaohongshu:'小红书',openai:'OpenAI',
-    deepseek:'DeepSeek',codebuddy:'CodeBuddy',custom:'自定义',all:'全渠道',
-    'tianapi-generalnews':'天聚综合新闻','tianapi-keji':'天聚科技新闻','tianapi-ai':'天聚AI资讯','tianapi-guonei':'天聚国内新闻',
-    'tianapi-world':'天聚国际新闻','tianapi-social':'天聚社会新闻','tianapi-caijing':'天聚财经新闻','tianapi-internet':'天聚互联网资讯',
-  };
   var html='';
   if(data&&data.length>0){
     var chCount={};
@@ -1290,7 +1312,7 @@ function renderSourceChannels(data){
     });
     var channels=Object.keys(chCount).sort(function(a,b){return chCount[b]-chCount[a]});
     channels.forEach(function(ch){
-      var label=providerLabels[ch]||ch;
+      var label=(window._PROVIDER_NAMES&&window._PROVIDER_NAMES[ch])||ch;
       var count=chCount[ch];
       html+='<div class="src-channel-item">';
       html+='<span class="src-channel-name">'+escHtml(label)+'</span>';

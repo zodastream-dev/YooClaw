@@ -68,28 +68,11 @@ export function intelStationBody(sn: string): string {
       <h3>&#x1F9E0; AI 摘要看板</h3>
     </div>
     <div class="dashboard-content" id="dashboardContent">
-      <!-- Sentiment Gauge -->
+      <!-- Category Panel -->
       <div class="dashboard-section">
-        <h4>&#x1F4C8; 情绪分析</h4>
-        <div class="sentiment-gauge">
-          <canvas id="sentimentCanvas" width="260" height="130"></canvas>
-          <div class="sentiment-label" id="sentimentLabel">中性 52%</div>
-        </div>
-        <div class="sentiment-stats" id="sentimentStats">
-          <div class="sstat-row">
-            <div class="sstat-cell" id="sstatTotal"><span class="sstat-val">0</span><span class="sstat-lbl">情报总数</span></div>
-            <div class="sstat-cell" id="sstatIndex"><span class="sstat-val">-</span><span class="sstat-lbl">情绪指数</span></div>
-          </div>
-          <div class="sstat-row">
-            <div class="sstat-cell sstat-pos" id="sstatPos"><span class="sstat-val">0</span><span class="sstat-lbl">正面</span></div>
-            <div class="sstat-cell sstat-neu" id="sstatNeu"><span class="sstat-val">0</span><span class="sstat-lbl">中性</span></div>
-            <div class="sstat-cell sstat-neg" id="sstatNeg"><span class="sstat-val">0</span><span class="sstat-lbl">负面</span></div>
-          </div>
-          <div class="sstat-row">
-            <div class="sstat-cell sstat-confirmed" id="sstatConfirmed"><span class="sstat-val">0</span><span class="sstat-lbl">已确认</span></div>
-            <div class="sstat-cell sstat-rumor" id="sstatRumor"><span class="sstat-val">0</span><span class="sstat-lbl">传闻</span></div>
-            <div class="sstat-cell sstat-intent" id="sstatIntent"><span class="sstat-val">0</span><span class="sstat-lbl">竞对意图</span></div>
-          </div>
+        <h4>&#x1F4CA; 情报分类</h4>
+        <div class="category-panel" id="categoryPanel">
+          <div class="no-data-msg">加载中...</div>
         </div>
       </div>
       <!-- Source Channel Distribution -->
