@@ -24,11 +24,10 @@ async function main() {
   console.log("PROVIDER_NAMES fix:", html.includes("policy"));
 
   // Fix 3: renderPolicySignals — add collapse onclick to section headers
-  // The current pattern in DB HTML wraps each section's items in a container
-  // We need to add click-to-toggle on the header
+  // Use a simple helper: onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'"
   html = html.replace(
     '<div class=\\"policy-signal-section-header\\"><span class=\\"label\\">',
-    '<div class=\\"policy-signal-section-header\\" onclick=\\"var s=this.nextElementSibling;if(s){s.style.display=s.style.display===\\'none\\'?\\'\\':\\'none\\'}\\"><span class=\\"label\\">'
+    '<div class=\\"policy-signal-section-header\\" onclick=\\"var n=this.nextElementSibling;n.style.display=n.style.display==&#39;none&#39;?&#39;&#39;:&#39;none&#39;\\"><span class=\\"label\\">'
   );
   console.log("renderPolicySignals fix:", (html.match(/policy-signal-section-header/g) || []).length, "headers");
 
