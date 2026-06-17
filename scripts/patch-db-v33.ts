@@ -17,11 +17,12 @@ async function main() {
   console.log("CSS fix:", html.includes("max-height:42vh"));
 
   // Fix 2: PROVIDER_NAMES — add 'policy' mapping
+  // DB HTML uses "":" ChineseChar " format (not unicode escapes)
   html = html.replace(
-    ",'gov-cbirc-notices':'\\u91d1\\u76d1\\u603b\\u5c40'};",
-    ",'gov-cbirc-notices':'\\u91d1\\u76d1\\u603b\\u5c40','policy':'\\u6743\\u5a01\\u653f\\u7b56\\u4fe1\\u53f7'};"
+    'gov-cbirc-notices":"金监总局"}',
+    'gov-cbirc-notices":"金监总局","policy":"权威政策信号"}'
   );
-  console.log("PROVIDER_NAMES fix:", html.includes("policy"));
+  console.log("PROVIDER_NAMES fix:", html.includes('"policy":"权威政策信号"'));
 
   // Fix 3: renderPolicySignals — add collapse onclick to section headers
   // Use a simple helper: onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'"
