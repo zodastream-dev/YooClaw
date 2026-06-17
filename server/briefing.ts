@@ -310,7 +310,7 @@ export async function runDailyBriefing(
         return true;
       })
       .sort((a, b) => b._valueScore - a._valueScore)
-      .slice(0, 5);
+      .slice(0, 8);
 
     if (topN.length < 3) {
       console.log(`[Briefing] ${slug}: only ${topN.length} high-value items (<3), skipping`);
