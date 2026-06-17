@@ -104,15 +104,33 @@ async function loadIntelData(forceRefresh){
         allIntelData.push(item);
       });
     });
-    // V3.7: Cross-source dedup by title (case-insensitive trimmed)
-    var seenTitles={};
-    allIntelData=allIntelData.filter(function(item){
-      var key=(item.title||'').trim().toLowerCase();
-      if(!key)return true;
-      if(seenTitles[key])return false;
-      seenTitles[key]=true;
-      return true;
+    // V3.7: Cross-source smart dedup — URL exact match first, then title word-overlap
+    var deduped=[];
+    var seenUrls2={};
+    allIntelData.forEach(function(item){
+      var url=(item.link||item.url||'').trim();
+      if(url){var uk=url.toLowerCase();if(seenUrls2[uk])return;seenUrls2[uk]=true}
+      var t=(item.title||'').trim();
+      if(t&&t.length>10){
+        // Check against already-kept items for 75%+ title similarity
+        for(var k=0;k<deduped.length;k++){
+          var dt=deduped[k].title.trim();
+          if(!dt)continue;
+          // Simple check: does one title contain the other, or share >75% common chars?
+          var shorter=t.length<dt.length?t:dt;
+          var longer=t.length<dt.length?dt:t;
+          if(longer.indexOf(shorter)>=0)return; // substring match
+          // Count common words
+          var tw=t.split(/[\\s,，、。；：""''（）()]+/).filter(Boolean);
+          var dw=dt.split(/[\\s,，、。；：""''（）()]+/).filter(Boolean);
+          var common=0;
+          tw.forEach(function(w){if(dw.indexOf(w)>=0)common++});
+          if(common>0&&common/Math.max(tw.length,dw.length)>0.7)return;
+        }
+      }
+      deduped.push(item);
     });
+    allIntelData=deduped;
     // Save to localStorage (30min TTL)
     try{localStorage.setItem(cacheKey,JSON.stringify({data:allIntelData,expiry:Date.now()+30*60*1000}));}catch(e){}
     // V3.4: Render policy stats bar instead

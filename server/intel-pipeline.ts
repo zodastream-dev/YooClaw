@@ -1336,18 +1336,48 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     console.log('[Intel:V3.7] Date filter removed ' + (beforeFilter - results.length) + ' items older than 30 days');
   }
 
-  // V3.7: Dedup by title (same news analyzed for different objects produces near-identical entries)
-  const seenTitles = new Set<string>();
+  // V3.7: Smart dedup — URL exact match first, then fuzzy title (80%+ common substring ratio)
+  function dedupIntel(items: any[]): any[] {
+    const seenUrls = new Set<string>();
+    const seenTitles: { key: string; len: number }[] = [];
+    return items.filter((r: any) => {
+      const url = ((r.link || r.url || '').trim()) as string;
+      if (url) {
+        const urlKey = url.toLowerCase();
+        if (seenUrls.has(urlKey)) return false;
+        seenUrls.add(urlKey);
+      }
+      if (r.title) {
+        const t = r.title.trim();
+        const tLen = t.length;
+        for (const seen of seenTitles) {
+          let overlap = 0;
+          // Check if shorter title is a near-substring of longer title
+          const shorter = tLen < seen.len ? t : seen.key;
+          const longer = tLen < seen.len ? seen.key : t;
+          if (shorter.length > 10 && longer.includes(shorter)) { overlap = shorter.length; }
+          else {
+            // Longest common substring (min 8 chars)
+            for (let i = 0; i < tLen; i++) {
+              for (let j = i + 8; j <= tLen; j++) {
+                if (seen.key.includes(t.substring(i, j))) {
+                  overlap = Math.max(overlap, j - i);
+                } else break;
+              }
+            }
+          }
+          const minLen = Math.min(tLen, seen.len);
+          if (minLen > 0 && overlap / minLen > 0.75) return false;
+        }
+        seenTitles.push({ key: t, len: tLen });
+      }
+      return true;
+    });
+  }
   const beforeDedup = results.length;
-  results = results.filter((r: any) => {
-    if (!r.title) return true;
-    const key = r.title.trim().toLowerCase();
-    if (seenTitles.has(key)) return false;
-    seenTitles.add(key);
-    return true;
-  });
+  results = dedupIntel(results);
   if (results.length < beforeDedup) {
-    console.log('[Intel:V3.7] Dedup removed ' + (beforeDedup - results.length) + ' duplicate entries');
+    console.log('[Intel:V3.7] Smart dedup removed ' + (beforeDedup - results.length) + ' duplicate/near-duplicate entries');
   }
 
   return results.slice(0, 30);

@@ -3800,29 +3800,54 @@ async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]>
         else console.error('[fetchIntelForSource] Object failed:', r.reason?.message);
       }
     }
-    // Dedup by title across all objects (same news matched by different monitored objects)
-    const seenTitles = new Set<string>();
-    allResults = allResults.filter((r: any) => {
-      if (!r.title) return true;
-      const key = r.title.trim().toLowerCase();
-      if (seenTitles.has(key)) return false;
-      seenTitles.add(key);
-      return true;
-    });
+    // V3.7: Smart dedup — URL first, then fuzzy title matching
+    function dedupIntel(items: any[]): any[] {
+      const seenUrls = new Set<string>();
+      const seenTitles: { key: string; len: number }[] = [];
+      return items.filter((r: any) => {
+        // 1. Exact URL match (most reliable)
+        const url = ((r.link || r.url || '').trim()) as string;
+        if (url) {
+          const urlKey = url.toLowerCase();
+          if (seenUrls.has(urlKey)) return false;
+          seenUrls.add(urlKey);
+        }
+        // 2. Near-duplicate title detection (80%+ common substring overlap)
+        if (r.title) {
+          const t = r.title.trim();
+          const tLen = t.length;
+          // Check against previously seen titles
+          for (const seen of seenTitles) {
+            // Compute longest common substring length ratio
+            const overlap = longestCommonSubstring(t, seen.key);
+            const minLen = Math.min(tLen, seen.len);
+            if (minLen > 0 && overlap / minLen > 0.75) return false;
+          }
+          seenTitles.push({ key: t, len: tLen });
+        }
+        return true;
+      });
+    }
+    function longestCommonSubstring(a: string, b: string): number {
+      const m = a.length, n = b.length;
+      let maxLen = 0;
+      // Sliding window: check if b contains substrings of a
+      for (let i = 0; i < m; i++) {
+        for (let j = i + 8; j <= m; j++) { // minimum 8 chars to be meaningful
+          if (b.includes(a.substring(i, j))) {
+            maxLen = Math.max(maxLen, j - i);
+          } else break;
+        }
+      }
+      return maxLen;
+    }
+    allResults = dedupIntel(allResults);
     return allResults;
   }
 
   // -- No objects: single call --
   const results = await callOnce(kwArr);
-  // Dedup by title (within single callInt results)
-  const seen = new Set<string>();
-  return results.filter((r: any) => {
-    if (!r.title) return true;
-    const key = r.title.trim().toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return dedupIntel(results);
 }
 
 // ========== POST /api/portal-intel ==========
