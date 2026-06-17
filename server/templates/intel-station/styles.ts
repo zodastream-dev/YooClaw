@@ -113,25 +113,34 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .center-header h2{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 /* Intel Feed Cards */
 .intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
-/* V3.5: Policy stats bar with buttons */
-.policy-stats-bar{display:flex;align-items:center;gap:10px;padding:10px 24px;background:linear-gradient(135deg,rgba(0,212,255,0.06),rgba(168,85,247,0.04));border-bottom:1px solid var(--border);flex-wrap:wrap}
-.policy-stats-bar .psb-label{font-size:13px;font-weight:600;color:var(--text-secondary)}
-.psb-cat-btn{font-size:12px;padding:4px 12px;border-radius:16px;background:rgba(0,212,255,0.08);color:var(--text-secondary);cursor:pointer;transition:all .2s;border:1px solid rgba(0,212,255,0.15);font-family:inherit}
-.psb-cat-btn:hover{background:rgba(0,212,255,0.15);color:var(--accent,#00d4ff);border-color:rgba(0,212,255,0.35)}
-.psb-cat-btn.active{background:var(--accent,#00d4ff);color:#fff;border-color:var(--accent,#00d4ff)}
-.psb-cat-btn em{font-style:normal;opacity:0.7;font-size:10px;margin-left:2px}
-/* Category panel in right sidebar */
-.category-panel{display:flex;flex-direction:column;gap:6px}
-.cat-card{cursor:pointer;padding:8px 10px;border-radius:8px;background:rgba(15,23,42,0.5);border:1px solid rgba(0,212,255,0.08);transition:all .2s}
-.cat-card:hover{background:rgba(0,212,255,0.06);border-color:rgba(0,212,255,0.2)}
-.cat-card-bar{height:4px;background:rgba(255,255,255,0.05);border-radius:2px;margin-bottom:6px;overflow:hidden}
-.cat-card-fill{height:100%;background:linear-gradient(90deg,var(--accent,#00d4ff),var(--purple,#a855f7));border-radius:2px;transition:width .4s}
-.cat-card-info{display:flex;justify-content:space-between;align-items:center}
-.cat-card-name{font-size:12px;font-weight:600;color:var(--text-primary)}
-.cat-card-count{font-size:11px;color:var(--text-secondary);background:rgba(0,212,255,0.1);padding:1px 6px;border-radius:8px}
-/* Object filter toggle */
-.obj-toggle-btn{font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(168,85,247,0.1);color:var(--text-secondary);cursor:pointer;border:1px solid rgba(168,85,247,0.2);font-family:inherit;transition:all .2s}
-.obj-toggle-btn:hover{background:rgba(168,85,247,0.2);color:var(--purple,#a855f7)}}
+/* V3.6: Enhanced policy stats bar with gradient pill buttons */
+.policy-stats-bar{display:flex;align-items:center;gap:12px;padding:12px 24px;background:linear-gradient(135deg,rgba(0,212,255,0.04),rgba(168,85,247,0.03));border-bottom:1px solid var(--border);flex-wrap:wrap}
+.policy-stats-bar .psb-label{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.5px;text-shadow:0 0 8px rgba(0,212,255,0.2)}
+.psb-cat-btn{font-size:12px;padding:5px 14px;border-radius:20px;background:rgba(0,212,255,0.06);color:var(--text-secondary);cursor:pointer;transition:all .25s;border:1px solid rgba(0,212,255,0.1);font-family:inherit;font-weight:500;position:relative;overflow:hidden}
+.psb-cat-btn::before{content:'';position:absolute;inset:0;border-radius:20px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.1));opacity:0;transition:opacity .25s}
+.psb-cat-btn:hover{color:#fff;border-color:rgba(0,212,255,0.35);transform:translateY(-1px);box-shadow:0 2px 12px rgba(0,212,255,0.15)}
+.psb-cat-btn:hover::before{opacity:1}
+.psb-cat-btn.active{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(168,85,247,0.2));color:#fff;border-color:rgba(0,212,255,0.5);box-shadow:0 0 16px rgba(0,212,255,0.2),0 0 8px rgba(168,85,247,0.1);font-weight:600}
+.psb-cat-btn em{font-style:normal;font-weight:600;font-size:11px;margin-left:4px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,0.1)}
+/* V3.6: Enhanced category cards with icons and color coding */
+.category-panel{display:flex;flex-direction:column;gap:8px}
+.cp-total{font-size:12px;color:var(--text-secondary);text-align:center;padding:4px 0 8px;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:4px}
+.cp-total strong{color:var(--cyan);font-size:16px;font-weight:700}
+.cat-card-v2{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(15,23,42,0.5);border:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:all .25s;position:relative;overflow:hidden}
+.cat-card-v2::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cat-color,#00d4ff);border-radius:3px 0 0 3px;transition:width .25s}
+.cat-card-v2:hover{background:rgba(0,212,255,0.04);border-color:rgba(0,212,255,0.15);transform:translateX(3px);box-shadow:0 2px 12px rgba(0,212,255,0.08)}
+.cat-card-v2:hover::before{width:5px}
+.cc-icon{font-size:18px;flex-shrink:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);border-radius:8px}
+.cc-body{flex:1;min-width:0}
+.cc-name{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:5px}
+.cc-bar-outer{height:5px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden}
+.cc-bar-inner{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1);box-shadow:0 0 6px var(--cat-color, rgba(0,212,255,0.4))}
+.cc-meta{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0}
+.cc-count{font-size:16px;font-weight:700;color:var(--cat-color,#00d4ff);line-height:1}
+.cc-pct{font-size:10px;color:var(--text-secondary)}
+/* Expand arrow on 全部 tab */
+.sf-expand{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(168,85,247,0.15);font-size:9px;margin-left:6px;transition:all .2s;vertical-align:middle;line-height:1}
+.sf-expand:hover{background:rgba(168,85,247,0.3);transform:scale(1.1)}
 .intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
 .intel-card:hover{border-color:rgba(0,212,255,0.3);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,0.1),0 0 16px rgba(168,85,247,0.08),inset 0 1px 0 rgba(255,255,255,0.03)}
 .intel-card-header{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}

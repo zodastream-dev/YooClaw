@@ -70,7 +70,7 @@ export function intelStationBody(sn: string): string {
     <div class="dashboard-content" id="dashboardContent">
       <!-- Category Panel -->
       <div class="dashboard-section">
-        <h4>&#x1F4CA; 情报分类</h4>
+        <h4>&#x1F4CA; 今日政策信号</h4>
         <div class="category-panel" id="categoryPanel">
           <div class="no-data-msg">加载中...</div>
         </div>

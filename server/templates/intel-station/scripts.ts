@@ -508,7 +508,11 @@ function buildIntelSubFilters(monitors){
     } else {
       count=allIntelData.filter(function(item){return (item._sourceName||'').trim()===name;}).length;
     }
-    html+='<button class="subfilter-btn'+(active?' active':'')+'" data-source="'+escHtml(name)+'" onclick="filterBySourceFromBtn(this)">'+escHtml(name)+' <span class="sf-count">'+count+'</span></button>';
+    var expandArrow='';
+    if(name==='全部'){
+      expandArrow='<span class="sf-expand" onclick="event.stopPropagation();toggleObjFiltersVisibility()" title="展开/收起监控对象">▼</span>';
+    }
+    html+='<button class="subfilter-btn'+(active?' active':'')+'" data-source="'+escHtml(name)+'" onclick="filterBySourceFromBtn(this)">'+escHtml(name)+' <span class="sf-count">'+count+'</span>'+expandArrow+'</button>';
   });
   el.innerHTML=html;
   if(currentCenterTab==='intel')el.style.display='';
@@ -524,6 +528,7 @@ function filterBySource(sourceName){
   // 单选模式：点击任意标签替换当前选中，再点已选中的不取消
   if(sourceName==='全部'){
     currentSourceFilters=['全部'];
+    currentObjectFilter='全部';
   } else if(currentSourceFilters.length===1 && currentSourceFilters[0]===sourceName){
     // 点击已选中的标签：不取消，保持选中（单选至少保留一个选中项）
     return;
@@ -566,11 +571,11 @@ function filterBySource(sourceName){
 
 /* ===== OBJECT FILTERS ===== */
 function buildObjectFilters(monitors){
-  var objectNames=['全部'];
+  var objectNames=[];
   monitors.forEach(function(mw){
     var srcs=mw.sources||(mw.config&&mw.config.sources)||[];
     srcs.forEach(function(src){
-      if(currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf((src.name||'').trim())<0)return;
+      if(currentSourceFilters[0]!=='全部'&&currentSourceFilters.indexOf((window._PROVIDER_NAMES[src.name]||src.name||'').trim())<0)return;
       var objects=src.objects||[];
       objects.forEach(function(obj){
         if(objectNames.indexOf(obj.name)===-1)objectNames.push(obj.name);
@@ -579,24 +584,30 @@ function buildObjectFilters(monitors){
   });
   var el=$('intelObjFilters');
   if(!el)return;
-  if(objectNames.length<=1){el.style.display='none';return}
-  var html='<button class=\"subfilter-btn active\" data-obj=\"全部\" onclick=\"filterByObjectFromBtn(this)\">全部</button>';
-  html+='<button class=\"obj-toggle-btn\" onclick=\"toggleObjFilters(this)\" title=\"展开监控对象\">+</button>';
-  html+='<span class=\"obj-list\" id=\"objList\" style=\"display:none\">';
-  objectNames.forEach(function(name,i){
-    if(name==='全部')return;
-    html+='<button class=\"subfilter-btn\" data-obj=\"'+escHtml(name)+'\" onclick=\"filterByObjectFromBtn(this)\">'+escHtml(name)+'</button>';
+  if(objectNames.length===0){el.style.display='none';return}
+  var html='';
+  objectNames.forEach(function(name){
+    var active=currentObjectFilter===name;
+    html+='<button class=\"subfilter-btn'+(active?' active':'')+'\" data-obj=\"'+escHtml(name)+'\" onclick=\"filterByObjectFromBtn(this)\">'+escHtml(name)+'</button>';
   });
-  html+='</span>';
+  // Add "全部" reset button at end
+  html+='<button class=\"subfilter-btn'+(currentObjectFilter==='全部'?' active':'')+'\" data-obj=\"全部\" onclick=\"filterByObjectFromBtn(this)\">全部</button>';
   el.innerHTML=html;
-  el.style.display='';
+  // Hidden by default, shown via expand arrow on upper 全部 tab
+  el.style.display='none';
 }
-function toggleObjFilters(btn){
-  var list=document.getElementById('objList');
-  if(!list)return;
-  var hidden=list.style.display==='none';
-  list.style.display=hidden?'':'none';
-  btn.textContent=hidden?'-':'+';
+
+function toggleObjFiltersVisibility(){
+  var el=$('intelObjFilters');
+  if(!el)return;
+  if(el.style.display==='none'){
+    el.style.display='';
+  } else {
+    el.style.display='none';
+  }
+  // Update expand arrow direction
+  var arrow=document.querySelector('.sf-expand');
+  if(arrow)arrow.textContent=el.style.display==='none'?'▼':'▲';
 }
 
 function filterByObjectFromBtn(btn){
@@ -1209,7 +1220,7 @@ function updateDashboard(data){
   updateBriefing(data);
 }
 
-// V3.5: Category panel replaces sentiment stats
+// V3.6: Enhanced category panel with icons and color coding
 function renderCategoryPanel(data){
   var container=document.getElementById('categoryPanel');
   if(!container)return;
@@ -1223,19 +1234,28 @@ function renderCategoryPanel(data){
     }
   });
   var order=['政策信号','金融监管','产业格局','宏观数据','国际环境','科技前沿','人事变动'];
+  var catIcons={'政策信号':'📋','金融监管':'🏦','产业格局':'🏭','宏观数据':'📊','国际环境':'🌐','科技前沿':'🔬','人事变动':'👤'};
+  var catColors={'政策信号':'#00d4ff','金融监管':'#f59e0b','产业格局':'#a855f7','宏观数据':'#22c55e','国际环境':'#3b82f6','科技前沿':'#06b6d4','人事变动':'#ec4899'};
   var sorted=Object.keys(cats).sort(function(a,b){
     var ia=order.indexOf(a),ib=order.indexOf(b);
     if(ia===-1)ia=99;if(ib===-1)ib=99;
     return ia-ib;
   });
+  var total=Object.values(cats).reduce(function(a,b){return a+b},0);
   var maxVal=Math.max(1,Math.max.apply(null,Object.values(cats)));
-  var html='';
+  var html='<div class="cp-total">共 <strong>'+total+'</strong> 条政策信号</div>';
   sorted.forEach(function(cat){
     var count=cats[cat];
-    var pct=Math.round(count/maxVal*100);
-    html+='<div class="cat-card" onclick="filterByCategoryFromPanel(&#39;'+escHtml(cat)+'&#39;)">';
-    html+='<div class="cat-card-bar"><div class="cat-card-fill" style="width:'+pct+'%"></div></div>';
-    html+='<div class="cat-card-info"><span class="cat-card-name">'+escHtml(cat)+'</span><span class="cat-card-count">'+count+'条</span></div>';
+    var pct=Math.round(count/total*100);
+    var color=catColors[cat]||'var(--accent,#00d4ff)';
+    var icon=catIcons[cat]||'📌';
+    html+='<div class="cat-card-v2" onclick="filterByCategoryFromPanel(&#39;'+escHtml(cat)+'&#39;)" style="--cat-color:'+color+'">';
+    html+='<div class="cc-icon">'+icon+'</div>';
+    html+='<div class="cc-body">';
+    html+='<div class="cc-name">'+escHtml(cat)+'</div>';
+    html+='<div class="cc-bar-outer"><div class="cc-bar-inner" style="width:'+pct+'%;background:'+color+'"></div></div>';
+    html+='</div>';
+    html+='<div class="cc-meta"><div class="cc-count">'+count+'</div><div class="cc-pct">'+pct+'%</div></div>';
     html+='</div>';
   });
   container.innerHTML=html;
