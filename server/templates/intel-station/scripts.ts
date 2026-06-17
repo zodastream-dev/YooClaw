@@ -110,6 +110,7 @@ async function loadIntelData(forceRefresh){
     renderPolicyStatsBar(allIntelData);
     renderSourceFilters(monitors);
     buildIntelSubFilters(monitors);
+    buildObjectFilters(monitors);
     // 如果当前有过滤条件激活，重新应用过滤；否则渲染全部
     if(currentSourceFilters.length===0||currentSourceFilters[0]==='全部'){
       renderIntelFeed(allIntelData);
