@@ -643,32 +643,28 @@ function switchCenterTab(tab){
   currentCenterTab=tab;
   var tabs=document.querySelectorAll('#centerTabs .ct-tab');
   tabs.forEach(function(t){t.classList.remove('active')});
+  var cmd=$('cmdInput');
+  $('intelFeed').style.display='none';$('briefingFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='none';
+  $('intelSubFilters').style.display='none';$('intelObjFilters').style.display='none';$('policyStatsBar').style.display='none';
+  if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
   if(tab==='intel'){
     tabs[0].classList.add('active');
-    $('intelFeed').style.display='';$('reportFeed').style.display='none';$('aiChat').style.display='none';
-    $('intelSubFilters').style.display='';
-    $('intelObjFilters').style.display='';
+    $('intelFeed').style.display='';$('intelSubFilters').style.display='';$('intelObjFilters').style.display='';$('policyStatsBar').style.display=allIntelData.some(function(i){return i._signalType==='policy'})?'':'none';
     $('feedStatus').textContent=allIntelData.length?'已加载 '+allIntelData.length+' 条情报':'加载中...';
-    // 恢复底部输入框为普通模式
-    var cmd=$('cmdInput');
-    if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
-  } else if(tab==='reports'){
+  } else if(tab==='briefing'){
     tabs[1].classList.add('active');
-    $('intelFeed').style.display='none';$('reportFeed').style.display='';$('aiChat').style.display='none';
-    $('intelSubFilters').style.display='none';
-    $('intelObjFilters').style.display='none';
+    $('briefingFeed').style.display='';
+    $('feedStatus').textContent='今日政策简报';
+    loadBriefing();
+  } else if(tab==='reports'){
+    tabs[2].classList.add('active');
+    $('reportFeed').style.display='';
     $('feedStatus').textContent='报告中';
-    var cmd=$('cmdInput');
-    if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
     loadReports();
   } else if(tab==='ai'){
-    tabs[2].classList.add('active');
-    $('intelFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='';
-    $('intelSubFilters').style.display='none';
-    $('intelObjFilters').style.display='none';
+    tabs[3].classList.add('active');
+    $('aiChat').style.display='';
     $('feedStatus').textContent='AI助手';
-    // 切换底部输入框为AI模式
-    var cmd=$('cmdInput');
     if(cmd){cmd.placeholder='输入你的问题，按Enter发送...';cmd.dataset.mode='ai'}
   }
 }
@@ -719,6 +715,101 @@ function renderReportCards(reports){
     html+='</div></div></div></div>';
   });
   $('reportFeed').innerHTML=html;
+}
+
+/* ===== V3.7: Daily Policy Briefing ===== */
+var briefingLoaded=false;
+var briefingData=null;
+
+async function loadBriefing(){
+  if(briefingLoaded && briefingData){
+    renderBriefing(briefingData);
+    return;
+  }
+  var loading=$('briefingLoading');
+  if(loading)loading.style.display='block';
+  try {
+    var r=await fetch(API+'/api/briefing/'+PORTAL_SLUG);
+    if(!r.ok)throw new Error('API error: '+r.status);
+    var resp=await r.json();
+    briefingData=resp.data;
+    briefingLoaded=true;
+    renderBriefing(briefingData);
+  } catch(e){
+    console.error('[Briefing] Load failed:', e.message);
+    $('briefingFeed').innerHTML='<div class="briefing-container"><div class="briefing-empty"><div class="be-icon">📰</div><div class="be-msg">暂无今日政策简报</div><div class="be-hint">每日早上 7:30 自动生成前日政策简报</div></div></div>';
+  }
+}
+
+function renderBriefing(data){
+  var loading=$('briefingLoading');
+  if(loading)loading.style.display='none';
+  if(!data||!data.content){
+    $('briefingFeed').innerHTML='<div class="briefing-container"><div class="briefing-empty"><div class="be-icon">📰</div><div class="be-msg">暂无今日政策简报</div><div class="be-hint">每日早上 7:30 自动生成前日政策简报</div></div></div>';
+    return;
+  }
+  // Convert markdown to HTML
+  var md=data.content;
+  var dateLabel='';
+  try {
+    var d=new Date(data.date+'T00:00:00+08:00');
+    if(!isNaN(d.getTime())){
+      var days=['日','一','二','三','四','五','六'];
+      dateLabel=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 周'+days[d.getDay()];
+    }
+  } catch(e){}
+  // Simple markdown rendering
+  var html='<div class="briefing-container">';
+  html+='<div class="briefing-header"><span class="bh-icon">📰</span><span class="bh-title">今日政策简报</span><span class="bh-date">'+escHtml(dateLabel||data.date)+'</span></div>';
+  html+='<div class="briefing-content">';
+  // Convert markdown to simple HTML
+  var lines=md.split('\\n');
+  var inQuote=false;
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    // Skip empty lines
+    if(!line.trim()){
+      if(inQuote){html+='</blockquote>';inQuote=false;}
+      continue;
+    }
+    // H2 headers
+    if(line.match(/^## (.+)/)){
+      if(inQuote){html+='</blockquote>';inQuote=false;}
+      var title=line.replace(/^## (.+)/,'$1');
+      html+='<h2>'+title+'</h2>';
+      continue;
+    }
+    // H3 headers
+    if(line.match(/^### (.+)/)){
+      if(inQuote){html+='</blockquote>';inQuote=false;}
+      var sub=line.replace(/^### (.+)/,'$1');
+      html+='<h3>'+sub+'</h3>';
+      continue;
+    }
+    // Bold
+    line=line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    // Blockquote
+    if(line.match(/^> /)){
+      if(!inQuote){html+='<blockquote>';inQuote=true;}
+      html+=line.replace(/^> /,'')+'<br>';
+    } else {
+      if(inQuote){html+='</blockquote>';inQuote=false;}
+      // Emoji markers
+      line=line.replace(/📌/g,'<span class="bm-pin">📌</span>');
+      html+='<p>'+line+'</p>';
+    }
+  }
+  if(inQuote)html+='</blockquote>';
+  html+='</div>';
+  // Generated time
+  if(data.generated_at){
+    try {
+      var gt=new Date(data.generated_at);
+      html+='<div class="briefing-footer">生成时间：'+gt.toLocaleString('zh-CN')+'</div>';
+    }catch(e){}
+  }
+  html+='</div>';
+  $('briefingFeed').innerHTML=html;
 }
 
 function appendChatMessage(role,text){

@@ -85,6 +85,7 @@ import {
   clearResetToken,
   updateUserEmail,
   validatePassword,
+  getLatestBriefing,
 } from './db.js';
 
 import { callIntel } from "./intel-pipeline.js";
@@ -3271,6 +3272,21 @@ app.post('/api/portal-redeploy', async (req, res) => {
     res.json({ data: { slug, title: existing.title, updated: true } });
   } catch (err: any) {
     console.error('[Portal Public Redeploy Error]', err.message);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+  }
+});
+
+// V3.7: Get latest daily briefing for a portal
+app.get('/api/briefing/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const briefing = await getLatestBriefing(slug);
+    if (!briefing) {
+      return res.json({ data: null });
+    }
+    res.json({ data: { date: briefing.date, content: briefing.content, generated_at: briefing.generated_at } });
+  } catch (err: any) {
+    console.error('[Briefing API Error]', err.message);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });

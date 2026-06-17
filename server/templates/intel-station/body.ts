@@ -36,6 +36,7 @@ export function intelStationBody(sn: string): string {
     <div class="center-header">
       <div class="center-tabs" id="centerTabs">
         <span class="ct-tab active" onclick="switchCenterTab('intel')">&#x1F4CA; 动态情报流</span>
+        <span class="ct-tab" onclick="switchCenterTab('briefing')">&#x1F4F0; 今日政策简报</span>
         <span class="ct-tab" onclick="switchCenterTab('reports')">&#x1F4C8; 行业分析报告</span>
         <span class="ct-tab" onclick="switchCenterTab('ai')">&#x1F916; AI助手</span>
       </div>
@@ -50,6 +51,11 @@ export function intelStationBody(sn: string): string {
     </div>
     <div class="policy-stats-bar" id="policyStatsBar" style="display:none"></div>
     <div class="intel-feed" id="intelFeed"></div>
+    <div class="briefing-feed" id="briefingFeed" style="display:none">
+      <div class="briefing-loading" id="briefingLoading">
+        <div class="spinner"></div>加载简报中...
+      </div>
+    </div>
     <div class="report-feed" id="reportFeed" style="display:none">
       <div class="intel-loading" id="reportLoading">
         <div class="spinner"></div>加载报告中...

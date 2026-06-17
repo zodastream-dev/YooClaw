@@ -542,6 +542,8 @@ export async function initDatabase(): Promise<void> {
     console.log('[DB] Default admin user created (username: admin, password: admin)');
   }
 
+  await initDailyBriefingsTable();
+
   console.log('[DB] Database initialized successfully (PostgreSQL)');
 }
 
@@ -1349,4 +1351,56 @@ export async function getUserAlreadyInvoicedOrderIds(userId: string): Promise<Se
     }
   }
   return ids;
+}
+
+// ========== Daily Briefing Types ==========
+export interface DbDailyBriefing {
+  id: number;
+  slug: string;
+  date: string;
+  content: string;
+  generated_at: string;
+  pushed: boolean;
+}
+
+// ========== Daily Briefing Table ==========
+export async function initDailyBriefingsTable() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS daily_briefings (
+      id SERIAL PRIMARY KEY,
+      slug VARCHAR(128) NOT NULL,
+      date DATE NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      generated_at TIMESTAMPTZ DEFAULT now(),
+      pushed BOOLEAN DEFAULT false,
+      UNIQUE(slug, date)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_daily_briefings_slug_date ON daily_briefings(slug, date DESC)`;
+  console.log('[DB] Daily briefings table initialized');
+}
+
+// ========== Daily Briefing CRUD ==========
+
+export async function saveDailyBriefing(slug: string, date: string, content: string, pushed = false): Promise<void> {
+  await sql`
+    INSERT INTO daily_briefings (slug, date, content, pushed)
+    VALUES (${slug}, ${date}, ${content}, ${pushed})
+    ON CONFLICT (slug, date) DO UPDATE SET content = ${content}, pushed = ${pushed}, generated_at = now()
+  `;
+}
+
+export async function getDailyBriefing(slug: string, date?: string): Promise<DbDailyBriefing | undefined> {
+  const targetDate = date || new Date().toISOString().slice(0, 10);
+  const rows = await sql`
+    SELECT * FROM daily_briefings WHERE slug = ${slug} AND date = ${targetDate}::date LIMIT 1
+  `;
+  return rows[0] as DbDailyBriefing | undefined;
+}
+
+export async function getLatestBriefing(slug: string): Promise<DbDailyBriefing | undefined> {
+  const rows = await sql`
+    SELECT * FROM daily_briefings WHERE slug = ${slug} ORDER BY date DESC LIMIT 1
+  `;
+  return rows[0] as DbDailyBriefing | undefined;
 }

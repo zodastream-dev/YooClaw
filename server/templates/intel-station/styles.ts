@@ -343,5 +343,27 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .sstat-cell.sstat-neu .sstat-val{background:linear-gradient(135deg,#94a3b8,#cbd5e1);-webkit-background-clip:text}
 .sstat-lbl{font-size:9px;font-weight:500;color:var(--text-secondary);margin-top:3px;white-space:nowrap}
 
-@media(max-width:768px){.top-bar{padding:10px 16px}.center-header{padding:12px 16px}.intel-feed{padding:12px 16px}}`;
+@media(max-width:768px){.top-bar{padding:10px 16px}.center-header{padding:12px 16px}.intel-feed{padding:12px 16px}}
+/* V3.7: Daily Briefing Styles */
+.briefing-feed{padding:20px 24px;overflow-y:auto;max-height:calc(100vh - 200px)}
+.briefing-container{max-width:780px;margin:0 auto}
+.briefing-header{display:flex;align-items:center;gap:10px;padding:16px 20px;background:linear-gradient(135deg,rgba(0,212,255,0.08),rgba(168,85,247,0.05));border:1px solid rgba(0,212,255,0.12);border-radius:12px;margin-bottom:20px}
+.bh-icon{font-size:24px}
+.bh-title{font-size:18px;font-weight:700;color:var(--text-primary)}
+.bh-date{font-size:13px;color:var(--text-secondary);margin-left:auto}
+.briefing-content{line-height:2;color:var(--text-primary);font-size:14px}
+.briefing-content h2{font-size:20px;font-weight:700;color:#00d4ff;margin:28px 0 16px;padding-bottom:8px;border-bottom:1px solid rgba(0,212,255,0.12)}
+.briefing-content h3{font-size:16px;font-weight:600;color:var(--text-primary);margin:20px 0 10px;padding-left:12px;border-left:3px solid #a855f7}
+.briefing-content p{margin:0 0 12px;color:var(--text-secondary)}
+.briefing-content strong{color:#f59e0b;font-weight:600}
+.briefing-content blockquote{background:rgba(0,212,255,0.04);border-left:3px solid rgba(0,212,255,0.3);padding:10px 16px;margin:12px 0;border-radius:0 8px 8px 0;color:var(--text-secondary);font-size:13px}
+.briefing-content blockquote strong{color:#00d4ff}
+.bm-pin{display:inline-block;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:4px;padding:0 4px;margin-right:4px;font-size:12px}
+.briefing-footer{text-align:right;font-size:11px;color:var(--text-secondary);margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.04)}
+.briefing-empty{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.be-icon{font-size:48px;margin-bottom:16px;opacity:0.3}
+.be-msg{font-size:15px;font-weight:600;margin-bottom:8px}
+.be-hint{font-size:12px;opacity:0.5}
+.briefing-loading{text-align:center;padding:60px 20px;color:var(--text-secondary);display:none}
+.briefing-loading .spinner{margin:0 auto 16px;width:32px;height:32px;border-width:3px}`;
 }

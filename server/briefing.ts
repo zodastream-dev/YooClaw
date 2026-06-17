@@ -1,5 +1,5 @@
-// V2.1 Daily Briefing — 晨报生成 + PushPlus 微信推送 + SMTP 邮件推送 + 8AM 自排程调度器
-import { getAllPortalSites, getReportSiteBySlug } from './db.js';
+// V2.1 Daily Briefing — 晨报生成 + PushPlus 微信推送 + SMTP 邮件推送 + 7:30AM 自排程调度器
+import { getAllPortalSites, getReportSiteBySlug, saveDailyBriefing } from './db.js';
 import fs from 'fs';
 import path from 'path';
 import tls from 'tls';
@@ -61,7 +61,7 @@ function makeBriefingPrompt(
   portalName: string,
   highValueIntel: IntelItem[]
 ): { system: string; user: string } {
-  const today = new Date().toLocaleDateString('zh-CN', {
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('zh-CN', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   });
   const intelText = highValueIntel.map((item, i) =>
@@ -87,7 +87,7 @@ function makeBriefingPrompt(
 - 不要用模糊词汇（"可能""或将""有望"），有把握就说，没把握就写"待确认"
 
 输出格式：
-## 📊 {今日日期} 晨报
+## 📊 {昨日日期} 政策简报
 
 **核心判断**：（一段2-3句话）
 
@@ -99,9 +99,9 @@ function makeBriefingPrompt(
 
 ...以此类推`;
 
-  const user = `今天是${today}。
+  const user = `请撰写昨日（${yesterday}）的政策简报，覆盖当日最重要的政策信号和行业动态。
 
-以下是过去24小时价值最高的情报（共${highValueIntel.length}条）。请基于这些内容生成高管晨报内参。
+以下是昨日价值最高的情报（共${highValueIntel.length}条）。请基于这些内容生成高管晨报内参。
 
 情报列表：
 ${intelText}
@@ -323,6 +323,12 @@ export async function runDailyBriefing(
     const briefing = await generateBriefing(portalName, topN);
     console.log(`[Briefing] ${slug}: generated (${briefing.length} chars)`);
 
+    // Save to DB for portal display
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    await saveDailyBriefing(slug, yesterday, briefing, false).catch(e =>
+      console.error(`[Briefing] ${slug}: DB save failed —`, e.message)
+    );
+
     let pushed = false;
 
     // PushPlus WeChat
@@ -347,6 +353,8 @@ export async function runDailyBriefing(
 
     if (pushed) {
       lastBriefingDate.set(slug, today);
+      // Mark as pushed in DB
+      saveDailyBriefing(slug, yesterday, briefing, true).catch(()=>{});
       console.log(`[Briefing] ${slug}: pushed successfully (wechat=${!!pushToken}, email=${!!pushEmail})`);
     }
   } catch (e: any) {
@@ -387,21 +395,21 @@ export function scheduleNextBriefing(
   portalIntelCache: PortalIntelCache,
 ): void {
   const now = new Date();
-  const next8am = new Date(now);
-  next8am.setHours(8, 0, 0, 0);
-  if (now >= next8am) {
-    next8am.setDate(next8am.getDate() + 1);
+  const next730 = new Date(now);
+  next730.setHours(7, 30, 0, 0);
+  if (now >= next730) {
+    next730.setDate(next730.getDate() + 1);
   }
 
-  const msUntil8am = next8am.getTime() - now.getTime();
-  const hours = Math.floor(msUntil8am / 3600000);
-  const mins = Math.floor((msUntil8am % 3600000) / 60000);
-  console.log(`[Briefing] Next briefing in ${hours}h ${mins}m (${next8am.toLocaleString('zh-CN')})`);
+  const msUntil730 = next730.getTime() - now.getTime();
+  const hours = Math.floor(msUntil730 / 3600000);
+  const mins = Math.floor((msUntil730 % 3600000) / 60000);
+  console.log(`[Briefing] Next briefing in ${hours}h ${mins}m (${next730.toLocaleString('zh-CN')})`);
 
   if (briefingTimer) clearTimeout(briefingTimer);
   briefingTimer = setTimeout(() => {
     runAllDailyBriefings(portalIntelCache).finally(() => {
       scheduleNextBriefing(portalIntelCache);
     });
-  }, msUntil8am);
+  }, msUntil730);
 }
