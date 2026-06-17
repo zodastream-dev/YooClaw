@@ -6351,70 +6351,22 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
         return;
       }
 
-      // Generate fpqqlsh: primary order ID for single, or new merged ID
+      // Generate unique fpqqlsh
       const isMerged = orderIds.length > 1;
-      const fpqqlsh = isMerged
-        ? `MG${orders[0].id.slice(0, 10)}${Date.now().toString(36).toUpperCase()}`
-        : orders[0].id;
+      const fpqqlsh = `FX${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
       const primaryOrderId = orders[0].id;
 
       // Sum amounts
       const totalYuan = orders.reduce((s, o) => s + o.amount_yuan, 0);
-      const taxRate = 0.06;
-      const taxAmount = Math.round(totalYuan * taxRate * 100) / 100;
 
-      // Build invoice items from all orders
-      const totalAmountFen = Math.round(totalYuan * 100);
-      const items = orders.map(o => ({
-        taxCode: '3040202000000000000',
-        goodsName: o.product_name || 'YooClaw 积分服务',
-        quantity: 1,
-        totalAmountFen: Math.round(o.amount_yuan * 100),
-      }));
-
-      // Try to issue via WeChat
-      const result = await issueInvoice({
-        fapiaoApplyId: fpqqlsh,
-        buyerTitle,
-        buyerTaxId: buyerTaxId || '',
-        totalAmountFen,
-        items,
-        remark: isMerged ? `合并开票：${orderIds.join(', ')}` : `订单${primaryOrderId}`,
-      });
-
-      // Record in DB
+      // Record in DB as pending (manual processing)
       await createFapiaoRecord(
         userId, primaryOrderId, fpqqlsh, buyerTitle,
-        buyerTaxId || '', buyerEmail || '',
-        Math.round(totalYuan * 100), Math.round(taxAmount * 100),
+        buyerTaxId || '', buyerEmail,
+        Math.round(totalYuan * 100), 0,
         isMerged ? `合并开票：${orderIds.join(', ')}` : `订单${primaryOrderId}`,
-        isMerged ? orderIds.slice(1) : undefined, // related_order_ids excludes primary
+        isMerged ? orderIds.slice(1) : undefined,
       );
-
-      if (!result.ok) {
-        await updateFapiaoStatus(fpqqlsh, 'failed');
-        console.error('[Fapiao] Issue failed:', result.error);
-        res.status(502).json({ error: { code: 'ISSUE_FAILED', message: result.error || 'Invoice issue failed' } });
-        return;
-      }
-
-      await updateFapiaoStatus(fpqqlsh, 'issued');
-
-      // Send invoice email to buyer
-      let emailSent = false;
-      if (buyerEmail) {
-        const user = await getUserById(userId);
-        const userName = user?.username || '用户';
-        const today = new Date().toLocaleDateString('zh-CN');
-        const emailHtml = buildInvoiceEmailHtml({
-          userName,
-          orderId: fpqqlsh,
-          productName: isMerged ? `合并开票(${orderIds.length}笔)` : orders[0].product_name,
-          amountYuan: totalYuan,
-          invoiceDate: today,
-        });
-        emailSent = await sendEmail(buyerEmail, `电子发票 - ${isMerged ? '合并开票' : orders[0].product_name}`, emailHtml);
-      }
 
       // Send admin notification to junlu@yookeer.com
       const user = await getUserById(userId);
@@ -6429,7 +6381,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
 <tr><td style="padding:6px 8px;color:#666">邮箱</td><td style="padding:6px 8px">${buyerEmail}</td></tr>
 <tr><td style="padding:6px 8px;color:#666">金额</td><td style="padding:6px 8px;font-weight:bold;color:#d97706">¥${totalYuan.toFixed(2)}</td></tr>
 <tr><td style="padding:6px 8px;color:#666">订单</td><td style="padding:6px 8px;font-size:12px">${ordersSummary}</td></tr>
-<tr><td style="padding:6px 8px;color:#666">发票号</td><td style="padding:6px 8px;font-size:12px">${fpqqlsh}</td></tr>
+<tr><td style="padding:6px 8px;color:#666">申请号</td><td style="padding:6px 8px;font-size:12px">${fpqqlsh}</td></tr>
 </table>
 </div>`;
       sendEmail('junlu@yookeer.com', '开票申请', adminHtml).catch(e => console.error('[Fapiao] Admin notification failed:', e.message));
@@ -6437,12 +6389,9 @@ if (process.env.NODE_ENV !== 'production' || process.env.SERVE_FRONTEND === 'tru
       res.json({
         data: {
           fpqqlsh,
-          status: 'issued',
-          emailSent,
+          status: 'pending',
           merged: isMerged,
-          message: emailSent
-            ? '电子发票已开具，请查收邮件。您也可在微信卡包中查看。'
-            : '电子发票已开具，您可在微信卡包中查看。',
+          message: '开票申请已提交，我们将尽快为您处理。',
         },
       });
     } catch (err: any) {
