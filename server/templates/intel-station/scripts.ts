@@ -796,7 +796,11 @@ function renderBriefing(data){
       if(inQuote){html+='</blockquote>';inQuote=false;}
       // Emoji markers
       line=line.replace(/📌/g,'<span class="bm-pin">📌</span>');
-      html+='<p>'+line+'</p>';
+      if(line.indexOf('核心判断')!==-1){
+        html+='<div class="bj-core-judgment"><p>'+line+'</p></div>';
+      } else {
+        html+='<p>'+line+'</p>';
+      }
     }
   }
   if(inQuote)html+='</blockquote>';
