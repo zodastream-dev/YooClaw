@@ -689,6 +689,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
 }
 
 排除：纯礼仪性报道（外宾接见/节日慰问）、纯体育娱乐、纯地方琐事、已停更的旧闻、产品广告/促销信息。
+时间优先：重点关注近7天内的资讯，对超过30天的旧闻直接丢弃（除非是影响深远的重大政策转折）。
 如果某条资讯涉及银行高管人事变动、央国企一把手调整，score 应不低于80。
 不硬凑条数——如果值得关注的资讯少，返回实际数量。
 
@@ -728,7 +729,8 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       '1. 政���词汇→信贷动作翻译：例如"新质生产力"→制造业专贷绿灯；"地方隐性债务"→城投非标授信红灯\n' +
       '2. 竞争意图洞察：分析同业高管拜访行踪、政府MOU签署，研判银团牵头权流失风险\n' +
       '3. 弱信号捕捉：发现环评公示、干部任前公示、商票逾期名单中隐藏的重大项目机会或客户风险\n\n' +
-      '严格排除：零售产品促销/信用卡优惠/App更新/社区送温暖/理财推销/微小利率调整 → 标注 _valueScore<40 并丢弃\n\n' +
+      '严格排除：零售产品促销/信用卡优惠/App更新/社区送温暖/理财推销/微小利率调整 → 标注 _valueScore<40 并丢弃\n' +
+      '时效性要求：优先选取近7天内资讯，超过30天的旧闻直接过滤（重大政策转折可例外但需标注"历史信号"）\n\n' +
       '⚠️ 权威源专项指令（RSS/gov来源的原始内容）：\n' +
       '  - 这些来自人民网/新华网/央行/发改委等权威源的原始内容可能不包含【' + objectName + '】\n' +
       '  - 但它们是银行高管必须关注的宏观环境和政策信号\n' +
@@ -1317,6 +1319,20 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
       console.log('[Intel:V3.1] RSS/gov fallback: adding ' + fallbackItems.length + ' authoritative items');
       results = [...results, ...fallbackItems];
     }
+  }
+
+  // V3.7: Filter items older than 30 days
+  const now = Date.now();
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  const beforeFilter = results.length;
+  results = results.filter((r: any) => {
+    if (!r.date) return true; // Keep items without date (newer items often missing dates)
+    const d = new Date(r.date);
+    if (isNaN(d.getTime())) return true; // Keep items with unparseable dates
+    return (now - d.getTime()) < thirtyDaysMs;
+  });
+  if (results.length < beforeFilter) {
+    console.log('[Intel:V3.7] Date filter removed ' + (beforeFilter - results.length) + ' items older than 30 days');
   }
 
   return results.slice(0, 30);
