@@ -59,8 +59,8 @@ var cats={};
 policyItems.forEach(function(item){var cat=item._category||"政策信号";cats[cat]=(cats[cat]||0)+1;});
 var order=["政策信号","人事变动","金融监管","宏观数据","产业格局","国际环境","科技前沿"];
 var sorted=Object.keys(cats).sort(function(a,b){var ia=order.indexOf(a),ib=order.indexOf(b);if(ia===-1)ia=99;if(ib===-1)ib=99;return ia-ib;});
-var html="<span class=\\\\"psb-label\\\\">今日政策信号："+policyItems.length+"条</span><span class=\\\\"psb-cats\\\\">";
-sorted.forEach(function(cat){html+="<span class=\\\\"psb-cat\\\\" onclick=\\\\"filterByPolicyCategory('"+escHtml(cat)+"',this)\\\\">"+escHtml(cat)+" "+cats[cat]+"</span>";});
+var html="<span class=psb-label>今日政策信号："+policyItems.length+"条</span><span class=psb-cats>";
+sorted.forEach(function(cat){html+="<span class=psb-cat onclick=filterByPolicyCategory('"+escHtml(cat)+"',this)>"+escHtml(cat)+" "+cats[cat]+"</span>";});
 html+="</span>";container.innerHTML=html;}
 function filterByPolicyCategory(cat,el){
 var active=el.classList.contains("active");
