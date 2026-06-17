@@ -79,7 +79,7 @@ function makeBriefingPrompt(
 3. 每节结构：事实陈述 → 背景解读 → 研判（这意味着什么/建议关注什么）
 4. 用 Markdown 格式：**加粗关键数据**、用 > 引用原文关键信息
 5. 如需决策建议，用 📌 标记
-6. 总长度 500-1000 字（不含标题），内容充实，不要缩水
+6. 总长度 1200-1800 字（不含标题），覆盖全部情报条目，每条都要有深度分析，不要缩水略过
 
 禁止：
 - 不要写"根据搜索结果""据悉""据报道"等冗余措辞
@@ -128,7 +128,7 @@ async function generateBriefing(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4000,
+      max_tokens: 6000,
       temperature: 0.4,
       messages: [
         { role: 'system', content: system },
