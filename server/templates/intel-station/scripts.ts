@@ -104,6 +104,15 @@ async function loadIntelData(forceRefresh){
         allIntelData.push(item);
       });
     });
+    // V3.7: Cross-source dedup by title (case-insensitive trimmed)
+    var seenTitles={};
+    allIntelData=allIntelData.filter(function(item){
+      var key=(item.title||'').trim().toLowerCase();
+      if(!key)return true;
+      if(seenTitles[key])return false;
+      seenTitles[key]=true;
+      return true;
+    });
     // Save to localStorage (30min TTL)
     try{localStorage.setItem(cacheKey,JSON.stringify({data:allIntelData,expiry:Date.now()+30*60*1000}));}catch(e){}
     // V3.4: Render policy stats bar instead
