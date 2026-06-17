@@ -3823,26 +3823,27 @@ app.post('/api/portal-intel', async (req, res) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
       const cached = portalIntelCache.get(cacheKey);
 
-      // Force refresh: return stale cache (if exists) + schedule background refresh
+      // Force refresh: fetch fresh data synchronously and wait
       if (force) {
-        console.log(`[PortalIntel] Force refresh: scheduling background update for "${src.name}"`);
-        // Schedule background refresh (don't clear cache first)
-        setTimeout(async () => {
-          try {
-            const intelData = await fetchIntelForSource(src, sources);
-            const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
-            portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
-            setTimeout(() => savePortalIntelCache(), 100);
-            console.log(`[PortalIntel] Background refresh complete for "${src.name}": ${intelData.length} items`);
-          } catch (err: any) {
-            console.error('[PortalIntel] Background refresh failed:', err.message);
+        console.log(`[PortalIntel] Force refresh: fetching fresh data for "${src.name}"`);
+        try {
+          const intelData = await Promise.race([
+            fetchIntelForSource(src, sources),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 120000))
+          ]);
+          const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+          portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
+          setTimeout(() => savePortalIntelCache(), 100);
+          console.log(`[PortalIntel] Force refresh complete for "${src.name}": ${intelData.length} items`);
+          return { sourceIdx: idx, data: intelData, fromCache: false, refreshing: false };
+        } catch (err: any) {
+          console.error(`[PortalIntel] Force refresh failed for "${src.name}":`, err.message);
+          // Fallback to cached data if available
+          if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+            return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: false };
           }
-        }, 100);
-
-        if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
-          return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
+          return { sourceIdx: idx, data: [], fromCache: false, refreshing: false, error: err.message };
         }
-        return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
       }
 
       // Non-force: return cached or empty
