@@ -118,9 +118,9 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .policy-stats-bar .psb-label{font-size:13px;font-weight:700;color:var(--text-primary);letter-spacing:0.5px;text-shadow:0 0 8px rgba(0,212,255,0.2)}
 .psb-cat-btn{font-size:12px;padding:5px 14px;border-radius:20px;background:rgba(0,212,255,0.06);color:var(--text-secondary);cursor:pointer;transition:all .25s;border:1px solid rgba(0,212,255,0.1);font-family:inherit;font-weight:500;position:relative;overflow:hidden}
 .psb-cat-btn::before{content:'';position:absolute;inset:0;border-radius:20px;background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(168,85,247,0.1));opacity:0;transition:opacity .25s}
-.psb-cat-btn:hover{color:#fff;border-color:rgba(0,212,255,0.35);transform:translateY(-1px);box-shadow:0 2px 12px rgba(0,212,255,0.15)}
+.psb-cat-btn:hover{color:#fff;border-color:var(--cat-color,rgba(0,212,255,0.35));transform:translateY(-1px);box-shadow:0 2px 12px rgba(0,212,255,0.15)}
 .psb-cat-btn:hover::before{opacity:1}
-.psb-cat-btn.active{background:linear-gradient(135deg,rgba(0,212,255,0.25),rgba(168,85,247,0.2));color:#fff;border-color:rgba(0,212,255,0.5);box-shadow:0 0 16px rgba(0,212,255,0.2),0 0 8px rgba(168,85,247,0.1);font-weight:600}
+.psb-cat-btn.active{background:linear-gradient(135deg,var(--cat-color,rgba(0,212,255,0.25)),rgba(0,0,0,0.15));color:#fff;border-color:var(--cat-color,rgba(0,212,255,0.5));box-shadow:0 0 16px var(--cat-color,rgba(0,212,255,0.2))}
 .psb-cat-btn em{font-style:normal;font-weight:600;font-size:11px;margin-left:4px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,0.1)}
 /* V3.6: Enhanced category cards with icons and color coding */
 .category-panel{display:flex;flex-direction:column;gap:8px}
@@ -142,6 +142,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .sf-expand{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(168,85,247,0.15);font-size:9px;margin-left:6px;transition:all .2s;vertical-align:middle;line-height:1}
 .sf-expand:hover{background:rgba(168,85,247,0.3);transform:scale(1.1)}
 .intel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.intel-card-colored{border-left:3px solid var(--cat-color,#00d4ff)}
 .intel-card:hover{border-color:rgba(0,212,255,0.3);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,0.1),0 0 16px rgba(168,85,247,0.08),inset 0 1px 0 rgba(255,255,255,0.03)}
 .intel-card-header{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .intel-card-title{font-size:14px;font-weight:600;color:var(--text-primary);flex:1;min-width:0;word-break:break-all;line-height:1.4}

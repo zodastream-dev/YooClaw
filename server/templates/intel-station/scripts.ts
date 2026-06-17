@@ -368,8 +368,10 @@ function renderPolicyStatsBar(data){
     return ia-ib;
   });
   var html='<span class=\"psb-label\">今日政策信号:</span>';
+  var catColors={'政策信号':'#00d4ff','金融监管':'#f59e0b','产业格局':'#a855f7','宏观数据':'#22c55e','国际环境':'#3b82f6','科技前沿':'#06b6d4','人事变动':'#ec4899'};
   sorted.forEach(function(cat){
-    html+='<button class=\"psb-cat-btn\" onclick=\"filterByPolicyCategory(&#39;'+escHtml(cat)+'&#39;,this)\">'+escHtml(cat)+' <em>'+cats[cat]+'</em></button>';
+    var color=catColors[cat]||'#00d4ff';
+    html+='<button class=\"psb-cat-btn\" style=\"--cat-color:'+color+'\" onclick=\"filterByPolicyCategory(&#39;'+escHtml(cat)+'&#39;,this)\">'+escHtml(cat)+' <em>'+cats[cat]+'</em></button>';
   });
   container.innerHTML=html;
 }
@@ -377,21 +379,21 @@ function renderPolicyStatsBar(data){
 function filterByPolicyCategory(cat,el){
   var active=el.classList.contains('active');
   // Toggle active
-  var allCats=document.querySelectorAll('.psb-cat');
+  var allCats=document.querySelectorAll('.psb-cat-btn');
   allCats.forEach(function(c){c.classList.remove('active')});
   if(!active)el.classList.add('active');
-  // Filter intel feed
+  // Filter intel feed: show only policy items in this category
   var filtered=active?allIntelData:allIntelData.filter(function(item){
     return item._signalType==='policy'&&(item._category||'')===cat;
   });
   if(active){
-    // Reset filter
+    // Deactivate: reset to show all intel
     renderIntelFeed(allIntelData);
     return;
   }
   // Show only matching policy items
   if(filtered.length===0){
-    renderIntelFeed([]);
+    $('intelFeed').innerHTML='<div class="intel-loading">该分类暂无情报</div>';
     return;
   }
   renderIntelFeed(filtered);
@@ -418,10 +420,17 @@ function renderIntelFeed(data){
     if(item._signalType==='policy') cardClass+=' intel-card-policy';
     if(score>=75) cardClass+=' intel-card-high';
     if(riskLevel==='CRITICAL') cardClass+=' intel-card-critical';
+    // Category color for left border accent
+    var catColor='';
+    if(item._signalType==='policy'&&item._category){
+      var ccMap={'政策信号':'#00d4ff','金融监管':'#f59e0b','产业格局':'#a855f7','宏观数据':'#22c55e','国际环境':'#3b82f6','科技前沿':'#06b6d4','人事变动':'#ec4899'};
+      catColor=ccMap[item._category]||'';
+    }
+    if(catColor) cardClass+=' intel-card-colored';
     var keywords=(item.keywords||[]).slice(0,3);
     var url=item.url||item.link||item.sourceUrl||item.href||'';
     var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
-    html+='<div class="'+cardClass+'"'+clickAttr+'>';
+    html+='<div class="'+cardClass+'"'+(catColor?' style="--cat-color:'+catColor+'"':'')+clickAttr+'>';
     html+='<div class="intel-card-header">';
     // V2.0: 价值分徽章
     if(score>0){
