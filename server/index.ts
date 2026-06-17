@@ -3682,6 +3682,7 @@ const PROVIDER_CN: Record<string, string> = {
   'rss-shanghaijrb': '上海金融监管局',
   'gov-mee-eia': '环保部', 'gov-ndrc-projects': '发改委项目',
   'gov-cbirc-notices': '金监总局',
+  'policy': '权威政策信号',
 };
 function translateProviders(items: any[]): void {
   for (const item of items) {

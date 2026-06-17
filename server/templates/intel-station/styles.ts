@@ -114,7 +114,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 /* Intel Feed Cards */
 .intel-feed{flex:1;overflow-y:auto;padding:16px 24px}
 /* V3.2: Policy signals section */
-.policy-signals{padding:0 24px 4px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.policy-signals{max-height:42vh;overflow-y:auto;padding:0 24px 4px;border-bottom:1px solid var(--border);margin-bottom:4px}
 .policy-signals.show{display:block!important}
 .policy-signal-section{margin-bottom:8px}
 .policy-signal-section-header{display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;border-bottom:1px solid rgba(var(--accent-rgb,0,212,255),0.15);margin-bottom:6px}
