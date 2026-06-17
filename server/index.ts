@@ -2896,7 +2896,10 @@ app.get('/web/:slug', async (req, res) => {
     }
     incrementSiteViewCount(slug).catch(() => {});
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(site.html_content);
+    // V3.4 hotfix: fix broken class= escaping in renderPolicyStatsBar
+    let htmlContent = site.html_content;
+    htmlContent = htmlContent.replace(/class=\\\\"psb-/g, 'class=\\"psb-');
+    res.send(htmlContent);
   } catch (err: any) {
     console.error('[Web Serve Error]', err.message);
     res.status(500).send('<html><body><h1>500 - 服务器错误</h1></body></html>');
