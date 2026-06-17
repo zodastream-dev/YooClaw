@@ -2901,7 +2901,7 @@ app.get('/web/:slug', async (req, res) => {
     // Browser needs \\" (1 backslash + quote) for proper JS string escaping.
     let htmlContent = site.html_content;
     // Use string replacement to avoid regex escape madness
-    htmlContent = htmlContent.split; console.log('HOTFIX running'); htmlContent = htmlContent.split(String.raw`class=\\"psb-`).join(String.raw`class=\"psb-`);
+    htmlContent = htmlContent.split(String.raw`class=\\"psb-`).join(String.raw`class=\"psb-`);
     res.send(htmlContent);
   } catch (err: any) {
     console.error('[Web Serve Error]', err.message);
