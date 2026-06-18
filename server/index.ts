@@ -3890,7 +3890,17 @@ app.post('/api/portal-intel', async (req, res) => {
       if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
         return { sourceIdx: idx, data: cached.data, fromCache: true };
       }
-      // Cache miss or expired: return empty for now, CacheWarmer will fill
+      // Cache miss or expired: trigger background warm then return empty
+      console.log(`[PortalIntel] Cache miss for "${src.name}", triggering background warm`);
+      setTimeout(async () => {
+        try {
+          const intelData = await fetchIntelForSource(src, sources);
+          const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+          portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
+          setTimeout(() => savePortalIntelCache(), 100);
+          console.log(`[PortalIntel] Cold-start warm complete for "${src.name}": ${intelData.length} items`);
+        } catch (e: any) { console.error('[PortalIntel] Cold-start warm failed:', e.message); }
+      }, 100);
       return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
     };
 
