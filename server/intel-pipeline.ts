@@ -716,8 +716,7 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
     const contextItems = objectName ? 100 : 50;
     const contextChars = objectName ? 15000 : 8000;
     const searchContext = hasSearch ? safeJsonTruncate(searchContextItems.slice(0, contextItems), contextChars) : '(无实时搜索结果。请基于你的知识生成情报摘要，但所有url字段必须留空字符串""，严禁编造任何网址)';
-    const sp = (src.customPrompt || '你是总行首席政策研究员，为省分行/总行副行长以上高管提供战略情报解码。') + '\n当前日期：' + today + '。所有标题和摘要必须使用中文。每条摘要约100字。非中文来源的内容必须翻译成中文。\n\n你的核心能力不是提取新闻，而是解码意图：把政治词汇翻译成信贷动作，把同业拜访解读为竞争威胁，把环评公示转化为项目机会。';
-    let up: string;
+    sp = (src.customPrompt || '你是总行首席政策研究员，为省分行/总行副行长以上高管提供战略情报解码。') + '\\n当前日期：' + today + '。所有标题和摘要必须使用中文。每条摘要约100字。非中文来源的内容必须翻译成中文。\\n\\n你的核心能力不是提取新闻，而是解码意图：把政治词汇翻译成信贷动作，把同业拜访解读为竞争威胁，把环评公示转化为项目机会。';
     if (objectName) {
       // Detect source type for specialized instructions
       const catCheck = (src.name || '').toLowerCase();
