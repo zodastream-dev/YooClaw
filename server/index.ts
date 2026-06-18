@@ -3784,6 +3784,27 @@ async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]>
   };
 
   // -- Objects expansion --
+  function dedupIntel(items: any[]): any[] {
+    const seenUrls = new Set<string>();
+    const seenTitles: { key: string; len: number }[] = [];
+    return items.filter((r: any) => {
+      const url = ((r.link || r.url || '').trim());
+      if (url) { const uk = url.toLowerCase(); if (seenUrls.has(uk)) return false; seenUrls.add(uk); }
+      if (r.title) {
+        const t = r.title.trim(); const tLen = t.length;
+        for (const seen of seenTitles) {
+          const shorter = tLen < seen.len ? t : seen.key;
+          const longer = tLen < seen.len ? seen.key : t;
+          if (shorter.length > 10 && longer.includes(shorter)) return false;
+          let maxL = 0;
+          for (let i = 0; i < tLen; i++) { for (let j = i + 8; j <= tLen; j++) { if (seen.key.includes(t.substring(i, j))) { maxL = Math.max(maxL, j - i); } else break; } }
+          if (maxL / Math.min(tLen, seen.len) > 0.75) return false;
+        }
+        seenTitles.push({ key: t, len: tLen });
+      }
+      return true;
+    });
+  }
   const objects: Array<{ name: string; keywords?: string[] }> = src.objects || [];
   if (objects.length > 0) {
     const allResults: any[] = [];
@@ -3799,47 +3820,6 @@ async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]>
         if (r.status === 'fulfilled') allResults.push(...r.value);
         else console.error('[fetchIntelForSource] Object failed:', r.reason?.message);
       }
-    }
-    // V3.7: Smart dedup — URL first, then fuzzy title matching
-    function dedupIntel(items: any[]): any[] {
-      const seenUrls = new Set<string>();
-      const seenTitles: { key: string; len: number }[] = [];
-      return items.filter((r: any) => {
-        // 1. Exact URL match (most reliable)
-        const url = ((r.link || r.url || '').trim()) as string;
-        if (url) {
-          const urlKey = url.toLowerCase();
-          if (seenUrls.has(urlKey)) return false;
-          seenUrls.add(urlKey);
-        }
-        // 2. Near-duplicate title detection (80%+ common substring overlap)
-        if (r.title) {
-          const t = r.title.trim();
-          const tLen = t.length;
-          // Check against previously seen titles
-          for (const seen of seenTitles) {
-            // Compute longest common substring length ratio
-            const overlap = longestCommonSubstring(t, seen.key);
-            const minLen = Math.min(tLen, seen.len);
-            if (minLen > 0 && overlap / minLen > 0.75) return false;
-          }
-          seenTitles.push({ key: t, len: tLen });
-        }
-        return true;
-      });
-    }
-    function longestCommonSubstring(a: string, b: string): number {
-      const m = a.length, n = b.length;
-      let maxLen = 0;
-      // Sliding window: check if b contains substrings of a
-      for (let i = 0; i < m; i++) {
-        for (let j = i + 8; j <= m; j++) { // minimum 8 chars to be meaningful
-          if (b.includes(a.substring(i, j))) {
-            maxLen = Math.max(maxLen, j - i);
-          } else break;
-        }
-      }
-      return maxLen;
     }
     allResults = dedupIntel(allResults);
     return allResults;
