@@ -937,9 +937,52 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // DeepSeek returns simple fields: { title, insight, category, score, source, url }
   // Map them to the standard intel item format with _signalType: "policy"
   if (isBanking && results && results.length > 0) {
+    // Build URL → provider lookup from policy context (RSS + tianapi)
+    const policyUrlToProvider: Record<string, string> = {};
+    for (const item of policyContext) {
+      if (item.url && item._searchProvider) {
+        policyUrlToProvider[item.url.trim()] = item._searchProvider;
+      }
+    }
+    // Also build title → provider for fuzzy matching
+    const policyTitleToProvider: Record<string, string> = {};
+    for (const item of policyContext) {
+      if (item.title && item._searchProvider) {
+        const t = item.title.trim().toLowerCase();
+        if (!policyTitleToProvider[t]) policyTitleToProvider[t] = item._searchProvider;
+      }
+    }
     results = results.map((r: any) => {
-      // Restore real provider from URL lookup, fallback to source name
-      const realProvider = (r.url && urlToProvider[r.url]) || r._searchProvider || r.source || '';
+      const rawUrl = (r.url || '').trim();
+      // Try exact URL match first
+      let realProvider = policyUrlToProvider[rawUrl] || '';
+      // Try URL without trailing slash
+      if (!realProvider && rawUrl.endsWith('/')) {
+        realProvider = policyUrlToProvider[rawUrl.slice(0, -1)] || '';
+      }
+      // Try title match
+      if (!realProvider && r.title) {
+        realProvider = policyTitleToProvider[r.title.trim().toLowerCase()] || '';
+      }
+      // Fallback: extract from URL hostname
+      if (!realProvider && rawUrl) {
+        try {
+          const host = new URL(rawUrl).hostname;
+          const hostMap: Record<string,string> = {
+            'people.com.cn':'rss-people','finance.people.com.cn':'rss-people',
+            'xinhuanet.com':'rss-xinhua','caixin.com':'rss-caixin',
+            'cbirc.gov.cn':'gov-cbirc','pbc.gov.cn':'rss-people',
+            'ndrc.gov.cn':'rss-ndrc','mof.gov.cn':'rss-mof',
+            'mee.gov.cn':'gov-mee','gov.cn':'gov',
+            'ce.cn':'rss-ce','stcn.com':'rss-stcn',
+          };
+          for (const [h, p] of Object.entries(hostMap)) {
+            if (host.includes(h)) { realProvider = p; break; }
+          }
+        } catch(e) {}
+      }
+      // Final fallback
+      if (!realProvider) realProvider = r.source || r._searchProvider || '';
       return {
         title: r.title || '',
         summary: r.insight || r.summary || '',
