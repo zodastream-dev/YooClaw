@@ -3866,24 +3866,22 @@ app.post('/api/portal-intel', async (req, res) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
       const cached = portalIntelCache.get(cacheKey);
 
-      // Force refresh: return cached (or empty) immediately + trigger background refresh
+      // Force refresh: run synchronously and return fresh data with errors
       if (force) {
-        console.log(`[PortalIntel] Force refresh: scheduling background update for "${src.name}"`);
-        setTimeout(async () => {
-          try {
-            const intelData = await fetchIntelForSource(src, sources);
-            const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
-            portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
-            setTimeout(() => savePortalIntelCache(), 100);
-            console.log(`[PortalIntel] Background refresh complete for "${src.name}": ${intelData.length} items`);
-          } catch (err: any) {
-            console.error('[PortalIntel] Background refresh failed:', err.message);
-          }
-        }, 100);
-        if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
-          return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
+        console.log(`[PortalIntel] Force sync refresh for "${src.name}"`);
+        try {
+          const intelData = await Promise.race([
+            fetchIntelForSource(src, sources),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout 60s')), 60000))
+          ]) as any[];
+          const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+          portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
+          setTimeout(() => savePortalIntelCache(), 100);
+          return { sourceIdx: idx, data: intelData, fromCache: false };
+        } catch (err: any) {
+          console.error('[PortalIntel] Force sync failed:', err.message);
+          return { sourceIdx: idx, data: [], fromCache: false, error: err.message };
         }
-        return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
       }
 
       // Non-force: return cached or empty
