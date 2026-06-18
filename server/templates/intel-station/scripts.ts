@@ -39,6 +39,7 @@ var expandedSources={};
 })();
 
 /* ===== LOAD INTEL DATA ===== */
+var coldPollActive=false;
 async function loadIntelData(forceRefresh){
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   if(monitors.length===0){
@@ -154,7 +155,7 @@ async function loadIntelData(forceRefresh){
     $("updateInfo").style.display="";
     $('intelLoading').style.display='none';
 
-    // Force refresh polling: if data is empty and backend is refreshing, poll every 5s
+    // V3.7: Auto-poll when backend is refreshing (covers cold start after server restart)
     if(forceRefresh && allIntelData.length===0 && hasRefreshing){
       console.log('[loadIntelData] Force refresh: starting poll (data empty, backend refreshing)');
       $('feedStatus').textContent='情报更新中...';
@@ -174,6 +175,18 @@ async function loadIntelData(forceRefresh){
           }
         });
       }, 5000);
+    }
+    // V3.7: Non-force poll when cache is empty but backend is warming
+    if(!forceRefresh && !coldPollActive && allIntelData.length===0 && hasRefreshing){
+      coldPollActive=true;
+      $('feedStatus').textContent='情报更新中...';
+      var pollCount2=0;
+      var pollTimer2=setInterval(function(){
+        pollCount2++;
+        if(pollCount2>=24){clearInterval(pollTimer2);coldPollActive=false;$('feedStatus').textContent='暂无情报数据（后台更新中，请稍后刷新）';$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据，情报源正在后台更新，请稍后刷新页面。</div>';$('intelLoading').style.display='none';return}
+        loadIntelData();
+        if(allIntelData.length>0){clearInterval(pollTimer2);coldPollActive=false}
+      }, 8000);
     }
   } catch(e) {
     if(!cachedData){
