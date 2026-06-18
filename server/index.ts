@@ -3846,22 +3846,22 @@ app.post('/api/portal-intel', async (req, res) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
       const cached = portalIntelCache.get(cacheKey);
 
-      // Force refresh: run synchronously and return fresh data with errors
+      // Force refresh: return cached immediately + trigger background warm
       if (force) {
-        console.log(`[PortalIntel] Force sync refresh for "${src.name}"`);
-        try {
-          const intelData = await Promise.race([
-            fetchIntelForSource(src, sources),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout 60s')), 60000))
-          ]) as any[];
-          const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
-          portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
-          setTimeout(() => savePortalIntelCache(), 100);
-          return { sourceIdx: idx, data: intelData, fromCache: false };
-        } catch (err: any) {
-          console.error('[PortalIntel] Force sync failed:', err.message);
-          return { sourceIdx: idx, data: [], fromCache: false, error: err.message };
+        console.log(`[PortalIntel] Force refresh for "${src.name}" — triggering async warm`);
+        setTimeout(async () => {
+          try {
+            const intelData = await fetchIntelForSource(src, sources);
+            const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
+            portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
+            setTimeout(() => savePortalIntelCache(), 100);
+            console.log(`[PortalIntel] Warm complete for "${src.name}": ${intelData.length} items`);
+          } catch (e: any) { console.error('[PortalIntel] Warm failed:', e.message); }
+        }, 100);
+        if (cached && cached.expiry > now && Array.isArray(cached.data) && cached.data.length > 0) {
+          return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: true };
         }
+        return { sourceIdx: idx, data: [], fromCache: false, refreshing: true };
       }
 
       // Non-force: return cached or empty
