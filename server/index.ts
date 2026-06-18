@@ -3784,30 +3784,9 @@ async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]>
   };
 
   // -- Objects expansion --
-  function dedupIntel(items: any[]): any[] {
-    const seenUrls = new Set<string>();
-    const seenTitles: { key: string; len: number }[] = [];
-    return items.filter((r: any) => {
-      const url = ((r.link || r.url || '').trim());
-      if (url) { const uk = url.toLowerCase(); if (seenUrls.has(uk)) return false; seenUrls.add(uk); }
-      if (r.title) {
-        const t = r.title.trim(); const tLen = t.length;
-        for (const seen of seenTitles) {
-          const shorter = tLen < seen.len ? t : seen.key;
-          const longer = tLen < seen.len ? seen.key : t;
-          if (shorter.length > 10 && longer.includes(shorter)) return false;
-          let maxL = 0;
-          for (let i = 0; i < tLen; i++) { for (let j = i + 8; j <= tLen; j++) { if (seen.key.includes(t.substring(i, j))) { maxL = Math.max(maxL, j - i); } else break; } }
-          if (maxL / Math.min(tLen, seen.len) > 0.75) return false;
-        }
-        seenTitles.push({ key: t, len: tLen });
-      }
-      return true;
-    });
-  }
   const objects: Array<{ name: string; keywords?: string[] }> = src.objects || [];
   if (objects.length > 0) {
-    const allResults: any[] = [];
+    let allResults: any[] = [];
     // Process objects in chunks of 4 for faster first load
     for (let i = 0; i < objects.length; i += 4) {
       const chunk = objects.slice(i, i + 4);
@@ -3820,6 +3799,47 @@ async function fetchIntelForSource(src: any, allSources?: any[]): Promise<any[]>
         if (r.status === 'fulfilled') allResults.push(...r.value);
         else console.error('[fetchIntelForSource] Object failed:', r.reason?.message);
       }
+    }
+    // V3.7: Smart dedup — URL first, then fuzzy title matching
+    function dedupIntel(items: any[]): any[] {
+      const seenUrls = new Set<string>();
+      const seenTitles: { key: string; len: number }[] = [];
+      return items.filter((r: any) => {
+        // 1. Exact URL match (most reliable)
+        const url = ((r.link || r.url || '').trim()) as string;
+        if (url) {
+          const urlKey = url.toLowerCase();
+          if (seenUrls.has(urlKey)) return false;
+          seenUrls.add(urlKey);
+        }
+        // 2. Near-duplicate title detection (80%+ common substring overlap)
+        if (r.title) {
+          const t = r.title.trim();
+          const tLen = t.length;
+          // Check against previously seen titles
+          for (const seen of seenTitles) {
+            // Compute longest common substring length ratio
+            const overlap = longestCommonSubstring(t, seen.key);
+            const minLen = Math.min(tLen, seen.len);
+            if (minLen > 0 && overlap / minLen > 0.75) return false;
+          }
+          seenTitles.push({ key: t, len: tLen });
+        }
+        return true;
+      });
+    }
+    function longestCommonSubstring(a: string, b: string): number {
+      const m = a.length, n = b.length;
+      let maxLen = 0;
+      // Sliding window: check if b contains substrings of a
+      for (let i = 0; i < m; i++) {
+        for (let j = i + 8; j <= m; j++) { // minimum 8 chars to be meaningful
+          if (b.includes(a.substring(i, j))) {
+            maxLen = Math.max(maxLen, j - i);
+          } else break;
+        }
+      }
+      return maxLen;
     }
     allResults = dedupIntel(allResults);
     return allResults;
@@ -3846,22 +3866,26 @@ app.post('/api/portal-intel', async (req, res) => {
       const cacheKey = JSON.stringify({ name: src.name, keywords: src.keywords, aiProvider: src.aiProvider, objects: src.objects });
       const cached = portalIntelCache.get(cacheKey);
 
-      // DEBUG: force sync to surface pipeline errors
+      // Force refresh: fetch fresh data synchronously and wait
       if (force) {
-        console.log(`[PortalIntel] Force sync debug for "${src.name}"`);
+        console.log(`[PortalIntel] Force refresh: fetching fresh data for "${src.name}"`);
         try {
           const intelData = await Promise.race([
             fetchIntelForSource(src, sources),
-            new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('timeout_120s')), 120000))
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 120000))
           ]);
           const freqMs = FREQ_MS[src.updateFrequency] || FREQ_MS.daily;
           portalIntelCache.set(cacheKey, { data: intelData, expiry: Date.now() + freqMs });
           setTimeout(() => savePortalIntelCache(), 100);
-          console.log(`[PortalIntel] Force sync done for "${src.name}": ${intelData.length} items`);
-          return { sourceIdx: idx, data: intelData, fromCache: false };
+          console.log(`[PortalIntel] Force refresh complete for "${src.name}": ${intelData.length} items`);
+          return { sourceIdx: idx, data: intelData, fromCache: false, refreshing: false };
         } catch (err: any) {
-          console.error('[PortalIntel] Force sync failed:', err.message);
-          return { sourceIdx: idx, data: [], fromCache: false, error: err.message };
+          console.error(`[PortalIntel] Force refresh failed for "${src.name}":`, err.message);
+          // Fallback to cached data if available
+          if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+            return { sourceIdx: idx, data: cached.data, fromCache: true, refreshing: false };
+          }
+          return { sourceIdx: idx, data: [], fromCache: false, refreshing: false, error: err.message };
         }
       }
 
