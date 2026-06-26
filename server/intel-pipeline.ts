@@ -661,8 +661,9 @@ export async function callIntel(effectiveKwArr: string[], src: any, objectName?:
   // DeepSeek itself judges structural impact — not keyword matching.
   // URL → _searchProvider lookup (function scope, used later in post-processing)
   let urlToProvider: Record<string, string> = {};
+  let policyContext: any[] = []; // V3.2: hoisted to function scope for post-processing access
   if (isBanking) {
-    const policyContext = hasSearch
+    policyContext = hasSearch
       ? fullContentItems.concat(rawItems.filter((r: any) => (r.url || '').indexOf('tianapi') > -1 || r._searchProvider === 'tianapi-generalnews'))
       : fullContentItems;
     // Build URL → _searchProvider lookup so we can restore real provider names after DeepSeek
