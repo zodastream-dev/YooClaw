@@ -3674,6 +3674,40 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
   }
 });
 
+// Serve videos for portal teaching page
+const path = require('path');
+const fs = require('fs');
+app.get('/api/p/videos/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    // Sanitize: only allow alphanumeric, dash, underscore, dot
+    if (!/^[\w\.-]+$/.test(filename)) {
+      return res.status(400).send('Invalid filename');
+    }
+    // Look in /opt/YooClaw/videos/ on server, fallback to project videos dir
+    const videoPaths = [
+      '/opt/YooClaw/videos/' + filename,
+      path.join(__dirname, '..', 'videos', filename),
+    ];
+    for (const videoPath of videoPaths) {
+      if (fs.existsSync(videoPath)) {
+        const stat = fs.statSync(videoPath);
+        res.writeHead(200, {
+          'Content-Type': 'video/mp4',
+          'Content-Length': stat.size,
+          'Accept-Ranges': 'bytes',
+        });
+        fs.createReadStream(videoPath).pipe(res);
+        return;
+      }
+    }
+    res.status(404).send('Video not found. Upload videos to /opt/YooClaw/videos/ on server.');
+  } catch (err: any) {
+    console.error('[Video Serve Error]', err.message);
+    res.status(500).send('Error serving video');
+  }
+});
+
 
 // Portal Intel API - fetch intelligence data from sources (server-side)
 const portalIntelCache = new Map<string, { data: any; expiry: number }>();

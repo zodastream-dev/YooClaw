@@ -693,7 +693,7 @@ function switchCenterTab(tab){
   var tabs=document.querySelectorAll('#centerTabs .ct-tab');
   tabs.forEach(function(t){t.classList.remove('active')});
   var cmd=$('cmdInput');
-  $('intelFeed').style.display='none';$('briefingFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='none';
+  $('intelFeed').style.display='none';$('briefingFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='none';$('videoFeed').style.display='none';
   $('intelSubFilters').style.display='none';$('intelObjFilters').style.display='none';$('policyStatsBar').style.display='none';
   if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
   if(tab==='intel'){
@@ -715,6 +715,11 @@ function switchCenterTab(tab){
     $('aiChat').style.display='';
     $('feedStatus').textContent='AI助手';
     if(cmd){cmd.placeholder='输入你的问题，按Enter发送...';cmd.dataset.mode='ai'}
+  } else if(tab==='videos'){
+    tabs[4].classList.add('active');
+    $('videoFeed').style.display='';
+    $('feedStatus').textContent='workbuddy视频教学';
+    renderVideoContent();
   }
 }
 
@@ -1597,5 +1602,16 @@ function deployPortal(){
       btn.style.opacity='1';
       alert('部署失败: '+e.message);
     });
+}
+/* ===== V3.7: Video Teaching Page ===== */
+function renderVideoContent(){
+  var container=$('videoContent');
+  if(!container)return;
+  var html='<div class="video-grid">';
+  html+='<div class="video-card"><div class="video-thumb"><video controls preload="metadata" width="100%" style="border-radius:8px;background:#000"><source src="'+API+'/api/p/videos/workbuddyS1E1.mp4" type="video/mp4"></video></div><div class="video-info"><h3 class="video-title">第1集：初识WorkBuddy</h3><p class="video-desc">了解WorkBuddy的基本概念和界面操作</p></div></div>';
+  html+='<div class="video-card"><div class="video-thumb"><video controls preload="metadata" width="100%" style="border-radius:8px;background:#000"><source src="'+API+'/api/p/videos/workbuddyS1E2.mp4" type="video/mp4"></video></div><div class="video-info"><h3 class="video-title">第2集：情报门户基础操作</h3><p class="video-desc">学习如何使用情报门户和监控配置</p></div></div>';
+  html+='</div>';
+  container.innerHTML=html;
+}
 }`;
 }
