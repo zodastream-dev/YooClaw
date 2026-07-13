@@ -1613,5 +1613,5 @@ function renderVideoContent(){
   html+='</div>';
   container.innerHTML=html;
 }
-}`;
+`;
 }
