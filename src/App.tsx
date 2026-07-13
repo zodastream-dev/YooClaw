@@ -8,6 +8,7 @@ import { PortalCreatePage } from '@/pages/PortalCreatePage'
 import { PortalBuilderPage } from '@/pages/PortalBuilderPage'
 import { GameCreatePage } from '@/pages/GameCreatePage'
 import { VideoCreatePage } from '@/pages/VideoCreatePage'
+import { VideoTeachingPage } from '@/pages/VideoTeachingPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ProfilePage } from '@/pages/ProfilePage'
@@ -114,6 +115,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <VideoCreatePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/videos/teaching"
+              element={
+                <ProtectedRoute>
+                  <VideoTeachingPage />
                 </ProtectedRoute>
               }
             />
