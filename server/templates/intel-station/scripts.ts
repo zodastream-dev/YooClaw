@@ -39,7 +39,6 @@ var expandedSources={};
 })();
 
 /* ===== LOAD INTEL DATA ===== */
-var coldPollActive=false;
 async function loadIntelData(forceRefresh){
   var monitors=WIDGETS.filter(function(w){return w.type==='intel-monitor'||w.type==='monitor'});
   if(monitors.length===0){
@@ -105,33 +104,6 @@ async function loadIntelData(forceRefresh){
         allIntelData.push(item);
       });
     });
-    // V3.7: Cross-source smart dedup — URL exact match first, then title word-overlap
-    var deduped=[];
-    var seenUrls2={};
-    allIntelData.forEach(function(item){
-      var url=(item.link||item.url||'').trim();
-      if(url){var uk=url.toLowerCase();if(seenUrls2[uk])return;seenUrls2[uk]=true}
-      var t=(item.title||'').trim();
-      if(t&&t.length>10){
-        // Check against already-kept items for 75%+ title similarity
-        for(var k=0;k<deduped.length;k++){
-          var dt=deduped[k].title.trim();
-          if(!dt)continue;
-          // Simple check: does one title contain the other, or share >75% common chars?
-          var shorter=t.length<dt.length?t:dt;
-          var longer=t.length<dt.length?dt:t;
-          if(longer.indexOf(shorter)>=0)return; // substring match
-          // Count common words
-          var tw=t.split(/[\\s,，、。；：""''（）()]+/).filter(Boolean);
-          var dw=dt.split(/[\\s,，、。；：""''（）()]+/).filter(Boolean);
-          var common=0;
-          tw.forEach(function(w){if(dw.indexOf(w)>=0)common++});
-          if(common>0&&common/Math.max(tw.length,dw.length)>0.7)return;
-        }
-      }
-      deduped.push(item);
-    });
-    allIntelData=deduped;
     // Save to localStorage (30min TTL)
     try{localStorage.setItem(cacheKey,JSON.stringify({data:allIntelData,expiry:Date.now()+30*60*1000}));}catch(e){}
     // V3.4: Render policy stats bar instead
@@ -155,7 +127,7 @@ async function loadIntelData(forceRefresh){
     $("updateInfo").style.display="";
     $('intelLoading').style.display='none';
 
-    // V3.7: Auto-poll when backend is refreshing (covers cold start after server restart)
+    // Force refresh polling: if data is empty and backend is refreshing, poll every 5s
     if(forceRefresh && allIntelData.length===0 && hasRefreshing){
       console.log('[loadIntelData] Force refresh: starting poll (data empty, backend refreshing)');
       $('feedStatus').textContent='情报更新中...';
@@ -175,18 +147,6 @@ async function loadIntelData(forceRefresh){
           }
         });
       }, 5000);
-    }
-    // V3.7: Non-force poll when cache is empty but backend is warming
-    if(!forceRefresh && !coldPollActive && allIntelData.length===0 && hasRefreshing){
-      coldPollActive=true;
-      $('feedStatus').textContent='情报更新中...';
-      var pollCount2=0;
-      var pollTimer2=setInterval(function(){
-        pollCount2++;
-        if(pollCount2>=24){clearInterval(pollTimer2);coldPollActive=false;$('feedStatus').textContent='暂无情报数据（后台更新中，请稍后刷新）';$('intelFeed').innerHTML='<div class="intel-loading">暂无情报数据，情报源正在后台更新，请稍后刷新页面。</div>';$('intelLoading').style.display='none';return}
-        loadIntelData();
-        if(allIntelData.length>0){clearInterval(pollTimer2);coldPollActive=false}
-      }, 8000);
     }
   } catch(e) {
     if(!cachedData){
@@ -408,10 +368,8 @@ function renderPolicyStatsBar(data){
     return ia-ib;
   });
   var html='<span class=\"psb-label\">今日政策信号:</span>';
-  var catColors={'政策信号':'#00d4ff','金融监管':'#f59e0b','产业格局':'#a855f7','宏观数据':'#22c55e','国际环境':'#3b82f6','科技前沿':'#06b6d4','人事变动':'#ec4899'};
   sorted.forEach(function(cat){
-    var color=catColors[cat]||'#00d4ff';
-    html+='<button class=\"psb-cat-btn\" style=\"--cat-color:'+color+'\" onclick=\"filterByPolicyCategory(&#39;'+escHtml(cat)+'&#39;,this)\">'+escHtml(cat)+' <em>'+cats[cat]+'</em></button>';
+    html+='<button class=\"psb-cat-btn\" onclick=\"filterByPolicyCategory(&#39;'+escHtml(cat)+'&#39;,this)\">'+escHtml(cat)+' <em>'+cats[cat]+'</em></button>';
   });
   container.innerHTML=html;
 }
@@ -419,21 +377,21 @@ function renderPolicyStatsBar(data){
 function filterByPolicyCategory(cat,el){
   var active=el.classList.contains('active');
   // Toggle active
-  var allCats=document.querySelectorAll('.psb-cat-btn');
+  var allCats=document.querySelectorAll('.psb-cat');
   allCats.forEach(function(c){c.classList.remove('active')});
   if(!active)el.classList.add('active');
-  // Filter intel feed: show only policy items in this category
+  // Filter intel feed
   var filtered=active?allIntelData:allIntelData.filter(function(item){
     return item._signalType==='policy'&&(item._category||'')===cat;
   });
   if(active){
-    // Deactivate: reset to show all intel
+    // Reset filter
     renderIntelFeed(allIntelData);
     return;
   }
   // Show only matching policy items
   if(filtered.length===0){
-    $('intelFeed').innerHTML='<div class="intel-loading">该分类暂无情报</div>';
+    renderIntelFeed([]);
     return;
   }
   renderIntelFeed(filtered);
@@ -460,17 +418,10 @@ function renderIntelFeed(data){
     if(item._signalType==='policy') cardClass+=' intel-card-policy';
     if(score>=75) cardClass+=' intel-card-high';
     if(riskLevel==='CRITICAL') cardClass+=' intel-card-critical';
-    // Category color for left border accent
-    var catColor='';
-    if(item._signalType==='policy'&&item._category){
-      var ccMap={'政策信号':'#00d4ff','金融监管':'#f59e0b','产业格局':'#a855f7','宏观数据':'#22c55e','国际环境':'#3b82f6','科技前沿':'#06b6d4','人事变动':'#ec4899'};
-      catColor=ccMap[item._category]||'';
-    }
-    if(catColor) cardClass+=' intel-card-colored';
     var keywords=(item.keywords||[]).slice(0,3);
     var url=item.url||item.link||item.sourceUrl||item.href||'';
     var clickAttr=url?' data-url="'+escHtml(url)+'" onclick="if(this.dataset.url)window.open(this.dataset.url,&#39;_blank&#39;)"':'';
-    html+='<div class="'+cardClass+'"'+(catColor?' style="--cat-color:'+catColor+'"':'')+clickAttr+'>';
+    html+='<div class="'+cardClass+'"'+clickAttr+'>';
     html+='<div class="intel-card-header">';
     // V2.0: 价值分徽章
     if(score>0){
@@ -693,7 +644,7 @@ function switchCenterTab(tab){
   var tabs=document.querySelectorAll('#centerTabs .ct-tab');
   tabs.forEach(function(t){t.classList.remove('active')});
   var cmd=$('cmdInput');
-  $('intelFeed').style.display='none';$('briefingFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='none';$('videoFeed').style.display='none';
+  $('intelFeed').style.display='none';$('briefingFeed').style.display='none';$('reportFeed').style.display='none';$('aiChat').style.display='none';
   $('intelSubFilters').style.display='none';$('intelObjFilters').style.display='none';$('policyStatsBar').style.display='none';
   if(cmd){cmd.placeholder='请在这里提问或给我指令';cmd.dataset.mode='command'}
   if(tab==='intel'){
@@ -715,11 +666,6 @@ function switchCenterTab(tab){
     $('aiChat').style.display='';
     $('feedStatus').textContent='AI助手';
     if(cmd){cmd.placeholder='输入你的问题，按Enter发送...';cmd.dataset.mode='ai'}
-  } else if(tab==='videos'){
-    tabs[4].classList.add('active');
-    $('videoFeed').style.display='';
-    $('feedStatus').textContent='workbuddy视频教学';
-    renderVideoContent();
   }
 }
 
@@ -840,8 +786,8 @@ function renderBriefing(data){
       html+='<h3>'+sub+'</h3>';
       continue;
     }
-    // Bold (template string escaping: \\*\\* → \*\* in output JS)
-    line=line.replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>');
+    // Bold
+    line=line.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
     // Blockquote
     if(line.match(/^> /)){
       if(!inQuote){html+='<blockquote>';inQuote=true;}
@@ -850,11 +796,7 @@ function renderBriefing(data){
       if(inQuote){html+='</blockquote>';inQuote=false;}
       // Emoji markers
       line=line.replace(/📌/g,'<span class="bm-pin">📌</span>');
-      if(line.indexOf('核心判断')!==-1){
-        html+='<div class="bj-core-judgment"><p>'+line+'</p></div>';
-      } else {
-        html+='<p>'+line+'</p>';
-      }
+      html+='<p>'+line+'</p>';
     }
   }
   if(inQuote)html+='</blockquote>';
@@ -1602,16 +1544,5 @@ function deployPortal(){
       btn.style.opacity='1';
       alert('部署失败: '+e.message);
     });
-}
-/* ===== V3.7: Video Teaching Page ===== */
-function renderVideoContent(){
-  var container=$('videoContent');
-  if(!container)return;
-  var html='<div class="video-grid">';
-  html+='<div class="video-card"><div class="video-thumb"><video controls preload="metadata" width="100%" style="border-radius:8px;background:#000"><source src="'+API+'/api/p/videos/workbuddyS1E1.mp4" type="video/mp4"></video></div><div class="video-info"><h3 class="video-title">第1集：初识WorkBuddy</h3><p class="video-desc">了解WorkBuddy的基本概念和界面操作</p></div></div>';
-  html+='<div class="video-card"><div class="video-thumb"><video controls preload="metadata" width="100%" style="border-radius:8px;background:#000"><source src="'+API+'/api/p/videos/workbuddyS1E2.mp4" type="video/mp4"></video></div><div class="video-info"><h3 class="video-title">第2集：情报门户基础操作</h3><p class="video-desc">学习如何使用情报门户和监控配置</p></div></div>';
-  html+='</div>';
-  container.innerHTML=html;
-}
-`;
+}`;
 }

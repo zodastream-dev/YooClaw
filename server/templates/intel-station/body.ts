@@ -39,7 +39,6 @@ export function intelStationBody(sn: string): string {
         <span class="ct-tab" onclick="switchCenterTab('briefing')">&#x1F4F0; 今日政策简报</span>
         <span class="ct-tab" onclick="switchCenterTab('reports')">&#x1F4C8; 行业分析报告</span>
         <span class="ct-tab" onclick="switchCenterTab('ai')">&#x1F916; AI助手</span>
-        <span class="ct-tab" onclick="switchCenterTab('videos')">&#x1F4FA; workbuddy视频教学</span>
       </div>
       <span class="status-text" id="feedStatus">加载中...</span>
       <span class="update-info" id="updateInfo" style="display:none"></span>
@@ -66,9 +65,6 @@ export function intelStationBody(sn: string): string {
       <div class="ai-chat-messages" id="aiChatMessages">
         <div class="ai-msg ai-msg-bot">&#x1F44B; 你好！我是AI助手，可以帮你分析行业趋势、解读情报数据、回答相关问题。请随时向我提问。</div>
       </div>
-    </div>
-    <div class="video-feed" id="videoFeed" style="display:none">
-      <div class="video-content" id="videoContent"></div>
     </div>
   </div>
 
