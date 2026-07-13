@@ -3675,8 +3675,6 @@ app.delete('/api/p/reports/:slug/:reportSlug', async (req, res) => {
 });
 
 // Serve videos for portal teaching page
-const path = require('path');
-const fs = require('fs');
 app.get('/api/p/videos/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
