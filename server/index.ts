@@ -3684,6 +3684,7 @@ app.get('/api/p/videos/:filename', async (req, res) => {
     }
     // Look in /opt/YooClaw/videos/ on server, fallback to project videos dir
     const videoPaths = [
+      '/opt/videos/yooclaw/' + filename,
       '/opt/YooClaw/videos/' + filename,
       path.join(__dirname, '..', 'videos', filename),
     ];
