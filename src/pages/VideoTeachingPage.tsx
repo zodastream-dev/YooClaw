@@ -8,14 +8,30 @@ const videos = [
     title: '第1集：初识WorkBuddy',
     desc: '了解WorkBuddy的基本概念和界面，第一次启动和登录流程',
     file: '/api/p/videos/workbuddyS1E1.mp4',
-    duration: '23分钟',
   },
   {
     id: '2',
     title: '第2集：情报门户基础操作',
     desc: '学习如何使用情报门户、监控配置和情报筛选功能',
     file: '/api/p/videos/workbuddyS1E2.mp4',
-    duration: '19分钟',
+  },
+  {
+    id: '3',
+    title: '第3集：高级功能与技巧',
+    desc: '掌握WorkBuddy的高级特性和使用技巧',
+    file: '/api/p/videos/workbuddyS1E3.mp4',
+  },
+  {
+    id: '4',
+    title: '第4集：实战案例',
+    desc: '通过实际案例学习如何高效使用WorkBuddy',
+    file: '/api/p/videos/workbuddyS1E4.mp4',
+  },
+  {
+    id: '5',
+    title: '第5集：总结与进阶',
+    desc: '回顾核心知识点，探索更多进阶用法',
+    file: '/api/p/videos/workbuddyS1E5.mp4',
   },
 ]
 
@@ -75,14 +91,6 @@ export function VideoTeachingPage() {
                 </div>
               ))}
             </div>
-
-            {/* More episodes coming */}
-            <div className="text-center py-8 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                更多课程内容持续更新中，敬请期待
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
