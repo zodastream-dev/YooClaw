@@ -57,7 +57,7 @@ export function VideoTeachingPage() {
             </div>
 
             {/* Video Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {videos.map((v) => (
                 <div
                   key={v.id}
@@ -82,15 +82,11 @@ export function VideoTeachingPage() {
                   <div className="p-4">
                     <h3 className="text-[15px] font-semibold text-foreground mb-1">{v.title}</h3>
                     <p className="text-xs text-muted-foreground mb-3">{v.desc}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-500 border border-purple-500/20">
-                        {v.duration}
-                      </span>
-                    </div>
                   </div>
                 </div>
               ))}
             </div>
+          </div>
         </div>
       </div>
     </div>
