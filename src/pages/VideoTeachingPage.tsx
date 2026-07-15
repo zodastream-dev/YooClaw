@@ -1,6 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
-import { Monitor, Play } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 
 const videos = [
   {
@@ -64,18 +64,13 @@ export function VideoTeachingPage() {
                   className="group relative rounded-xl border border-border bg-card overflow-hidden hover:shadow-xl hover:shadow-purple-500/5 transition-all duration-300"
                 >
                   {/* Video Player */}
-                  <div className="relative bg-black aspect-video flex items-center justify-center">
+                  <div className="relative bg-black aspect-video">
                     <video
                       controls
                       preload="metadata"
                       className="w-full h-full object-contain"
                       src={v.file}
                     />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                      <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                        <Play size={28} className="text-white ml-1" />
-                      </div>
-                    </div>
                   </div>
 
                   {/* Video Info */}
