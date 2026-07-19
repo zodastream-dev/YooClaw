@@ -3691,12 +3691,29 @@ app.get('/api/p/videos/:filename', async (req, res) => {
     for (const videoPath of videoPaths) {
       if (fs.existsSync(videoPath)) {
         const stat = fs.statSync(videoPath);
-        res.writeHead(200, {
-          'Content-Type': 'video/mp4',
-          'Content-Length': stat.size,
-          'Accept-Ranges': 'bytes',
-        });
-        fs.createReadStream(videoPath).pipe(res);
+        const fileSize = stat.size;
+        const range = req.headers.range;
+
+        if (range) {
+          const parts = range.replace(/bytes=/, '').split('-');
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+          const chunkSize = (end - start) + 1;
+
+          res.writeHead(206, {
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunkSize,
+            'Content-Type': 'video/mp4',
+          });
+          fs.createReadStream(videoPath, { start, end }).pipe(res);
+        } else {
+          res.writeHead(200, {
+            'Content-Length': fileSize,
+            'Content-Type': 'video/mp4',
+          });
+          fs.createReadStream(videoPath).pipe(res);
+        }
         return;
       }
     }
