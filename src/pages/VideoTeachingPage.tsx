@@ -5,21 +5,33 @@ import { Monitor } from 'lucide-react'
 const videos = [
   {
     id: '1',
-    title: '第1集：初识WorkBuddy',
-    desc: '了解WorkBuddy的基本概念和界面，第一次启动和登录流程',
+    title: '第1集：认识 WorkBuddy',
+    desc: '安装启动，第一次对话，理解 WorkBuddy 的基本操作',
     file: '/api/p/videos/workbuddyS1E1.mp4',
   },
   {
-    id: '5',
-    title: '第5集：高级功能与技巧',
-    desc: '掌握WorkBuddy的高级特性和使用技巧',
-    file: '/api/p/videos/workbuddyS1E5.mp4',
+    id: '2',
+    title: '第2集：搭建网站框架',
+    desc: '一句话让 WorkBuddy 创建出完整的银行情报门户页面',
+    file: '/api/p/videos/workbuddyS1E2.mp4',
   },
   {
-    id: '6',
-    title: '第6集：实战案例',
-    desc: '通过实际案例学习如何高效使用WorkBuddy',
-    file: '/api/p/videos/workbuddyS1E6.mp4',
+    id: '3',
+    title: '第3集：真实数据接入',
+    desc: '让网站自动从网上搜索银行业的最新情报，用真实信息替换示例数据',
+    file: '/api/p/videos/workbuddyS1E3.mp4',
+  },
+  {
+    id: '4',
+    title: '第4集：直达源头抓取',
+    desc: '直接去人民银行、银保监会、新华社财经频道获取权威一手信息',
+    file: '/api/p/videos/workbuddyS1E4.mp4',
+  },
+  {
+    id: '7',
+    title: '第7集：域名与部署',
+    desc: '注册域名、购买服务器，让网站正式上线',
+    file: '/api/p/videos/workbuddyS1E7.mp4',
   },
 ]
 
