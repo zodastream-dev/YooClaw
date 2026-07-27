@@ -35,14 +35,14 @@ const videos = [
   },
   {
     id: '6',
-    title: '第6集：优化情报网站',
-    desc: '页面打磨与四大维度功能深化',
+    title: '第6集：优化情报网站的数据源',
+    desc: '使用特定"技能"，用真实数据源替换模拟数据',
     file: '/api/p/videos/workbuddyS1E6.mp4',
   },
   {
     id: '7',
-    title: '第7集：域名与部署',
-    desc: '注册域名、购买服务器，让网站正式上线',
+    title: '第7集：完成情报网站的任务',
+    desc: '如何申请第三方应用的接口和api key来优化数据源',
     file: '/api/p/videos/workbuddyS1E7.mp4',
   },
 ]
