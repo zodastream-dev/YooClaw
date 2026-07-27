@@ -17,8 +17,8 @@ const videos = [
   },
   {
     id: '3',
-    title: '第3集：真实数据接入',
-    desc: '让网站自动从网上搜索银行业的最新情报，用真实信息替换示例数据',
+    title: '第3集：WorkBuddy的"技能"',
+    desc: '如何调用"技能"对品牌做一个GEO诊断',
     file: '/api/p/videos/workbuddyS1E3.mp4',
   },
   {
