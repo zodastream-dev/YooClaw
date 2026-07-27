@@ -28,7 +28,6 @@ const videos = [
     file: '/api/p/videos/workbuddyS1E4.mp4',
   },
   {
-  {
     id: '5',
     title: '第5集：AI 自动分析',
     desc: 'DeepSeek 自动提取摘要、四维分类、重要性评分',
@@ -40,6 +39,7 @@ const videos = [
     desc: '页面打磨与四大维度功能深化',
     file: '/api/p/videos/workbuddyS1E6.mp4',
   },
+  {
     id: '7',
     title: '第7集：域名与部署',
     desc: '注册域名、购买服务器，让网站正式上线',
