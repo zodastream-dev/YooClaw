@@ -5,7 +5,7 @@ import { Monitor } from 'lucide-react'
 const videos = [
   {
     id: '1',
-    title: '第1集：初识WorkBuddy',
+    title: '第1集：初识 WorkBuddy',
     desc: '下载安装、建立人设、你开发的第一个网游',
     file: '/api/p/videos/workbuddyS1E1.mp4',
   },
@@ -41,7 +41,7 @@ const videos = [
   },
   {
     id: '7',
-    title: '第7集：完成情报网站的任务',
+    title: '第7集：情报网站完工',
     desc: '如何申请第三方应用的接口和api key来优化数据源',
     file: '/api/p/videos/workbuddyS1E7.mp4',
   },
