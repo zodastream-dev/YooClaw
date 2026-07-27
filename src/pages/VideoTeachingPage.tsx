@@ -5,8 +5,8 @@ import { Monitor } from 'lucide-react'
 const videos = [
   {
     id: '1',
-    title: '第1集：认识 WorkBuddy',
-    desc: '安装启动，第一次对话，理解 WorkBuddy 的基本操作',
+    title: '第1集：初识WorkBuddy',
+    desc: '下载安装、建立人设、你开发的第一个网游',
     file: '/api/p/videos/workbuddyS1E1.mp4',
   },
   {
