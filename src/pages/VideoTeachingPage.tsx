@@ -11,8 +11,8 @@ const videos = [
   },
   {
     id: '2',
-    title: '第2集：搭建网站框架',
-    desc: '一句话让 WorkBuddy 创建出完整的银行情报门户页面',
+    title: '第2集：WorkBuddy的基本功能',
+    desc: '选择内置AI模型，调用"专家"',
     file: '/api/p/videos/workbuddyS1E2.mp4',
   },
   {
