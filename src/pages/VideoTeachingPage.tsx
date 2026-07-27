@@ -10,28 +10,16 @@ const videos = [
     file: '/api/p/videos/workbuddyS1E1.mp4',
   },
   {
-    id: '2',
-    title: '第2集：情报门户基础操作',
-    desc: '学习如何使用情报门户、监控配置和情报筛选功能',
-    file: '/api/p/videos/workbuddyS1E2.mp4',
-  },
-  {
-    id: '3',
-    title: '第3集：高级功能与技巧',
-    desc: '掌握WorkBuddy的高级特性和使用技巧',
-    file: '/api/p/videos/workbuddyS1E3.mp4',
-  },
-  {
-    id: '4',
-    title: '第4集：实战案例',
-    desc: '通过实际案例学习如何高效使用WorkBuddy',
-    file: '/api/p/videos/workbuddyS1E4.mp4',
-  },
-  {
     id: '5',
-    title: '第5集：总结与进阶',
-    desc: '回顾核心知识点，探索更多进阶用法',
+    title: '第5集：高级功能与技巧',
+    desc: '掌握WorkBuddy的高级特性和使用技巧',
     file: '/api/p/videos/workbuddyS1E5.mp4',
+  },
+  {
+    id: '6',
+    title: '第6集：实战案例',
+    desc: '通过实际案例学习如何高效使用WorkBuddy',
+    file: '/api/p/videos/workbuddyS1E6.mp4',
   },
 ]
 
