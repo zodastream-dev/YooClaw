@@ -23,14 +23,14 @@ const videos = [
   },
   {
     id: '4',
-    title: '第4集：直达源头抓取',
-    desc: '直接去人民银行、银保监会、新华社财经频道获取权威一手信息',
+    title: '第4集：WorkBuddy的"连接器"',
+    desc: '使用"连接器"与第三方应用互联互通',
     file: '/api/p/videos/workbuddyS1E4.mp4',
   },
   {
     id: '5',
-    title: '第5集：AI 自动分析',
-    desc: 'DeepSeek 自动提取摘要、四维分类、重要性评分',
+    title: '第5集：用WorkBuddy搭建情报收集和分析网站',
+    desc: '搭建网站框架，使用模拟数据',
     file: '/api/p/videos/workbuddyS1E5.mp4',
   },
   {
